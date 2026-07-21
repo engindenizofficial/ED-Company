@@ -1,24 +1,26 @@
-import { readCache, writeCache } from "./cache"
+import { readLastGood, writeLastGood } from "./cache"
 
-async function networkFetch<T>(url: string): Promise<T> {
+/** Raw network request. Throws on non-2xx so callers can keep old data. */
+export async function networkFetch<T>(url: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.error || `İstek başarısız (${res.status})`)
   }
-  return res.json()
+  return (await res.json()) as T
 }
 
-// Cache-aware fetcher: returns fresh (<1h) localStorage data without touching
-// the network, protecting the API-Football quota on page refreshes. A real
-// request only happens on a cache miss (i.e. after the cache is cleared by the
-// refresh button, or once the 1 hour TTL expires).
+// SWR fetcher. This NEVER hits the network when real data is already stored, so
+// opening the site, pressing F5 and clicking matches all reuse the last real
+// API response instead of spending quota. A single bootstrap request runs only
+// when nothing has ever been stored for this key (otherwise the screen would be
+// empty on first ever use). All subsequent live requests go through the refresh
+// button, which calls networkFetch directly.
 export async function fetcher<T>(url: string): Promise<T> {
-  const cached = readCache<T>(url)
-  if (cached !== null) {
-    return cached
-  }
+  const cached = readLastGood<T>(url)
+  if (cached !== null) return cached
+
   const data = await networkFetch<T>(url)
-  writeCache(url, data)
+  writeLastGood(url, data)
   return data
 }

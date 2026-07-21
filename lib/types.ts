@@ -81,11 +81,11 @@ export interface AnalysisResult {
   awayForm: TeamForm
   h2h: FormGame[]
   prediction: Prediction
-  source?: "live" | "mock"
+  source?: "live"
 }
 
 export interface FixturesResponse {
   date: string
   fixtures: Fixture[]
-  source: "live" | "mock"
+  source: "live"
 }

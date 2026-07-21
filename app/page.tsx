@@ -6,8 +6,8 @@ import useSWR from "swr"
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { FixtureList } from "@/components/fixture-list"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { cacheTimestamp, clearCache } from "@/lib/cache"
-import { fetcher } from "@/lib/fetcher"
+import { lastGoodTimestamp, writeLastGood } from "@/lib/cache"
+import { fetcher, networkFetch } from "@/lib/fetcher"
 import type { AnalysisResult, Fixture, FixturesResponse } from "@/lib/types"
 
 function todayISO(): string {
@@ -39,6 +39,7 @@ export default function Page() {
   const [date, setDate] = useState<string>(todayISO())
   const [selected, setSelected] = useState<Fixture | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [simulating, setSimulating] = useState(false)
@@ -58,10 +59,10 @@ export default function Page() {
     data: analysis,
     error: analysisError,
     isLoading: analysisLoading,
+    mutate: mutateAnalysis,
   } = useSWR<AnalysisResult>(analysisKey, fetcher, SWR_OPTIONS)
 
   const fixtures = fixturesData?.fixtures ?? []
-  const usingMock = fixturesData?.source === "mock" || analysis?.source === "mock"
 
   // Live text filter across team, league and country names.
   const filtered = useMemo(() => {
@@ -77,11 +78,18 @@ export default function Page() {
     })
   }, [fixtures, query])
 
-  // Show when the currently displayed fixtures were cached.
+  // Show when the currently displayed fixtures were last pulled from the API.
   useEffect(() => {
-    const ts = cacheTimestamp(fixturesKey)
+    const ts = lastGoodTimestamp(fixturesKey)
     setLastUpdated(
-      ts ? new Date(ts).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : null,
+      ts
+        ? new Date(ts).toLocaleString("tr-TR", {
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : null,
     )
   }, [fixturesKey, fixturesData])
 
@@ -107,17 +115,42 @@ export default function Page() {
     [selected],
   )
 
-  // Refresh button: clear caches, then force a fresh network request.
+  // Refresh button: THE ONLY place that hits the network. It forces a live
+  // request, and only overwrites the stored data when the request succeeds — so
+  // if the API is rate limited/down we keep showing the last real data.
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
-    clearCache(fixturesKey)
-    if (analysisKey) clearCache(analysisKey)
+    setRefreshError(null)
     try {
-      await mutate()
+      const freshFixtures = await networkFetch<FixturesResponse>(fixturesKey)
+      writeLastGood(fixturesKey, freshFixtures)
+      await mutate(freshFixtures, { revalidate: false })
+
+      if (analysisKey) {
+        try {
+          const freshAnalysis = await networkFetch<AnalysisResult>(analysisKey)
+          writeLastGood(analysisKey, freshAnalysis)
+          await mutateAnalysis(freshAnalysis, { revalidate: false })
+        } catch {
+          // Keep the previously stored analysis; the fixtures still refreshed.
+        }
+      }
+
+      setLastUpdated(
+        new Date().toLocaleString("tr-TR", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      )
+    } catch (err) {
+      // Live request failed — keep the last real data on screen, just warn.
+      setRefreshError(err instanceof Error ? err.message : "Canlı veri alınamadı")
     } finally {
       setRefreshing(false)
     }
-  }, [fixturesKey, analysisKey, mutate])
+  }, [fixturesKey, analysisKey, mutate, mutateAnalysis])
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,13 +162,13 @@ export default function Page() {
             <span className="text-foreground">Company</span>
           </h1>
           <div className="flex items-center gap-2">
-            {usingMock ? (
+            {refreshError ? (
               <span
                 className="hidden items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-600 sm:flex dark:text-amber-400"
-                title="Canlı API'ye ulaşılamadı, yedek verilerle çalışılıyor."
+                title={`Canlı veriye ulaşılamadı (${refreshError}). En son API'den çekilen veriler gösteriliyor.`}
               >
                 <DatabaseZap className="h-3.5 w-3.5" />
-                Yedek veri
+                Son çekilen veri
               </span>
             ) : null}
             <label className="relative flex items-center">
@@ -167,6 +200,16 @@ export default function Page() {
       </header>
 
       <main className="mx-auto flex max-w-4xl flex-col gap-4 px-4 py-6">
+        {refreshError ? (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400">
+            <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Canlı veriye ulaşılamadı, en son API&apos;den çekilen gerçek veriler gösteriliyor. Tekrar denemek için
+              sağ üstteki yenileme tuşuna basın.
+            </span>
+          </div>
+        ) : null}
+
         {/* Date + search */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
