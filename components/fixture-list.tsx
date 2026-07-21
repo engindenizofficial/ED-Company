@@ -34,10 +34,12 @@ export function FixtureList({
   fixtures,
   selectedId,
   onSelect,
+  renderExpanded,
 }: {
   fixtures: Fixture[]
   selectedId: number | null
   onSelect: (f: Fixture) => void
+  renderExpanded: (f: Fixture) => React.ReactNode
 }) {
   const groups = groupByLeague(fixtures)
 
@@ -90,6 +92,11 @@ export function FixtureList({
                       </div>
                     </div>
                   </button>
+                  {active ? (
+                    <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-1.5 rounded-lg border border-primary/30 bg-card p-4">
+                      {renderExpanded(f)}
+                    </div>
+                  ) : null}
                 </li>
               )
             })}

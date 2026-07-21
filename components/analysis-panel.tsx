@@ -1,6 +1,7 @@
 "use client"
 
 import { Flame, Goal, Handshake, LoaderCircle, Sparkles, Swords, Target, TrendingUp } from "lucide-react"
+import { useEffect, useState } from "react"
 import type { AnalysisResult, TeamForm } from "@/lib/types"
 import { FormBadge } from "./form-badge"
 import { ProbabilityBar } from "./probability-bar"
@@ -15,17 +16,12 @@ export function AnalysisPanel({
   error: Error | undefined
 }) {
   if (isLoading) {
-    return (
-      <div className="flex h-full min-h-[400px] flex-col items-center justify-center gap-3 text-muted-foreground">
-        <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm">AI Teknik Direktör maçı analiz ediyor...</p>
-      </div>
-    )
+    return <AnalyzingState />
   }
 
   if (error) {
     return (
-      <div className="flex h-full min-h-[400px] flex-col items-center justify-center gap-2 px-6 text-center">
+      <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 px-6 text-center">
         <p className="font-semibold text-destructive">Analiz yapılamadı</p>
         <p className="max-w-sm text-sm text-muted-foreground">{error.message}</p>
       </div>
@@ -34,13 +30,12 @@ export function AnalysisPanel({
 
   if (!data) {
     return (
-      <div className="flex h-full min-h-[400px] flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
-          <Sparkles className="h-6 w-6 text-primary" />
+      <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+          <Sparkles className="h-5 w-5 text-primary" />
         </div>
         <p className="max-w-xs text-balance text-sm">
-          Soldaki listeden bir maç seç. AI Teknik Direktör senin için skor tahmini, kazanma yüzdeleri ve taktiksel bir
-          rapor hazırlasın.
+          AI motoru bu maç için skor tahmini, kazanma yüzdeleri ve taktiksel rapor hazırlıyor.
         </p>
       </div>
     )
@@ -189,6 +184,40 @@ export function AnalysisPanel({
       <p className="text-center text-xs text-muted-foreground">
         Tahminler istatistiksel modelleme sonucudur ve yatırım/bahis tavsiyesi değildir.
       </p>
+    </div>
+  )
+}
+
+const ANALYZING_STEPS = [
+  "Veriler işleniyor...",
+  "Form ivmeleri hesaplanıyor...",
+  "10.000 senaryo simüle ediliyor...",
+  "AI raporu yazılıyor...",
+]
+
+function AnalyzingState() {
+  const [step, setStep] = useState(0)
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStep((s) => (s + 1) % ANALYZING_STEPS.length)
+    }, 450)
+    return () => clearInterval(id)
+  }, [])
+
+  return (
+    <div className="flex min-h-[180px] flex-col items-center justify-center gap-4 py-4 text-center">
+      <div className="relative flex h-14 w-14 items-center justify-center">
+        <span className="absolute inset-0 rounded-full border-2 border-primary/20" />
+        <LoaderCircle className="h-14 w-14 animate-spin text-primary" strokeWidth={1.5} />
+        <Sparkles className="absolute h-5 w-5 text-primary" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <p className="text-sm font-semibold text-foreground">AI Teknik Direktör analiz ediyor</p>
+        <p key={step} className="animate-in fade-in text-xs text-muted-foreground duration-300">
+          {ANALYZING_STEPS[step]}
+        </p>
+      </div>
     </div>
   )
 }

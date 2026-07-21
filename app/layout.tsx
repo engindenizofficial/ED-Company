@@ -7,9 +7,9 @@ const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
 
 export const metadata: Metadata = {
-  title: 'AI Teknik Direktör | Maç Analiz Motoru',
+  title: 'ED Company | Maç Analiz Motoru',
   description:
-    'Günün maçlarını istatistiksel motorla analiz eden AI Teknik Direktör: skor tahmini, kazanma yüzdeleri ve taktiksel rapor.',
+    'Günün maçlarını AI Monte Carlo simülasyonuyla analiz eden ED Company motoru: skor tahmini, kazanma yüzdeleri ve taktiksel rapor.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -44,7 +44,18 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="tr" className={`dark bg-background ${geistSans.variable} ${geistMono.variable}`}>
+    <html
+      lang="tr"
+      className={`bg-background ${geistSans.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="font-sans antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
