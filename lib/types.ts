@@ -82,10 +82,16 @@ export interface AnalysisResult {
   h2h: FormGame[]
   prediction: Prediction
   source?: "live"
+  // Set when the API was rate limited/down and this is the last real data.
+  stale?: boolean
+  cachedAt?: number
 }
 
 export interface FixturesResponse {
   date: string
   fixtures: Fixture[]
   source: "live"
+  // Set when the API was rate limited/down and this is the last real data.
+  stale?: boolean
+  cachedAt?: number
 }

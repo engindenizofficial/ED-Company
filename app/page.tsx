@@ -26,8 +26,8 @@ function normalize(s: string): string {
   return s.toLocaleLowerCase("tr-TR").trim()
 }
 
-// Options that stop SWR from auto-refetching. Data is served from the 1h
-// localStorage cache; the network is only hit on an explicit refresh.
+// Options that stop SWR from auto-refetching. Data is served from the persisted
+// last-good store; the network is only hit on an explicit refresh.
 const SWR_OPTIONS = {
   revalidateOnFocus: false,
   revalidateOnReconnect: false,
@@ -136,8 +136,15 @@ export default function Page() {
         }
       }
 
+      // The server returns real data even when the API is rate limited — it just
+      // flags it as stale. Surface a warning but keep showing that real data.
+      if (freshFixtures.stale) {
+        setRefreshError("API limiti dolu — en son çekilen gerçek veriler gösteriliyor")
+      }
+
+      const stamp = freshFixtures.cachedAt ?? Date.now()
       setLastUpdated(
-        new Date().toLocaleString("tr-TR", {
+        new Date(stamp).toLocaleString("tr-TR", {
           day: "numeric",
           month: "short",
           hour: "2-digit",
@@ -145,7 +152,8 @@ export default function Page() {
         }),
       )
     } catch (err) {
-      // Live request failed — keep the last real data on screen, just warn.
+      // No stored data at all (server never had a success) — keep whatever is on
+      // screen and warn.
       setRefreshError(err instanceof Error ? err.message : "Canlı veri alınamadı")
     } finally {
       setRefreshing(false)
