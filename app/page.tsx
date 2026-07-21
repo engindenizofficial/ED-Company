@@ -62,8 +62,6 @@ export default function Page() {
 
   const fixtures = fixturesData?.fixtures ?? []
   const usingMock = fixturesData?.source === "mock" || analysis?.source === "mock"
-  // Stale = real API data reused because the live request failed (quota/outage).
-  const usingStale = Boolean(fixturesData?.stale || analysis?.stale)
 
   // Live text filter across team, league and country names.
   const filtered = useMemo(() => {
@@ -131,18 +129,10 @@ export default function Page() {
             <span className="text-foreground">Company</span>
           </h1>
           <div className="flex items-center gap-2">
-            {usingStale ? (
+            {usingMock ? (
               <span
                 className="hidden items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-600 sm:flex dark:text-amber-400"
-                title="Canlı API'ye ulaşılamadı (kota/hata). Ekranda API'den çekilmiş son gerçek veriler gösteriliyor."
-              >
-                <DatabaseZap className="h-3.5 w-3.5" />
-                Son gerçek veri
-              </span>
-            ) : usingMock ? (
-              <span
-                className="hidden items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-600 sm:flex dark:text-amber-400"
-                title="Canlı API'ye ulaşılamadı ve daha önce çekilmiş veri yok, yedek verilerle çalışılıyor."
+                title="Canlı API'ye ulaşılamadı, yedek verilerle çalışılıyor."
               >
                 <DatabaseZap className="h-3.5 w-3.5" />
                 Yedek veri

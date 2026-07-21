@@ -3,11 +3,6 @@
 
 const TTL_MS = 60 * 60 * 1000 // 1 hour
 const PREFIX = "aitd-cache:" // AI Teknik Direktör cache namespace
-// Persistent (no TTL) snapshot of the last successful LIVE API response per key.
-// Reused when the live request later fails so we never fall back to synthetic
-// mock data while real (if outdated) data exists. Survives refreshes and the
-// TTL cache being cleared.
-const LAST_GOOD_PREFIX = "aitd-lastgood:"
 
 interface CacheEntry<T> {
   data: T
@@ -43,27 +38,6 @@ export function writeCache<T>(key: string, data: T): void {
     window.localStorage.setItem(PREFIX + key, JSON.stringify(entry))
   } catch {
     // Quota exceeded or serialization error — safe to ignore.
-  }
-}
-
-/** Persist the last successful live response for a key (no expiry). */
-export function writeLastGood<T>(key: string, data: T): void {
-  if (!isBrowser()) return
-  try {
-    window.localStorage.setItem(LAST_GOOD_PREFIX + key, JSON.stringify(data))
-  } catch {
-    // ignore
-  }
-}
-
-/** Read the last successful live response for a key, or null. */
-export function readLastGood<T>(key: string): T | null {
-  if (!isBrowser()) return null
-  try {
-    const raw = window.localStorage.getItem(LAST_GOOD_PREFIX + key)
-    return raw ? (JSON.parse(raw) as T) : null
-  } catch {
-    return null
   }
 }
 

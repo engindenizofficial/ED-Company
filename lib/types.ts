@@ -82,14 +82,10 @@ export interface AnalysisResult {
   h2h: FormGame[]
   prediction: Prediction
   source?: "live" | "mock"
-  // true when the payload is the last real API data reused because the live
-  // request failed (e.g. quota exhausted). Data is real but possibly outdated.
-  stale?: boolean
 }
 
 export interface FixturesResponse {
   date: string
   fixtures: Fixture[]
   source: "live" | "mock"
-  stale?: boolean
 }
