@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { getFixturesByDate } from "@/lib/api-football"
+import { getMockFixtures } from "@/lib/mock-data"
+import type { FixturesResponse } from "@/lib/types"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -7,10 +9,13 @@ export async function GET(request: Request) {
 
   try {
     const fixtures = await getFixturesByDate(date)
-    return NextResponse.json({ date, fixtures })
+    const payload: FixturesResponse = { date, fixtures, source: "live" }
+    return NextResponse.json(payload)
   } catch (err) {
+    // API down or key invalid -> serve backup data so the app keeps working.
     const message = err instanceof Error ? err.message : "Bilinmeyen hata"
-    console.log("[v0] fixtures error:", message)
-    return NextResponse.json({ error: message }, { status: 502 })
+    console.log("[v0] fixtures API failed, serving mock data:", message)
+    const payload: FixturesResponse = { date, fixtures: getMockFixtures(date), source: "mock" }
+    return NextResponse.json(payload)
   }
 }

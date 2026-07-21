@@ -1,12 +1,13 @@
 "use client"
 
-import { CalendarDays, LoaderCircle, RefreshCw, Sparkles } from "lucide-react"
-import { useState } from "react"
+import { CalendarDays, DatabaseZap, LoaderCircle, RefreshCw, Sparkles } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 import useSWR from "swr"
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { FixtureList } from "@/components/fixture-list"
+import { cacheTimestamp, clearCache } from "@/lib/cache"
 import { fetcher } from "@/lib/fetcher"
-import type { AnalysisResult, Fixture } from "@/lib/types"
+import type { AnalysisResult, Fixture, FixturesResponse } from "@/lib/types"
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
@@ -20,28 +21,61 @@ function formatDateLabel(iso: string): string {
   })
 }
 
+// Options that stop SWR from auto-refetching. Data is served from the 1h
+// localStorage cache; the network is only hit on an explicit refresh.
+const SWR_OPTIONS = {
+  revalidateOnFocus: false,
+  revalidateOnReconnect: false,
+  revalidateIfStale: false,
+  dedupingInterval: 60 * 60 * 1000,
+} as const
+
 export default function Page() {
   const [date, setDate] = useState<string>(todayISO())
   const [selected, setSelected] = useState<Fixture | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+
+  const fixturesKey = `/api/fixtures?date=${date}`
+  const analysisKey = selected ? `/api/analyze?fixtureId=${selected.id}` : null
 
   const {
     data: fixturesData,
     error: fixturesError,
     isLoading: fixturesLoading,
     mutate,
-  } = useSWR<{ date: string; fixtures: Fixture[] }>(`/api/fixtures?date=${date}`, fetcher, {
-    revalidateOnFocus: false,
-  })
+  } = useSWR<FixturesResponse>(fixturesKey, fetcher, SWR_OPTIONS)
 
   const {
     data: analysis,
     error: analysisError,
     isLoading: analysisLoading,
-  } = useSWR<AnalysisResult>(selected ? `/api/analyze?fixtureId=${selected.id}` : null, fetcher, {
-    revalidateOnFocus: false,
-  })
+  } = useSWR<AnalysisResult>(analysisKey, fetcher, SWR_OPTIONS)
 
   const fixtures = fixturesData?.fixtures ?? []
+  const usingMock = fixturesData?.source === "mock" || analysis?.source === "mock"
+
+  // Show when the currently displayed fixtures were cached.
+  useEffect(() => {
+    const ts = cacheTimestamp(fixturesKey)
+    setLastUpdated(
+      ts
+        ? new Date(ts).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+        : null,
+    )
+  }, [fixturesKey, fixturesData])
+
+  // Refresh button: clear caches, then force a fresh network request.
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true)
+    clearCache(fixturesKey)
+    if (analysisKey) clearCache(analysisKey)
+    try {
+      await Promise.all([mutate(), analysisKey ? undefined : Promise.resolve()])
+    } finally {
+      setRefreshing(false)
+    }
+  }, [fixturesKey, analysisKey, mutate])
 
   return (
     <div className="min-h-screen bg-background">
@@ -58,6 +92,15 @@ export default function Page() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {usingMock ? (
+              <span
+                className="hidden items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-600 sm:flex dark:text-amber-400"
+                title="Canlı API'ye ulaşılamadı, yedek verilerle çalışılıyor."
+              >
+                <DatabaseZap className="h-3.5 w-3.5" />
+                Yedek veri
+              </span>
+            ) : null}
             <label className="relative flex items-center">
               <CalendarDays className="pointer-events-none absolute left-2.5 h-4 w-4 text-muted-foreground" />
               <input
@@ -73,11 +116,13 @@ export default function Page() {
             </label>
             <button
               type="button"
-              onClick={() => mutate()}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-              aria-label="Maçları yenile"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-60"
+              aria-label="Maçları yenile (canlı istek at)"
+              title="Canlı veriyi yeniden çek"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin text-primary" : ""}`} />
             </button>
           </div>
         </div>
@@ -89,7 +134,10 @@ export default function Page() {
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold capitalize text-foreground">{formatDateLabel(date)}</h2>
             {!fixturesLoading ? (
-              <span className="text-xs text-muted-foreground">{fixtures.length} maç</span>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {lastUpdated ? <span>Son güncelleme: {lastUpdated}</span> : null}
+                <span>{fixtures.length} maç</span>
+              </div>
             ) : null}
           </div>
 
