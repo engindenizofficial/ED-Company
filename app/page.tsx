@@ -50,7 +50,6 @@ export default function Page() {
 
   const {
     data: fixturesData,
-    error: fixturesError,
     isLoading: fixturesLoading,
     mutate,
   } = useSWR<FixturesResponse>(fixturesKey, fetcher, SWR_OPTIONS)
@@ -208,16 +207,6 @@ export default function Page() {
       </header>
 
       <main className="mx-auto flex max-w-4xl flex-col gap-4 px-4 py-6">
-        {refreshError ? (
-          <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400">
-            <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              Canlı veriye ulaşılamadı, en son API&apos;den çekilen gerçek veriler gösteriliyor. Tekrar denemek için
-              sağ üstteki yenileme tuşuna basın.
-            </span>
-          </div>
-        ) : null}
-
         {/* Date + search */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
@@ -248,11 +237,6 @@ export default function Page() {
           <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-12 text-sm text-muted-foreground">
             <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
             Maçlar yükleniyor...
-          </div>
-        ) : fixturesError ? (
-          <div className="flex flex-col items-center gap-1 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-8 text-center">
-            <p className="text-sm font-medium text-destructive">Maçlar yüklenemedi</p>
-            <p className="text-xs text-muted-foreground">{(fixturesError as Error).message}</p>
           </div>
         ) : fixtures.length === 0 ? (
           <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
