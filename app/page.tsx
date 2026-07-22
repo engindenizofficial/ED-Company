@@ -8,6 +8,7 @@ import { FixtureList } from "@/components/fixture-list"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { lastGoodTimestamp, writeLastGood } from "@/lib/cache"
 import { fetcher, networkFetch } from "@/lib/fetcher"
+import { buildSearchIndex } from "@/lib/tr-aliases"
 import type { AnalysisResult, Fixture, FixturesResponse } from "@/lib/types"
 
 function todayISO(): string {
@@ -63,18 +64,13 @@ export default function Page() {
 
   const fixtures = fixturesData?.fixtures ?? []
 
-  // Live text filter across team, league and country names.
+  // Live text filter across team, league and country names — including Turkish
+  // aliases (e.g. "Almanya" matches "Germany", "Şampiyonlar Ligi" matches
+  // "Champions League").
   const filtered = useMemo(() => {
     const q = normalize(query)
     if (!q) return fixtures
-    return fixtures.filter((f) => {
-      return (
-        normalize(f.home.name).includes(q) ||
-        normalize(f.away.name).includes(q) ||
-        normalize(f.league.name).includes(q) ||
-        normalize(f.league.country).includes(q)
-      )
-    })
+    return fixtures.filter((f) => buildSearchIndex(f).includes(q))
   }, [fixtures, query])
 
   // Show when the currently displayed fixtures were last pulled from the API.

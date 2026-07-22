@@ -12,6 +12,62 @@ function kickoff(iso: string): string {
   })
 }
 
+// Statuses for a match that is currently being played.
+const LIVE_STATUSES = new Set(["1H", "2H", "ET", "BT", "P", "LIVE", "INT", "SUSP", "HT"])
+
+function isLive(short: string): boolean {
+  return LIVE_STATUSES.has(short)
+}
+
+// Translate API-Football short status codes into Turkish labels.
+function statusLabel(short: string): string {
+  switch (short) {
+    case "FT":
+      return "MS" // Maç Sonu
+    case "AET":
+      return "MS (uzatma)"
+    case "PEN":
+      return "MS (pen.)"
+    case "HT":
+      return "İY" // İlk Yarı
+    case "1H":
+      return "1. Yarı"
+    case "2H":
+      return "2. Yarı"
+    case "ET":
+      return "Uzatma"
+    case "BT":
+      return "Devre arası"
+    case "P":
+      return "Penaltılar"
+    case "SUSP":
+      return "Durduruldu"
+    case "INT":
+      return "Ara verildi"
+    case "PST":
+      return "Ertelendi"
+    case "CANC":
+      return "İptal"
+    case "ABD":
+      return "Tatil edildi"
+    case "TBD":
+      return "Belirsiz"
+    case "NS":
+      return "Başlamadı"
+    default:
+      return short
+  }
+}
+
+// What to show inside the live badge: the elapsed minute, or a short label.
+function liveText(f: Fixture): string {
+  if (f.statusShort === "HT") return "İY"
+  if (f.statusShort === "BT") return "Devre arası"
+  if (f.statusShort === "P") return "Penaltılar"
+  if (typeof f.elapsed === "number") return `${f.elapsed}'`
+  return statusLabel(f.statusShort)
+}
+
 function groupByLeague(fixtures: Fixture[]) {
   const groups = new Map<number, { id: number; name: string; country: string; logo: string; items: Fixture[] }>()
   for (const f of fixtures) {
@@ -60,7 +116,9 @@ export function FixtureList({
           <ul className="flex flex-col gap-1.5">
             {group.items.map((f) => {
               const active = f.id === selectedId
-              const played = f.statusShort !== "NS" && f.statusShort !== "TBD"
+              const live = isLive(f.statusShort)
+              // Show a score once the match has kicked off (live or finished).
+              const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
               return (
                 <li key={f.id}>
                   <button
@@ -84,9 +142,14 @@ export function FixtureList({
                           <Clock className="h-3 w-3" />
                           {kickoff(f.date)}
                         </span>
-                        {played ? (
+                        {live ? (
+                          <span className="flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-destructive">
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
+                            {liveText(f)}
+                          </span>
+                        ) : played ? (
                           <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium">
-                            {f.statusShort}
+                            {statusLabel(f.statusShort)}
                           </span>
                         ) : null}
                       </div>

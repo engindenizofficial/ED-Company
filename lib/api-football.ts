@@ -58,7 +58,7 @@ interface RawFixture {
     id: number
     date: string
     timestamp: number
-    status: { long: string; short: string }
+    status: { long: string; short: string; elapsed: number | null }
     venue: { name: string | null }
   }
   league: { id: number; name: string; country: string; logo: string; season: number; round: string }
@@ -76,6 +76,7 @@ function mapFixture(r: RawFixture): Fixture {
     timestamp: r.fixture.timestamp,
     status: r.fixture.status.long,
     statusShort: r.fixture.status.short,
+    elapsed: r.fixture.status.elapsed ?? null,
     venue: r.fixture.venue?.name ?? null,
     league: {
       id: r.league.id,

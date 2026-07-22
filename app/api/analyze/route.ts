@@ -20,9 +20,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Maç bulunamadı." }, { status: 404 })
     }
 
+    // Base form stats on each team's last 5 official matches so the numbers
+    // match the G-B-M form badges shown in the UI.
     const [homeForm, awayForm, h2h] = await Promise.all([
-      getTeamForm(fixture.home, 10),
-      getTeamForm(fixture.away, 10),
+      getTeamForm(fixture.home, 5),
+      getTeamForm(fixture.away, 5),
       getHeadToHead(fixture.home.id, fixture.away.id, 6),
     ])
 

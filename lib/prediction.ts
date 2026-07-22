@@ -223,6 +223,14 @@ interface ReportCtx {
   confidence: number
 }
 
+// Convert an English W/D/L form string to Turkish standards (G/B/M).
+function formStringTr(s: string): string {
+  return s
+    .split("")
+    .map((c) => (c === "W" ? "G" : c === "D" ? "B" : c === "L" ? "M" : c))
+    .join("")
+}
+
 function momentumWord(m: number): string {
   if (m > 0.45) return "yükselen bir ivmeyle"
   if (m > 0.1) return "istikrarlı bir formda"
@@ -243,12 +251,12 @@ function buildReport(homeForm: TeamForm, awayForm: TeamForm, h2h: FormGame[], ct
   lines.push(
     `${homeName} evinde maç başına ortalama ${homeForm.homeAvgScored.toFixed(1)} gol atıp ${homeForm.homeAvgConceded.toFixed(
       1,
-    )} gol yiyor ve sahaya ${momentumWord(ctx.homeMom)} çıkıyor (form: ${homeForm.formString || "veri yok"}).`,
+    )} gol yiyor ve sahaya ${momentumWord(ctx.homeMom)} çıkıyor (form: ${formStringTr(homeForm.formString) || "veri yok"}).`,
   )
   lines.push(
     `${awayName} deplasmanda ortalama ${awayForm.awayAvgScored.toFixed(1)} gol üretip ${awayForm.awayAvgConceded.toFixed(
       1,
-    )} gol yiyor ve ${momentumWord(ctx.awayMom)} geliyor (form: ${awayForm.formString || "veri yok"}).`,
+    )} gol yiyor ve ${momentumWord(ctx.awayMom)} geliyor (form: ${formStringTr(awayForm.formString) || "veri yok"}).`,
   )
 
   // Tactical read derived from the simulated expected goals + pressure.

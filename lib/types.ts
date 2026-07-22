@@ -19,6 +19,8 @@ export interface Fixture {
   timestamp: number
   status: string
   statusShort: string
+  // Live elapsed minute (only present while the match is being played).
+  elapsed: number | null
   venue: string | null
   league: LeagueInfo
   home: TeamInfo
