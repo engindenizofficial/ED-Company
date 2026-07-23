@@ -6,9 +6,16 @@ import type { AnalysisResponse, LiveMatchData } from "@/lib/types"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-// Canlı maç durumlarını tanımlayan set. Sadece bu durumdaki maçlarda
-// refresh=1 Redis'i atlayarak API'ye gider.
-const LIVE_STATUSES = new Set(["1H", "2H", "HT", "ET", "BT", "P", "LIVE"])
+// Bir maçın kickoff timestamp'ine (Unix saniye) bakarak şu an canlı olup
+// olmadığını hesaplar. API'ye hiç istek atmadan, saf zaman karşılaştırması.
+// Maçlar ortalama 90 dk + 25 dk uzatma = 115 dk sürebilir.
+const MATCH_DURATION_MS = 115 * 60 * 1000
+
+function isMatchLiveByTime(kickoffUnixSec: number): boolean {
+  const now = Date.now()
+  const kickoffMs = kickoffUnixSec * 1000
+  return now >= kickoffMs && now <= kickoffMs + MATCH_DURATION_MS
+}
 
 // Powers the detail panel: LIVE API-Football data (refreshable) + the LOCKED
 // Gemini prediction (generated once, never changes).
@@ -16,17 +23,17 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const fixtureId = Number(searchParams.get("fixtureId"))
   const refresh = searchParams.get("refresh") === "1"
-  // Client tarafından maçın anlık durumunu alıyoruz (opsiyonel).
-  const statusParam = searchParams.get("status") ?? ""
+  // Client'tan gelen kickoff Unix timestamp (saniye). Bunu kullanarak
+  // sunucu tarafında maçın canlı olup olmadığını hesaplıyoruz.
+  const kickoff = Number(searchParams.get("kickoff") ?? "0")
 
   if (!fixtureId) {
     return NextResponse.json({ error: "fixtureId gerekli." }, { status: 400 })
   }
 
-  // refresh=1 yalnızca gerçekten canlı maçlarda Redis'i atlar.
-  // Oynanmamış (NS, TBD) veya bitmiş (FT, AET, PEN vb.) maçlar için
-  // refresh isteği gelse bile Redis cache'den servis edilir.
-  const isLive = LIVE_STATUSES.has(statusParam.toUpperCase())
+  // refresh=1 yalnızca kickoff zamanına göre canlı sayılan maçlarda Redis'i atlar.
+  // Oynanmamış veya bitmiş maçlarda refresh gelse bile Redis'ten döner — gereksiz API harcaması önlenir.
+  const isLive = kickoff > 0 ? isMatchLiveByTime(kickoff) : false
   const shouldBypassCache = refresh && isLive
 
   try {
