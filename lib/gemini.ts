@@ -1,84 +1,13 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai"
 import type { Fixture, GeminiPrediction, LiveMatchData } from "./types"
 
-const MODEL = "gemini-2.5-flash"
+// Use the REST API directly so we are not tied to the SDK's v1beta default.
+const MODEL = "gemini-3.5-flash"
+const BASE = "https://generativelanguage.googleapis.com/v1beta"
 
-function getClient() {
+function apiKey(): string {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error("GEMINI_API_KEY tanımlı değil.")
-  return new GoogleGenerativeAI(key)
-}
-
-// JSON schema for structured output (Gemini responseSchema)
-const predictionResponseSchema = {
-  type: SchemaType.OBJECT,
-  properties: {
-    score: {
-      type: SchemaType.OBJECT,
-      properties: {
-        home: { type: SchemaType.INTEGER, description: "Ev sahibi tahmini gol" },
-        away: { type: SchemaType.INTEGER, description: "Deplasman tahmini gol" },
-      },
-      required: ["home", "away"],
-    },
-    halfTimeScore: {
-      type: SchemaType.OBJECT,
-      properties: {
-        home: { type: SchemaType.INTEGER },
-        away: { type: SchemaType.INTEGER },
-      },
-      required: ["home", "away"],
-    },
-    winner: {
-      type: SchemaType.STRING,
-      enum: ["home", "draw", "away"],
-      description: "En olası sonuç",
-    },
-    homeWinPct: { type: SchemaType.NUMBER, description: "Ev sahibi kazanma olasılığı (0-100)" },
-    drawPct: { type: SchemaType.NUMBER, description: "Beraberlik olasılığı (0-100)" },
-    awayWinPct: { type: SchemaType.NUMBER, description: "Deplasman kazanma olasılığı (0-100)" },
-    over25Pct: { type: SchemaType.NUMBER, description: "2.5 üst olasılığı (0-100)" },
-    under25Pct: { type: SchemaType.NUMBER, description: "2.5 alt olasılığı (0-100)" },
-    bttsPct: { type: SchemaType.NUMBER, description: "Karşılıklı gol (KG Var) olasılığı (0-100)" },
-    cornersEstimate: { type: SchemaType.STRING, description: "Korner beklentisi, örn '9-11 korner'" },
-    cardsEstimate: { type: SchemaType.STRING, description: "Kart beklentisi, örn '4-5 sarı kart'" },
-    firstToScore: {
-      type: SchemaType.STRING,
-      enum: ["home", "away", "none"],
-    },
-    expectedGoalsHome: { type: SchemaType.NUMBER, description: "Ev sahibi beklenen gol (xG)" },
-    expectedGoalsAway: { type: SchemaType.NUMBER, description: "Deplasman beklenen gol (xG)" },
-    confidence: { type: SchemaType.NUMBER, description: "Tahmine olan güven yüzdesi (0-100)" },
-    keyFactors: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING },
-      description: "Tahmini şekillendiren 3-6 anahtar madde (Türkçe)",
-    },
-    analysis: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING },
-      description: "2-5 detaylı teknik analiz paragrafı (Türkçe)",
-    },
-  },
-  required: [
-    "score",
-    "halfTimeScore",
-    "winner",
-    "homeWinPct",
-    "drawPct",
-    "awayWinPct",
-    "over25Pct",
-    "under25Pct",
-    "bttsPct",
-    "cornersEstimate",
-    "cardsEstimate",
-    "firstToScore",
-    "expectedGoalsHome",
-    "expectedGoalsAway",
-    "confidence",
-    "keyFactors",
-    "analysis",
-  ],
+  return key
 }
 
 /**
@@ -113,52 +42,87 @@ export async function generateGeminiPrediction(
     apiFootballTahminVerisi: apiPredictionRaw,
   }
 
-  const systemInstruction =
+  const systemText =
     "Sen dünyanın en iyi futbol analistisin. Sana verilen tüm istatistiksel ve canlı verileri " +
     "derinlemesine analiz ederek profesyonel bir maç tahmini üretiyorsun. Yalnızca verilen verilere " +
     "dayan, veri uydurma. Tüm metinsel çıktıları akıcı ve profesyonel Türkçe ile yaz. " +
-    "Yüzde değerlerini tutarlı ver: homeWinPct + drawPct + awayWinPct = 100, over25Pct + under25Pct = 100."
+    "Yüzde değerlerini tutarlı ver: homeWinPct + drawPct + awayWinPct = 100, over25Pct + under25Pct = 100. " +
+    "Yanıtını şu JSON şemasına tam uygun üret ve yalnızca JSON döndür, başka hiçbir şey yazma."
 
-  const prompt =
-    "Aşağıdaki maç için kapsamlı bir tahmin üret. Skor tahmini, ilk yarı skoru, kazanan, kazanma " +
-    "olasılıkları, gol marketleri (2.5 alt/üst, KG Var), korner ve kart beklentisi, beklenen goller, " +
-    "güven yüzdesi, anahtar faktörler ve detaylı teknik analiz ver.\n\nVERİLER (JSON):\n" +
+  const schemaDescription = `{
+  "score": {"home": integer, "away": integer},
+  "halfTimeScore": {"home": integer, "away": integer},
+  "winner": "home" | "draw" | "away",
+  "homeWinPct": number (0-100),
+  "drawPct": number (0-100),
+  "awayWinPct": number (0-100),
+  "over25Pct": number (0-100),
+  "under25Pct": number (0-100),
+  "bttsPct": number (0-100),
+  "cornersEstimate": string (e.g. "9-11 korner"),
+  "cardsEstimate": string (e.g. "4-5 sarı kart"),
+  "firstToScore": "home" | "away" | "none",
+  "expectedGoalsHome": number,
+  "expectedGoalsAway": number,
+  "confidence": number (0-100),
+  "keyFactors": string[] (3-6 maddde, Türkçe),
+  "analysis": string[] (2-5 paragraf, Türkçe)
+}`
+
+  const userPrompt =
+    "Aşağıdaki maç için kapsamlı bir tahmin üret. " +
+    "Skor tahmini, ilk yarı skoru, kazanan, kazanma olasılıkları, gol marketleri, " +
+    "korner ve kart beklentisi, beklenen goller, güven yüzdesi, anahtar faktörler ve detaylı teknik analiz ver.\n\n" +
+    "Beklenen JSON şeması:\n" +
+    schemaDescription +
+    "\n\nVERİLER:\n" +
     JSON.stringify(payload)
 
-  const client = getClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const model = client.getGenerativeModel({
-    model: MODEL,
-    systemInstruction,
+  const body = {
+    system_instruction: { parts: [{ text: systemText }] },
+    contents: [{ role: "user", parts: [{ text: userPrompt }] }],
     generationConfig: {
       responseMimeType: "application/json",
-      responseSchema: predictionResponseSchema as any,
+      temperature: 0.4,
     },
+  }
+
+  const res = await fetch(`${BASE}/models/${MODEL}:generateContent?key=${apiKey()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   })
 
-  const result = await model.generateContent(prompt)
-  const text = result.response.text()
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`Gemini API hatası (${res.status}): ${errText.slice(0, 300)}`)
+  }
+
+  const data = await res.json()
+  const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!text) throw new Error("Gemini boş yanıt döndürdü.")
+
   const parsed = JSON.parse(text)
 
   return {
-    score: parsed.score,
-    halfTimeScore: parsed.halfTimeScore,
-    winner: parsed.winner,
-    homeWinPct: parsed.homeWinPct,
-    drawPct: parsed.drawPct,
-    awayWinPct: parsed.awayWinPct,
-    over25Pct: parsed.over25Pct,
-    under25Pct: parsed.under25Pct,
-    bttsPct: parsed.bttsPct,
-    cornersEstimate: parsed.cornersEstimate,
-    cardsEstimate: parsed.cardsEstimate,
-    firstToScore: parsed.firstToScore,
-    expectedGoalsHome: parsed.expectedGoalsHome,
-    expectedGoalsAway: parsed.expectedGoalsAway,
-    confidence: parsed.confidence,
+    score: parsed.score ?? { home: 1, away: 1 },
+    halfTimeScore: parsed.halfTimeScore ?? { home: 0, away: 0 },
+    winner: parsed.winner ?? "draw",
+    homeWinPct: parsed.homeWinPct ?? 33,
+    drawPct: parsed.drawPct ?? 34,
+    awayWinPct: parsed.awayWinPct ?? 33,
+    over25Pct: parsed.over25Pct ?? 50,
+    under25Pct: parsed.under25Pct ?? 50,
+    bttsPct: parsed.bttsPct ?? 40,
+    cornersEstimate: parsed.cornersEstimate ?? "-",
+    cardsEstimate: parsed.cardsEstimate ?? "-",
+    firstToScore: parsed.firstToScore ?? "none",
+    expectedGoalsHome: parsed.expectedGoalsHome ?? 1,
+    expectedGoalsAway: parsed.expectedGoalsAway ?? 1,
+    confidence: parsed.confidence ?? 50,
     keyFactors: parsed.keyFactors ?? [],
     analysis: parsed.analysis ?? [],
-    model: "Gemini 2.5 Flash",
+    model: `Gemini ${MODEL}`,
     generatedAt: Date.now(),
   }
 }
