@@ -62,7 +62,9 @@ export default function Page() {
   const inFlight = useRef<Set<number>>(new Set())
 
   const fixturesKey = `/api/fixtures?date=${date}`
-  const analysisKey = selected ? `/api/analyze?fixtureId=${selected.id}` : null
+  const analysisKey = selected
+    ? `/api/analyze?fixtureId=${selected.id}&status=${encodeURIComponent(selected.status ?? "")}`
+    : null
 
   const {
     data: fixturesData,
@@ -234,6 +236,7 @@ export default function Page() {
 
       if (analysisKey) {
         try {
+          // status zaten analysisKey içinde, sadece refresh=1 ekliyoruz.
           const freshAnalysis = await networkFetch<AnalysisResponse>(`${analysisKey}&refresh=1`)
           await mutateAnalysis(freshAnalysis, { revalidate: false })
         } catch {
