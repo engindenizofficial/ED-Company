@@ -63,11 +63,7 @@ export default function Page() {
   const inFlight = useRef<Set<number>>(new Set())
 
   const fixturesKey = `/api/fixtures?date=${date}`
-  // Maçın başlangıç timestamp'ini (Unix saniye) gönderiyoruz.
-  // Sunucu bu değerden "şu an canlı mı?" sorusunu hesaplar — API'ye sormaz.
-  const analysisKey = selected
-    ? `/api/analyze?fixtureId=${selected.id}&kickoff=${selected.timestamp}`
-    : null
+  const analysisKey = selected ? `/api/analyze?fixtureId=${selected.id}` : null
 
   const {
     data: fixturesData,
@@ -231,7 +227,6 @@ export default function Page() {
 
       if (analysisKey) {
         try {
-          // kickoff zaten analysisKey içinde; sunucu canlılığı oradan hesaplar.
           const freshAnalysis = await networkFetch<AnalysisResponse>(`${analysisKey}&refresh=1`)
           await mutateAnalysis(freshAnalysis, { revalidate: false })
         } catch {
