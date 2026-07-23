@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarDays, DatabaseZap, LoaderCircle, RefreshCw, Search } from "lucide-react"
+import { DatabaseZap, LoaderCircle, RefreshCw, Search } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import useSWR from "swr"
 import { AnalysisPanel } from "@/components/analysis-panel"
@@ -10,8 +10,9 @@ import { fetcher, networkFetch } from "@/lib/fetcher"
 import { buildSearchIndex } from "@/lib/tr-aliases"
 import type { AnalysisResponse, FixtureWithPrediction, FixturesResponse, GeminiPrediction } from "@/lib/types"
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10)
+// Türkiye saatiyle bugünün tarihini döndürür (YYYY-MM-DD).
+function todayTR(): string {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
 }
 
 function formatDateLabel(iso: string): string {
@@ -48,7 +49,7 @@ const SWR_OPTIONS = {
 type CardScore = { home: number; away: number; winner: "home" | "draw" | "away" }
 
 export default function Page() {
-  const [date, setDate] = useState<string>(todayISO())
+  const date = todayTR()
   const [selected, setSelected] = useState<FixtureWithPrediction | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
@@ -93,14 +94,6 @@ export default function Page() {
   useEffect(() => {
     cardScoresRef.current = cardScores
   }, [cardScores])
-
-  // Reset per-date generation bookkeeping when the date changes.
-  useEffect(() => {
-    setCardScores({})
-    cardScoresRef.current = {}
-    setPendingIds(new Set())
-    inFlight.current = new Set()
-  }, [date])
 
   // Update the "last updated" label from the payload timestamp.
   useEffect(() => {
@@ -275,19 +268,6 @@ export default function Page() {
                 Kayıtlı veri
               </span>
             ) : null}
-            <label className="relative flex items-center">
-              <CalendarDays className="pointer-events-none absolute left-2.5 h-4 w-4 text-muted-foreground" />
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => {
-                  setDate(e.target.value)
-                  setSelected(null)
-                }}
-                className="rounded-lg border border-border bg-card py-1.5 pl-8 pr-2 text-sm text-foreground outline-none focus:border-primary"
-                aria-label="Tarih seç"
-              />
-            </label>
             <button
               type="button"
               onClick={handleRefresh}

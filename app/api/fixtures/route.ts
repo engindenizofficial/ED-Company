@@ -5,9 +5,15 @@ import type { Fixture, FixturesResponse, FixtureWithPrediction } from "@/lib/typ
 
 export const dynamic = "force-dynamic"
 
+// Türkiye saatiyle bugünün tarihini döndürür (YYYY-MM-DD).
+function todayTR(): string {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const date = searchParams.get("date") ?? new Date().toISOString().slice(0, 10)
+  // Parametre gelse bile her zaman Türkiye saatiyle bugünü kullan.
+  const date = todayTR()
   const refresh = searchParams.get("refresh") === "1"
 
   try {
