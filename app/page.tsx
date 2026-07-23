@@ -1,34 +1,14 @@
 "use client"
 
-import { CalendarDays, DatabaseZap, KeyRound, LoaderCircle, RefreshCw, Search } from "lucide-react"
+import { CalendarDays, DatabaseZap, LoaderCircle, RefreshCw, Search } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import useSWR from "swr"
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { FixtureList } from "@/components/fixture-list"
-import { KeysModal, type ApiKeys } from "@/components/keys-modal"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { fetcher, networkFetch } from "@/lib/fetcher"
 import { buildSearchIndex } from "@/lib/tr-aliases"
 import type { AnalysisResponse, FixtureWithPrediction, FixturesResponse, GeminiPrediction } from "@/lib/types"
-
-const KEYS_STORAGE_KEY = "ed_api_keys"
-
-function loadKeys(): ApiKeys {
-  if (typeof window === "undefined") return { apiFootballKey: "", geminiKey: "" }
-  try {
-    const raw = localStorage.getItem(KEYS_STORAGE_KEY)
-    if (!raw) return { apiFootballKey: "", geminiKey: "" }
-    return JSON.parse(raw) as ApiKeys
-  } catch {
-    return { apiFootballKey: "", geminiKey: "" }
-  }
-}
-
-function saveKeys(keys: ApiKeys) {
-  try {
-    localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(keys))
-  } catch { /* ignore */ }
-}
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
@@ -68,27 +48,6 @@ const SWR_OPTIONS = {
 type CardScore = { home: number; away: number; winner: "home" | "draw" | "away" }
 
 export default function Page() {
-  const [keys, setKeys] = useState<ApiKeys>({ apiFootballKey: "", geminiKey: "" })
-  const [keysModalOpen, setKeysModalOpen] = useState(false)
-  const [keysReady, setKeysReady] = useState(false)
-
-  // On mount: load saved keys; open modal if any key is missing.
-  useEffect(() => {
-    const saved = loadKeys()
-    setKeys(saved)
-    if (!saved.apiFootballKey || !saved.geminiKey) {
-      setKeysModalOpen(true)
-    } else {
-      setKeysReady(true)
-    }
-  }, [])
-
-  const handleKeysSave = useCallback((newKeys: ApiKeys) => {
-    saveKeys(newKeys)
-    setKeys(newKeys)
-    setKeysReady(true)
-  }, [])
-
   const [date, setDate] = useState<string>(todayISO())
   const [selected, setSelected] = useState<FixtureWithPrediction | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -265,12 +224,6 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-background">
-      <KeysModal
-        open={keysModalOpen}
-        onClose={() => setKeysModalOpen(false)}
-        onSave={handleKeysSave}
-        initialKeys={keys}
-      />
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <h1 className="text-xl font-extrabold leading-none tracking-tight">
@@ -309,15 +262,6 @@ export default function Page() {
               title="Canlı veriyi yeniden çek (tahminler kilitli kalır)"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin text-primary" : ""}`} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setKeysModalOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-              aria-label="API anahtarlarını düzenle"
-              title="API anahtarlarını düzenle"
-            >
-              <KeyRound className="h-4 w-4" />
             </button>
             <ThemeToggle />
           </div>
