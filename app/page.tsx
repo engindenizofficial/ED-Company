@@ -96,9 +96,11 @@ export default function Page() {
     if (fixturesData?.cachedAt) setLastUpdated(formatStamp(fixturesData.cachedAt))
   }, [fixturesData])
 
-  // Generate locked Gemini score predictions for any listed fixture that
-  // doesn't have one yet, with limited concurrency. Once generated they are
-  // stored in Redis, so this only ever happens once per match globally.
+  // Generate locked Gemini score predictions for fixtures that don't have one
+  // yet. Runs strictly one-at-a-time in screen order with a 3-second pause
+  // between requests so we never flood the Gemini API. Once a prediction is
+  // stored in Redis it is never re-requested, so the delay only applies to
+  // the very first generation globally.
   useEffect(() => {
     if (filtered.length === 0) return
 
@@ -109,8 +111,6 @@ export default function Page() {
     if (queue.length === 0) return
 
     let cancelled = false
-    const CONCURRENCY = 2
-    let cursor = 0
 
     const markPending = (id: number, on: boolean) => {
       setPendingIds((prev) => {
@@ -121,19 +121,22 @@ export default function Page() {
       })
     }
 
-    async function worker() {
-      while (!cancelled && cursor < queue.length) {
-        const id = queue[cursor++]
+    async function runQueue() {
+      for (const id of queue) {
+        if (cancelled) break
         if (inFlight.current.has(id)) continue
+
         inFlight.current.add(id)
         markPending(id, true)
         const fixture = filtered.find((f) => f.id === id)
+
         try {
           const res = await fetch("/api/predict", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fixture }),
           }).then((r) => r.json() as Promise<{ prediction: GeminiPrediction }>)
+
           if (!cancelled && res?.prediction) {
             setCardScores((prev) => ({
               ...prev,
@@ -150,11 +153,13 @@ export default function Page() {
           inFlight.current.delete(id)
           markPending(id, false)
         }
+
+        // 3-second gap between requests to avoid Gemini rate limits.
+        if (!cancelled) await new Promise((r) => setTimeout(r, 3000))
       }
     }
 
-    const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker)
-    Promise.all(workers)
+    runQueue()
 
     return () => {
       cancelled = true
