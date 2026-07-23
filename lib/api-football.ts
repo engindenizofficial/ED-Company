@@ -1,4 +1,16 @@
-import type { Fixture, FormGame, TeamForm, TeamInfo } from "./types"
+import type {
+  Fixture,
+  FormGame,
+  InjuryItem,
+  LineupPlayer,
+  LiveMatchData,
+  MatchEvent,
+  StandingRow,
+  StatItem,
+  TeamInfo,
+  TeamLineup,
+  TeamSeasonStats,
+} from "./types"
 
 const BASE_URL = "https://v3.football.api-sports.io"
 
@@ -12,6 +24,7 @@ export const FEATURED_LEAGUES = [
   203, // Süper Lig
   2, // Champions League
   3, // Europa League
+  848, // Conference League
   88, // Eredivisie
   94, // Primeira Liga
 ]
@@ -24,21 +37,22 @@ class ApiFootballError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, params: Record<string, string | number>): Promise<T[]> {
+async function apiFetch<T>(
+  path: string,
+  params: Record<string, string | number>,
+  revalidate = 60,
+): Promise<T[]> {
   const key = process.env.API_FOOTBALL_KEY
   if (!key) {
     throw new ApiFootballError("API_FOOTBALL_KEY tanımlı değil.", 500)
   }
 
   const search = new URLSearchParams()
-  for (const [k, v] of Object.entries(params)) {
-    search.set(k, String(v))
-  }
+  for (const [k, v] of Object.entries(params)) search.set(k, String(v))
 
   const res = await fetch(`${BASE_URL}${path}?${search.toString()}`, {
     headers: { "x-apisports-key": key },
-    // Cache fixtures briefly to stay within rate limits
-    next: { revalidate: 120 },
+    next: { revalidate },
   })
 
   if (!res.ok) {
@@ -46,12 +60,31 @@ async function apiFetch<T>(path: string, params: Record<string, string | number>
   }
 
   const json = await res.json()
-  if (json.errors && Object.keys(json.errors).length > 0) {
+  if (json.errors && !Array.isArray(json.errors) && Object.keys(json.errors).length > 0) {
     const msg = Object.values(json.errors).join(" ")
     throw new ApiFootballError(String(msg || "API-Football hatası"), 502)
   }
   return (json.response as T[]) ?? []
 }
+
+/** Best-effort fetch: returns [] instead of throwing so one dead endpoint
+ * doesn't sink the whole aggregation. */
+async function safeFetch<T>(
+  path: string,
+  params: Record<string, string | number>,
+  revalidate = 60,
+): Promise<T[]> {
+  try {
+    return await apiFetch<T>(path, params, revalidate)
+  } catch (err) {
+    console.log(`[v0] api-football ${path} failed:`, err instanceof Error ? err.message : err)
+    return []
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Raw types
+// ---------------------------------------------------------------------------
 
 interface RawFixture {
   fixture: {
@@ -93,11 +126,14 @@ function mapFixture(r: RawFixture): Fixture {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
 export async function getFixturesByDate(date: string): Promise<Fixture[]> {
-  const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: "Europe/Istanbul" })
+  const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: "Europe/Istanbul" }, 120)
   const fixtures = raw.map(mapFixture)
 
-  // Sort featured leagues first, then by kickoff time
   fixtures.sort((a, b) => {
     const ai = FEATURED_LEAGUES.indexOf(a.league.id)
     const bi = FEATURED_LEAGUES.indexOf(b.league.id)
@@ -111,128 +147,240 @@ export async function getFixturesByDate(date: string): Promise<Fixture[]> {
 }
 
 export async function getFixtureById(id: number): Promise<Fixture | null> {
-  const raw = await apiFetch<RawFixture>("/fixtures", { id })
+  const raw = await apiFetch<RawFixture>("/fixtures", { id }, 30)
   if (raw.length === 0) return null
   return mapFixture(raw[0])
 }
 
-function buildForm(team: TeamInfo, raw: RawFixture[]): TeamForm {
-  const games: FormGame[] = []
-  let wins = 0
-  let draws = 0
-  let losses = 0
-  let goalsFor = 0
-  let goalsAgainst = 0
-  let homeScored = 0
-  let homeConceded = 0
-  let homeGames = 0
-  let awayScored = 0
-  let awayConceded = 0
-  let awayGames = 0
+// ---------------------------------------------------------------------------
+// Match detail helpers
+// ---------------------------------------------------------------------------
 
-  // API returns most recent first; keep only finished games
+function buildRecentForm(team: TeamInfo, raw: RawFixture[]): FormGame[] {
+  const games: FormGame[] = []
   for (const r of raw) {
-    if (!r.fixture.status.short.match(/FT|AET|PEN/)) continue
+    if (!/FT|AET|PEN/.test(r.fixture.status.short)) continue
     const isHome = r.teams.home.id === team.id
     const scored = (isHome ? r.goals.home : r.goals.away) ?? 0
     const conceded = (isHome ? r.goals.away : r.goals.home) ?? 0
     const opponent = isHome ? r.teams.away.name : r.teams.home.name
+    const result: "W" | "D" | "L" = scored > conceded ? "W" : scored === conceded ? "D" : "L"
+    games.push({ opponent, scored, conceded, result, home: isHome, date: r.fixture.date })
+  }
+  return games
+}
 
-    let result: "W" | "D" | "L"
-    if (scored > conceded) {
-      result = "W"
-      wins++
-    } else if (scored === conceded) {
-      result = "D"
-      draws++
-    } else {
-      result = "L"
-      losses++
+async function getTeamSeasonStats(
+  team: TeamInfo,
+  leagueId: number,
+  season: number,
+): Promise<TeamSeasonStats | null> {
+  const [statsArr, recentRaw] = await Promise.all([
+    safeFetch<any>("/teams/statistics", { team: team.id, league: leagueId, season }, 3600),
+    safeFetch<RawFixture>("/fixtures", { team: team.id, last: 6 }, 600),
+  ])
+
+  const recent = buildRecentForm(team, recentRaw).slice(0, 6)
+  const s = Array.isArray(statsArr) ? (statsArr as any) : statsArr
+  const stat = (s && (s.fixtures ? s : s[0])) as any
+
+  if (!stat || !stat.fixtures) {
+    // No season stats (e.g. cup game). Derive a minimal record from recent form.
+    if (recent.length === 0) return null
+    const wins = recent.filter((g) => g.result === "W").length
+    const draws = recent.filter((g) => g.result === "D").length
+    const losses = recent.filter((g) => g.result === "L").length
+    const gf = recent.reduce((a, g) => a + g.scored, 0)
+    const ga = recent.reduce((a, g) => a + g.conceded, 0)
+    return {
+      team,
+      formString: recent.map((g) => g.result).reverse().join(""),
+      played: recent.length,
+      wins,
+      draws,
+      losses,
+      goalsForAvg: gf / recent.length,
+      goalsAgainstAvg: ga / recent.length,
+      cleanSheets: recent.filter((g) => g.conceded === 0).length,
+      failedToScore: recent.filter((g) => g.scored === 0).length,
+      recent,
     }
-
-    goalsFor += scored
-    goalsAgainst += conceded
-    if (isHome) {
-      homeScored += scored
-      homeConceded += conceded
-      homeGames++
-    } else {
-      awayScored += scored
-      awayConceded += conceded
-      awayGames++
-    }
-
-    games.push({ opponent, scored, conceded, result, home: isHome })
   }
 
-  const played = games.length || 1
+  const num = (v: unknown): number => {
+    const n = typeof v === "string" ? Number.parseFloat(v) : Number(v)
+    return Number.isFinite(n) ? n : 0
+  }
+
   return {
     team,
-    games,
-    played: games.length,
-    wins,
-    draws,
-    losses,
-    goalsFor,
-    goalsAgainst,
-    avgScored: goalsFor / played,
-    avgConceded: goalsAgainst / played,
-    homeAvgScored: homeGames ? homeScored / homeGames : goalsFor / played,
-    homeAvgConceded: homeGames ? homeConceded / homeGames : goalsAgainst / played,
-    awayAvgScored: awayGames ? awayScored / awayGames : goalsFor / played,
-    awayAvgConceded: awayGames ? awayConceded / awayGames : goalsAgainst / played,
-    formString: games
-      .slice(0, 5)
-      .map((g) => g.result)
-      .reverse()
-      .join(""),
-    points: wins * 3 + draws,
+    formString: (stat.form ?? "").slice(-6),
+    played: num(stat.fixtures?.played?.total),
+    wins: num(stat.fixtures?.wins?.total),
+    draws: num(stat.fixtures?.draws?.total),
+    losses: num(stat.fixtures?.loses?.total),
+    goalsForAvg: num(stat.goals?.for?.average?.total),
+    goalsAgainstAvg: num(stat.goals?.against?.average?.total),
+    cleanSheets: num(stat.clean_sheet?.total),
+    failedToScore: num(stat.failed_to_score?.total),
+    recent,
   }
 }
 
-// Free API-Football plans block the `last` parameter and only expose seasons
-// 2022-2024, so we fetch by team+season and derive recent form ourselves,
-// walking back through seasons until we have enough finished games.
-const AVAILABLE_SEASONS = [2024, 2023, 2022]
-
-export async function getTeamForm(team: TeamInfo, last = 10): Promise<TeamForm> {
-  const collected: RawFixture[] = []
-
-  for (const season of AVAILABLE_SEASONS) {
-    let raw: RawFixture[] = []
-    try {
-      raw = await apiFetch<RawFixture>("/fixtures", { team: team.id, season })
-    } catch {
-      continue
-    }
-    const finished = raw.filter((r) => /FT|AET|PEN/.test(r.fixture.status.short))
-    collected.push(...finished)
-    if (collected.length >= last) break
-  }
-
-  // Most recent first, then keep only the requested window
-  collected.sort((a, b) => b.fixture.timestamp - a.fixture.timestamp)
-  return buildForm(team, collected.slice(0, last))
-}
-
-export async function getHeadToHead(homeId: number, awayId: number, last = 6): Promise<FormGame[]> {
-  let raw: RawFixture[] = []
-  try {
-    raw = await apiFetch<RawFixture>("/fixtures/headtohead", { h2h: `${homeId}-${awayId}` })
-  } catch {
-    return []
-  }
+async function getHeadToHead(homeId: number, awayId: number): Promise<FormGame[]> {
+  const raw = await safeFetch<RawFixture>("/fixtures/headtohead", { h2h: `${homeId}-${awayId}`, last: 8 }, 3600)
   raw.sort((a, b) => b.fixture.timestamp - a.fixture.timestamp)
-  raw = raw.slice(0, last)
   const games: FormGame[] = []
   for (const r of raw) {
-    if (!r.fixture.status.short.match(/FT|AET|PEN/)) continue
+    if (!/FT|AET|PEN/.test(r.fixture.status.short)) continue
     const isHome = r.teams.home.id === homeId
     const scored = (isHome ? r.goals.home : r.goals.away) ?? 0
     const conceded = (isHome ? r.goals.away : r.goals.home) ?? 0
     const opponent = isHome ? r.teams.away.name : r.teams.home.name
     const result: "W" | "D" | "L" = scored > conceded ? "W" : scored === conceded ? "D" : "L"
-    games.push({ opponent, scored, conceded, result, home: isHome })
+    games.push({ opponent, scored, conceded, result, home: isHome, date: r.fixture.date })
   }
   return games
+}
+
+async function getStandings(leagueId: number, season: number, teamIds: number[]): Promise<StandingRow[]> {
+  const raw = await safeFetch<any>("/standings", { league: leagueId, season }, 3600)
+  if (raw.length === 0) return []
+  const league = raw[0]?.league
+  const groups: any[][] = league?.standings ?? []
+  const rows: StandingRow[] = []
+  for (const group of groups) {
+    for (const row of group) {
+      rows.push({
+        rank: row.rank,
+        team: row.team?.name ?? "",
+        teamId: row.team?.id ?? 0,
+        points: row.points ?? 0,
+        played: row.all?.played ?? 0,
+        win: row.all?.win ?? 0,
+        draw: row.all?.draw ?? 0,
+        lose: row.all?.lose ?? 0,
+        goalsFor: row.all?.goals?.for ?? 0,
+        goalsAgainst: row.all?.goals?.against ?? 0,
+        form: row.form ?? null,
+        group: row.group ?? league?.name ?? "",
+      })
+    }
+  }
+  // Keep only the group(s) that contain our two teams to reduce payload.
+  const relevantGroups = new Set(rows.filter((r) => teamIds.includes(r.teamId)).map((r) => r.group))
+  if (relevantGroups.size > 0) return rows.filter((r) => relevantGroups.has(r.group))
+  return rows
+}
+
+async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
+  const raw = await safeFetch<any>("/injuries", { fixture: fixtureId }, 1800)
+  return raw.map((r) => ({
+    team: r.team?.name ?? "",
+    player: r.player?.name ?? "",
+    reason: r.player?.reason ?? "",
+    type: r.player?.type ?? "",
+  }))
+}
+
+async function getEvents(fixtureId: number): Promise<MatchEvent[]> {
+  const raw = await safeFetch<any>("/fixtures/events", { fixture: fixtureId }, 30)
+  return raw.map((r) => ({
+    minute: r.time?.elapsed ?? 0,
+    extra: r.time?.extra ?? null,
+    team: r.team?.name ?? "",
+    player: r.player?.name ?? null,
+    assist: r.assist?.name ?? null,
+    type: r.type ?? "",
+    detail: r.detail ?? "",
+  }))
+}
+
+async function getStatistics(fixtureId: number): Promise<StatItem[]> {
+  const raw = await safeFetch<any>("/fixtures/statistics", { fixture: fixtureId }, 30)
+  if (raw.length < 2) return []
+  const home = raw[0]?.statistics ?? []
+  const away = raw[1]?.statistics ?? []
+  const items: StatItem[] = []
+  for (let i = 0; i < home.length; i++) {
+    items.push({
+      type: home[i]?.type ?? "",
+      home: home[i]?.value ?? null,
+      away: away[i]?.value ?? null,
+    })
+  }
+  return items
+}
+
+async function getLineups(fixtureId: number): Promise<TeamLineup[]> {
+  const raw = await safeFetch<any>("/fixtures/lineups", { fixture: fixtureId }, 300)
+  const mapPlayers = (arr: any[]): LineupPlayer[] =>
+    (arr ?? []).map((p) => ({
+      number: p.player?.number ?? null,
+      name: p.player?.name ?? "",
+      pos: p.player?.pos ?? null,
+      grid: p.player?.grid ?? null,
+    }))
+  return raw.map((r) => ({
+    team: r.team?.name ?? "",
+    formation: r.formation ?? null,
+    coach: r.coach?.name ?? null,
+    startXI: mapPlayers(r.startXI),
+    substitutes: mapPlayers(r.substitutes),
+  }))
+}
+
+/** API-Football's own model advice + percentages (great Gemini input). */
+async function getApiPrediction(fixtureId: number): Promise<{ advice: string | null; raw: unknown }> {
+  const raw = await safeFetch<any>("/predictions", { fixture: fixtureId }, 3600)
+  if (raw.length === 0) return { advice: null, raw: null }
+  return { advice: raw[0]?.predictions?.advice ?? null, raw: raw[0] ?? null }
+}
+
+// ---------------------------------------------------------------------------
+// Aggregators
+// ---------------------------------------------------------------------------
+
+/** Gathers the full live/contextual dataset for the detail panel. */
+export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData> {
+  const { id, home, away, league } = fixture
+  const [events, statistics, lineups, standings, injuries, h2h, homeStats, awayStats, apiPred] =
+    await Promise.all([
+      getEvents(id),
+      getStatistics(id),
+      getLineups(id),
+      getStandings(league.id, league.season, [home.id, away.id]),
+      getInjuries(id),
+      getHeadToHead(home.id, away.id),
+      getTeamSeasonStats(home, league.id, league.season),
+      getTeamSeasonStats(away, league.id, league.season),
+      getApiPrediction(id),
+    ])
+
+  return {
+    fixture,
+    events,
+    statistics,
+    lineups,
+    standings,
+    injuries,
+    h2h,
+    homeStats,
+    awayStats,
+    apiAdvice: apiPred.advice,
+  }
+}
+
+/**
+ * Builds the complete data blob sent to Gemini. Includes everything from the
+ * live dataset plus API-Football's raw prediction object so Gemini has the
+ * richest possible context.
+ */
+export async function getGeminiInput(fixture: Fixture): Promise<{
+  live: LiveMatchData
+  apiPredictionRaw: unknown
+}> {
+  const { id } = fixture
+  const [live, apiPred] = await Promise.all([getLiveMatchData(fixture), getApiPrediction(id)])
+  return { live, apiPredictionRaw: apiPred.raw }
 }

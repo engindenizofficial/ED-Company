@@ -1,8 +1,9 @@
 "use client"
 
-import { Clock } from "lucide-react"
+import { Clock, LoaderCircle } from "lucide-react"
+import { GeminiLogo } from "@/components/gemini-logo"
 import { cn } from "@/lib/utils"
-import type { Fixture } from "@/lib/types"
+import type { FixtureWithPrediction } from "@/lib/types"
 
 function kickoff(iso: string): string {
   return new Date(iso).toLocaleTimeString("tr-TR", {
@@ -12,24 +13,22 @@ function kickoff(iso: string): string {
   })
 }
 
-// Statuses for a match that is currently being played.
 const LIVE_STATUSES = new Set(["1H", "2H", "ET", "BT", "P", "LIVE", "INT", "SUSP", "HT"])
 
 function isLive(short: string): boolean {
   return LIVE_STATUSES.has(short)
 }
 
-// Translate API-Football short status codes into Turkish labels.
 function statusLabel(short: string): string {
   switch (short) {
     case "FT":
-      return "MS" // Maç Sonu
+      return "MS"
     case "AET":
       return "MS (uzatma)"
     case "PEN":
       return "MS (pen.)"
     case "HT":
-      return "İY" // İlk Yarı
+      return "İY"
     case "1H":
       return "1. Yarı"
     case "2H":
@@ -59,8 +58,7 @@ function statusLabel(short: string): string {
   }
 }
 
-// What to show inside the live badge: the elapsed minute, or a short label.
-function liveText(f: Fixture): string {
+function liveText(f: FixtureWithPrediction): string {
   if (f.statusShort === "HT") return "İY"
   if (f.statusShort === "BT") return "Devre arası"
   if (f.statusShort === "P") return "Penaltılar"
@@ -68,8 +66,11 @@ function liveText(f: Fixture): string {
   return statusLabel(f.statusShort)
 }
 
-function groupByLeague(fixtures: Fixture[]) {
-  const groups = new Map<number, { id: number; name: string; country: string; logo: string; items: Fixture[] }>()
+function groupByLeague(fixtures: FixtureWithPrediction[]) {
+  const groups = new Map<
+    number,
+    { id: number; name: string; country: string; logo: string; items: FixtureWithPrediction[] }
+  >()
   for (const f of fixtures) {
     const key = f.league.id
     if (!groups.has(key)) {
@@ -89,13 +90,15 @@ function groupByLeague(fixtures: Fixture[]) {
 export function FixtureList({
   fixtures,
   selectedId,
+  pendingIds,
   onSelect,
   renderExpanded,
 }: {
-  fixtures: Fixture[]
+  fixtures: FixtureWithPrediction[]
   selectedId: number | null
-  onSelect: (f: Fixture) => void
-  renderExpanded: (f: Fixture) => React.ReactNode
+  pendingIds: Set<number>
+  onSelect: (f: FixtureWithPrediction) => void
+  renderExpanded: (f: FixtureWithPrediction) => React.ReactNode
 }) {
   const groups = groupByLeague(fixtures)
 
@@ -117,8 +120,8 @@ export function FixtureList({
             {group.items.map((f) => {
               const active = f.id === selectedId
               const live = isLive(f.statusShort)
-              // Show a score once the match has kicked off (live or finished).
               const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
+              const pending = pendingIds.has(f.id)
               return (
                 <li key={f.id}>
                   <button
@@ -132,11 +135,15 @@ export function FixtureList({
                         : "border-border bg-card hover:border-primary/40 hover:bg-secondary",
                     )}
                   >
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-3">
                       <div className="flex min-w-0 flex-1 flex-col gap-1">
                         <TeamRow name={f.home.name} logo={f.home.logo} goals={f.goalsHome} played={played} />
                         <TeamRow name={f.away.name} logo={f.away.logo} goals={f.goalsAway} played={played} />
                       </div>
+
+                      {/* Gemini score prediction — visible without opening the card */}
+                      <PredictionChip fixture={f} pending={pending} />
+
                       <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1 tabular-nums">
                           <Clock className="h-3 w-3" />
@@ -168,6 +175,42 @@ export function FixtureList({
       ))}
     </div>
   )
+}
+
+/** The Gemini score prediction shown directly on the card. */
+function PredictionChip({ fixture, pending }: { fixture: FixtureWithPrediction; pending: boolean }) {
+  const score = fixture.predictedScore
+
+  if (score) {
+    return (
+      <div
+        className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-1"
+        title="Gemini skor tahmini"
+      >
+        <div className="flex items-center gap-1 text-sm font-bold tabular-nums text-foreground">
+          <GeminiLogo className="h-3 w-3" />
+          <span>
+            {score.home}-{score.away}
+          </span>
+        </div>
+        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Tahmin</span>
+      </div>
+    )
+  }
+
+  if (pending) {
+    return (
+      <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-border bg-secondary px-2.5 py-1">
+        <div className="flex items-center gap-1 text-muted-foreground">
+          <GeminiLogo className="h-3 w-3" />
+          <LoaderCircle className="h-3 w-3 animate-spin" />
+        </div>
+        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Tahmin</span>
+      </div>
+    )
+  }
+
+  return null
 }
 
 function TeamRow({

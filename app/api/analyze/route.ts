@@ -1,48 +1,71 @@
 import { NextResponse } from "next/server"
-import { getFixtureById, getHeadToHead, getTeamForm } from "@/lib/api-football"
-import { buildPrediction } from "@/lib/prediction"
-import { getServerCache, setServerCache } from "@/lib/server-cache"
-import type { AnalysisResult } from "@/lib/types"
+import { getFixtureById, getLiveMatchData } from "@/lib/api-football"
+import { ensurePrediction } from "@/lib/predict-service"
+import { getCachedLive, setCachedLive } from "@/lib/redis"
+import type { AnalysisResponse, LiveMatchData } from "@/lib/types"
 
+export const dynamic = "force-dynamic"
+export const maxDuration = 60
+
+// Powers the detail panel: LIVE API-Football data (refreshable) + the LOCKED
+// Gemini prediction (generated once, never changes).
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const fixtureId = Number(searchParams.get("fixtureId"))
+  const refresh = searchParams.get("refresh") === "1"
 
   if (!fixtureId) {
     return NextResponse.json({ error: "fixtureId gerekli." }, { status: 400 })
   }
 
-  const cacheKey = `analyze:${fixtureId}`
-
   try {
-    const fixture = await getFixtureById(fixtureId)
-    if (!fixture) {
-      return NextResponse.json({ error: "Maç bulunamadı." }, { status: 404 })
+    // ---- Live data: reuse the shared Redis copy unless refreshing ----
+    let live: LiveMatchData | null = null
+    let liveCachedAt = Date.now()
+
+    if (!refresh) {
+      const cached = await getCachedLive(fixtureId)
+      if (cached) live = cached
     }
 
-    // Base form stats on each team's last 5 official matches so the numbers
-    // match the G-B-M form badges shown in the UI.
-    const [homeForm, awayForm, h2h] = await Promise.all([
-      getTeamForm(fixture.home, 5),
-      getTeamForm(fixture.away, 5),
-      getHeadToHead(fixture.home.id, fixture.away.id, 6),
-    ])
+    if (!live) {
+      const fixture = await getFixtureById(fixtureId)
+      if (!fixture) {
+        return NextResponse.json({ error: "Maç bulunamadı." }, { status: 404 })
+      }
+      live = await getLiveMatchData(fixture)
+      liveCachedAt = Date.now()
+      await setCachedLive(fixtureId, live)
+    }
 
-    const prediction = buildPrediction(homeForm, awayForm, h2h)
+    // ---- Gemini prediction: locked, generate once if missing ----
+    const prediction = await ensurePrediction(live.fixture)
 
-    const result: AnalysisResult = { fixture, homeForm, awayForm, h2h, prediction, source: "live" }
-    // Remember this genuine analysis so we can fall back to it later.
-    setServerCache(cacheKey, result)
-    return NextResponse.json(result)
+    const payload: AnalysisResponse = {
+      live,
+      prediction,
+      liveCachedAt,
+      predictionLocked: true,
+    }
+    return NextResponse.json(payload)
   } catch (err) {
-    // Do NOT fabricate an analysis. Serve the last real analysis we fetched for
-    // this match; only error out if we have never had a success.
     const message = err instanceof Error ? err.message : "Bilinmeyen hata"
     console.log("[v0] analyze API failed:", message)
 
-    const cached = getServerCache<AnalysisResult>(cacheKey)
-    if (cached) {
-      return NextResponse.json({ ...cached.data, stale: true, cachedAt: cached.ts })
+    // Best-effort fallback: serve whatever live data we last saved.
+    const cachedLive = await getCachedLive(fixtureId)
+    if (cachedLive) {
+      const { getLockedPrediction } = await import("@/lib/redis")
+      const prediction = await getLockedPrediction(fixtureId)
+      if (prediction) {
+        return NextResponse.json({
+          live: cachedLive,
+          prediction,
+          liveCachedAt: Date.now(),
+          predictionLocked: true,
+          stale: true,
+        } satisfies AnalysisResponse)
+      }
     }
 
     return NextResponse.json({ error: message }, { status: 502 })

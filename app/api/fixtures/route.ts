@@ -1,31 +1,64 @@
 import { NextResponse } from "next/server"
 import { getFixturesByDate } from "@/lib/api-football"
-import { getServerCache, setServerCache } from "@/lib/server-cache"
-import type { FixturesResponse } from "@/lib/types"
+import { getCachedFixtures, getLockedPredictionsMap, setCachedFixtures } from "@/lib/redis"
+import type { Fixture, FixturesResponse, FixtureWithPrediction } from "@/lib/types"
+
+export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const date = searchParams.get("date") ?? new Date().toISOString().slice(0, 10)
-  const cacheKey = `fixtures:${date}`
+  const refresh = searchParams.get("refresh") === "1"
 
   try {
-    const fixtures = await getFixturesByDate(date)
-    const payload: FixturesResponse = { date, fixtures, source: "live" }
-    // Remember this genuine response so we can fall back to it later.
-    setServerCache(cacheKey, payload)
+    // Base fixture list: use the shared Redis copy unless the user explicitly
+    // asked for a live refresh. This is what stops every visitor from hitting
+    // API-Football — the first fetch fills Redis, everyone else reuses it.
+    let baseFixtures: Fixture[] | null = null
+    let cachedAt = Date.now()
+
+    if (!refresh) {
+      const cached = await getCachedFixtures(date)
+      if (cached) {
+        baseFixtures = cached.fixtures
+        cachedAt = cached.cachedAt
+      }
+    }
+
+    if (!baseFixtures) {
+      baseFixtures = await getFixturesByDate(date)
+      cachedAt = Date.now()
+    }
+
+    // Always overlay the latest LOCKED Gemini predictions so newly generated
+    // score predictions appear on cards without regenerating anything.
+    const predMap = await getLockedPredictionsMap(baseFixtures.map((f) => f.id))
+    const fixtures: FixtureWithPrediction[] = baseFixtures.map((f) => {
+      const pred = predMap.get(f.id)
+      return {
+        ...f,
+        predictedScore: pred ? pred.score : null,
+        predictedWinner: pred ? pred.winner : null,
+      }
+    })
+
+    const payload: FixturesResponse = { date, fixtures, cachedAt }
+    // Persist the raw base list (without predictions layered so it stays small).
+    await setCachedFixtures(date, { date, fixtures: fixtures.map(stripPrediction), cachedAt })
+
     return NextResponse.json(payload)
   } catch (err) {
-    // API down, key invalid or rate limit hit. Do NOT invent fake matches —
-    // instead serve the last real response we pulled from the API. Only if we
-    // have never had a success do we surface an error.
     const message = err instanceof Error ? err.message : "Bilinmeyen hata"
     console.log("[v0] fixtures API failed:", message)
 
-    const cached = getServerCache<FixturesResponse>(cacheKey)
-    if (cached) {
-      return NextResponse.json({ ...cached.data, stale: true, cachedAt: cached.ts })
-    }
+    // Fall back to whatever we last saved so users still see real data.
+    const cached = await getCachedFixtures(date)
+    if (cached) return NextResponse.json({ ...cached, stale: true })
 
     return NextResponse.json({ error: message }, { status: 502 })
   }
+}
+
+function stripPrediction(f: FixtureWithPrediction): FixtureWithPrediction {
+  return { ...f, predictedScore: null, predictedWinner: null }
 }

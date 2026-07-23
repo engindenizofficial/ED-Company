@@ -6,10 +6,9 @@ import useSWR from "swr"
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { FixtureList } from "@/components/fixture-list"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { lastGoodTimestamp, writeLastGood } from "@/lib/cache"
 import { fetcher, networkFetch } from "@/lib/fetcher"
 import { buildSearchIndex } from "@/lib/tr-aliases"
-import type { AnalysisResult, Fixture, FixturesResponse } from "@/lib/types"
+import type { AnalysisResponse, FixtureWithPrediction, FixturesResponse, GeminiPrediction } from "@/lib/types"
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
@@ -27,8 +26,17 @@ function normalize(s: string): string {
   return s.toLocaleLowerCase("tr-TR").trim()
 }
 
-// Options that stop SWR from auto-refetching. Data is served from the persisted
-// last-good store; the network is only hit on an explicit refresh.
+function formatStamp(ms: number): string {
+  return new Date(ms).toLocaleString("tr-TR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+// SWR reads from Redis-backed routes; no auto-refetch. The refresh button is the
+// only thing that pulls fresh live data.
 const SWR_OPTIONS = {
   revalidateOnFocus: false,
   revalidateOnReconnect: false,
@@ -36,15 +44,21 @@ const SWR_OPTIONS = {
   dedupingInterval: 60 * 60 * 1000,
 } as const
 
+// Score prediction shown on cards. { home, away } from server, or client map.
+type CardScore = { home: number; away: number; winner: "home" | "draw" | "away" }
+
 export default function Page() {
   const [date, setDate] = useState<string>(todayISO())
-  const [selected, setSelected] = useState<Fixture | null>(null)
+  const [selected, setSelected] = useState<FixtureWithPrediction | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [query, setQuery] = useState("")
-  const [simulating, setSimulating] = useState(false)
-  const simTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Client-generated card scores (fixtures that had no locked prediction yet).
+  const [cardScores, setCardScores] = useState<Record<number, CardScore>>({})
+  const [pendingIds, setPendingIds] = useState<Set<number>>(new Set())
+  const inFlight = useRef<Set<number>>(new Set())
 
   const fixturesKey = `/api/fixtures?date=${date}`
   const analysisKey = selected ? `/api/analyze?fixtureId=${selected.id}` : null
@@ -60,95 +74,128 @@ export default function Page() {
     error: analysisError,
     isLoading: analysisLoading,
     mutate: mutateAnalysis,
-  } = useSWR<AnalysisResult>(analysisKey, fetcher, SWR_OPTIONS)
+  } = useSWR<AnalysisResponse>(analysisKey, fetcher, SWR_OPTIONS)
 
-  const fixtures = fixturesData?.fixtures ?? []
+  const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
-  // Live text filter across team, league and country names — including Turkish
-  // aliases (e.g. "Almanya" matches "Germany", "Şampiyonlar Ligi" matches
-  // "Champions League").
   const filtered = useMemo(() => {
     const q = normalize(query)
     if (!q) return fixtures
     return fixtures.filter((f) => buildSearchIndex(f).includes(q))
   }, [fixtures, query])
 
-  // Show when the currently displayed fixtures were last pulled from the API.
+  // Reset per-date generation bookkeeping when the date changes.
   useEffect(() => {
-    const ts = lastGoodTimestamp(fixturesKey)
-    setLastUpdated(
-      ts
-        ? new Date(ts).toLocaleString("tr-TR", {
-            day: "numeric",
-            month: "short",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : null,
-    )
-  }, [fixturesKey, fixturesData])
+    setCardScores({})
+    setPendingIds(new Set())
+    inFlight.current = new Set()
+  }, [date])
 
+  // Update the "last updated" label from the payload timestamp.
   useEffect(() => {
-    return () => {
-      if (simTimer.current) clearTimeout(simTimer.current)
+    if (fixturesData?.cachedAt) setLastUpdated(formatStamp(fixturesData.cachedAt))
+  }, [fixturesData])
+
+  // Generate locked Gemini score predictions for any listed fixture that
+  // doesn't have one yet, with limited concurrency. Once generated they are
+  // stored in Redis, so this only ever happens once per match globally.
+  useEffect(() => {
+    if (filtered.length === 0) return
+
+    const queue = filtered
+      .filter((f) => !f.predictedScore && !cardScores[f.id] && !inFlight.current.has(f.id))
+      .map((f) => f.id)
+
+    if (queue.length === 0) return
+
+    let cancelled = false
+    const CONCURRENCY = 2
+    let cursor = 0
+
+    const markPending = (id: number, on: boolean) => {
+      setPendingIds((prev) => {
+        const next = new Set(prev)
+        if (on) next.add(id)
+        else next.delete(id)
+        return next
+      })
     }
-  }, [])
 
-  // Accordion select with a short "AI is simulating" animation window.
-  const handleSelect = useCallback(
-    (f: Fixture) => {
-      if (simTimer.current) clearTimeout(simTimer.current)
-      if (selected?.id === f.id) {
-        setSelected(null)
-        setSimulating(false)
-        return
+    async function worker() {
+      while (!cancelled && cursor < queue.length) {
+        const id = queue[cursor++]
+        if (inFlight.current.has(id)) continue
+        inFlight.current.add(id)
+        markPending(id, true)
+        try {
+          const res = await networkFetch<{ prediction: GeminiPrediction }>(`/api/predict?fixtureId=${id}`)
+          if (!cancelled && res?.prediction) {
+            setCardScores((prev) => ({
+              ...prev,
+              [id]: {
+                home: res.prediction.score.home,
+                away: res.prediction.score.away,
+                winner: res.prediction.winner,
+              },
+            }))
+          }
+        } catch {
+          // Leave without a score; card shows a subtle dash.
+        } finally {
+          inFlight.current.delete(id)
+          markPending(id, false)
+        }
       }
-      setSelected(f)
-      setSimulating(true)
-      simTimer.current = setTimeout(() => setSimulating(false), 1500)
+    }
+
+    const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker)
+    Promise.all(workers)
+
+    return () => {
+      cancelled = true
+    }
+  }, [filtered, cardScores])
+
+  // Merge server + client predicted scores onto the fixtures for the list.
+  const merged = useMemo<FixtureWithPrediction[]>(() => {
+    return filtered.map((f) => {
+      if (f.predictedScore) return f
+      const cs = cardScores[f.id]
+      if (cs) return { ...f, predictedScore: { home: cs.home, away: cs.away }, predictedWinner: cs.winner }
+      return f
+    })
+  }, [filtered, cardScores])
+
+  const handleSelect = useCallback(
+    (f: FixtureWithPrediction) => {
+      setSelected((cur) => (cur?.id === f.id ? null : f))
     },
-    [selected],
+    [],
   )
 
-  // Refresh button: THE ONLY place that hits the network. It forces a live
-  // request, and only overwrites the stored data when the request succeeds — so
-  // if the API is rate limited/down we keep showing the last real data.
+  // Refresh: pull fresh LIVE data from API-Football. Gemini predictions stay
+  // locked and are NOT regenerated.
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
     setRefreshError(null)
     try {
-      const freshFixtures = await networkFetch<FixturesResponse>(fixturesKey)
-      writeLastGood(fixturesKey, freshFixtures)
+      const freshFixtures = await networkFetch<FixturesResponse>(`${fixturesKey}&refresh=1`)
       await mutate(freshFixtures, { revalidate: false })
 
       if (analysisKey) {
         try {
-          const freshAnalysis = await networkFetch<AnalysisResult>(analysisKey)
-          writeLastGood(analysisKey, freshAnalysis)
+          const freshAnalysis = await networkFetch<AnalysisResponse>(`${analysisKey}&refresh=1`)
           await mutateAnalysis(freshAnalysis, { revalidate: false })
         } catch {
-          // Keep the previously stored analysis; the fixtures still refreshed.
+          // Keep the previously shown analysis.
         }
       }
 
-      // The server returns real data even when the API is rate limited — it just
-      // flags it as stale. Surface a warning but keep showing that real data.
       if (freshFixtures.stale) {
-        setRefreshError("API limiti dolu — en son çekilen gerçek veriler gösteriliyor")
+        setRefreshError("API limiti dolu — en son kaydedilen gerçek veriler gösteriliyor")
       }
-
-      const stamp = freshFixtures.cachedAt ?? Date.now()
-      setLastUpdated(
-        new Date(stamp).toLocaleString("tr-TR", {
-          day: "numeric",
-          month: "short",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      )
+      setLastUpdated(formatStamp(freshFixtures.cachedAt ?? Date.now()))
     } catch (err) {
-      // No stored data at all (server never had a success) — keep whatever is on
-      // screen and warn.
       setRefreshError(err instanceof Error ? err.message : "Canlı veri alınamadı")
     } finally {
       setRefreshing(false)
@@ -157,7 +204,6 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <h1 className="text-xl font-extrabold leading-none tracking-tight">
@@ -168,10 +214,10 @@ export default function Page() {
             {refreshError ? (
               <span
                 className="hidden items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-600 sm:flex dark:text-amber-400"
-                title={`Canlı veriye ulaşılamadı (${refreshError}). En son API'den çekilen veriler gösteriliyor.`}
+                title={`Canlı veriye ulaşılamadı (${refreshError}).`}
               >
                 <DatabaseZap className="h-3.5 w-3.5" />
-                Son çekilen veri
+                Kayıtlı veri
               </span>
             ) : null}
             <label className="relative flex items-center">
@@ -192,8 +238,8 @@ export default function Page() {
               onClick={handleRefresh}
               disabled={refreshing}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-60"
-              aria-label="Maçları yenile (canlı istek at)"
-              title="Canlı veriyi yeniden çek"
+              aria-label="Canlı verileri yenile"
+              title="Canlı veriyi yeniden çek (tahminler kilitli kalır)"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin text-primary" : ""}`} />
             </button>
@@ -203,7 +249,6 @@ export default function Page() {
       </header>
 
       <main className="mx-auto flex max-w-4xl flex-col gap-4 px-4 py-6">
-        {/* Date + search */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold capitalize text-foreground">{formatDateLabel(date)}</h2>
@@ -228,7 +273,6 @@ export default function Page() {
           </label>
         </div>
 
-        {/* Fixtures + inline accordion analysis */}
         {fixturesLoading ? (
           <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-12 text-sm text-muted-foreground">
             <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
@@ -246,13 +290,14 @@ export default function Page() {
           </div>
         ) : (
           <FixtureList
-            fixtures={filtered}
+            fixtures={merged}
             selectedId={selected?.id ?? null}
+            pendingIds={pendingIds}
             onSelect={handleSelect}
             renderExpanded={() => (
               <AnalysisPanel
                 data={analysis}
-                isLoading={simulating || analysisLoading}
+                isLoading={analysisLoading}
                 error={analysisError as Error | undefined}
               />
             )}
