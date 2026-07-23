@@ -1,14 +1,34 @@
 "use client"
 
-import { CalendarDays, DatabaseZap, LoaderCircle, RefreshCw, Search } from "lucide-react"
+import { CalendarDays, DatabaseZap, KeyRound, LoaderCircle, RefreshCw, Search } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import useSWR from "swr"
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { FixtureList } from "@/components/fixture-list"
+import { KeysModal, type ApiKeys } from "@/components/keys-modal"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { fetcher, networkFetch } from "@/lib/fetcher"
 import { buildSearchIndex } from "@/lib/tr-aliases"
 import type { AnalysisResponse, FixtureWithPrediction, FixturesResponse, GeminiPrediction } from "@/lib/types"
+
+const KEYS_STORAGE_KEY = "ed_api_keys"
+
+function loadKeys(): ApiKeys {
+  if (typeof window === "undefined") return { apiFootballKey: "", geminiKey: "" }
+  try {
+    const raw = localStorage.getItem(KEYS_STORAGE_KEY)
+    if (!raw) return { apiFootballKey: "", geminiKey: "" }
+    return JSON.parse(raw) as ApiKeys
+  } catch {
+    return { apiFootballKey: "", geminiKey: "" }
+  }
+}
+
+function saveKeys(keys: ApiKeys) {
+  try {
+    localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(keys))
+  } catch { /* ignore */ }
+}
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
