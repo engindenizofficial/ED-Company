@@ -57,6 +57,7 @@ export default function Page() {
 
   // Client-generated card scores (fixtures that had no locked prediction yet).
   const [cardScores, setCardScores] = useState<Record<number, CardScore>>({})
+  const cardScoresRef = useRef<Record<number, CardScore>>({})
   const [pendingIds, setPendingIds] = useState<Set<number>>(new Set())
   const inFlight = useRef<Set<number>>(new Set())
 
@@ -84,9 +85,15 @@ export default function Page() {
     return fixtures.filter((f) => buildSearchIndex(f).includes(q))
   }, [fixtures, query])
 
+  // Keep ref in sync with state so the queue can read it without a stale closure.
+  useEffect(() => {
+    cardScoresRef.current = cardScores
+  }, [cardScores])
+
   // Reset per-date generation bookkeeping when the date changes.
   useEffect(() => {
     setCardScores({})
+    cardScoresRef.current = {}
     setPendingIds(new Set())
     inFlight.current = new Set()
   }, [date])
@@ -105,7 +112,7 @@ export default function Page() {
     if (filtered.length === 0) return
 
     const queue = filtered
-      .filter((f) => !f.predictedScore && !cardScores[f.id] && !inFlight.current.has(f.id))
+      .filter((f) => !f.predictedScore && !cardScoresRef.current[f.id] && !inFlight.current.has(f.id))
       .map((f) => f.id)
 
     if (queue.length === 0) return
@@ -164,7 +171,10 @@ export default function Page() {
     return () => {
       cancelled = true
     }
-  }, [filtered, cardScores])
+  // cardScoresRef is a ref — reading it inside the effect doesn't require it
+  // as a dependency. We only re-run when the fixture list itself changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered])
 
   // Merge server + client predicted scores onto the fixtures for the list.
   const merged = useMemo<FixtureWithPrediction[]>(() => {
