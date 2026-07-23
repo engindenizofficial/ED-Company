@@ -68,6 +68,27 @@ const SWR_OPTIONS = {
 type CardScore = { home: number; away: number; winner: "home" | "draw" | "away" }
 
 export default function Page() {
+  const [keys, setKeys] = useState<ApiKeys>({ apiFootballKey: "", geminiKey: "" })
+  const [keysModalOpen, setKeysModalOpen] = useState(false)
+  const [keysReady, setKeysReady] = useState(false)
+
+  // On mount: load saved keys; open modal if any key is missing.
+  useEffect(() => {
+    const saved = loadKeys()
+    setKeys(saved)
+    if (!saved.apiFootballKey || !saved.geminiKey) {
+      setKeysModalOpen(true)
+    } else {
+      setKeysReady(true)
+    }
+  }, [])
+
+  const handleKeysSave = useCallback((newKeys: ApiKeys) => {
+    saveKeys(newKeys)
+    setKeys(newKeys)
+    setKeysReady(true)
+  }, [])
+
   const [date, setDate] = useState<string>(todayISO())
   const [selected, setSelected] = useState<FixtureWithPrediction | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -282,6 +303,15 @@ export default function Page() {
               title="Canlı veriyi yeniden çek (tahminler kilitli kalır)"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin text-primary" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setKeysModalOpen(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              aria-label="API anahtarlarını düzenle"
+              title="API anahtarlarını düzenle"
+            >
+              <KeyRound className="h-4 w-4" />
             </button>
             <ThemeToggle />
           </div>
