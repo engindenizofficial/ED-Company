@@ -79,6 +79,10 @@ export interface GeminiPrediction {
   // Metadata.
   model: string
   generatedAt: number
+  // "full" = generated with complete API-Football data (form, H2H, standings,
+  // injuries, lineups, statistics). "partial" = generated with fixture-only
+  // data and should be regenerated at the next opportunity.
+  dataQuality: "full" | "partial"
 }
 
 // ---------------------------------------------------------------------------
