@@ -103,12 +103,16 @@ export default function Page() {
     if (fixturesData?.cachedAt) setLastUpdated(formatStamp(fixturesData.cachedAt))
   }, [fixturesData])
 
+  // TEMPORARILY DISABLED — tahmin motoru kapalı, "aç" yazılana kadar bu effect çalışmaz.
+  const PREDICTIONS_DISABLED = true
+
   // Generate locked Gemini score predictions for fixtures that don't have one
   // yet. Runs strictly one-at-a-time in screen order with a 3-second pause
   // between requests so we never flood the Gemini API. Once a prediction is
   // stored in Redis it is never re-requested, so the delay only applies to
   // the very first generation globally.
   useEffect(() => {
+    if (PREDICTIONS_DISABLED) return
     if (filtered.length === 0) return
 
     const queue = filtered

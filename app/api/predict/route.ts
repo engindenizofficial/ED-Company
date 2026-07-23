@@ -6,10 +6,16 @@ import type { Fixture } from "@/lib/types"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
+// TEMPORARILY DISABLED — "aç" yazılana kadar bu blok aktif.
+const PREDICTIONS_DISABLED = true
+
 // POST: client sends the fixture object it already has. Always generates a
 // fresh prediction with full API-Football data (form, H2H, standings, injuries,
 // lineups, statistics) and overwrites any previous incomplete prediction in Redis.
 export async function POST(request: Request) {
+  if (PREDICTIONS_DISABLED) {
+    return NextResponse.json({ error: "Tahmin motoru geçici olarak kapalı." }, { status: 503 })
+  }
   try {
     const body = await request.json()
     const fixture = body?.fixture as Fixture | undefined
@@ -28,6 +34,9 @@ export async function POST(request: Request) {
 
 // GET: fallback — fetches fixture by id then generates fresh prediction.
 export async function GET(request: Request) {
+  if (PREDICTIONS_DISABLED) {
+    return NextResponse.json({ error: "Tahmin motoru geçici olarak kapalı." }, { status: 503 })
+  }
   const { searchParams } = new URL(request.url)
   const fixtureId = Number(searchParams.get("fixtureId"))
 
