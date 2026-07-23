@@ -69,6 +69,12 @@ export function AnalysisPanel({
       {/* 1. Gemini headline prediction                                     */}
       {/* ---------------------------------------------------------------- */}
       <section className="rounded-xl border border-border bg-card p-5">
+      {!prediction && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+          <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" />
+          <span>Gemini tahmini sıra bekliyor, kısa süre içinde hazır olacak.</span>
+        </div>
+      )}
         {/* League header */}
         <div className="mb-4 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
           {fixture.league.logo ? (
@@ -84,156 +90,175 @@ export function AnalysisPanel({
         <div className="grid grid-cols-3 items-center gap-2">
           <TeamHeader name={fixture.home.name} logo={fixture.home.logo} />
           <div className="flex flex-col items-center gap-1.5">
-            <div className="flex items-center gap-2 text-3xl font-bold tabular-nums text-foreground">
-              <span>{prediction.score.home}</span>
-              <span className="text-muted-foreground">-</span>
-              <span>{prediction.score.away}</span>
-            </div>
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              Tahmini skor
-            </span>
-            <div className="flex items-center gap-1">
-              <GeminiBadge />
-            </div>
+            {prediction ? (
+              <>
+                <div className="flex items-center gap-2 text-3xl font-bold tabular-nums text-foreground">
+                  <span>{prediction.score.home}</span>
+                  <span className="text-muted-foreground">-</span>
+                  <span>{prediction.score.away}</span>
+                </div>
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Tahmini skor
+                </span>
+                <div className="flex items-center gap-1">
+                  <GeminiBadge />
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-1">
+                <LoaderCircle className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="text-[10px] text-muted-foreground">Bekleniyor</span>
+              </div>
+            )}
           </div>
           <TeamHeader name={fixture.away.name} logo={fixture.away.logo} />
         </div>
 
-        {/* HT + winner + confidence row */}
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">İlk Yarı</span>
-            <span className="text-base font-bold tabular-nums text-foreground">
-              {prediction.halfTimeScore.home}-{prediction.halfTimeScore.away}
-            </span>
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Öngörülen</span>
-            <span className="text-sm font-semibold text-foreground">
-              {prediction.winner === "home"
-                ? fixture.home.name
-                : prediction.winner === "away"
-                  ? fixture.away.name
-                  : "Beraberlik"}
-            </span>
-          </div>
-          <div className="flex flex-col items-center gap-0.5">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Güven</span>
-            <div className="flex items-center gap-1.5">
-              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-secondary">
-                <div className="h-full bg-primary" style={{ width: `${prediction.confidence}%` }} />
+        {/* HT + winner + confidence row — only when prediction is ready */}
+        {prediction && (
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">İlk Yarı</span>
+              <span className="text-base font-bold tabular-nums text-foreground">
+                {prediction.halfTimeScore.home}-{prediction.halfTimeScore.away}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Öngörülen</span>
+              <span className="text-sm font-semibold text-foreground">
+                {prediction.winner === "home"
+                  ? fixture.home.name
+                  : prediction.winner === "away"
+                    ? fixture.away.name
+                    : "Beraberlik"}
+              </span>
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Güven</span>
+              <div className="flex items-center gap-1.5">
+                <div className="h-1.5 w-16 overflow-hidden rounded-full bg-secondary">
+                  <div className="h-full bg-primary" style={{ width: `${prediction.confidence}%` }} />
+                </div>
+                <span className="text-sm font-bold tabular-nums text-primary">%{prediction.confidence}</span>
               </div>
-              <span className="text-sm font-bold tabular-nums text-primary">%{prediction.confidence}</span>
             </div>
           </div>
-        </div>
+        )}
       </section>
 
       {/* ---------------------------------------------------------------- */}
       {/* 2. Gemini outcome probabilities                                   */}
       {/* ---------------------------------------------------------------- */}
-      <section className="rounded-xl border border-border bg-card p-5">
-        <SectionHeader icon={<TrendingUp className="h-3.5 w-3.5" />} title="Kazanma Olasılıkları" gemini />
-        <div className="mt-4">
-          <ProbabilityBar
-            homeName={fixture.home.name}
-            awayName={fixture.away.name}
-            homePct={prediction.homeWinPct}
-            drawPct={prediction.drawPct}
-            awayPct={prediction.awayWinPct}
-          />
-        </div>
-      </section>
+      {prediction && (
+        <section className="rounded-xl border border-border bg-card p-5">
+          <SectionHeader icon={<TrendingUp className="h-3.5 w-3.5" />} title="Kazanma Olasılıkları" gemini />
+          <div className="mt-4">
+            <ProbabilityBar
+              homeName={fixture.home.name}
+              awayName={fixture.away.name}
+              homePct={prediction.homeWinPct}
+              drawPct={prediction.drawPct}
+              awayPct={prediction.awayWinPct}
+            />
+          </div>
+        </section>
+      )}
 
       {/* ---------------------------------------------------------------- */}
       {/* 3. Gemini goal markets                                            */}
       {/* ---------------------------------------------------------------- */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <MarketCard
-          label="Beklenen Gol"
-          sub={fixture.home.name}
-          value={prediction.expectedGoalsHome.toFixed(2)}
-          gemini
-        />
-        <MarketCard
-          label="Beklenen Gol"
-          sub={fixture.away.name}
-          value={prediction.expectedGoalsAway.toFixed(2)}
-          gemini
-        />
-        <MarketCard label="2.5 Üst" value={`%${prediction.over25Pct}`} sub={`Alt %${prediction.under25Pct}`} gemini />
-        <MarketCard label="KG Var" value={`%${prediction.bttsPct}`} sub="Her iki takım gol" gemini />
-      </div>
+      {prediction && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <MarketCard
+            label="Beklenen Gol"
+            sub={fixture.home.name}
+            value={prediction.expectedGoalsHome.toFixed(2)}
+            gemini
+          />
+          <MarketCard
+            label="Beklenen Gol"
+            sub={fixture.away.name}
+            value={prediction.expectedGoalsAway.toFixed(2)}
+            gemini
+          />
+          <MarketCard label="2.5 Üst" value={`%${prediction.over25Pct}`} sub={`Alt %${prediction.under25Pct}`} gemini />
+          <MarketCard label="KG Var" value={`%${prediction.bttsPct}`} sub="Her iki takım gol" gemini />
+        </div>
+      )}
 
       {/* ---------------------------------------------------------------- */}
       {/* 4. Gemini corner / card estimates + first scorer                  */}
       {/* ---------------------------------------------------------------- */}
-      <div className="grid grid-cols-3 gap-3">
-        <MiniCard
-          icon={<Flag className="h-3.5 w-3.5" />}
-          label="Korner Tahmini"
-          value={prediction.cornersEstimate}
-          gemini
-        />
-        <MiniCard
-          icon={<AlertTriangle className="h-3.5 w-3.5" />}
-          label="Kart Tahmini"
-          value={prediction.cardsEstimate}
-          gemini
-        />
-        <MiniCard
-          icon={<Zap className="h-3.5 w-3.5" />}
-          label="İlk Gol"
-          value={
-            prediction.firstToScore === "home"
-              ? fixture.home.name
-              : prediction.firstToScore === "away"
-                ? fixture.away.name
-                : "Belirsiz"
-          }
-          gemini
-        />
-      </div>
+      {prediction && (
+        <div className="grid grid-cols-3 gap-3">
+          <MiniCard
+            icon={<Flag className="h-3.5 w-3.5" />}
+            label="Korner Tahmini"
+            value={prediction.cornersEstimate}
+            gemini
+          />
+          <MiniCard
+            icon={<AlertTriangle className="h-3.5 w-3.5" />}
+            label="Kart Tahmini"
+            value={prediction.cardsEstimate}
+            gemini
+          />
+          <MiniCard
+            icon={<Zap className="h-3.5 w-3.5" />}
+            label="İlk Gol"
+            value={
+              prediction.firstToScore === "home"
+                ? fixture.home.name
+                : prediction.firstToScore === "away"
+                  ? fixture.away.name
+                  : "Belirsiz"
+            }
+            gemini
+          />
+        </div>
+      )}
 
       {/* ---------------------------------------------------------------- */}
       {/* 5. Gemini key factors + analysis                                  */}
       {/* ---------------------------------------------------------------- */}
-      <section className="rounded-xl border border-primary/25 bg-primary/5 p-5">
-        <SectionHeader icon={<GeminiLogo className="h-3.5 w-3.5" />} title="Gemini Analiz Raporu" gemini={false} />
+      {prediction && (
+        <section className="rounded-xl border border-primary/25 bg-primary/5 p-5">
+          <SectionHeader icon={<GeminiLogo className="h-3.5 w-3.5" />} title="Gemini Analiz Raporu" gemini={false} />
 
-        {prediction.keyFactors.length > 0 && (
-          <ul className="mt-3 flex flex-col gap-1.5">
-            {prediction.keyFactors.map((f, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-foreground/90">
-                <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                {f}
-              </li>
-            ))}
-          </ul>
-        )}
+          {prediction.keyFactors.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-1.5">
+              {prediction.keyFactors.map((f, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-foreground/90">
+                  <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+          )}
 
-        {prediction.analysis.length > 0 && (
-          <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
-            {prediction.analysis.map((line, i) => (
-              <p key={i} className="text-sm leading-relaxed text-foreground/80">
-                {line}
-              </p>
-            ))}
+          {prediction.analysis.length > 0 && (
+            <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
+              {prediction.analysis.map((line, i) => (
+                <p key={i} className="text-sm leading-relaxed text-foreground/80">
+                  {line}
+                </p>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
+            <GeminiBadge label={prediction.model || "Gemini"} />
+            <span>
+              {new Date(prediction.generatedAt).toLocaleString("tr-TR", {
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
           </div>
-        )}
-
-        <div className="mt-3 flex items-center justify-between text-[10px] text-muted-foreground">
-          <GeminiBadge label={data.prediction.model || "Gemini"} />
-          <span>
-            {new Date(prediction.generatedAt).toLocaleString("tr-TR", {
-              day: "numeric",
-              month: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ---------------------------------------------------------------- */}
       {/* 6. Live events (if any)                                           */}

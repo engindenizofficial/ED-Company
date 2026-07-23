@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { getFixtureById, getLiveMatchData } from "@/lib/api-football"
-import { ensurePrediction } from "@/lib/predict-service"
-import { getCachedLive, setCachedLive } from "@/lib/redis"
+import { getCachedLive, setCachedLive, getLockedPrediction } from "@/lib/redis"
 import type { AnalysisResponse, LiveMatchData } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -38,14 +37,16 @@ export async function GET(request: Request) {
       await setCachedLive(fixtureId, live)
     }
 
-    // ---- Gemini prediction: locked, generate once if missing ----
-    const prediction = await ensurePrediction(live.fixture)
+    // ---- Gemini prediction: only serve if already locked in Redis.
+    // We never trigger a new Gemini call from here — the card queue handles
+    // generation. This avoids 429s when the panel is opened mid-queue.
+    const prediction = await getLockedPrediction(fixtureId)
 
     const payload: AnalysisResponse = {
       live,
-      prediction,
+      prediction: prediction ?? null,
       liveCachedAt,
-      predictionLocked: true,
+      predictionLocked: !!prediction,
     }
     return NextResponse.json(payload)
   } catch (err) {
@@ -55,17 +56,14 @@ export async function GET(request: Request) {
     // Best-effort fallback: serve whatever live data we last saved.
     const cachedLive = await getCachedLive(fixtureId)
     if (cachedLive) {
-      const { getLockedPrediction } = await import("@/lib/redis")
       const prediction = await getLockedPrediction(fixtureId)
-      if (prediction) {
-        return NextResponse.json({
-          live: cachedLive,
-          prediction,
-          liveCachedAt: Date.now(),
-          predictionLocked: true,
-          stale: true,
-        } satisfies AnalysisResponse)
-      }
+      return NextResponse.json({
+        live: cachedLive,
+        prediction: prediction ?? null,
+        liveCachedAt: Date.now(),
+        predictionLocked: !!prediction,
+        stale: true,
+      } satisfies AnalysisResponse)
     }
 
     return NextResponse.json({ error: message }, { status: 502 })

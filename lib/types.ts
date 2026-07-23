@@ -189,7 +189,8 @@ export interface FixturesResponse {
 
 export interface AnalysisResponse {
   live: LiveMatchData
-  prediction: GeminiPrediction
+  // null when the Gemini prediction hasn't been generated yet (queue pending).
+  prediction: GeminiPrediction | null
   liveCachedAt: number
   predictionLocked: boolean
   stale?: boolean
