@@ -92,14 +92,29 @@ export async function lockPrediction(
   try {
     const ok = await redis.set(K.prediction(fixtureId), prediction, { nx: true })
     if (ok === "OK" || ok === null) {
-      // ok === "OK" -> we won the write. ok === null under some client versions
-      // means NX failed; re-read to get the winning value.
       if (ok === "OK") return prediction
     }
     const existing = await getLockedPrediction(fixtureId)
     return existing ?? prediction
   } catch (err) {
     console.log("[v0] redis lockPrediction failed:", err instanceof Error ? err.message : err)
+    return prediction
+  }
+}
+
+/**
+ * Force-write a prediction regardless of whether one already exists.
+ * Used to upgrade old predictions that were generated with incomplete data.
+ */
+export async function forceLockPrediction(
+  fixtureId: number,
+  prediction: GeminiPrediction,
+): Promise<GeminiPrediction> {
+  try {
+    await redis.set(K.prediction(fixtureId), prediction)
+    return prediction
+  } catch (err) {
+    console.log("[v0] redis forceLockPrediction failed:", err instanceof Error ? err.message : err)
     return prediction
   }
 }

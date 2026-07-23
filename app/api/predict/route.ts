@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server"
 import { getFixtureById } from "@/lib/api-football"
-import { ensurePrediction } from "@/lib/predict-service"
-import { getLockedPrediction } from "@/lib/redis"
+import { forceEnsurePrediction } from "@/lib/predict-service"
 import type { Fixture } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-// POST: client sends the fixture object it already has, avoiding a redundant
-//       API-Football call when generating the prediction for the first time.
+// POST: client sends the fixture object it already has. Always generates a
+// fresh prediction with full API-Football data (form, H2H, standings, injuries,
+// lineups, statistics) and overwrites any previous incomplete prediction in Redis.
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -17,13 +17,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "fixture gerekli." }, { status: 400 })
     }
 
-    // Fast path: already locked.
-    const existing = await getLockedPrediction(fixture.id)
-    if (existing) {
-      return NextResponse.json({ prediction: existing, locked: true })
-    }
-
-    const prediction = await ensurePrediction(fixture)
+    const prediction = await forceEnsurePrediction(fixture)
     return NextResponse.json({ prediction, locked: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Tahmin üretilemedi"
@@ -32,7 +26,7 @@ export async function POST(request: Request) {
   }
 }
 
-// GET: fallback — fetches fixture by id then delegates to POST logic.
+// GET: fallback — fetches fixture by id then generates fresh prediction.
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const fixtureId = Number(searchParams.get("fixtureId"))
@@ -42,18 +36,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Fast path: already locked, no API-Football or Gemini calls needed.
-    const existing = await getLockedPrediction(fixtureId)
-    if (existing) {
-      return NextResponse.json({ prediction: existing, locked: true })
-    }
-
     const fixture = await getFixtureById(fixtureId)
     if (!fixture) {
       return NextResponse.json({ error: "Maç bulunamadı." }, { status: 404 })
     }
 
-    const prediction = await ensurePrediction(fixture)
+    const prediction = await forceEnsurePrediction(fixture)
     return NextResponse.json({ prediction, locked: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Tahmin üretilemedi"

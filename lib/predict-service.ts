@@ -1,6 +1,6 @@
 import { getGeminiInput } from "./api-football"
 import { generateGeminiPrediction } from "./gemini"
-import { getLockedPrediction, lockPrediction } from "./redis"
+import { getLockedPrediction, lockPrediction, forceLockPrediction } from "./redis"
 import type { Fixture, GeminiPrediction } from "./types"
 
 /**
@@ -15,6 +15,16 @@ export async function ensurePrediction(fixture: Fixture): Promise<GeminiPredicti
 
   const { live, apiPredictionRaw } = await getGeminiInput(fixture)
   const fresh = await generateGeminiPrediction(fixture, live, apiPredictionRaw)
-  // set-if-absent: returns the winning value under concurrency.
   return lockPrediction(fixture.id, fresh)
+}
+
+/**
+ * Always fetches full API-Football data and generates a fresh Gemini prediction,
+ * overwriting any previously stored one. Used to upgrade predictions that were
+ * generated with incomplete data (e.g. card-level predictions without API detail).
+ */
+export async function forceEnsurePrediction(fixture: Fixture): Promise<GeminiPrediction> {
+  const { live, apiPredictionRaw } = await getGeminiInput(fixture)
+  const fresh = await generateGeminiPrediction(fixture, live, apiPredictionRaw)
+  return forceLockPrediction(fixture.id, fresh)
 }
