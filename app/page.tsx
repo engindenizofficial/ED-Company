@@ -127,8 +127,13 @@ export default function Page() {
         if (inFlight.current.has(id)) continue
         inFlight.current.add(id)
         markPending(id, true)
+        const fixture = filtered.find((f) => f.id === id)
         try {
-          const res = await networkFetch<{ prediction: GeminiPrediction }>(`/api/predict?fixtureId=${id}`)
+          const res = await fetch("/api/predict", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fixture }),
+          }).then((r) => r.json() as Promise<{ prediction: GeminiPrediction }>)
           if (!cancelled && res?.prediction) {
             setCardScores((prev) => ({
               ...prev,
