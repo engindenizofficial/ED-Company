@@ -103,6 +103,32 @@ export default function Page() {
     if (fixturesData?.cachedAt) setLastUpdated(formatStamp(fixturesData.cachedAt))
   }, [fixturesData])
 
+  // Maçlar yüklendiğinde tüm fixture'ların istatistiklerini arka planda Redis'e prefetch et.
+  // Redis'te zaten olan maçları atlar, sadece eksik olanları API'den çeker.
+  const prefetchedDates = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (fixtures.length === 0) return
+    if (prefetchedDates.current.has(date)) return
+
+    prefetchedDates.current.add(date)
+
+    const ids = fixtures.map((f) => f.id)
+
+    fetch("/api/prefetch-live", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fixtureIds: ids }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        console.log("[v0] prefetch-live tamamlandı:", res)
+      })
+      .catch((err) => {
+        console.log("[v0] prefetch-live hata:", err instanceof Error ? err.message : err)
+      })
+  }, [fixtures, date])
+
   // TEMPORARILY DISABLED — tahmin motoru kapalı, "aç" yazılana kadar bu effect çalışmaz.
   const PREDICTIONS_DISABLED = true
 
