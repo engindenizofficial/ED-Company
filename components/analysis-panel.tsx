@@ -150,83 +150,94 @@ export function AnalysisPanel({
       {/* 2. Gemini outcome probabilities                                   */}
       {/* ---------------------------------------------------------------- */}
       {prediction && (
-        <section className="rounded-xl border border-border bg-card p-5">
-          <SectionHeader icon={<TrendingUp className="h-3.5 w-3.5" />} title="Kazanma Olasılıkları" gemini />
-          <div className="mt-4">
-            <ProbabilityBar
-              homeName={fixture.home.name}
-              awayName={fixture.away.name}
-              homePct={prediction.homeWinPct}
-              drawPct={prediction.drawPct}
-              awayPct={prediction.awayWinPct}
-            />
-          </div>
-        </section>
+        <Collapsible
+          defaultOpen={false}
+          header={<SectionHeader icon={<TrendingUp className="h-3.5 w-3.5" />} title="Kazanma Olasılıkları" gemini />}
+        >
+          <ProbabilityBar
+            homeName={fixture.home.name}
+            awayName={fixture.away.name}
+            homePct={prediction.homeWinPct}
+            drawPct={prediction.drawPct}
+            awayPct={prediction.awayWinPct}
+          />
+        </Collapsible>
       )}
 
       {/* ---------------------------------------------------------------- */}
       {/* 3. Gemini goal markets                                            */}
       {/* ---------------------------------------------------------------- */}
       {prediction && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <MarketCard
-            label="Beklenen Gol"
-            sub={fixture.home.name}
-            value={prediction.expectedGoalsHome.toFixed(2)}
-            gemini
-          />
-          <MarketCard
-            label="Beklenen Gol"
-            sub={fixture.away.name}
-            value={prediction.expectedGoalsAway.toFixed(2)}
-            gemini
-          />
-          <MarketCard label="2.5 Üst" value={`%${prediction.over25Pct}`} sub={`Alt %${prediction.under25Pct}`} gemini />
-          <MarketCard label="KG Var" value={`%${prediction.bttsPct}`} sub="Her iki takım gol" gemini />
-        </div>
+        <Collapsible
+          defaultOpen={false}
+          header={<SectionHeader icon={<Target className="h-3.5 w-3.5" />} title="Gol Marketleri" gemini />}
+        >
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <MarketCard
+              label="Beklenen Gol"
+              sub={fixture.home.name}
+              value={prediction.expectedGoalsHome.toFixed(2)}
+              gemini
+            />
+            <MarketCard
+              label="Beklenen Gol"
+              sub={fixture.away.name}
+              value={prediction.expectedGoalsAway.toFixed(2)}
+              gemini
+            />
+            <MarketCard label="2.5 Üst" value={`%${prediction.over25Pct}`} sub={`Alt %${prediction.under25Pct}`} gemini />
+            <MarketCard label="KG Var" value={`%${prediction.bttsPct}`} sub="Her iki takım gol" gemini />
+          </div>
+        </Collapsible>
       )}
 
       {/* ---------------------------------------------------------------- */}
       {/* 4. Gemini corner / card estimates + first scorer                  */}
       {/* ---------------------------------------------------------------- */}
       {prediction && (
-        <div className="grid grid-cols-3 gap-3">
-          <MiniCard
-            icon={<Flag className="h-3.5 w-3.5" />}
-            label="Korner Tahmini"
-            value={prediction.cornersEstimate}
-            gemini
-          />
-          <MiniCard
-            icon={<AlertTriangle className="h-3.5 w-3.5" />}
-            label="Kart Tahmini"
-            value={prediction.cardsEstimate}
-            gemini
-          />
-          <MiniCard
-            icon={<Zap className="h-3.5 w-3.5" />}
-            label="İlk Gol"
-            value={
-              prediction.firstToScore === "home"
-                ? fixture.home.name
-                : prediction.firstToScore === "away"
-                  ? fixture.away.name
-                  : "Belirsiz"
-            }
-            gemini
-          />
-        </div>
+        <Collapsible
+          defaultOpen={false}
+          header={<SectionHeader icon={<Zap className="h-3.5 w-3.5" />} title="Korner, Kart & İlk Gol" gemini />}
+        >
+          <div className="grid grid-cols-3 gap-3">
+            <MiniCard
+              icon={<Flag className="h-3.5 w-3.5" />}
+              label="Korner Tahmini"
+              value={prediction.cornersEstimate}
+              gemini
+            />
+            <MiniCard
+              icon={<AlertTriangle className="h-3.5 w-3.5" />}
+              label="Kart Tahmini"
+              value={prediction.cardsEstimate}
+              gemini
+            />
+            <MiniCard
+              icon={<Zap className="h-3.5 w-3.5" />}
+              label="İlk Gol"
+              value={
+                prediction.firstToScore === "home"
+                  ? fixture.home.name
+                  : prediction.firstToScore === "away"
+                    ? fixture.away.name
+                    : "Belirsiz"
+              }
+              gemini
+            />
+          </div>
+        </Collapsible>
       )}
 
       {/* ---------------------------------------------------------------- */}
       {/* 5. Gemini key factors + analysis                                  */}
       {/* ---------------------------------------------------------------- */}
       {prediction && (
-        <section className="rounded-xl border border-primary/25 bg-primary/5 p-5">
-          <SectionHeader icon={<GeminiLogo className="h-3.5 w-3.5" />} title="Gemini Analiz Raporu" gemini={false} />
-
+        <Collapsible
+          defaultOpen={false}
+          header={<SectionHeader icon={<GeminiLogo className="h-3.5 w-3.5" />} title="Gemini Analiz Raporu" />}
+        >
           {prediction.keyFactors.length > 0 && (
-            <ul className="mt-3 flex flex-col gap-1.5">
+            <ul className="flex flex-col gap-1.5">
               {prediction.keyFactors.map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-foreground/90">
                   <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
@@ -257,7 +268,7 @@ export function AnalysisPanel({
               })}
             </span>
           </div>
-        </section>
+        </Collapsible>
       )}
 
       {/* ---------------------------------------------------------------- */}
@@ -282,7 +293,7 @@ export function AnalysisPanel({
       {/* ---------------------------------------------------------------- */}
       {live.statistics.length > 0 && (
         <Collapsible
-          defaultOpen
+          defaultOpen={false}
           header={
             <SectionHeader
               icon={<BarChart3 className="h-3.5 w-3.5" />}
@@ -340,7 +351,7 @@ export function AnalysisPanel({
       {/* ---------------------------------------------------------------- */}
       {(live.homeStats || live.awayStats) && (
         <Collapsible
-          defaultOpen
+          defaultOpen={false}
           header={
             <SectionHeader
               icon={<TrendingUp className="h-3.5 w-3.5" />}
@@ -361,7 +372,7 @@ export function AnalysisPanel({
       {/* ---------------------------------------------------------------- */}
       {live.h2h.length > 0 && (
         <Collapsible
-          defaultOpen
+          defaultOpen={false}
           header={
             <SectionHeader
               icon={<Swords className="h-3.5 w-3.5" />}
