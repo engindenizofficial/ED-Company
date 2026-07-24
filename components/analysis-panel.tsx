@@ -723,169 +723,60 @@ function StatsList({
 }
 
 // ---------------------------------------------------------------------------
-// Lineups — pitch view
+// Lineups
 // ---------------------------------------------------------------------------
 
-/** Parse formation string "4-3-3" into row sizes [4,3,3] (outfield only). */
-function parseFormation(formation: string | null): number[] {
-  if (!formation) return []
-  return formation.split("-").map(Number).filter((n) => !Number.isNaN(n))
-}
-
-/** Group startXI by their grid row ("1:x", "2:x", …). */
-function groupByRow(players: LineupPlayer[]): LineupPlayer[][] {
-  const map = new Map<number, LineupPlayer[]>()
-  for (const p of players) {
-    const row = p.grid ? Number(p.grid.split(":")[0]) : 0
-    if (!map.has(row)) map.set(row, [])
-    map.get(row)!.push(p)
-  }
-  // Sort rows descending so row 1 (GK) is at the bottom of the pitch
-  return [...map.entries()]
-    .sort((a, b) => b[0] - a[0])
-    .map(([, ps]) => ps.sort((a, b) => {
-      const ac = a.grid ? Number(a.grid.split(":")[1]) : 0
-      const bc = b.grid ? Number(b.grid.split(":")[1]) : 0
-      return ac - bc
-    }))
-}
-
-function PlayerAvatar({ player, flip }: { player: LineupPlayer; flip?: boolean }) {
-  const [imgError, setImgError] = useState(false)
-  const photoUrl = player.id && !imgError
-    ? `https://media.api-sports.io/football/players/${player.id}.png`
-    : null
-
-  // Shorten name: "Firstname Lastname" → "F. Lastname"
-  const shortName = (() => {
-    const parts = player.name.trim().split(" ")
-    if (parts.length <= 1) return player.name
-    return `${parts[0][0]}. ${parts.slice(1).join(" ")}`
-  })()
-
-  return (
-    <div className="flex flex-col items-center gap-1" style={{ minWidth: 48 }}>
-      <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-primary/20 shadow-sm">
-        {photoUrl ? (
-          <img
-            src={photoUrl}
-            alt={player.name}
-            className="h-full w-full object-cover"
-            onError={() => setImgError(true)}
-            crossOrigin="anonymous"
-          />
-        ) : (
-          <span className="text-[11px] font-bold text-primary">
-            {player.name.trim().split(" ").map((w) => w[0]).slice(0, 2).join("")}
-          </span>
-        )}
-        {player.number != null && (
-          <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground shadow">
-            {player.number}
-          </span>
-        )}
-      </div>
-      <span className="max-w-[60px] text-center text-[9px] font-medium leading-tight text-foreground truncate">
-        {shortName}
-      </span>
-    </div>
-  )
-}
-
-function PitchHalf({ lineup, flip }: { lineup: TeamLineup; flip?: boolean }) {
-  const rows = groupByRow(lineup.startXI)
-  // If no grid data, fall back to formation-based layout
-  const fallbackRows = (() => {
-    if (rows.length > 0) return rows
-    const sizes = parseFormation(lineup.formation)
-    if (sizes.length === 0) return [lineup.startXI]
-    const result: LineupPlayer[][] = []
-    let i = 0
-    // GK first
-    result.push(lineup.startXI.slice(i, i + 1)); i += 1
-    for (const size of sizes) {
-      result.push(lineup.startXI.slice(i, i + size)); i += size
-    }
-    return flip ? result : [...result].reverse()
-  })()
-
-  return (
-    <div className="flex flex-col items-center gap-3 py-3">
-      <div className="flex items-center justify-between w-full px-2">
-        <span className="text-xs font-semibold text-foreground truncate">{lineup.team}</span>
-        <span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground shrink-0">
-          {lineup.formation ?? "—"}
-        </span>
-      </div>
-      {lineup.coach && (
-        <p className="w-full px-2 text-[10px] text-muted-foreground">TD: {lineup.coach}</p>
-      )}
-      <div className="flex w-full flex-col gap-4">
-        {fallbackRows.map((rowPlayers, ri) => (
-          <div key={ri} className="flex justify-center gap-1 flex-wrap">
-            {rowPlayers.map((p, pi) => (
-              <PlayerAvatar key={pi} player={p} flip={flip} />
-            ))}
-          </div>
-        ))}
-      </div>
-      {lineup.substitutes.length > 0 && (
-        <div className="w-full border-t border-dashed border-border pt-3">
-          <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Yedekler</p>
-          <div className="flex flex-wrap gap-2 px-2">
-            {lineup.substitutes.map((p, idx) => (
-              <div key={idx} className="flex items-center gap-1 rounded-md bg-secondary px-2 py-1">
-                {p.number != null && (
-                  <span className="text-[10px] font-bold text-muted-foreground">{p.number}</span>
-                )}
-                <span className="text-[11px] text-foreground truncate max-w-[80px]">{p.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 function LineupsView({ lineups }: { lineups: TeamLineup[] }) {
-  if (lineups.length === 0) return null
-  const [home, away] = lineups
-
   return (
-    <div className="flex flex-col gap-4">
-      {/* Pitch */}
-      <div className="relative overflow-hidden rounded-xl border border-border" style={{ background: "linear-gradient(to bottom, #166534, #15803d, #166534)" }}>
-        {/* Pitch markings */}
-        <svg
-          className="absolute inset-0 w-full h-full"
-          viewBox="0 0 300 480"
-          preserveAspectRatio="none"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          {/* Outer border */}
-          <rect x="10" y="10" width="280" height="460" stroke="white" strokeOpacity="0.3" strokeWidth="1.5" />
-          {/* Halfway line */}
-          <line x1="10" y1="240" x2="290" y2="240" stroke="white" strokeOpacity="0.3" strokeWidth="1" />
-          {/* Center circle */}
-          <circle cx="150" cy="240" r="40" stroke="white" strokeOpacity="0.3" strokeWidth="1" />
-          <circle cx="150" cy="240" r="2" fill="white" fillOpacity="0.4" />
-          {/* Top penalty area */}
-          <rect x="75" y="10" width="150" height="70" stroke="white" strokeOpacity="0.25" strokeWidth="1" />
-          <rect x="110" y="10" width="80" height="30" stroke="white" strokeOpacity="0.25" strokeWidth="1" />
-          {/* Bottom penalty area */}
-          <rect x="75" y="400" width="150" height="70" stroke="white" strokeOpacity="0.25" strokeWidth="1" />
-          <rect x="110" y="440" width="80" height="30" stroke="white" strokeOpacity="0.25" strokeWidth="1" />
-        </svg>
-
-        <div className="relative z-10 grid grid-cols-1 divide-y divide-white/10">
-          {/* Away team — top half */}
-          {away && <PitchHalf lineup={away} flip />}
-          {/* Home team — bottom half */}
-          {home && <PitchHalf lineup={home} />}
+    <div className="grid gap-4 sm:grid-cols-2">
+      {lineups.map((l) => (
+        <div key={l.team} className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-foreground">{l.team}</span>
+            <span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
+              {l.formation ?? "—"}
+            </span>
+          </div>
+          {l.coach && (
+            <p className="text-[11px] text-muted-foreground">
+              Teknik Direktör: {l.coach}
+            </p>
+          )}
+          {l.startXI.length > 0 && (
+            <>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">İlk 11</p>
+              <ol className="grid grid-cols-2 gap-x-3 gap-y-1">
+                {l.startXI.map((p, idx) => (
+                  <li key={idx} className="flex items-center gap-1.5 text-xs text-foreground">
+                    <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">
+                      {p.number ?? "—"}
+                    </span>
+                    <span className="truncate">{p.name}</span>
+                    {p.pos && (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">({p.pos})</span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+          {l.substitutes.length > 0 && (
+            <>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Yedekler
+              </p>
+              <ol className="grid grid-cols-2 gap-x-3 gap-y-1">
+                {l.substitutes.map((p, idx) => (
+                  <li key={idx} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="w-4 shrink-0 text-right tabular-nums">{p.number ?? "—"}</span>
+                    <span className="truncate">{p.name}</span>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
         </div>
-      </div>
+      ))}
     </div>
   )
 }

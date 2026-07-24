@@ -316,7 +316,6 @@ async function getLineups(fixtureId: number): Promise<TeamLineup[]> {
   const raw = await safeFetch<any>("/fixtures/lineups", { fixture: fixtureId }, 300)
   const mapPlayers = (arr: any[]): LineupPlayer[] =>
     (arr ?? []).map((p) => ({
-      id: p.player?.id ?? null,
       number: p.player?.number ?? null,
       name: p.player?.name ?? "",
       pos: p.player?.pos ?? null,

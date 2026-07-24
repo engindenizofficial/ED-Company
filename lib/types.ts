@@ -106,7 +106,6 @@ export interface StatItem {
 }
 
 export interface LineupPlayer {
-  id: number | null
   number: number | null
   name: string
   pos: string | null
