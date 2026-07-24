@@ -13,8 +13,8 @@ export async function ensurePrediction(fixture: Fixture): Promise<GeminiPredicti
   const existing = await getLockedPrediction(fixture.id)
   if (existing) return existing
 
-  const { live, apiPredictionRaw } = await getGeminiInput(fixture)
-  const fresh = await generateGeminiPrediction(fixture, live, apiPredictionRaw)
+  const { live } = await getGeminiInput(fixture)
+  const fresh = await generateGeminiPrediction(fixture, live)
   return lockPrediction(fixture.id, fresh)
 }
 
@@ -24,7 +24,7 @@ export async function ensurePrediction(fixture: Fixture): Promise<GeminiPredicti
  * generated with incomplete data (e.g. card-level predictions without API detail).
  */
 export async function forceEnsurePrediction(fixture: Fixture): Promise<GeminiPrediction> {
-  const { live, apiPredictionRaw } = await getGeminiInput(fixture)
-  const fresh = await generateGeminiPrediction(fixture, live, apiPredictionRaw)
+  const { live } = await getGeminiInput(fixture)
+  const fresh = await generateGeminiPrediction(fixture, live)
   return forceLockPrediction(fixture.id, fresh)
 }

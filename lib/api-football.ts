@@ -330,13 +330,6 @@ async function getLineups(fixtureId: number): Promise<TeamLineup[]> {
   }))
 }
 
-/** API-Football's own model advice + percentages (great Gemini input). */
-async function getApiPrediction(fixtureId: number): Promise<{ advice: string | null; raw: unknown }> {
-  const raw = await safeFetch<any>("/predictions", { fixture: fixtureId }, 3600)
-  if (raw.length === 0) return { advice: null, raw: null }
-  return { advice: raw[0]?.predictions?.advice ?? null, raw: raw[0] ?? null }
-}
-
 // ---------------------------------------------------------------------------
 // Aggregators
 // ---------------------------------------------------------------------------
@@ -344,7 +337,7 @@ async function getApiPrediction(fixtureId: number): Promise<{ advice: string | n
 /** Gathers the full live/contextual dataset for the detail panel. */
 export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData> {
   const { id, home, away, league } = fixture
-  const [events, statistics, lineups, standings, injuries, h2h, homeStats, awayStats, apiPred] =
+  const [events, statistics, lineups, standings, injuries, h2h, homeStats, awayStats] =
     await Promise.all([
       getEvents(id),
       getStatistics(id),
@@ -354,7 +347,6 @@ export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData>
       getHeadToHead(home.id, away.id),
       getTeamSeasonStats(home, league.id, league.season),
       getTeamSeasonStats(away, league.id, league.season),
-      getApiPrediction(id),
     ])
 
   return {
@@ -367,20 +359,15 @@ export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData>
     h2h,
     homeStats,
     awayStats,
-    apiAdvice: apiPred.advice,
   }
 }
 
 /**
- * Builds the complete data blob sent to Gemini. Includes everything from the
- * live dataset plus API-Football's raw prediction object so Gemini has the
- * richest possible context.
+ * Builds the complete data blob sent to Gemini.
  */
 export async function getGeminiInput(fixture: Fixture): Promise<{
   live: LiveMatchData
-  apiPredictionRaw: unknown
 }> {
-  const { id } = fixture
-  const [live, apiPred] = await Promise.all([getLiveMatchData(fixture), getApiPrediction(id)])
-  return { live, apiPredictionRaw: apiPred.raw }
+  const live = await getLiveMatchData(fixture)
+  return { live }
 }

@@ -18,7 +18,6 @@ function apiKey(): string {
 export async function generateGeminiPrediction(
   fixture: Fixture,
   live: LiveMatchData,
-  apiPredictionRaw: unknown,
 ): Promise<GeminiPrediction> {
   const payload = {
     mac: {
@@ -39,7 +38,6 @@ export async function generateGeminiPrediction(
     kadrolar: live.lineups,
     canliOlaylar: live.events,
     canliIstatistikler: live.statistics,
-    apiFootballTahminVerisi: apiPredictionRaw,
   }
 
   const systemText =

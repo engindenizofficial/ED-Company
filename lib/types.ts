@@ -176,8 +176,6 @@ export interface LiveMatchData {
   h2h: FormGame[]
   homeStats: TeamSeasonStats | null
   awayStats: TeamSeasonStats | null
-  // API-Football's own prediction advice (used as a Gemini input + shown raw).
-  apiAdvice: string | null
 }
 
 // ---------------------------------------------------------------------------

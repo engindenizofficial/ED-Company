@@ -392,18 +392,6 @@ export function AnalysisPanel({
         </Collapsible>
       )}
 
-      {/* ---------------------------------------------------------------- */}
-      {/* 13. API-Football's own advice                                     */}
-      {/* ---------------------------------------------------------------- */}
-      {live.apiAdvice && (
-        <div className="rounded-lg border border-border bg-secondary px-4 py-3">
-          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            API-Football Tavsiye
-          </p>
-          <p className="text-sm text-foreground">{live.apiAdvice}</p>
-        </div>
-      )}
-
       <p className="text-center text-[10px] text-muted-foreground">
         Tahminler Gemini tarafından istatistiksel analiz ile üretilmiştir ve yatırım/bahis tavsiyesi değildir.
       </p>
@@ -579,6 +567,67 @@ const EVENT_ICONS: Record<string, string> = {
   Var: "📺",
 }
 
+const EVENT_TYPE_TR: Record<string, string> = {
+  Goal: "Gol",
+  Card: "Kart",
+  subst: "Oyuncu Değişikliği",
+  Var: "VAR",
+}
+
+const EVENT_DETAIL_TR: Record<string, string> = {
+  // Goals
+  "Normal Goal": "Normal Gol",
+  "Own Goal": "Kendi Kalesine",
+  "Penalty": "Penaltı",
+  "Missed Penalty": "Kaçırılan Penaltı",
+  // Cards
+  "Yellow Card": "Sarı Kart",
+  "Red Card": "Kırmızı Kart",
+  "Yellow Red Card": "İkinci Sarı Kart",
+  // Substitutions
+  "Substitution 1": "Değişiklik",
+  "Substitution 2": "Değişiklik",
+  "Substitution 3": "Değişiklik",
+  "Substitution 4": "Değişiklik",
+  "Substitution 5": "Değişiklik",
+  "Substitution 6": "Değişiklik",
+  // VAR
+  "Goal cancelled": "Gol İptal",
+  "Penalty confirmed": "Penaltı Onaylandı",
+  "Penalty cancelled": "Penaltı İptal",
+  "Card upgrade": "Kart Artırımı",
+}
+
+function translateDetail(detail: string): string {
+  return EVENT_DETAIL_TR[detail] ?? detail
+}
+
+const STAT_TYPE_TR: Record<string, string> = {
+  "Shots on Goal": "İsabetli Şut",
+  "Shots off Goal": "İsabetsiz Şut",
+  "Total Shots": "Toplam Şut",
+  "Blocked Shots": "Engellenen Şut",
+  "Shots insidebox": "Ceza Sahası İçi Şut",
+  "Shots outsidebox": "Ceza Sahası Dışı Şut",
+  "Fouls": "Faul",
+  "Corner Kicks": "Korner",
+  "Offsides": "Ofsayt",
+  "Ball Possession": "Top Hakimiyeti",
+  "Yellow Cards": "Sarı Kart",
+  "Red Cards": "Kırmızı Kart",
+  "Goalkeeper Saves": "Kurtarış",
+  "Total passes": "Toplam Pas",
+  "Passes accurate": "İsabetli Pas",
+  "Passes %": "Pas İsabeti",
+  "expected_goals": "Beklenen Gol (xG)",
+  "Expected Goals": "Beklenen Gol (xG)",
+  "Penalty Kicks": "Penaltı",
+}
+
+function translateStat(type: string): string {
+  return STAT_TYPE_TR[type] ?? type
+}
+
 function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: string }) {
   const sorted = [...events].sort((a, b) => a.minute - b.minute)
   return (
@@ -586,6 +635,8 @@ function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: stri
       {sorted.map((ev, i) => {
         const isHome = ev.team === homeName
         const icon = EVENT_ICONS[ev.type] ?? "•"
+        const typeTr = EVENT_TYPE_TR[ev.type] ?? ev.type
+        const detailTr = translateDetail(ev.detail)
         return (
           <li
             key={i}
@@ -598,9 +649,9 @@ function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: stri
             </span>
             <span>{icon}</span>
             <div className="flex min-w-0 flex-col">
-              <span className="truncate font-medium text-foreground">{ev.player ?? ev.type}</span>
+              <span className="truncate font-medium text-foreground">{ev.player ?? typeTr}</span>
               {ev.assist && <span className="truncate text-[11px] text-muted-foreground">Asist: {ev.assist}</span>}
-              <span className="text-[10px] text-muted-foreground">{ev.detail}</span>
+              <span className="text-[10px] text-muted-foreground">{detailTr}</span>
             </div>
           </li>
         )
@@ -644,7 +695,7 @@ function StatsList({
               <span className="font-bold tabular-nums text-foreground">
                 {s.home ?? "—"}
               </span>
-              <span className="text-muted-foreground">{s.type}</span>
+              <span className="text-muted-foreground">{translateStat(s.type)}</span>
               <span className="font-bold tabular-nums text-foreground">
                 {s.away ?? "—"}
               </span>
