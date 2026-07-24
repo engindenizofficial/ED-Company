@@ -1,6 +1,7 @@
 "use client"
 
 import { Clock, LoaderCircle } from "lucide-react"
+import Link from "next/link"
 import { GeminiLogo } from "@/components/gemini-logo"
 import { cn } from "@/lib/utils"
 import type { FixtureWithPrediction } from "@/lib/types"
@@ -111,10 +112,13 @@ export function FixtureList({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={group.logo || "/placeholder.svg"} alt="" className="h-4 w-4 object-contain" />
             ) : null}
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <Link
+              href={`/league/${group.id}`}
+              className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary"
+            >
               {group.name}
               <span className="ml-1.5 font-normal text-muted-foreground/70">{group.country}</span>
-            </h3>
+            </Link>
           </div>
           <ul className="flex flex-col gap-1.5">
             {group.items.map((f) => {

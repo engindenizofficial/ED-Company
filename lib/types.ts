@@ -106,6 +106,7 @@ export interface StatItem {
 }
 
 export interface LineupPlayer {
+  id: number | null
   number: number | null
   name: string
   pos: string | null
@@ -179,6 +180,103 @@ export interface LiveMatchData {
 }
 
 // ---------------------------------------------------------------------------
+// Player data
+// ---------------------------------------------------------------------------
+
+export interface PlayerProfile {
+  id: number
+  name: string
+  firstname: string
+  lastname: string
+  age: number | null
+  nationality: string | null
+  height: string | null
+  weight: string | null
+  photo: string | null
+  position: string | null
+  number: number | null
+  injured: boolean
+  /** Current team */
+  team: TeamInfo | null
+  /** Current league */
+  league: { id: number; name: string; country: string; logo: string; season: number } | null
+}
+
+export interface PlayerSeasonStats {
+  season: number
+  team: TeamInfo
+  league: { id: number; name: string; country: string; logo: string }
+  appearances: number | null
+  lineups: number | null
+  minutes: number | null
+  goals: number | null
+  assists: number | null
+  yellowCards: number | null
+  redCards: number | null
+  rating: string | null
+  shotsTotal: number | null
+  shotsOn: number | null
+  passesTotal: number | null
+  passesAccuracy: string | null
+  tacklesTotal: number | null
+  dribblesAttempted: number | null
+  dribblesSuccess: number | null
+}
+
+export interface Transfer {
+  date: string | null
+  type: string
+  teamFrom: TeamInfo
+  teamTo: TeamInfo
+}
+
+export interface Trophy {
+  league: string
+  country: string
+  season: string
+  place: string
+}
+
+export interface TopScorer {
+  player: { id: number; name: string; photo: string | null; nationality: string | null }
+  team: TeamInfo
+  goals: number | null
+  assists: number | null
+  yellowCards: number | null
+  redCards: number | null
+  appearances: number | null
+  rating: string | null
+}
+
+export interface FixturePlayerStat {
+  team: string
+  teamId: number
+  player: { id: number; name: string; photo: string | null; number: number | null; pos: string | null }
+  rating: string | null
+  minutes: number | null
+  goals: number | null
+  assists: number | null
+  yellowCard: boolean
+  redCard: boolean
+  shots: number | null
+  shotsOn: number | null
+  passes: number | null
+  passesAccuracy: string | null
+  tackles: number | null
+  dribbles: number | null
+  captain: boolean
+  substitute: boolean
+}
+
+export interface PlayerPageData {
+  profile: PlayerProfile
+  stats: PlayerSeasonStats[]
+  transfers: Transfer[]
+  trophies: Trophy[]
+  cachedAt: number
+}
+
+// ---------------------------------------------------------------------------
 // API responses
 // ---------------------------------------------------------------------------
 
@@ -193,7 +291,16 @@ export interface AnalysisResponse {
   live: LiveMatchData
   // null when the Gemini prediction hasn't been generated yet (queue pending).
   prediction: GeminiPrediction | null
+  playerStats: FixturePlayerStat[]
   liveCachedAt: number
   predictionLocked: boolean
   stale?: boolean
+}
+
+export interface LeaguePageData {
+  league: { id: number; name: string; country: string; logo: string; season: number }
+  standings: StandingRow[]
+  topScorers: TopScorer[]
+  fixtures: Fixture[]
+  cachedAt: number
 }

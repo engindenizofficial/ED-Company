@@ -17,7 +17,8 @@ import {
   Zap,
 } from "lucide-react"
 import { useState } from "react"
-import type { AnalysisResponse, FormGame, InjuryItem, MatchEvent, StatItem, StandingRow, TeamLineup, TeamSeasonStats } from "@/lib/types"
+import Link from "next/link"
+import type { AnalysisResponse, FixturePlayerStat, FormGame, InjuryItem, MatchEvent, StatItem, StandingRow, TeamLineup, TeamSeasonStats } from "@/lib/types"
 import { FormBadge } from "./form-badge"
 import { GeminiBadge, GeminiLogo } from "./gemini-logo"
 import { ProbabilityBar } from "./probability-bar"
@@ -60,7 +61,7 @@ export function AnalysisPanel({
     )
   }
 
-  const { live, prediction } = data
+  const { live, prediction, playerStats } = data
   const { fixture } = live
 
   return (
@@ -321,6 +322,29 @@ export function AnalysisPanel({
           }
         >
           <LineupsView lineups={live.lineups} />
+        </Collapsible>
+      )}
+
+      {/* ---------------------------------------------------------------- */}
+      {/* 8b. Player match stats                                            */}
+      {/* ---------------------------------------------------------------- */}
+      {playerStats && playerStats.length > 0 && (
+        <Collapsible
+          defaultOpen={false}
+          header={
+            <SectionHeader
+              icon={<Users className="h-3.5 w-3.5" />}
+              title="Oyuncu Maç İstatistikleri"
+              sub="API-Football"
+            />
+          }
+        >
+          <PlayerMatchStats
+            stats={playerStats}
+            homeName={fixture.home.name}
+            awayName={fixture.away.name}
+            leagueId={fixture.league.id}
+          />
         </Collapsible>
       )}
 
@@ -751,7 +775,13 @@ function LineupsView({ lineups }: { lineups: TeamLineup[] }) {
                     <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">
                       {p.number ?? "—"}
                     </span>
-                    <span className="truncate">{p.name}</span>
+                    {p.id ? (
+                      <Link href={`/player/${p.id}`} className="truncate hover:underline hover:text-primary">
+                        {p.name}
+                      </Link>
+                    ) : (
+                      <span className="truncate">{p.name}</span>
+                    )}
                     {p.pos && (
                       <span className="shrink-0 text-[10px] text-muted-foreground">({p.pos})</span>
                     )}
@@ -769,7 +799,13 @@ function LineupsView({ lineups }: { lineups: TeamLineup[] }) {
                 {l.substitutes.map((p, idx) => (
                   <li key={idx} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span className="w-4 shrink-0 text-right tabular-nums">{p.number ?? "—"}</span>
-                    <span className="truncate">{p.name}</span>
+                    {p.id ? (
+                      <Link href={`/player/${p.id}`} className="truncate hover:underline hover:text-primary">
+                        {p.name}
+                      </Link>
+                    ) : (
+                      <span className="truncate">{p.name}</span>
+                    )}
                   </li>
                 ))}
               </ol>
@@ -777,6 +813,113 @@ function LineupsView({ lineups }: { lineups: TeamLineup[] }) {
           )}
         </div>
       ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Player match stats
+// ---------------------------------------------------------------------------
+
+const POS_TR: Record<string, string> = {
+  G: "K",
+  D: "D",
+  M: "O",
+  F: "H",
+  Goalkeeper: "Kaleci",
+  Defender: "Defans",
+  Midfielder: "Orta Saha",
+  Attacker: "Forvet",
+}
+
+function PlayerMatchStats({
+  stats,
+  homeName,
+  awayName,
+  leagueId,
+}: {
+  stats: FixturePlayerStat[]
+  homeName: string
+  awayName: string
+  leagueId: number
+}) {
+  const homeStats = stats.filter((s) => s.team === homeName)
+  const awayStats = stats.filter((s) => s.team === awayName)
+
+  const TeamBlock = ({ players, label }: { players: FixturePlayerStat[]; label: string }) => (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-semibold text-foreground">{label}</p>
+      <div className="overflow-x-auto -mx-1">
+        <table className="w-full min-w-[460px] text-xs">
+          <thead>
+            <tr className="text-muted-foreground">
+              <th className="pb-1.5 text-left font-medium">Oyuncu</th>
+              <th className="pb-1.5 text-center font-medium">Süre</th>
+              <th className="pb-1.5 text-center font-medium">Puan</th>
+              <th className="pb-1.5 text-center font-medium">Gol</th>
+              <th className="pb-1.5 text-center font-medium">Asist</th>
+              <th className="pb-1.5 text-center font-medium">Şut</th>
+              <th className="pb-1.5 text-center font-medium">Pas</th>
+              <th className="pb-1.5 text-center font-medium">Kart</th>
+            </tr>
+          </thead>
+          <tbody>
+            {players.map((p, i) => {
+              const rating = p.rating ? Number.parseFloat(p.rating) : null
+              const ratingColor =
+                rating === null ? "" : rating >= 7.5 ? "text-primary font-bold" : rating < 6 ? "text-destructive" : "text-foreground"
+              return (
+                <tr key={i} className="border-t border-border">
+                  <td className="py-1.5 pr-2">
+                    <div className="flex items-center gap-1.5">
+                      {p.player.photo && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.player.photo} alt="" className="h-5 w-5 rounded-full object-cover" />
+                      )}
+                      <div className="flex flex-col">
+                        <Link
+                          href={`/player/${p.player.id}`}
+                          className="font-medium text-foreground hover:underline hover:text-primary"
+                        >
+                          {p.player.name}
+                        </Link>
+                        <span className="text-[10px] text-muted-foreground">
+                          {p.player.pos ? (POS_TR[p.player.pos] ?? p.player.pos) : ""}
+                          {p.captain ? " · Kaptan" : ""}
+                          {p.substitute ? " · Yedek" : ""}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-1.5 text-center tabular-nums text-muted-foreground">{p.minutes ?? "—"}</td>
+                  <td className={`py-1.5 text-center tabular-nums ${ratingColor}`}>{p.rating ?? "—"}</td>
+                  <td className="py-1.5 text-center tabular-nums text-foreground">{p.goals ?? "—"}</td>
+                  <td className="py-1.5 text-center tabular-nums text-foreground">{p.assists ?? "—"}</td>
+                  <td className="py-1.5 text-center tabular-nums text-muted-foreground">
+                    {p.shotsOn ?? "—"}/{p.shots ?? "—"}
+                  </td>
+                  <td className="py-1.5 text-center tabular-nums text-muted-foreground">
+                    {p.passes ?? "—"}
+                    {p.passesAccuracy ? ` (${p.passesAccuracy}%)` : ""}
+                  </td>
+                  <td className="py-1.5 text-center">
+                    {p.yellowCard && <span className="inline-block h-3 w-2 rounded-sm bg-yellow-400" title="Sarı kart" />}
+                    {p.redCard && <span className="inline-block h-3 w-2 rounded-sm bg-red-500 ml-0.5" title="Kırmızı kart" />}
+                    {!p.yellowCard && !p.redCard && <span className="text-muted-foreground">—</span>}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col gap-5">
+      {homeStats.length > 0 && <TeamBlock players={homeStats} label={homeName} />}
+      {awayStats.length > 0 && <TeamBlock players={awayStats} label={awayName} />}
     </div>
   )
 }

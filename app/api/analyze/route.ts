@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
-import { getFixtureById, getLiveMatchData } from "@/lib/api-football"
-import { getCachedLive, setCachedLive, getLockedPrediction } from "@/lib/redis"
-import type { AnalysisResponse, LiveMatchData } from "@/lib/types"
+import { getFixtureById, getFixturePlayerStats, getLiveMatchData } from "@/lib/api-football"
+import { getCachedFixturePlayerStats, getCachedLive, getLockedPrediction, setCachedFixturePlayerStats, setCachedLive } from "@/lib/redis"
+import type { AnalysisResponse, FixturePlayerStat, LiveMatchData } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -39,6 +39,17 @@ export async function GET(request: Request) {
       await setCachedLive(fixtureId, live)
     }
 
+    // ---- Per-player match stats ----
+    let playerStats: FixturePlayerStat[] = []
+    if (!shouldBypassCache) {
+      const cached = await getCachedFixturePlayerStats(fixtureId)
+      if (cached) playerStats = cached
+    }
+    if (playerStats.length === 0) {
+      playerStats = await getFixturePlayerStats(fixtureId)
+      if (playerStats.length > 0) await setCachedFixturePlayerStats(fixtureId, playerStats)
+    }
+
     // ---- Gemini prediction: only serve if already locked in Redis.
     // We never trigger a new Gemini call from here — the card queue handles
     // generation. This avoids 429s when the panel is opened mid-queue.
@@ -47,6 +58,7 @@ export async function GET(request: Request) {
     const payload: AnalysisResponse = {
       live,
       prediction: prediction ?? null,
+      playerStats,
       liveCachedAt,
       predictionLocked: !!prediction,
     }
@@ -58,10 +70,14 @@ export async function GET(request: Request) {
     // Best-effort fallback: serve whatever live data we last saved.
     const cachedLive = await getCachedLive(fixtureId)
     if (cachedLive) {
-      const prediction = await getLockedPrediction(fixtureId)
+      const [prediction, cachedPlayerStats] = await Promise.all([
+        getLockedPrediction(fixtureId),
+        getCachedFixturePlayerStats(fixtureId),
+      ])
       return NextResponse.json({
         live: cachedLive,
         prediction: prediction ?? null,
+        playerStats: cachedPlayerStats ?? [],
         liveCachedAt: Date.now(),
         predictionLocked: !!prediction,
         stale: true,
