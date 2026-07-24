@@ -1,6 +1,6 @@
 "use client"
 
-import { DatabaseZap, LoaderCircle, RefreshCw, Search } from "lucide-react"
+import { ChevronLeft, ChevronRight, DatabaseZap, LoaderCircle, RefreshCw, Search, Zap } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import useSWR from "swr"
 import { AnalysisPanel } from "@/components/analysis-panel"
@@ -10,12 +10,31 @@ import { fetcher, networkFetch } from "@/lib/fetcher"
 import { buildSearchIndex } from "@/lib/tr-aliases"
 import type { AnalysisResponse, FixtureWithPrediction, FixturesResponse, GeminiPrediction } from "@/lib/types"
 
-// Türkiye saatiyle bugünün tarihini döndürür (YYYY-MM-DD).
 function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
 }
 
+function offsetDate(base: string, delta: number): string {
+  const d = new Date(base + "T12:00:00")
+  d.setDate(d.getDate() + delta)
+  return d.toLocaleDateString("sv-SE")
+}
+
 function formatDateLabel(iso: string): string {
+  const today = todayTR()
+  const tomorrow = offsetDate(today, 1)
+  const yesterday = offsetDate(today, -1)
+  if (iso === today) return "Bugün"
+  if (iso === tomorrow) return "Yarın"
+  if (iso === yesterday) return "Dün"
+  return new Date(iso + "T12:00:00").toLocaleDateString("tr-TR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  })
+}
+
+function formatLongDate(iso: string): string {
   return new Date(iso + "T12:00:00").toLocaleDateString("tr-TR", {
     weekday: "long",
     day: "numeric",
@@ -36,8 +55,8 @@ function formatStamp(ms: number): string {
   })
 }
 
-// SWR reads from Redis-backed routes; no auto-refetch. The refresh button is the
-// only thing that pulls fresh live data.
+const LIVE_STATUSES = new Set(["1H", "2H", "ET", "BT", "P", "LIVE", "INT", "SUSP", "HT"])
+
 const SWR_OPTIONS = {
   revalidateOnFocus: false,
   revalidateOnReconnect: false,
@@ -45,22 +64,64 @@ const SWR_OPTIONS = {
   dedupingInterval: 60 * 60 * 1000,
 } as const
 
-// Score prediction shown on cards. { home, away } from server, or client map.
 type CardScore = { home: number; away: number; winner: "home" | "draw" | "away" }
 
+// Centered date pill for date navigator
+function DatePill({
+  iso,
+  active,
+  onClick,
+}: {
+  iso: string
+  active: boolean
+  onClick: () => void
+}) {
+  const label = formatDateLabel(iso)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 ${
+        active
+          ? "text-primary-foreground"
+          : "text-muted-foreground hover:text-foreground"
+      }`}
+      style={
+        active
+          ? {
+              background: "linear-gradient(135deg, var(--brand-from), var(--brand-to))",
+              boxShadow: "var(--shadow-card-active)",
+            }
+          : {
+              background: "var(--secondary)",
+              border: "1px solid var(--border)",
+              boxShadow: "var(--shadow-card)",
+            }
+      }
+    >
+      {label}
+    </button>
+  )
+}
+
 export default function Page() {
-  const date = todayTR()
+  const today = todayTR()
+  const [date, setDate] = useState(today)
   const [selected, setSelected] = useState<FixtureWithPrediction | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [query, setQuery] = useState("")
 
-  // Client-generated card scores (fixtures that had no locked prediction yet).
   const [cardScores, setCardScores] = useState<Record<number, CardScore>>({})
   const cardScoresRef = useRef<Record<number, CardScore>>({})
   const [pendingIds, setPendingIds] = useState<Set<number>>(new Set())
   const inFlight = useRef<Set<number>>(new Set())
+
+  // Generate 7-day window: yesterday + today + 5 days ahead
+  const dateWindow = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => offsetDate(today, i - 1))
+  }, [today])
 
   const fixturesKey = `/api/fixtures?date=${date}`
   const analysisKey = selected ? `/api/analyze?fixtureId=${selected.id}` : null
@@ -86,62 +147,58 @@ export default function Page() {
     return fixtures.filter((f) => buildSearchIndex(f).includes(q))
   }, [fixtures, query])
 
-  // Keep ref in sync with state so the queue can read it without a stale closure.
+  const liveCount = useMemo(
+    () => fixtures.filter((f) => LIVE_STATUSES.has(f.statusShort)).length,
+    [fixtures],
+  )
+
+  const totalGoals = useMemo(
+    () =>
+      fixtures.reduce((sum, f) => {
+        const h = f.goalsHome ?? 0
+        const a = f.goalsAway ?? 0
+        if (f.statusShort !== "NS" && f.statusShort !== "TBD") return sum + h + a
+        return sum
+      }, 0),
+    [fixtures],
+  )
+
   useEffect(() => {
     cardScoresRef.current = cardScores
   }, [cardScores])
 
-  // Update the "last updated" label from the payload timestamp.
   useEffect(() => {
     if (fixturesData?.cachedAt) setLastUpdated(formatStamp(fixturesData.cachedAt))
   }, [fixturesData])
 
-  // Maçlar yüklendiğinde tüm fixture'ların istatistiklerini arka planda Redis'e prefetch et.
-  // Redis'te zaten olan maçları atlar, sadece eksik olanları API'den çeker.
-  const prefetchedDates = useRef<Set<string>>(new Set())
+  // Clear selection when date changes
+  useEffect(() => {
+    setSelected(null)
+    setQuery("")
+  }, [date])
 
+  const prefetchedDates = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (fixtures.length === 0) return
     if (prefetchedDates.current.has(date)) return
-
     prefetchedDates.current.add(date)
-
     const ids = fixtures.map((f) => f.id)
-
     fetch("/api/prefetch-live", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fixtureIds: ids }),
-    })
-      .then((r) => r.json())
-      .then((res) => {
-        console.log("[v0] prefetch-live tamamlandı:", res)
-      })
-      .catch((err) => {
-        console.log("[v0] prefetch-live hata:", err instanceof Error ? err.message : err)
-      })
+    }).catch(() => {})
   }, [fixtures, date])
 
-  // TEMPORARILY DISABLED — tahmin motoru kapalı, "aç" yazılana kadar bu effect çalışmaz.
   const PREDICTIONS_DISABLED = true
-
-  // Generate locked Gemini score predictions for fixtures that don't have one
-  // yet. Runs strictly one-at-a-time in screen order with a 3-second pause
-  // between requests so we never flood the Gemini API. Once a prediction is
-  // stored in Redis it is never re-requested, so the delay only applies to
-  // the very first generation globally.
   useEffect(() => {
     if (PREDICTIONS_DISABLED) return
     if (filtered.length === 0) return
-
     const queue = filtered
       .filter((f) => !f.predictedScore && !cardScoresRef.current[f.id] && !inFlight.current.has(f.id))
       .map((f) => f.id)
-
     if (queue.length === 0) return
-
     let cancelled = false
-
     const markPending = (id: number, on: boolean) => {
       setPendingIds((prev) => {
         const next = new Set(prev)
@@ -150,23 +207,19 @@ export default function Page() {
         return next
       })
     }
-
     async function runQueue() {
       for (const id of queue) {
         if (cancelled) break
         if (inFlight.current.has(id)) continue
-
         inFlight.current.add(id)
         markPending(id, true)
         const fixture = filtered.find((f) => f.id === id)
-
         try {
           const res = await fetch("/api/predict", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fixture }),
           }).then((r) => r.json() as Promise<{ prediction: GeminiPrediction }>)
-
           if (!cancelled && res?.prediction) {
             setCardScores((prev) => ({
               ...prev,
@@ -177,29 +230,19 @@ export default function Page() {
               },
             }))
           }
-        } catch {
-          // Leave without a score; card shows a subtle dash.
-        } finally {
+        } catch {}
+        finally {
           inFlight.current.delete(id)
           markPending(id, false)
         }
-
-        // 3-second gap between requests to avoid Gemini rate limits.
         if (!cancelled) await new Promise((r) => setTimeout(r, 3000))
       }
     }
-
     runQueue()
-
-    return () => {
-      cancelled = true
-    }
-  // cardScoresRef is a ref — reading it inside the effect doesn't require it
-  // as a dependency. We only re-run when the fixture list itself changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered])
 
-  // Merge server + client predicted scores onto the fixtures for the list.
   const merged = useMemo<FixtureWithPrediction[]>(() => {
     return filtered.map((f) => {
       if (f.predictedScore) return f
@@ -216,24 +259,18 @@ export default function Page() {
     [],
   )
 
-  // Refresh: pull fresh LIVE data from API-Football. Gemini predictions stay
-  // locked and are NOT regenerated.
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
     setRefreshError(null)
     try {
       const freshFixtures = await networkFetch<FixturesResponse>(`${fixturesKey}&refresh=1`)
       await mutate(freshFixtures, { revalidate: false })
-
       if (analysisKey) {
         try {
           const freshAnalysis = await networkFetch<AnalysisResponse>(`${analysisKey}&refresh=1`)
           await mutateAnalysis(freshAnalysis, { revalidate: false })
-        } catch {
-          // Keep the previously shown analysis.
-        }
+        } catch {}
       }
-
       if (freshFixtures.stale) {
         setRefreshError("API limiti dolu — en son kaydedilen gerçek veriler gösteriliyor")
       }
@@ -247,73 +284,129 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-[49px] z-10 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <h1 className="text-xl font-extrabold leading-none tracking-tight">
-            <span className="brand-gradient bg-clip-text text-transparent">ED</span>{" "}
-            <span className="text-foreground">Company</span>
-          </h1>
-          <div className="flex items-center gap-2">
-            {refreshError ? (
-              <span
-                className="hidden items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-600 sm:flex dark:text-amber-400"
-                title={`Canlı veriye ulaşılamadı (${refreshError}).`}
+      {/* Page header */}
+      <header
+        className="sticky top-[49px] z-10 border-b border-border bg-background/95 backdrop-blur-md"
+        style={{ boxShadow: "var(--shadow-nav)" }}
+      >
+        <div className="mx-auto max-w-4xl px-4 py-2.5">
+          {/* Top row: date label + actions */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col">
+              <h1 className="text-sm font-extrabold capitalize text-foreground">{formatLongDate(date)}</h1>
+              {!fixturesLoading && (
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  {lastUpdated && <span>Son güncelleme: {lastUpdated}</span>}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              {refreshError ? (
+                <span
+                  className="hidden items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-600 sm:flex dark:text-amber-400"
+                  title={refreshError}
+                >
+                  <DatabaseZap className="h-3.5 w-3.5" />
+                  Kayıtlı veri
+                </span>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-60"
+                aria-label="Verileri yenile"
+                style={{ boxShadow: "var(--shadow-card)" }}
               >
-                <DatabaseZap className="h-3.5 w-3.5" />
-                Kayıtlı veri
-              </span>
-            ) : null}
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-primary" : ""}`} />
+              </button>
+              <ThemeToggle />
+            </div>
+          </div>
+
+          {/* Date navigator */}
+          <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               type="button"
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-60"
-              aria-label="Canlı verileri yenile"
-              title="Canlı veriyi yeniden çek (tahminler kilitli kalır)"
+              onClick={() => setDate((d) => offsetDate(d, -1))}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground"
+              style={{ boxShadow: "var(--shadow-card)" }}
+              aria-label="Önceki gün"
             >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin text-primary" : ""}`} />
+              <ChevronLeft className="h-4 w-4" />
             </button>
-            <ThemeToggle />
+            <div className="flex flex-1 items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {dateWindow.map((d) => (
+                <DatePill
+                  key={d}
+                  iso={d}
+                  active={d === date}
+                  onClick={() => setDate(d)}
+                />
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setDate((d) => offsetDate(d, 1))}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground"
+              style={{ boxShadow: "var(--shadow-card)" }}
+              aria-label="Sonraki gün"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-4xl flex-col gap-4 px-4 py-6">
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold capitalize text-foreground">{formatDateLabel(date)}</h2>
-            {!fixturesLoading ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {lastUpdated ? <span>Son güncelleme: {lastUpdated}</span> : null}
-                <span>{filtered.length} maç</span>
-              </div>
-            ) : null}
-          </div>
-
-          <label className="relative flex items-center">
-            <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Takım, lig veya ülke ara..."
-              className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
-              aria-label="Maçları filtrele"
+      <main className="mx-auto flex max-w-4xl flex-col gap-4 px-4 py-5">
+        {/* Stats summary strip */}
+        {!fixturesLoading && fixtures.length > 0 && (
+          <div className="grid grid-cols-3 gap-2">
+            <StatPill label="Toplam Maç" value={fixtures.length.toString()} />
+            <StatPill
+              label="Canlı"
+              value={liveCount.toString()}
+              live={liveCount > 0}
             />
-          </label>
-        </div>
+            <StatPill label="Toplam Gol" value={totalGoals.toString()} icon={<Zap className="h-3 w-3" />} />
+          </div>
+        )}
 
+        {/* Search */}
+        <label className="relative flex items-center">
+          <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Takım, lig veya ülke ara..."
+            className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-3 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
+            aria-label="Maçları filtrele"
+            style={{ boxShadow: "var(--shadow-card)" }}
+          />
+        </label>
+
+        {/* Fixture list or states */}
         {fixturesLoading ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-12 text-sm text-muted-foreground">
+          <div
+            className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-14 text-sm text-muted-foreground"
+            style={{ boxShadow: "var(--shadow-card)" }}
+          >
             <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
             Maçlar yükleniyor...
           </div>
         ) : fixtures.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
-            Bu tarihte planlanmış maç bulunamadı. Farklı bir tarih deneyin.
+          <div
+            className="rounded-xl border border-border bg-card px-4 py-14 text-center text-sm text-muted-foreground"
+            style={{ boxShadow: "var(--shadow-card)" }}
+          >
+            Bu tarihte planlanmış maç bulunamadı.
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
+          <div
+            className="rounded-xl border border-border bg-card px-4 py-14 text-center text-sm text-muted-foreground"
+            style={{ boxShadow: "var(--shadow-card)" }}
+          >
             {'"'}
             {query}
             {'"'} için sonuç bulunamadı.
@@ -334,6 +427,47 @@ export default function Page() {
           />
         )}
       </main>
+    </div>
+  )
+}
+
+function StatPill({
+  label,
+  value,
+  live = false,
+  icon,
+}: {
+  label: string
+  value: string
+  live?: boolean
+  icon?: React.ReactNode
+}) {
+  return (
+    <div
+      className="flex flex-col items-center gap-0.5 rounded-xl py-2.5 px-3"
+      style={{
+        background: live
+          ? "color-mix(in oklch, var(--live) 12%, var(--card))"
+          : "var(--card)",
+        border: live
+          ? "1px solid color-mix(in oklch, var(--live) 35%, var(--border))"
+          : "1px solid var(--border)",
+        boxShadow: live ? "var(--glow-live)" : "var(--shadow-card)",
+      }}
+    >
+      <div className="flex items-center gap-1">
+        {icon}
+        {live && value !== "0" && (
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-live" />
+        )}
+        <span
+          className={`text-lg font-extrabold tabular-nums ${live && value !== "0" ? "text-live" : "text-foreground"}`}
+          style={{ color: live && value !== "0" ? "var(--live)" : undefined }}
+        >
+          {value}
+        </span>
+      </div>
+      <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">{label}</span>
     </div>
   )
 }

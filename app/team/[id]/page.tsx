@@ -105,23 +105,26 @@ export default function TeamPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-[49px] z-10 border-b border-border bg-background/90 backdrop-blur">
+      <header
+        className="sticky top-[49px] z-10 border-b border-border bg-background/95 backdrop-blur-md"
+        style={{ boxShadow: "var(--shadow-nav)" }}
+      >
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
             <Link
               href="/"
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              style={{ boxShadow: "var(--shadow-card)" }}
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-3.5 w-3.5" />
               Maçlar
             </Link>
-            <span className="text-border">|</span>
             <div className="flex items-center gap-2">
               {data?.team.logo && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={data.team.logo} alt="" className="h-5 w-5 object-contain" />
               )}
-              <h1 className="max-w-[180px] truncate text-sm font-semibold text-foreground">
+              <h1 className="max-w-[180px] truncate text-sm font-bold text-foreground">
                 {data?.team.name ?? "Takım"}
               </h1>
             </div>
@@ -131,10 +134,11 @@ export default function TeamPage() {
               type="button"
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-60"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-60"
               aria-label="Yenile"
+              style={{ boxShadow: "var(--shadow-card)" }}
             >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin text-primary" : ""}`} />
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-primary" : ""}`} />
             </button>
             <ThemeToggle />
           </div>
@@ -156,7 +160,14 @@ export default function TeamPage() {
         ) : data ? (
           <div className="flex flex-col gap-5">
             {/* Team header */}
-            <div className="flex items-center gap-5 rounded-xl border border-border bg-card px-5 py-5">
+            <div
+              className="flex items-center gap-5 rounded-xl px-5 py-5"
+              style={{
+                background: "linear-gradient(145deg, color-mix(in oklch, var(--primary) 6%, var(--card)), var(--card))",
+                border: "1px solid color-mix(in oklch, var(--primary) 20%, var(--border))",
+                boxShadow: "var(--shadow-card-active)",
+              }}
+            >
               {data.team.logo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -187,10 +198,13 @@ export default function TeamPage() {
 
             {/* Venue */}
             {data.team.venue && (
-              <section className="rounded-xl border border-border bg-card overflow-hidden">
-                <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+              <section
+                className="overflow-hidden rounded-xl"
+                style={{ boxShadow: "var(--shadow-card)", border: "1px solid var(--border)", background: "var(--card)" }}
+              >
+                <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
                   <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="text-sm font-semibold text-foreground">Stadyum</h3>
+                  <h3 className="text-sm font-bold text-foreground">Stadyum</h3>
                 </div>
                 <div className="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:gap-8">
                   {data.team.venue.image && (
@@ -218,10 +232,13 @@ export default function TeamPage() {
 
             {/* Recent fixtures */}
             {data.fixtures.length > 0 && (
-              <section className="rounded-xl border border-border bg-card overflow-hidden">
-                <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+              <section
+                className="overflow-hidden rounded-xl"
+                style={{ boxShadow: "var(--shadow-card)", border: "1px solid var(--border)", background: "var(--card)" }}
+              >
+                <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="text-sm font-semibold text-foreground">Son Maçlar</h3>
+                  <h3 className="text-sm font-bold text-foreground">Son Maçlar</h3>
                 </div>
                 <ul className="flex flex-col divide-y divide-border">
                   {data.fixtures.map((f) => {

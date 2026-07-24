@@ -1,6 +1,6 @@
 "use client"
 
-import { Clock, LoaderCircle } from "lucide-react"
+import { Clock, LoaderCircle, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { GeminiLogo } from "@/components/gemini-logo"
 import { cn } from "@/lib/utils"
@@ -22,40 +22,23 @@ function isLive(short: string): boolean {
 
 function statusLabel(short: string): string {
   switch (short) {
-    case "FT":
-      return "MS"
-    case "AET":
-      return "MS (uzatma)"
-    case "PEN":
-      return "MS (pen.)"
-    case "HT":
-      return "İY"
-    case "1H":
-      return "1. Yarı"
-    case "2H":
-      return "2. Yarı"
-    case "ET":
-      return "Uzatma"
-    case "BT":
-      return "Devre arası"
-    case "P":
-      return "Penaltılar"
-    case "SUSP":
-      return "Durduruldu"
-    case "INT":
-      return "Ara verildi"
-    case "PST":
-      return "Ertelendi"
-    case "CANC":
-      return "İptal"
-    case "ABD":
-      return "Tatil edildi"
-    case "TBD":
-      return "Belirsiz"
-    case "NS":
-      return "Başlamadı"
-    default:
-      return short
+    case "FT":   return "MS"
+    case "AET":  return "MS (uzatma)"
+    case "PEN":  return "MS (pen.)"
+    case "HT":   return "İY"
+    case "1H":   return "1. Yarı"
+    case "2H":   return "2. Yarı"
+    case "ET":   return "Uzatma"
+    case "BT":   return "Devre arası"
+    case "P":    return "Penaltılar"
+    case "SUSP": return "Durduruldu"
+    case "INT":  return "Ara verildi"
+    case "PST":  return "Ertelendi"
+    case "CANC": return "İptal"
+    case "ABD":  return "Tatil edildi"
+    case "TBD":  return "Belirsiz"
+    case "NS":   return "Başlamadı"
+    default:     return short
   }
 }
 
@@ -104,9 +87,10 @@ export function FixtureList({
   const groups = groupByLeague(fixtures)
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       {groups.map((group) => (
         <div key={group.id} className="flex flex-col gap-2">
+          {/* League header */}
           <div className="flex items-center gap-2 px-1">
             {group.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -114,13 +98,15 @@ export function FixtureList({
             ) : null}
             <Link
               href={`/league/${group.id}`}
-              className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary"
+              className="text-xs font-bold uppercase tracking-widest text-muted-foreground transition-colors hover:text-primary"
             >
               {group.name}
-              <span className="ml-1.5 font-normal text-muted-foreground/70">{group.country}</span>
+              <span className="ml-1.5 font-normal tracking-normal text-muted-foreground/60">{group.country}</span>
             </Link>
           </div>
-          <ul className="flex flex-col gap-1.5">
+
+          {/* Match cards */}
+          <ul className="flex flex-col gap-2">
             {group.items.map((f) => {
               const active = f.id === selectedId
               const live = isLive(f.statusShort)
@@ -133,41 +119,89 @@ export function FixtureList({
                     onClick={() => onSelect(f)}
                     aria-pressed={active}
                     className={cn(
-                      "w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
+                      "group w-full rounded-xl text-left transition-all duration-200",
                       active
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-card hover:border-primary/40 hover:bg-secondary",
+                        ? "ring-inset"
+                        : "",
                     )}
+                    style={{
+                      boxShadow: active
+                        ? "var(--shadow-card-active)"
+                        : "var(--shadow-card)",
+                      background: active
+                        ? "color-mix(in oklch, var(--primary) 8%, var(--card))"
+                        : "var(--card)",
+                      border: active
+                        ? "1px solid color-mix(in oklch, var(--primary) 40%, var(--border))"
+                        : "1px solid var(--border)",
+                    }}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div
+                      className="flex items-center gap-3 px-3 py-2.5 transition-all duration-200"
+                      onMouseEnter={(e) => {
+                        if (!active) {
+                          const el = e.currentTarget.parentElement as HTMLElement
+                          el.style.boxShadow = "var(--shadow-card-hover)"
+                          el.style.transform = "translateY(-1px)"
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!active) {
+                          const el = e.currentTarget.parentElement as HTMLElement
+                          el.style.boxShadow = "var(--shadow-card)"
+                          el.style.transform = "translateY(0)"
+                        }
+                      }}
+                    >
+                      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                         <TeamRow id={f.home.id} name={f.home.name} logo={f.home.logo} goals={f.goalsHome} played={played} />
                         <TeamRow id={f.away.id} name={f.away.name} logo={f.away.logo} goals={f.goalsAway} played={played} />
                       </div>
 
-                      {/* Gemini score prediction — visible without opening the card */}
+                      {/* Gemini prediction chip */}
                       <PredictionChip fixture={f} pending={pending} />
 
-                      <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs text-muted-foreground">
+                      {/* Time / status */}
+                      <div className="flex shrink-0 flex-col items-end gap-1 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1 tabular-nums">
                           <Clock className="h-3 w-3" />
                           {kickoff(f.date)}
                         </span>
                         {live ? (
-                          <span className="flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-destructive">
-                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
+                          <span
+                            className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white"
+                            style={{ background: "var(--live)", boxShadow: "var(--glow-live)" }}
+                          >
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
                             {liveText(f)}
                           </span>
                         ) : played ? (
-                          <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium">
+                          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                             {statusLabel(f.statusShort)}
                           </span>
                         ) : null}
                       </div>
                     </div>
+
+                    {/* Analyse CTA — shown when not selected */}
+                    {!active && (
+                      <div className="flex items-center justify-center gap-1 border-t border-border/50 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 transition-colors group-hover:text-primary/70">
+                        <TrendingUp className="h-3 w-3" />
+                        Analiz Et
+                      </div>
+                    )}
                   </button>
+
+                  {/* Expanded analysis panel */}
                   {active ? (
-                    <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-1.5 rounded-lg border border-primary/30 bg-card p-4">
+                    <div
+                      className="animate-in fade-in slide-in-from-top-2 duration-300 mt-2 rounded-xl p-4"
+                      style={{
+                        boxShadow: "var(--shadow-card-active)",
+                        background: "var(--surface)",
+                        border: "1px solid color-mix(in oklch, var(--primary) 25%, var(--border))",
+                      }}
+                    >
                       {renderExpanded(f)}
                     </div>
                   ) : null}
@@ -188,28 +222,35 @@ function PredictionChip({ fixture, pending }: { fixture: FixtureWithPrediction; 
   if (score) {
     return (
       <div
-        className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-1"
+        className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg px-2.5 py-1.5"
+        style={{
+          background: "color-mix(in oklch, var(--primary) 10%, var(--card))",
+          border: "1px solid color-mix(in oklch, var(--primary) 30%, var(--border))",
+          boxShadow: "var(--glow-primary)",
+        }}
         title="Gemini skor tahmini"
       >
-        <div className="flex items-center gap-1 text-sm font-bold tabular-nums text-foreground">
+        <div className="flex items-center gap-1 text-sm font-extrabold tabular-nums text-foreground">
           <GeminiLogo className="h-3 w-3" />
           <span>
             {score.home}-{score.away}
           </span>
         </div>
-        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Tahmin</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-primary/70">Tahmin</span>
       </div>
     )
   }
 
   if (pending) {
     return (
-      <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-border bg-secondary px-2.5 py-1">
+      <div
+        className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-border bg-secondary px-2.5 py-1.5"
+      >
         <div className="flex items-center gap-1 text-muted-foreground">
           <GeminiLogo className="h-3 w-3" />
           <LoaderCircle className="h-3 w-3 animate-spin" />
         </div>
-        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Tahmin</span>
+        <span className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">Tahmin</span>
       </div>
     )
   }
@@ -239,11 +280,13 @@ function TeamRow({
       <Link
         href={`/team/${id}`}
         onClick={(e) => e.stopPropagation()}
-        className="truncate text-sm font-medium text-foreground hover:text-primary hover:underline"
+        className="truncate text-sm font-semibold text-foreground transition-colors hover:text-primary hover:underline"
       >
         {name}
       </Link>
-      {played ? <span className="ml-auto text-sm font-bold tabular-nums text-foreground">{goals}</span> : null}
+      {played ? (
+        <span className="ml-auto text-sm font-extrabold tabular-nums text-foreground">{goals}</span>
+      ) : null}
     </div>
   )
 }

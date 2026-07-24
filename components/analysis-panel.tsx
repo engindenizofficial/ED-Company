@@ -69,7 +69,14 @@ export function AnalysisPanel({
       {/* ---------------------------------------------------------------- */}
       {/* 1. Gemini headline prediction                                     */}
       {/* ---------------------------------------------------------------- */}
-      <section className="rounded-xl border border-border bg-card p-5">
+      <section
+        className="rounded-xl p-5"
+        style={{
+          background: "linear-gradient(145deg, color-mix(in oklch, var(--primary) 6%, var(--card)), var(--card))",
+          border: "1px solid color-mix(in oklch, var(--primary) 20%, var(--border))",
+          boxShadow: "var(--shadow-card-active)",
+        }}
+      >
       {!prediction && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
           <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" />
@@ -476,19 +483,30 @@ function Collapsible({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <section className="rounded-xl border border-border bg-card overflow-hidden">
+    <section
+      className="overflow-hidden rounded-xl transition-all duration-200"
+      style={{ boxShadow: "var(--shadow-card)", border: "1px solid var(--border)", background: "var(--card)" }}
+    >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 px-5 py-4 text-left"
+        className="flex w-full items-center justify-between gap-2 px-5 py-3.5 text-left transition-colors hover:bg-secondary/40"
         aria-expanded={open}
       >
         <div>{header}</div>
-        {open ? (
-          <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
+        <span
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all duration-200"
+          style={{
+            background: open ? "color-mix(in oklch, var(--primary) 15%, var(--secondary))" : "var(--secondary)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          {open ? (
+            <ChevronUp className="h-3 w-3 text-primary" />
+          ) : (
+            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          )}
+        </span>
       </button>
       {open && <div className="border-t border-border px-5 pb-5 pt-4">{children}</div>}
     </section>
@@ -511,11 +529,21 @@ function SectionHeader({
   gemini?: boolean
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-muted-foreground">{icon}</span>
-      <span className="text-sm font-semibold text-foreground">{title}</span>
+    <div className="flex items-center gap-2.5">
+      <span
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg"
+        style={{
+          background: gemini
+            ? "linear-gradient(135deg, var(--brand-from), var(--brand-to))"
+            : "var(--secondary)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        <span className={gemini ? "text-primary-foreground" : "text-muted-foreground"}>{icon}</span>
+      </span>
+      <span className="text-sm font-bold text-foreground">{title}</span>
       {sub && !gemini && (
-        <span className="rounded-full border border-border bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
+        <span className="rounded-full border border-border bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
           {sub}
         </span>
       )}
@@ -530,11 +558,20 @@ function SectionHeader({
 
 function TeamHeader({ id, name, logo }: { id: number; name: string; logo: string }) {
   return (
-    <Link href={`/team/${id}`} className="flex flex-col items-center gap-2 text-center group">
+    <Link
+      href={`/team/${id}`}
+      className="group flex flex-col items-center gap-2 rounded-xl p-2.5 text-center transition-all duration-200 hover:bg-secondary/60"
+    >
       {logo ? (
-        <img src={logo} alt={name} className="h-12 w-12 object-contain" />
+        <img
+          src={logo}
+          alt={name}
+          className="h-12 w-12 object-contain drop-shadow-sm transition-transform duration-200 group-hover:scale-110"
+        />
       ) : null}
-      <span className="text-balance text-sm font-semibold text-foreground group-hover:text-primary group-hover:underline">{name}</span>
+      <span className="text-balance text-sm font-bold text-foreground transition-colors group-hover:text-primary">
+        {name}
+      </span>
     </Link>
   )
 }
@@ -555,12 +592,15 @@ function MarketCard({
   gemini?: boolean
 }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-card p-3">
+    <div
+      className="flex flex-col gap-1.5 rounded-xl p-3 transition-all duration-200 hover:-translate-y-0.5"
+      style={{ boxShadow: "var(--shadow-card)", border: "1px solid var(--border)", background: "var(--card)" }}
+    >
       <div className="flex items-center justify-between gap-1">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
         {gemini && <GeminiLogo className="h-3 w-3 shrink-0" />}
       </div>
-      <span className="text-xl font-bold tabular-nums text-foreground">{value}</span>
+      <span className="text-xl font-extrabold tabular-nums text-foreground">{value}</span>
       {sub && <span className="truncate text-[10px] text-muted-foreground">{sub}</span>}
     </div>
   )
@@ -578,9 +618,12 @@ function MiniCard({
   gemini?: boolean
 }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-card p-3">
+    <div
+      className="flex flex-col gap-1.5 rounded-xl p-3 transition-all duration-200 hover:-translate-y-0.5"
+      style={{ boxShadow: "var(--shadow-card)", border: "1px solid var(--border)", background: "var(--card)" }}
+    >
       <div className="flex items-center justify-between gap-1">
-        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
           {icon}
           {label}
         </span>
@@ -965,7 +1008,11 @@ function StandingsTable({
                 }`}
               >
                 <td className="py-1.5 text-muted-foreground">{row.rank}</td>
-                <td className="py-1.5 max-w-[140px] truncate pr-2 text-foreground">{row.team}</td>
+                <td className="py-1.5 max-w-[140px] truncate pr-2">
+                  <Link href={`/team/${row.teamId}`} className="text-foreground hover:text-primary hover:underline">
+                    {row.team}
+                  </Link>
+                </td>
                 <td className="py-1.5 text-center tabular-nums text-muted-foreground">{row.played}</td>
                 <td className="py-1.5 text-center tabular-nums text-primary">{row.win}</td>
                 <td className="py-1.5 text-center tabular-nums text-muted-foreground">{row.draw}</td>
