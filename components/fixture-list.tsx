@@ -141,8 +141,8 @@ export function FixtureList({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <TeamRow name={f.home.name} logo={f.home.logo} goals={f.goalsHome} played={played} />
-                        <TeamRow name={f.away.name} logo={f.away.logo} goals={f.goalsAway} played={played} />
+                        <TeamRow id={f.home.id} name={f.home.name} logo={f.home.logo} goals={f.goalsHome} played={played} />
+                        <TeamRow id={f.away.id} name={f.away.name} logo={f.away.logo} goals={f.goalsAway} played={played} />
                       </div>
 
                       {/* Gemini score prediction — visible without opening the card */}
@@ -218,11 +218,13 @@ function PredictionChip({ fixture, pending }: { fixture: FixtureWithPrediction; 
 }
 
 function TeamRow({
+  id,
   name,
   logo,
   goals,
   played,
 }: {
+  id: number
   name: string
   logo: string
   goals: number | null
@@ -234,7 +236,13 @@ function TeamRow({
         // eslint-disable-next-line @next/next/no-img-element
         <img src={logo || "/placeholder.svg"} alt="" className="h-4 w-4 shrink-0 object-contain" />
       ) : null}
-      <span className="truncate text-sm font-medium text-foreground">{name}</span>
+      <Link
+        href={`/team/${id}`}
+        onClick={(e) => e.stopPropagation()}
+        className="truncate text-sm font-medium text-foreground hover:text-primary hover:underline"
+      >
+        {name}
+      </Link>
       {played ? <span className="ml-auto text-sm font-bold tabular-nums text-foreground">{goals}</span> : null}
     </div>
   )

@@ -54,7 +54,7 @@ export default function PlayerPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
+      <header className="sticky top-[49px] z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
             <Link

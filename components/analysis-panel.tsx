@@ -89,7 +89,7 @@ export function AnalysisPanel({
 
         {/* Teams + predicted score */}
         <div className="grid grid-cols-3 items-center gap-2">
-          <TeamHeader name={fixture.home.name} logo={fixture.home.logo} />
+          <TeamHeader id={fixture.home.id} name={fixture.home.name} logo={fixture.home.logo} />
           <div className="flex flex-col items-center gap-1.5">
             {prediction ? (
               <>
@@ -112,7 +112,7 @@ export function AnalysisPanel({
               </div>
             )}
           </div>
-          <TeamHeader name={fixture.away.name} logo={fixture.away.logo} />
+          <TeamHeader id={fixture.away.id} name={fixture.away.name} logo={fixture.away.logo} />
         </div>
 
         {/* HT + winner + confidence row — only when prediction is ready */}
@@ -528,14 +528,14 @@ function SectionHeader({
 // Team header
 // ---------------------------------------------------------------------------
 
-function TeamHeader({ name, logo }: { name: string; logo: string }) {
+function TeamHeader({ id, name, logo }: { id: number; name: string; logo: string }) {
   return (
-    <div className="flex flex-col items-center gap-2 text-center">
+    <Link href={`/team/${id}`} className="flex flex-col items-center gap-2 text-center group">
       {logo ? (
         <img src={logo} alt={name} className="h-12 w-12 object-contain" />
       ) : null}
-      <span className="text-balance text-sm font-semibold text-foreground">{name}</span>
-    </div>
+      <span className="text-balance text-sm font-semibold text-foreground group-hover:text-primary group-hover:underline">{name}</span>
+    </Link>
   )
 }
 

@@ -247,7 +247,7 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
+      <header className="sticky top-[49px] z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <h1 className="text-xl font-extrabold leading-none tracking-tight">
             <span className="brand-gradient bg-clip-text text-transparent">ED</span>{" "}
