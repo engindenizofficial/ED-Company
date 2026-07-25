@@ -54,21 +54,18 @@ export default function PlayerPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header
-        className="sticky top-[49px] z-10 border-b border-border bg-background/95 backdrop-blur-md"
-        style={{ boxShadow: "var(--shadow-nav)" }}
-      >
+      <header className="sticky top-[49px] z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
             <Link
-              href="/players"
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-              style={{ boxShadow: "var(--shadow-card)" }}
+              href="/"
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Oyuncular
+              <ArrowLeft className="h-4 w-4" />
+              Maçlar
             </Link>
-            <h1 className="max-w-[200px] truncate text-sm font-bold text-foreground">
+            <span className="text-border">|</span>
+            <h1 className="text-sm font-semibold text-foreground truncate max-w-[200px]">
               {data?.profile.name ?? "Oyuncu Profili"}
             </h1>
           </div>
@@ -77,11 +74,10 @@ export default function PlayerPage() {
               type="button"
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-60"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-60"
               aria-label="Yenile"
-              style={{ boxShadow: "var(--shadow-card)" }}
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-primary" : ""}`} />
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin text-primary" : ""}`} />
             </button>
             <ThemeToggle />
           </div>

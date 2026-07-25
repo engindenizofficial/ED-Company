@@ -1,6 +1,6 @@
 "use client"
 
-import { LoaderCircle } from "lucide-react"
+import { Clock, LoaderCircle } from "lucide-react"
 import Link from "next/link"
 import { GeminiLogo } from "@/components/gemini-logo"
 import { cn } from "@/lib/utils"
@@ -20,36 +20,49 @@ function isLive(short: string): boolean {
   return LIVE_STATUSES.has(short)
 }
 
-function isFinished(short: string): boolean {
-  return ["FT", "AET", "PEN"].includes(short)
-}
-
 function statusLabel(short: string): string {
   switch (short) {
-    case "FT":   return "MS"
-    case "AET":  return "MS/U"
-    case "PEN":  return "MS/P"
-    case "HT":   return "IY"
-    case "1H":   return "1Y"
-    case "2H":   return "2Y"
-    case "ET":   return "UZ"
-    case "BT":   return "DA"
-    case "P":    return "PEN"
-    case "SUSP": return "DUR"
-    case "INT":  return "ARA"
-    case "PST":  return "ERT"
-    case "CANC": return "IPN"
-    case "ABD":  return "TAT"
-    case "TBD":  return "BLR"
-    case "NS":   return ""
-    default:     return short
+    case "FT":
+      return "MS"
+    case "AET":
+      return "MS (uzatma)"
+    case "PEN":
+      return "MS (pen.)"
+    case "HT":
+      return "İY"
+    case "1H":
+      return "1. Yarı"
+    case "2H":
+      return "2. Yarı"
+    case "ET":
+      return "Uzatma"
+    case "BT":
+      return "Devre arası"
+    case "P":
+      return "Penaltılar"
+    case "SUSP":
+      return "Durduruldu"
+    case "INT":
+      return "Ara verildi"
+    case "PST":
+      return "Ertelendi"
+    case "CANC":
+      return "İptal"
+    case "ABD":
+      return "Tatil edildi"
+    case "TBD":
+      return "Belirsiz"
+    case "NS":
+      return "Başlamadı"
+    default:
+      return short
   }
 }
 
 function liveText(f: FixtureWithPrediction): string {
-  if (f.statusShort === "HT") return "IY"
-  if (f.statusShort === "BT") return "DA"
-  if (f.statusShort === "P") return "PEN"
+  if (f.statusShort === "HT") return "İY"
+  if (f.statusShort === "BT") return "Devre arası"
+  if (f.statusShort === "P") return "Penaltılar"
   if (typeof f.elapsed === "number") return `${f.elapsed}'`
   return statusLabel(f.statusShort)
 }
@@ -91,204 +104,146 @@ export function FixtureList({
   const groups = groupByLeague(fixtures)
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-5">
       {groups.map((group) => (
-        <div
-          key={group.id}
-          className="overflow-hidden rounded-md border border-border bg-card"
-          style={{ boxShadow: "var(--shadow-card)" }}
-        >
-          {/* League header — Mackolik style: navy background */}
-          <Link
-            href={`/league/${group.id}`}
-            className="flex items-center gap-2.5 px-3 py-2 transition-opacity hover:opacity-80"
-            style={{ background: "var(--navy)" }}
-          >
+        <div key={group.id} className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 px-1">
             {group.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={group.logo} alt="" className="h-4 w-4 object-contain" />
+              <img src={group.logo || "/placeholder.svg"} alt="" className="h-4 w-4 object-contain" />
             ) : null}
-            <span className="text-xs font-bold text-white">{group.name}</span>
-            <span className="text-xs font-normal text-white/60">{group.country}</span>
-            <span className="ml-auto text-[10px] font-medium text-white/50">
-              {group.items.length} maç
-            </span>
-          </Link>
-
-          {/* Match rows */}
-          <div className="divide-y divide-border">
+            <Link
+              href={`/league/${group.id}`}
+              className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary"
+            >
+              {group.name}
+              <span className="ml-1.5 font-normal text-muted-foreground/70">{group.country}</span>
+            </Link>
+          </div>
+          <ul className="flex flex-col gap-1.5">
             {group.items.map((f) => {
               const active = f.id === selectedId
               const live = isLive(f.statusShort)
-              const finished = isFinished(f.statusShort)
               const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
               const pending = pendingIds.has(f.id)
-
               return (
-                <div key={f.id}>
-                  {/* Match row — Mackolik table style */}
+                <li key={f.id}>
                   <button
                     type="button"
                     onClick={() => onSelect(f)}
                     aria-pressed={active}
                     className={cn(
-                      "group w-full text-left transition-colors",
+                      "w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
                       active
-                        ? "bg-orange-50 dark:bg-orange-950/20"
-                        : "hover:bg-secondary/60",
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-card hover:border-primary/40 hover:bg-secondary",
                     )}
-                    style={active ? { borderLeft: "3px solid var(--orange)" } : { borderLeft: "3px solid transparent" }}
                   >
-                    <div className="flex items-center gap-2 px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <TeamRow id={f.home.id} name={f.home.name} logo={f.home.logo} goals={f.goalsHome} played={played} />
+                        <TeamRow id={f.away.id} name={f.away.name} logo={f.away.logo} goals={f.goalsAway} played={played} />
+                      </div>
 
-                      {/* Time / Status column */}
-                      <div className="flex w-12 shrink-0 flex-col items-center gap-0.5">
+                      {/* Gemini score prediction — visible without opening the card */}
+                      <PredictionChip fixture={f} pending={pending} />
+
+                      <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1 tabular-nums">
+                          <Clock className="h-3 w-3" />
+                          {kickoff(f.date)}
+                        </span>
                         {live ? (
-                          <>
-                            <span
-                              className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white tabular-nums"
-                              style={{ background: "var(--live)" }}
-                            >
-                              {liveText(f)}
-                            </span>
-                            <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "var(--live)" }} />
-                          </>
-                        ) : finished ? (
-                          <>
-                            <span className="text-[10px] font-bold text-muted-foreground">MS</span>
-                            <span className="text-[10px] text-muted-foreground/60">{kickoff(f.date)}</span>
-                          </>
-                        ) : (
-                          <span className="text-sm font-bold tabular-nums text-foreground">{kickoff(f.date)}</span>
-                        )}
-                      </div>
-
-                      {/* Teams + Score — Mackolik centered layout */}
-                      <div className="flex flex-1 items-center gap-2 min-w-0">
-                        {/* Home team */}
-                        <div className="flex flex-1 items-center justify-end gap-1.5 min-w-0">
-                          <Link
-                            href={`/team/${f.home.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="truncate text-sm font-semibold text-foreground hover:text-orange-500 transition-colors"
-                          >
-                            {f.home.name}
-                          </Link>
-                          {f.home.logo ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={f.home.logo} alt="" className="h-5 w-5 shrink-0 object-contain" />
-                          ) : null}
-                        </div>
-
-                        {/* Score / VS */}
-                        <div className="flex shrink-0 items-center gap-1">
-                          {played ? (
-                            <div
-                              className="flex items-center gap-1 rounded px-2.5 py-1 text-sm font-black tabular-nums text-white"
-                              style={{
-                                background: active ? "var(--orange)" : finished ? "#3a4a5c" : "var(--navy)",
-                                minWidth: "3.5rem",
-                                justifyContent: "center",
-                              }}
-                            >
-                              <span>{f.goalsHome}</span>
-                              <span className="opacity-60">-</span>
-                              <span>{f.goalsAway}</span>
-                            </div>
-                          ) : (
-                            <span
-                              className="px-2 text-sm font-bold text-muted-foreground"
-                            >
-                              -
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Away team */}
-                        <div className="flex flex-1 items-center gap-1.5 min-w-0">
-                          {f.away.logo ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={f.away.logo} alt="" className="h-5 w-5 shrink-0 object-contain" />
-                          ) : null}
-                          <Link
-                            href={`/team/${f.away.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="truncate text-sm font-semibold text-foreground hover:text-orange-500 transition-colors"
-                          >
-                            {f.away.name}
-                          </Link>
-                        </div>
-                      </div>
-
-                      {/* Right: AI prediction chip */}
-                      <div className="flex w-14 shrink-0 items-center justify-center">
-                        <PredictionChip fixture={f} pending={pending} />
-                      </div>
-
-                      {/* Analyse indicator */}
-                      <div
-                        className={cn(
-                          "flex w-16 shrink-0 items-center justify-center rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors",
-                          active
-                            ? "text-white"
-                            : "text-muted-foreground/60 group-hover:text-orange-500"
-                        )}
-                        style={active ? { background: "var(--orange)" } : {}}
-                      >
-                        {active ? "Kapat" : "Analiz"}
+                          <span className="flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-destructive">
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
+                            {liveText(f)}
+                          </span>
+                        ) : played ? (
+                          <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium">
+                            {statusLabel(f.statusShort)}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   </button>
-
-                  {/* Expanded analysis panel */}
-                  {active && (
-                    <div
-                      className="border-t border-border px-4 py-4"
-                      style={{ background: "var(--surface)" }}
-                    >
+                  {active ? (
+                    <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-1.5 rounded-lg border border-primary/30 bg-card p-4">
                       {renderExpanded(f)}
                     </div>
-                  )}
-                </div>
+                  ) : null}
+                </li>
               )
             })}
-          </div>
+          </ul>
         </div>
       ))}
     </div>
   )
 }
 
+/** The Gemini score prediction shown directly on the card. */
 function PredictionChip({ fixture, pending }: { fixture: FixtureWithPrediction; pending: boolean }) {
   const score = fixture.predictedScore
 
   if (score) {
     return (
       <div
-        className="flex flex-col items-center gap-0 rounded px-1.5 py-1"
-        style={{
-          background: "color-mix(in srgb, var(--orange) 12%, var(--card))",
-          border: "1px solid color-mix(in srgb, var(--orange) 30%, var(--border))",
-        }}
+        className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-1"
         title="Gemini skor tahmini"
       >
-        <div className="flex items-center gap-0.5 text-xs font-black tabular-nums" style={{ color: "var(--orange)" }}>
-          <GeminiLogo className="h-2.5 w-2.5" />
-          <span>{score.home}-{score.away}</span>
+        <div className="flex items-center gap-1 text-sm font-bold tabular-nums text-foreground">
+          <GeminiLogo className="h-3 w-3" />
+          <span>
+            {score.home}-{score.away}
+          </span>
         </div>
-        <span className="text-[8px] font-semibold uppercase tracking-wide text-muted-foreground">AI</span>
+        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Tahmin</span>
       </div>
     )
   }
 
   if (pending) {
     return (
-      <div className="flex items-center gap-1 text-muted-foreground">
-        <GeminiLogo className="h-3 w-3" />
-        <LoaderCircle className="h-3 w-3 animate-spin" />
+      <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-border bg-secondary px-2.5 py-1">
+        <div className="flex items-center gap-1 text-muted-foreground">
+          <GeminiLogo className="h-3 w-3" />
+          <LoaderCircle className="h-3 w-3 animate-spin" />
+        </div>
+        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Tahmin</span>
       </div>
     )
   }
 
   return null
+}
+
+function TeamRow({
+  id,
+  name,
+  logo,
+  goals,
+  played,
+}: {
+  id: number
+  name: string
+  logo: string
+  goals: number | null
+  played: boolean
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={logo || "/placeholder.svg"} alt="" className="h-4 w-4 shrink-0 object-contain" />
+      ) : null}
+      <Link
+        href={`/team/${id}`}
+        onClick={(e) => e.stopPropagation()}
+        className="truncate text-sm font-medium text-foreground hover:text-primary hover:underline"
+      >
+        {name}
+      </Link>
+      {played ? <span className="ml-auto text-sm font-bold tabular-nums text-foreground">{goals}</span> : null}
+    </div>
+  )
 }

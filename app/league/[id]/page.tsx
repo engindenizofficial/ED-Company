@@ -87,26 +87,20 @@ export default function LeaguePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header
-        className="sticky top-[49px] z-10 border-b border-border bg-background/95 backdrop-blur-md"
-        style={{ boxShadow: "var(--shadow-nav)" }}
-      >
+      <header className="sticky top-[49px] z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
-            <Link
-              href="/leagues"
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-              style={{ boxShadow: "var(--shadow-card)" }}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Ligler
+            <Link href="/" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="h-4 w-4" />
+              Maçlar
             </Link>
+            <span className="text-border">|</span>
             <div className="flex items-center gap-2">
               {data?.league.logo && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={data.league.logo} alt="" className="h-5 w-5 object-contain" />
               )}
-              <h1 className="max-w-[180px] truncate text-sm font-bold text-foreground">
+              <h1 className="text-sm font-semibold text-foreground truncate max-w-[180px]">
                 {data?.league.name ?? "Lig"}
               </h1>
             </div>
