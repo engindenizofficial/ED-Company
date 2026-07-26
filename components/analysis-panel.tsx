@@ -81,12 +81,12 @@ export function AnalysisPanel({
         <div className="grid grid-cols-3 items-center gap-2">
           <TeamHeader name={fixture.home.name} logo={fixture.home.logo} />
           <div className="flex flex-col items-center gap-1.5">
-            {fixture.score.home !== null && fixture.score.away !== null ? (
+            {fixture.score?.home != null && fixture.score?.away != null ? (
               <>
                 <div className="flex items-center gap-2 text-3xl font-bold tabular-nums text-foreground">
-                  <span>{fixture.score.home}</span>
+                  <span>{fixture.score?.home}</span>
                   <span className="text-muted-foreground">-</span>
-                  <span>{fixture.score.away}</span>
+                  <span>{fixture.score?.away}</span>
                 </div>
                 <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                   {fixture.status}
