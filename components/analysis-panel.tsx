@@ -108,7 +108,7 @@ export function AnalysisPanel({
       {/* ---------------------------------------------------------------- */}
       {live.events.length > 0 && (
         <Collapsible
-          defaultOpen
+          defaultOpen={false}
           header={
             <SectionHeader
               icon={<Activity className="h-3.5 w-3.5" />}
@@ -244,15 +244,9 @@ export function AnalysisPanel({
 
 function AnalyzingState() {
   return (
-    <div className="flex min-h-[200px] flex-col items-center justify-center gap-4 py-6 text-center">
-      <div className="relative flex h-14 w-14 items-center justify-center">
-        <span className="absolute inset-0 rounded-full border-2 border-primary/20" />
-        <LoaderCircle className="h-14 w-14 animate-spin text-primary" strokeWidth={1.5} />
-      </div>
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-semibold text-foreground">Analiz ediliyor</p>
-        <p className="text-xs text-muted-foreground">Veriler yükleniyor...</p>
-      </div>
+    <div className="flex min-h-[120px] items-center justify-center gap-2 text-sm text-muted-foreground">
+      <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
+      Veriler yükleniyor...
     </div>
   )
 }
