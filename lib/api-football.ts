@@ -139,9 +139,12 @@ function mapFixture(r: RawFixture): Fixture {
 // ---------------------------------------------------------------------------
 
 export async function getFixturesByDate(date: string): Promise<Fixture[]> {
+  const MAX_FIXTURES = 200
+
   const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: "Europe/Istanbul" }, 120)
   const fixtures = raw.map(mapFixture)
 
+  // Sort by league popularity first, then by kick-off time within each league
   fixtures.sort((a, b) => {
     const ai = FEATURED_LEAGUES.indexOf(a.league.id)
     const bi = FEATURED_LEAGUES.indexOf(b.league.id)
@@ -151,7 +154,35 @@ export async function getFixturesByDate(date: string): Promise<Fixture[]> {
     return a.timestamp - b.timestamp
   })
 
-  return fixtures
+  // Apply 200-match limit but never cut a league in half:
+  // once the running total reaches 200, finish the current league then stop.
+  if (fixtures.length <= MAX_FIXTURES) return fixtures
+
+  const result: Fixture[] = []
+  let limitReached = false
+  let currentLeagueId: number | null = null
+
+  for (const fixture of fixtures) {
+    const leagueId = fixture.league.id
+
+    if (!limitReached) {
+      result.push(fixture)
+      currentLeagueId = leagueId
+      if (result.length >= MAX_FIXTURES) {
+        limitReached = true
+      }
+    } else {
+      // Limit already reached — only continue while we are still in the same league
+      if (leagueId === currentLeagueId) {
+        result.push(fixture)
+      } else {
+        // New league encountered after the limit — stop completely
+        break
+      }
+    }
+  }
+
+  return result
 }
 
 export async function getFixtureById(id: number): Promise<Fixture | null> {
