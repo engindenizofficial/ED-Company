@@ -1,9 +1,7 @@
 import { Redis } from "@upstash/redis"
-import type { FixturePlayerStat, FixturesResponse, GeminiPrediction, LeaguePageData, LiveMatchData, PlayerPageData } from "./types"
+import type { FixturePlayerStat, FixturesResponse, LeaguePageData, LiveMatchData, PlayerPageData } from "./types"
 
-// Shared server-side store. Everything the app shows is persisted here so that
-// every visitor — same user on another device, or a brand new user — is served
-// the SAME saved data instead of triggering fresh API-Football / Gemini calls.
+// Shared server-side store.
 
 // Normalize the URL: @upstash/redis only accepts https:// REST URLs.
 // If a rediss:// or redis:// TCP URL was accidentally provided, convert it.
@@ -29,10 +27,6 @@ try {
   redis = null
 }
 
-function getRedis(): Redis | null {
-  return redis
-}
-
 // ---------------------------------------------------------------------------
 // Key helpers
 // ---------------------------------------------------------------------------
@@ -40,22 +34,20 @@ function getRedis(): Redis | null {
 const K = {
   fixtures: (date: string) => `ed:fixtures:${date}`,
   live: (fixtureId: number) => `ed:live:${fixtureId}`,
-  prediction: (fixtureId: number) => `ed:pred:${fixtureId}`,
   playerStats: (fixtureId: number) => `ed:fxplayers:${fixtureId}`,
   player: (playerId: number) => `ed:player:${playerId}`,
   league: (leagueId: number, season: number) => `ed:league:${leagueId}:${season}`,
 }
 
-// TTLs (seconds). Live data expires so a refresh can pull genuinely new numbers;
-// Gemini predictions NEVER expire — once made they are locked forever.
-const FIXTURES_TTL = 60 * 60 * 12    // 12h backstop; refreshed on demand
-const LIVE_TTL = 60 * 60 * 6         // 6h backstop for live match data
-const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h for fixture player stats
-const PLAYER_TTL = 60 * 60 * 24      // 24h for player profile
-const LEAGUE_TTL = 60 * 60 * 6       // 6h for league data
+// TTLs (seconds)
+const FIXTURES_TTL = 60 * 60 * 12    // 12h
+const LIVE_TTL = 60 * 60 * 6         // 6h
+const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
+const PLAYER_TTL = 60 * 60 * 24      // 24h
+const LEAGUE_TTL = 60 * 60 * 6       // 6h
 
 // ---------------------------------------------------------------------------
-// Fixtures (refreshable)
+// Fixtures
 // ---------------------------------------------------------------------------
 
 export async function getCachedFixtures(date: string): Promise<FixturesResponse | null> {
@@ -78,7 +70,7 @@ export async function setCachedFixtures(date: string, data: FixturesResponse): P
 }
 
 // ---------------------------------------------------------------------------
-// Live match data (refreshable)
+// Live match data
 // ---------------------------------------------------------------------------
 
 export async function getCachedLive(fixtureId: number): Promise<LiveMatchData | null> {
@@ -101,63 +93,7 @@ export async function setCachedLive(fixtureId: number, data: LiveMatchData): Pro
 }
 
 // ---------------------------------------------------------------------------
-// Gemini prediction (LOCKED — write once, never overwrite)
-// ---------------------------------------------------------------------------
-
-export async function getLockedPrediction(fixtureId: number): Promise<GeminiPrediction | null> {
-  if (!redis) return null
-  try {
-    return (await redis.get<GeminiPrediction>(K.prediction(fixtureId))) ?? null
-  } catch (err) {
-    console.log("[v0] redis getLockedPrediction failed:", err instanceof Error ? err.message : err)
-    return null
-  }
-}
-
-/**
- * Persist a Gemini prediction only if none exists yet (NX = set-if-absent).
- * Returns the stored prediction: either the one we just wrote, or the pre-existing
- * locked one if another request beat us to it. This guarantees a prediction can
- * never change once created, even under concurrent requests.
- */
-export async function lockPrediction(
-  fixtureId: number,
-  prediction: GeminiPrediction,
-): Promise<GeminiPrediction> {
-  if (!redis) return prediction
-  try {
-    const ok = await redis.set(K.prediction(fixtureId), prediction, { nx: true })
-    if (ok === "OK" || ok === null) {
-      if (ok === "OK") return prediction
-    }
-    const existing = await getLockedPrediction(fixtureId)
-    return existing ?? prediction
-  } catch (err) {
-    console.log("[v0] redis lockPrediction failed:", err instanceof Error ? err.message : err)
-    return prediction
-  }
-}
-
-/**
- * Force-write a prediction regardless of whether one already exists.
- * Used to upgrade old predictions that were generated with incomplete data.
- */
-export async function forceLockPrediction(
-  fixtureId: number,
-  prediction: GeminiPrediction,
-): Promise<GeminiPrediction> {
-  if (!redis) return prediction
-  try {
-    await redis.set(K.prediction(fixtureId), prediction)
-    return prediction
-  } catch (err) {
-    console.log("[v0] redis forceLockPrediction failed:", err instanceof Error ? err.message : err)
-    return prediction
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Fixture player stats (refreshable)
+// Fixture player stats
 // ---------------------------------------------------------------------------
 
 export async function getCachedFixturePlayerStats(fixtureId: number): Promise<FixturePlayerStat[] | null> {
@@ -180,7 +116,7 @@ export async function setCachedFixturePlayerStats(fixtureId: number, data: Fixtu
 }
 
 // ---------------------------------------------------------------------------
-// Player page data (refreshable)
+// Player page data
 // ---------------------------------------------------------------------------
 
 export async function getCachedPlayer(playerId: number): Promise<PlayerPageData | null> {
@@ -203,7 +139,7 @@ export async function setCachedPlayer(playerId: number, data: PlayerPageData): P
 }
 
 // ---------------------------------------------------------------------------
-// League page data (refreshable)
+// League page data
 // ---------------------------------------------------------------------------
 
 export async function getCachedLeague(leagueId: number, season: number): Promise<LeaguePageData | null> {
@@ -223,24 +159,4 @@ export async function setCachedLeague(leagueId: number, season: number, data: Le
   } catch (err) {
     console.log("[v0] redis setCachedLeague failed:", err instanceof Error ? err.message : err)
   }
-}
-
-/** Batch read locked predictions for many fixtures (used to fill card scores). */
-export async function getLockedPredictionsMap(
-  fixtureIds: number[],
-): Promise<Map<number, GeminiPrediction>> {
-  const map = new Map<number, GeminiPrediction>()
-  if (fixtureIds.length === 0) return map
-  if (!redis) return map
-  try {
-    const keys = fixtureIds.map(K.prediction)
-    const values = await redis.mget<(GeminiPrediction | null)[]>(...keys)
-    fixtureIds.forEach((id, i) => {
-      const v = values[i]
-      if (v) map.set(id, v)
-    })
-  } catch (err) {
-    console.log("[v0] redis getLockedPredictionsMap failed:", err instanceof Error ? err.message : err)
-  }
-  return map
 }

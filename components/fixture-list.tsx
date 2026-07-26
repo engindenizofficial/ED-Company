@@ -1,10 +1,9 @@
 "use client"
 
-import { Clock, LoaderCircle } from "lucide-react"
+import { Clock } from "lucide-react"
 import Link from "next/link"
-import { GeminiLogo } from "@/components/gemini-logo"
 import { cn } from "@/lib/utils"
-import type { FixtureWithPrediction } from "@/lib/types"
+import type { Fixture } from "@/lib/types"
 
 function kickoff(iso: string): string {
   return new Date(iso).toLocaleTimeString("tr-TR", {
@@ -59,7 +58,7 @@ function statusLabel(short: string): string {
   }
 }
 
-function liveText(f: FixtureWithPrediction): string {
+function liveText(f: Fixture): string {
   if (f.statusShort === "HT") return "İY"
   if (f.statusShort === "BT") return "Devre arası"
   if (f.statusShort === "P") return "Penaltılar"
@@ -67,10 +66,10 @@ function liveText(f: FixtureWithPrediction): string {
   return statusLabel(f.statusShort)
 }
 
-function groupByLeague(fixtures: FixtureWithPrediction[]) {
+function groupByLeague(fixtures: Fixture[]) {
   const groups = new Map<
     number,
-    { id: number; name: string; country: string; logo: string; items: FixtureWithPrediction[] }
+    { id: number; name: string; country: string; logo: string; items: Fixture[] }
   >()
   for (const f of fixtures) {
     const key = f.league.id
@@ -91,15 +90,13 @@ function groupByLeague(fixtures: FixtureWithPrediction[]) {
 export function FixtureList({
   fixtures,
   selectedId,
-  pendingIds,
   onSelect,
   renderExpanded,
 }: {
-  fixtures: FixtureWithPrediction[]
+  fixtures: Fixture[]
   selectedId: number | null
-  pendingIds: Set<number>
-  onSelect: (f: FixtureWithPrediction) => void
-  renderExpanded: (f: FixtureWithPrediction) => React.ReactNode
+  onSelect: (f: Fixture) => void
+  renderExpanded: (f: Fixture) => React.ReactNode
 }) {
   const groups = groupByLeague(fixtures)
 
@@ -125,7 +122,6 @@ export function FixtureList({
               const active = f.id === selectedId
               const live = isLive(f.statusShort)
               const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
-              const pending = pendingIds.has(f.id)
               return (
                 <li key={f.id}>
                   <button
@@ -144,9 +140,6 @@ export function FixtureList({
                         <TeamRow id={f.home.id} name={f.home.name} logo={f.home.logo} goals={f.goalsHome} played={played} />
                         <TeamRow id={f.away.id} name={f.away.name} logo={f.away.logo} goals={f.goalsAway} played={played} />
                       </div>
-
-                      {/* Gemini score prediction — visible without opening the card */}
-                      <PredictionChip fixture={f} pending={pending} />
 
                       <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1 tabular-nums">
@@ -179,42 +172,6 @@ export function FixtureList({
       ))}
     </div>
   )
-}
-
-/** The Gemini score prediction shown directly on the card. */
-function PredictionChip({ fixture, pending }: { fixture: FixtureWithPrediction; pending: boolean }) {
-  const score = fixture.predictedScore
-
-  if (score) {
-    return (
-      <div
-        className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-1"
-        title="Gemini skor tahmini"
-      >
-        <div className="flex items-center gap-1 text-sm font-bold tabular-nums text-foreground">
-          <GeminiLogo className="h-3 w-3" />
-          <span>
-            {score.home}-{score.away}
-          </span>
-        </div>
-        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Tahmin</span>
-      </div>
-    )
-  }
-
-  if (pending) {
-    return (
-      <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-border bg-secondary px-2.5 py-1">
-        <div className="flex items-center gap-1 text-muted-foreground">
-          <GeminiLogo className="h-3 w-3" />
-          <LoaderCircle className="h-3 w-3 animate-spin" />
-        </div>
-        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Tahmin</span>
-      </div>
-    )
-  }
-
-  return null
 }
 
 function TeamRow({

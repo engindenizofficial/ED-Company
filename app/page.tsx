@@ -8,7 +8,7 @@ import { FixtureList } from "@/components/fixture-list"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { fetcher, networkFetch } from "@/lib/fetcher"
 import { buildSearchIndex } from "@/lib/tr-aliases"
-import type { AnalysisResponse, FixtureWithPrediction, FixturesResponse, GeminiPrediction } from "@/lib/types"
+import type { AnalysisResponse, Fixture, FixturesResponse } from "@/lib/types"
 
 // Türkiye saatiyle bugünün tarihini döndürür (YYYY-MM-DD).
 function todayTR(): string {
@@ -36,8 +36,6 @@ function formatStamp(ms: number): string {
   })
 }
 
-// SWR reads from Redis-backed routes; no auto-refetch. The refresh button is the
-// only thing that pulls fresh live data.
 const SWR_OPTIONS = {
   revalidateOnFocus: false,
   revalidateOnReconnect: false,
@@ -45,22 +43,13 @@ const SWR_OPTIONS = {
   dedupingInterval: 60 * 60 * 1000,
 } as const
 
-// Score prediction shown on cards. { home, away } from server, or client map.
-type CardScore = { home: number; away: number; winner: "home" | "draw" | "away" }
-
 export default function Page() {
   const date = todayTR()
-  const [selected, setSelected] = useState<FixtureWithPrediction | null>(null)
+  const [selected, setSelected] = useState<Fixture | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [query, setQuery] = useState("")
-
-  // Client-generated card scores (fixtures that had no locked prediction yet).
-  const [cardScores, setCardScores] = useState<Record<number, CardScore>>({})
-  const cardScoresRef = useRef<Record<number, CardScore>>({})
-  const [pendingIds, setPendingIds] = useState<Set<number>>(new Set())
-  const inFlight = useRef<Set<number>>(new Set())
 
   const fixturesKey = `/api/fixtures?date=${date}`
   const analysisKey = selected ? `/api/analyze?fixtureId=${selected.id}` : null
@@ -86,18 +75,10 @@ export default function Page() {
     return fixtures.filter((f) => buildSearchIndex(f).includes(q))
   }, [fixtures, query])
 
-  // Keep ref in sync with state so the queue can read it without a stale closure.
-  useEffect(() => {
-    cardScoresRef.current = cardScores
-  }, [cardScores])
-
-  // Update the "last updated" label from the payload timestamp.
   useEffect(() => {
     if (fixturesData?.cachedAt) setLastUpdated(formatStamp(fixturesData.cachedAt))
   }, [fixturesData])
 
-  // Maçlar yüklendiğinde tüm fixture'ların istatistiklerini arka planda Redis'e prefetch et.
-  // Redis'te zaten olan maçları atlar, sadece eksik olanları API'den çeker.
   const prefetchedDates = useRef<Set<string>>(new Set())
 
   useEffect(() => {
@@ -122,102 +103,13 @@ export default function Page() {
       })
   }, [fixtures, date])
 
-  // TEMPORARILY DISABLED — tahmin motoru kapalı, "aç" yazılana kadar bu effect çalışmaz.
-  const PREDICTIONS_DISABLED = true
-
-  // Generate locked Gemini score predictions for fixtures that don't have one
-  // yet. Runs strictly one-at-a-time in screen order with a 3-second pause
-  // between requests so we never flood the Gemini API. Once a prediction is
-  // stored in Redis it is never re-requested, so the delay only applies to
-  // the very first generation globally.
-  useEffect(() => {
-    if (PREDICTIONS_DISABLED) return
-    if (filtered.length === 0) return
-
-    const queue = filtered
-      .filter((f) => !f.predictedScore && !cardScoresRef.current[f.id] && !inFlight.current.has(f.id))
-      .map((f) => f.id)
-
-    if (queue.length === 0) return
-
-    let cancelled = false
-
-    const markPending = (id: number, on: boolean) => {
-      setPendingIds((prev) => {
-        const next = new Set(prev)
-        if (on) next.add(id)
-        else next.delete(id)
-        return next
-      })
-    }
-
-    async function runQueue() {
-      for (const id of queue) {
-        if (cancelled) break
-        if (inFlight.current.has(id)) continue
-
-        inFlight.current.add(id)
-        markPending(id, true)
-        const fixture = filtered.find((f) => f.id === id)
-
-        try {
-          const res = await fetch("/api/predict", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fixture }),
-          }).then((r) => r.json() as Promise<{ prediction: GeminiPrediction }>)
-
-          if (!cancelled && res?.prediction) {
-            setCardScores((prev) => ({
-              ...prev,
-              [id]: {
-                home: res.prediction.score.home,
-                away: res.prediction.score.away,
-                winner: res.prediction.winner,
-              },
-            }))
-          }
-        } catch {
-          // Leave without a score; card shows a subtle dash.
-        } finally {
-          inFlight.current.delete(id)
-          markPending(id, false)
-        }
-
-        // 3-second gap between requests to avoid Gemini rate limits.
-        if (!cancelled) await new Promise((r) => setTimeout(r, 3000))
-      }
-    }
-
-    runQueue()
-
-    return () => {
-      cancelled = true
-    }
-  // cardScoresRef is a ref — reading it inside the effect doesn't require it
-  // as a dependency. We only re-run when the fixture list itself changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered])
-
-  // Merge server + client predicted scores onto the fixtures for the list.
-  const merged = useMemo<FixtureWithPrediction[]>(() => {
-    return filtered.map((f) => {
-      if (f.predictedScore) return f
-      const cs = cardScores[f.id]
-      if (cs) return { ...f, predictedScore: { home: cs.home, away: cs.away }, predictedWinner: cs.winner }
-      return f
-    })
-  }, [filtered, cardScores])
-
   const handleSelect = useCallback(
-    (f: FixtureWithPrediction) => {
+    (f: Fixture) => {
       setSelected((cur) => (cur?.id === f.id ? null : f))
     },
     [],
   )
 
-  // Refresh: pull fresh LIVE data from API-Football. Gemini predictions stay
-  // locked and are NOT regenerated.
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
     setRefreshError(null)
@@ -269,7 +161,7 @@ export default function Page() {
               disabled={refreshing}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-60"
               aria-label="Canlı verileri yenile"
-              title="Canlı veriyi yeniden çek (tahminler kilitli kalır)"
+              title="Canlı veriyi yeniden çek"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin text-primary" : ""}`} />
             </button>
@@ -310,7 +202,7 @@ export default function Page() {
           </div>
         ) : fixtures.length === 0 ? (
           <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
-            Bu tarihte planlanmış maç bulunamadı. Farklı bir tarih deneyin.
+            Bu tarihte planlanmış maç bulunamadı.
           </div>
         ) : filtered.length === 0 ? (
           <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
@@ -320,9 +212,8 @@ export default function Page() {
           </div>
         ) : (
           <FixtureList
-            fixtures={merged}
+            fixtures={filtered}
             selectedId={selected?.id ?? null}
-            pendingIds={pendingIds}
             onSelect={handleSelect}
             renderExpanded={() => (
               <AnalysisPanel

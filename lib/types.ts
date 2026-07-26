@@ -33,60 +33,11 @@ export interface Fixture {
   goalsAway: number | null
 }
 
-/** A fixture as sent to the client list: carries Gemini's locked score if any. */
-export interface FixtureWithPrediction extends Fixture {
-  // Locked Gemini score prediction (only present once generated & cached).
-  predictedScore: { home: number; away: number } | null
-  predictedWinner: "home" | "draw" | "away" | null
-}
+/** A fixture as sent to the client list. */
+export type FixtureWithPrediction = Fixture
 
 // ---------------------------------------------------------------------------
-// Gemini prediction (generated ONCE, then locked forever)
-// ---------------------------------------------------------------------------
-
-export interface GeminiPrediction {
-  // Headline score prediction.
-  score: { home: number; away: number }
-  halfTimeScore: { home: number; away: number }
-  winner: "home" | "draw" | "away"
-
-  // Outcome probabilities (percentages, sum ~100).
-  homeWinPct: number
-  drawPct: number
-  awayWinPct: number
-
-  // Goal markets (percentages).
-  over25Pct: number
-  under25Pct: number
-  bttsPct: number
-
-  // Extra market reads (free text, short).
-  cornersEstimate: string
-  cardsEstimate: string
-  firstToScore: "home" | "away" | "none"
-
-  // Expected goals.
-  expectedGoalsHome: number
-  expectedGoalsAway: number
-
-  // Model confidence (0-100).
-  confidence: number
-
-  // Human-readable analysis from Gemini.
-  keyFactors: string[]
-  analysis: string[]
-
-  // Metadata.
-  model: string
-  generatedAt: number
-  // "full" = generated with complete API-Football data (form, H2H, standings,
-  // injuries, lineups, statistics). "partial" = generated with fixture-only
-  // data and should be regenerated at the next opportunity.
-  dataQuality: "full" | "partial"
-}
-
-// ---------------------------------------------------------------------------
-// Live / raw API-Football data (refreshable, NOT locked)
+// Live / raw API-Football data (refreshable)
 // ---------------------------------------------------------------------------
 
 export interface MatchEvent {
@@ -282,18 +233,15 @@ export interface PlayerPageData {
 
 export interface FixturesResponse {
   date: string
-  fixtures: FixtureWithPrediction[]
+  fixtures: Fixture[]
   cachedAt: number
   stale?: boolean
 }
 
 export interface AnalysisResponse {
   live: LiveMatchData
-  // null when the Gemini prediction hasn't been generated yet (queue pending).
-  prediction: GeminiPrediction | null
   playerStats: FixturePlayerStat[]
   liveCachedAt: number
-  predictionLocked: boolean
   stale?: boolean
 }
 

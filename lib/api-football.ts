@@ -610,12 +610,4 @@ export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData>
   }
 }
 
-/**
- * Builds the complete data blob sent to Gemini.
- */
-export async function getGeminiInput(fixture: Fixture): Promise<{
-  live: LiveMatchData
-}> {
-  const live = await getLiveMatchData(fixture)
-  return { live }
-}
+
