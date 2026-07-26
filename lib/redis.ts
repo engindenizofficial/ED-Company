@@ -4,10 +4,34 @@ import type { FixturePlayerStat, FixturesResponse, GeminiPrediction, LeaguePageD
 // Shared server-side store. Everything the app shows is persisted here so that
 // every visitor — same user on another device, or a brand new user — is served
 // the SAME saved data instead of triggering fresh API-Football / Gemini calls.
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN,
-})
+
+// Normalize the URL: @upstash/redis only accepts https:// REST URLs.
+// If a rediss:// or redis:// TCP URL was accidentally provided, convert it.
+function normalizeUpstashUrl(raw: string | undefined): string | undefined {
+  if (!raw) return undefined
+  if (raw.startsWith("https://")) return raw
+  // rediss://default:<token>@<host>:<port>  →  https://<host>
+  const match = raw.match(/^redis[s]?:\/\/[^@]+@([^:]+)/)
+  if (match) return `https://${match[1]}`
+  return raw
+}
+
+const redisUrl = normalizeUpstashUrl(process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL)
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN
+
+let redis: Redis | null = null
+try {
+  if (redisUrl && redisToken) {
+    redis = new Redis({ url: redisUrl, token: redisToken })
+  }
+} catch (err) {
+  console.log("[v0] Redis init failed, running without cache:", err instanceof Error ? err.message : err)
+  redis = null
+}
+
+function getRedis(): Redis | null {
+  return redis
+}
 
 // ---------------------------------------------------------------------------
 // Key helpers
@@ -35,6 +59,7 @@ const LEAGUE_TTL = 60 * 60 * 6       // 6h for league data
 // ---------------------------------------------------------------------------
 
 export async function getCachedFixtures(date: string): Promise<FixturesResponse | null> {
+  if (!redis) return null
   try {
     return (await redis.get<FixturesResponse>(K.fixtures(date))) ?? null
   } catch (err) {
@@ -44,6 +69,7 @@ export async function getCachedFixtures(date: string): Promise<FixturesResponse 
 }
 
 export async function setCachedFixtures(date: string, data: FixturesResponse): Promise<void> {
+  if (!redis) return
   try {
     await redis.set(K.fixtures(date), data, { ex: FIXTURES_TTL })
   } catch (err) {
@@ -56,6 +82,7 @@ export async function setCachedFixtures(date: string, data: FixturesResponse): P
 // ---------------------------------------------------------------------------
 
 export async function getCachedLive(fixtureId: number): Promise<LiveMatchData | null> {
+  if (!redis) return null
   try {
     return (await redis.get<LiveMatchData>(K.live(fixtureId))) ?? null
   } catch (err) {
@@ -65,6 +92,7 @@ export async function getCachedLive(fixtureId: number): Promise<LiveMatchData | 
 }
 
 export async function setCachedLive(fixtureId: number, data: LiveMatchData): Promise<void> {
+  if (!redis) return
   try {
     await redis.set(K.live(fixtureId), data, { ex: LIVE_TTL })
   } catch (err) {
@@ -77,6 +105,7 @@ export async function setCachedLive(fixtureId: number, data: LiveMatchData): Pro
 // ---------------------------------------------------------------------------
 
 export async function getLockedPrediction(fixtureId: number): Promise<GeminiPrediction | null> {
+  if (!redis) return null
   try {
     return (await redis.get<GeminiPrediction>(K.prediction(fixtureId))) ?? null
   } catch (err) {
@@ -95,6 +124,7 @@ export async function lockPrediction(
   fixtureId: number,
   prediction: GeminiPrediction,
 ): Promise<GeminiPrediction> {
+  if (!redis) return prediction
   try {
     const ok = await redis.set(K.prediction(fixtureId), prediction, { nx: true })
     if (ok === "OK" || ok === null) {
@@ -116,6 +146,7 @@ export async function forceLockPrediction(
   fixtureId: number,
   prediction: GeminiPrediction,
 ): Promise<GeminiPrediction> {
+  if (!redis) return prediction
   try {
     await redis.set(K.prediction(fixtureId), prediction)
     return prediction
@@ -130,6 +161,7 @@ export async function forceLockPrediction(
 // ---------------------------------------------------------------------------
 
 export async function getCachedFixturePlayerStats(fixtureId: number): Promise<FixturePlayerStat[] | null> {
+  if (!redis) return null
   try {
     return (await redis.get<FixturePlayerStat[]>(K.playerStats(fixtureId))) ?? null
   } catch (err) {
@@ -139,6 +171,7 @@ export async function getCachedFixturePlayerStats(fixtureId: number): Promise<Fi
 }
 
 export async function setCachedFixturePlayerStats(fixtureId: number, data: FixturePlayerStat[]): Promise<void> {
+  if (!redis) return
   try {
     await redis.set(K.playerStats(fixtureId), data, { ex: PLAYER_STATS_TTL })
   } catch (err) {
@@ -151,6 +184,7 @@ export async function setCachedFixturePlayerStats(fixtureId: number, data: Fixtu
 // ---------------------------------------------------------------------------
 
 export async function getCachedPlayer(playerId: number): Promise<PlayerPageData | null> {
+  if (!redis) return null
   try {
     return (await redis.get<PlayerPageData>(K.player(playerId))) ?? null
   } catch (err) {
@@ -160,6 +194,7 @@ export async function getCachedPlayer(playerId: number): Promise<PlayerPageData 
 }
 
 export async function setCachedPlayer(playerId: number, data: PlayerPageData): Promise<void> {
+  if (!redis) return
   try {
     await redis.set(K.player(playerId), data, { ex: PLAYER_TTL })
   } catch (err) {
@@ -172,6 +207,7 @@ export async function setCachedPlayer(playerId: number, data: PlayerPageData): P
 // ---------------------------------------------------------------------------
 
 export async function getCachedLeague(leagueId: number, season: number): Promise<LeaguePageData | null> {
+  if (!redis) return null
   try {
     return (await redis.get<LeaguePageData>(K.league(leagueId, season))) ?? null
   } catch (err) {
@@ -181,6 +217,7 @@ export async function getCachedLeague(leagueId: number, season: number): Promise
 }
 
 export async function setCachedLeague(leagueId: number, season: number, data: LeaguePageData): Promise<void> {
+  if (!redis) return
   try {
     await redis.set(K.league(leagueId, season), data, { ex: LEAGUE_TTL })
   } catch (err) {
@@ -194,6 +231,7 @@ export async function getLockedPredictionsMap(
 ): Promise<Map<number, GeminiPrediction>> {
   const map = new Map<number, GeminiPrediction>()
   if (fixtureIds.length === 0) return map
+  if (!redis) return map
   try {
     const keys = fixtureIds.map(K.prediction)
     const values = await redis.mget<(GeminiPrediction | null)[]>(...keys)
