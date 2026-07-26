@@ -81,23 +81,28 @@ export function AnalysisPanel({
         <div className="grid grid-cols-3 items-center gap-2">
           <TeamHeader name={fixture.home.name} logo={fixture.home.logo} />
           <div className="flex flex-col items-center gap-1.5">
-            {fixture.score?.home != null && fixture.score?.away != null ? (
-              <>
-                <div className="flex items-center gap-2 text-3xl font-bold tabular-nums text-foreground">
-                  <span>{fixture.score?.home}</span>
-                  <span className="text-muted-foreground">-</span>
-                  <span>{fixture.score?.away}</span>
+            {(() => {
+              const homeGoals = fixture.score?.home ?? fixture.goalsHome
+              const awayGoals = fixture.score?.away ?? fixture.goalsAway
+              const hasScore = homeGoals != null && awayGoals != null
+              return hasScore ? (
+                <>
+                  <div className="flex items-center gap-2 text-3xl font-bold tabular-nums text-foreground">
+                    <span>{homeGoals}</span>
+                    <span className="text-muted-foreground">-</span>
+                    <span>{awayGoals}</span>
+                  </div>
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {fixture.status}
+                  </span>
+                </>
+              ) : (
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-2xl font-bold text-muted-foreground">vs</span>
+                  <span className="text-[10px] text-muted-foreground">{fixture.status}</span>
                 </div>
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {fixture.status}
-                </span>
-              </>
-            ) : (
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-2xl font-bold text-muted-foreground">vs</span>
-                <span className="text-[10px] text-muted-foreground">{fixture.status}</span>
-              </div>
-            )}
+              )
+            })()}
           </div>
           <TeamHeader name={fixture.away.name} logo={fixture.away.logo} />
         </div>
