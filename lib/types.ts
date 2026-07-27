@@ -227,6 +227,20 @@ export interface PlayerPageData {
   cachedAt: number
 }
 
+export interface PlayerSummary {
+  id: number
+  name: string
+  photo: string | null
+  nationality: string | null
+  age: number | null
+  position: string | null
+  team: { id: number; name: string; logo: string } | null
+  league: { id: number; name: string; logo: string } | null
+  goals: number | null
+  assists: number | null
+  rating: string | null
+}
+
 // ---------------------------------------------------------------------------
 // API responses
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { Redis } from "@upstash/redis"
-import type { FixturePlayerStat, FixturesResponse, LeaguePageData, LiveMatchData, PlayerPageData } from "./types"
+import type { FixturePlayerStat, FixturesResponse, LeaguePageData, LiveMatchData, PlayerPageData, PlayerSummary } from "./types"
 
 // Shared server-side store.
 
@@ -37,6 +37,7 @@ const K = {
   playerStats: (fixtureId: number) => `ed:fxplayers:${fixtureId}`,
   player: (playerId: number) => `ed:player:${playerId}`,
   league: (leagueId: number, season: number) => `ed:league:${leagueId}:${season}`,
+  topPlayers: (season: number) => `ed:topplayers:${season}`,
 }
 
 // TTLs (seconds)
@@ -45,6 +46,7 @@ const LIVE_TTL = 60 * 60 * 6         // 6h
 const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
 const PLAYER_TTL = 60 * 60 * 24      // 24h
 const LEAGUE_TTL = 60 * 60 * 6       // 6h
+const TOP_PLAYERS_TTL = 60 * 60 * 6  // 6h
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -158,5 +160,28 @@ export async function setCachedLeague(leagueId: number, season: number, data: Le
     await redis.set(K.league(leagueId, season), data, { ex: LEAGUE_TTL })
   } catch (err) {
     console.log("[v0] redis setCachedLeague failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Top players (all leagues)
+// ---------------------------------------------------------------------------
+
+export async function getCachedTopPlayers(season: number): Promise<PlayerSummary[] | null> {
+  if (!redis) return null
+  try {
+    return (await redis.get<PlayerSummary[]>(K.topPlayers(season))) ?? null
+  } catch (err) {
+    console.log("[v0] redis getCachedTopPlayers failed:", err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+export async function setCachedTopPlayers(season: number, data: PlayerSummary[]): Promise<void> {
+  if (!redis) return
+  try {
+    await redis.set(K.topPlayers(season), data, { ex: TOP_PLAYERS_TTL })
+  } catch (err) {
+    console.log("[v0] redis setCachedTopPlayers failed:", err instanceof Error ? err.message : err)
   }
 }
