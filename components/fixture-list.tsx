@@ -1,6 +1,6 @@
 "use client"
 
-import { Clock } from "lucide-react"
+import { Clock, LoaderCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Fixture } from "@/lib/types"
 
@@ -90,11 +90,13 @@ export function FixtureList({
   fixtures,
   selectedId,
   onSelect,
+  fetchingIds,
   renderExpanded,
 }: {
   fixtures: Fixture[]
   selectedId: number | null
   onSelect: (f: Fixture) => void
+  fetchingIds: Set<number>
   renderExpanded: (f: Fixture) => React.ReactNode
 }) {
   const groups = groupByLeague(fixtures)
@@ -118,6 +120,7 @@ export function FixtureList({
               const active = f.id === selectedId
               const live = isLive(f.statusShort)
               const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
+              const fetching = fetchingIds.has(f.id)
               return (
                 <li key={f.id}>
                   <button
@@ -150,6 +153,12 @@ export function FixtureList({
                         ) : played ? (
                           <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium">
                             {statusLabel(f.statusShort)}
+                          </span>
+                        ) : null}
+                        {fetching ? (
+                          <span className="flex items-center gap-1 text-[10px] text-primary">
+                            <LoaderCircle className="h-2.5 w-2.5 animate-spin" />
+                            Veri çekiliyor
                           </span>
                         ) : null}
                       </div>
