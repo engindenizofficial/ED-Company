@@ -71,8 +71,8 @@ export default function Page() {
     return fixtures.filter((f) => buildSearchIndex(f).includes(q))
   }, [fixtures, query])
 
-  // Sequential prefetch: fixtures ilk yüklenince 3 saniye arayla her maçın detaylı verisini çek
-  // fixtures listesinin ID imzası değişince (günlük yenileme) yeniden tetiklenir
+  // Sequential prefetch: fixtures yüklenince önce hangileri Redis'te var kontrol et,
+  // cache'deki maçları hemen say, sadece eksik olanları 3s arayla çek.
   const fixtureSignature = fixtures.map((f) => f.id).join(",")
   const prefetchedSignatures = useRef<Set<string>>(new Set())
 
@@ -81,17 +81,38 @@ export default function Page() {
     if (prefetchedSignatures.current.has(fixtureSignature)) return
     prefetchedSignatures.current.add(fixtureSignature)
 
-    setPrefetchedCount(0)
     let cancelled = false
 
     ;(async () => {
-      for (const f of fixtures) {
+      // 1. Hangi fixture'lar zaten Redis'te cache'li?
+      let alreadyCachedIds: Set<number> = new Set()
+      try {
+        const res = await fetch("/api/analyze/cached-ids", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: fixtures.map((f) => f.id) }),
+        })
+        const data = await res.json()
+        alreadyCachedIds = new Set<number>(data.cachedIds ?? [])
+      } catch {
+        // Redis erişilemiyorsa hepsini prefetch et
+      }
+
+      if (cancelled) return
+
+      // 2. Cache'deki maçları hemen sayaca ekle
+      setPrefetchedCount(alreadyCachedIds.size)
+
+      // 3. Sadece cache'de olmayan maçları sırayla çek
+      const missing = fixtures.filter((f) => !alreadyCachedIds.has(f.id))
+
+      for (const f of missing) {
         if (cancelled) break
         setFetchingIds((s) => new Set([...s, f.id]))
         try {
           await fetch(`/api/analyze?fixtureId=${f.id}`)
         } catch {
-          // Cache'e yazamazsa sorun değil, tıklandığında tekrar dener
+          // Sorun değil, tıklandığında tekrar dener
         }
         setFetchingIds((s) => {
           const next = new Set(s)

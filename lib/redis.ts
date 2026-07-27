@@ -113,6 +113,23 @@ export async function setCachedFixturePlayerStats(fixtureId: number, data: Fixtu
   }
 }
 
+// ---------------------------------------------------------------------------
+// Bulk cache check — returns which fixture IDs already have live data cached
+// ---------------------------------------------------------------------------
+
+export async function getCachedFixtureIds(fixtureIds: number[]): Promise<number[]> {
+  if (!redis || fixtureIds.length === 0) return []
+  try {
+    const keys = fixtureIds.map((id) => K.live(id))
+    // mget returns an array of values (null if missing)
+    const values = await redis.mget<(LiveMatchData | null)[]>(...keys)
+    return fixtureIds.filter((_, i) => values[i] !== null)
+  } catch (err) {
+    console.log("[v0] redis getCachedFixtureIds failed:", err instanceof Error ? err.message : err)
+    return []
+  }
+}
+
 
 
 
