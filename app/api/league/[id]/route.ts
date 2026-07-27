@@ -19,8 +19,7 @@ export async function GET(
     return NextResponse.json({ error: "Geçersiz lig ID'si." }, { status: 400 })
   }
 
-  const currentSeason =
-    season ?? new Date().getFullYear() - (new Date().getMonth() < 7 ? 1 : 0)
+  const currentSeason = season ?? new Date().getFullYear() - (new Date().getMonth() < 7 ? 1 : 0)
 
   try {
     if (!refresh) {
@@ -37,6 +36,7 @@ export async function GET(
     return NextResponse.json(data)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Bilinmeyen hata"
+    console.log("[v0] league API failed:", message)
 
     const cached = await getCachedLeague(leagueId, currentSeason)
     if (cached) return NextResponse.json({ ...cached, stale: true })
