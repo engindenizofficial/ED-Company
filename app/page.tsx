@@ -30,7 +30,7 @@ const FIXTURES_SWR_OPTIONS = {
   revalidateOnFocus: false,
   revalidateOnReconnect: true,
   revalidateIfStale: true,
-  dedupingInterval: 50_000,
+  dedupingInterval: 30_000,
   refreshInterval: 60_000,
 } as const
 
