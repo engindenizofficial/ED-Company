@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getLeaguePageData } from "@/lib/api-football"
-import { getCachedLeague, setCachedLeague } from "@/lib/redis"
+import * as redisCache from "@/lib/redis"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -23,7 +23,7 @@ export async function GET(
 
   try {
     if (!refresh) {
-      const cached = await getCachedLeague(leagueId, currentSeason)
+      const cached = await redisCache.getCachedLeague(leagueId, currentSeason)
       if (cached) return NextResponse.json(cached)
     }
 
@@ -32,13 +32,13 @@ export async function GET(
       return NextResponse.json({ error: "Lig bulunamadı." }, { status: 404 })
     }
 
-    await setCachedLeague(leagueId, currentSeason, data)
+    await redisCache.setCachedLeague(leagueId, currentSeason, data)
     return NextResponse.json(data)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Bilinmeyen hata"
     console.log("[v0] league API failed:", message)
 
-    const cached = await getCachedLeague(leagueId, currentSeason)
+    const cached = await redisCache.getCachedLeague(leagueId, currentSeason)
     if (cached) return NextResponse.json({ ...cached, stale: true })
 
     return NextResponse.json({ error: message }, { status: 502 })
