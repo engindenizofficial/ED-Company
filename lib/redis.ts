@@ -1,7 +1,7 @@
 import { Redis } from "@upstash/redis"
 import type { FixturePlayerStat, FixturesResponse, LeaguePageData, LiveMatchData, PlayerPageData } from "./types"
 
-// Shared server-side store.
+// Shared server-side Redis store.
 
 // Normalize the URL: @upstash/redis only accepts https:// REST URLs.
 // If a rediss:// or redis:// TCP URL was accidentally provided, convert it.
