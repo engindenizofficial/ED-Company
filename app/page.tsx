@@ -26,12 +26,19 @@ function normalize(s: string): string {
   return s.toLocaleLowerCase("tr-TR").trim()
 }
 
-const SWR_OPTIONS = {
+const FIXTURES_SWR_OPTIONS = {
+  revalidateOnFocus: false,
+  revalidateOnReconnect: true,
+  revalidateIfStale: true,
+  dedupingInterval: 50_000,
+  refreshInterval: 60_000,
+} as const
+
+const ANALYSIS_SWR_OPTIONS = {
   revalidateOnFocus: false,
   revalidateOnReconnect: false,
   revalidateIfStale: false,
   dedupingInterval: 60_000,
-  refreshInterval: 60_000,
 } as const
 
 export default function Page() {
@@ -39,6 +46,7 @@ export default function Page() {
   const [selected, setSelected] = useState<Fixture | null>(null)
   const [query, setQuery] = useState("")
   const [fetchingIds, setFetchingIds] = useState<Set<number>>(new Set())
+  const [prefetchedCount, setPrefetchedCount] = useState(0)
 
   const fixturesKey = `/api/fixtures?date=${date}`
   const analysisKey = selected ? `/api/analyze?fixtureId=${selected.id}` : null
@@ -46,14 +54,14 @@ export default function Page() {
   const { data: fixturesData, isLoading: fixturesLoading } = useSWR<FixturesResponse>(
     fixturesKey,
     fetcher,
-    SWR_OPTIONS,
+    FIXTURES_SWR_OPTIONS,
   )
 
   const {
     data: analysis,
     error: analysisError,
     isLoading: analysisLoading,
-  } = useSWR<AnalysisResponse>(analysisKey, fetcher, SWR_OPTIONS)
+  } = useSWR<AnalysisResponse>(analysisKey, fetcher, ANALYSIS_SWR_OPTIONS)
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
@@ -63,14 +71,17 @@ export default function Page() {
     return fixtures.filter((f) => buildSearchIndex(f).includes(q))
   }, [fixtures, query])
 
-  // Sequential prefetch: 3 saniye arayla her maçın detaylı verisini çek
-  const prefetchedDates = useRef<Set<string>>(new Set())
+  // Sequential prefetch: fixtures ilk yüklenince 3 saniye arayla her maçın detaylı verisini çek
+  // fixtures listesinin ID imzası değişince (günlük yenileme) yeniden tetiklenir
+  const fixtureSignature = fixtures.map((f) => f.id).join(",")
+  const prefetchedSignatures = useRef<Set<string>>(new Set())
 
   useEffect(() => {
-    if (fixtures.length === 0) return
-    if (prefetchedDates.current.has(date)) return
-    prefetchedDates.current.add(date)
+    if (!fixtureSignature) return
+    if (prefetchedSignatures.current.has(fixtureSignature)) return
+    prefetchedSignatures.current.add(fixtureSignature)
 
+    setPrefetchedCount(0)
     let cancelled = false
 
     ;(async () => {
@@ -87,6 +98,7 @@ export default function Page() {
           next.delete(f.id)
           return next
         })
+        setPrefetchedCount((c) => c + 1)
         if (!cancelled) await new Promise<void>((r) => setTimeout(r, 3000))
       }
     })()
@@ -94,7 +106,9 @@ export default function Page() {
     return () => {
       cancelled = true
     }
-  }, [fixtures, date])
+  // fixtureSignature string'i fixtures'ın özeti, doğrudan dep olarak kullanılıyor
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixtureSignature])
 
   const handleSelect = useCallback((f: Fixture) => {
     setSelected((cur) => (cur?.id === f.id ? null : f))
@@ -108,7 +122,18 @@ export default function Page() {
             <span className="brand-gradient bg-clip-text text-transparent">ED</span>{" "}
             <span className="text-foreground">Company</span>
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {fixtures.length > 0 ? (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                {fetchingIds.size > 0 ? (
+                  <LoaderCircle className="h-3 w-3 animate-spin text-primary" />
+                ) : null}
+                Detaylı veri:{" "}
+                <span className="font-semibold tabular-nums text-foreground">
+                  {prefetchedCount}/{fixtures.length}
+                </span>
+              </span>
+            ) : null}
             <ThemeToggle />
           </div>
         </div>

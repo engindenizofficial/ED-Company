@@ -1,6 +1,6 @@
 "use client"
 
-import { Clock, LoaderCircle } from "lucide-react"
+import { Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Fixture } from "@/lib/types"
 
@@ -156,10 +156,7 @@ export function FixtureList({
                           </span>
                         ) : null}
                         {fetching ? (
-                          <span className="flex items-center gap-1 text-[10px] text-primary">
-                            <LoaderCircle className="h-2.5 w-2.5 animate-spin" />
-                            Veri çekiliyor
-                          </span>
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
                         ) : null}
                       </div>
                     </div>
