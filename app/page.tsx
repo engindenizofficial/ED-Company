@@ -34,12 +34,18 @@ const FIXTURES_SWR_OPTIONS = {
   refreshInterval: 60_000,
 } as const
 
-const ANALYSIS_SWR_OPTIONS = {
-  revalidateOnFocus: false,
-  revalidateOnReconnect: false,
-  revalidateIfStale: false,
-  dedupingInterval: 60_000,
-} as const
+const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
+
+function analysisSwrOptions(fixture: Fixture | null) {
+  const isLive = fixture ? LIVE_STATUSES.has(fixture.statusShort) : false
+  return {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: true,
+    revalidateIfStale: true,
+    dedupingInterval: isLive ? 25_000 : 60_000,
+    refreshInterval: isLive ? 30_000 : 0,
+  }
+}
 
 export default function Page() {
   const date = todayTR()
@@ -61,7 +67,7 @@ export default function Page() {
     data: analysis,
     error: analysisError,
     isLoading: analysisLoading,
-  } = useSWR<AnalysisResponse>(analysisKey, fetcher, ANALYSIS_SWR_OPTIONS)
+  } = useSWR<AnalysisResponse>(analysisKey, fetcher, analysisSwrOptions(selected))
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 

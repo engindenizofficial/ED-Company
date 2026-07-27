@@ -82,6 +82,8 @@ export function AnalysisPanel({
           <TeamHeader name={fixture.home.name} logo={fixture.home.logo} />
           <div className="flex flex-col items-center gap-1.5">
             {(() => {
+              const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
+              const isLive = LIVE_STATUSES.has(fixture.statusShort)
               const homeGoals = fixture.score?.home ?? fixture.goalsHome
               const awayGoals = fixture.score?.away ?? fixture.goalsAway
               const hasScore = homeGoals != null && awayGoals != null
@@ -92,9 +94,16 @@ export function AnalysisPanel({
                     <span className="text-muted-foreground">-</span>
                     <span>{awayGoals}</span>
                   </div>
-                  <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {fixture.status}
-                  </span>
+                  {isLive ? (
+                    <span className="flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
+                      {fixture.status}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      {fixture.status}
+                    </span>
+                  )}
                 </>
               ) : (
                 <div className="flex flex-col items-center gap-1">

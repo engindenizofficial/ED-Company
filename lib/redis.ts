@@ -81,10 +81,10 @@ export async function getCachedLive(fixtureId: number): Promise<LiveMatchData | 
   }
 }
 
-export async function setCachedLive(fixtureId: number, data: LiveMatchData): Promise<void> {
+export async function setCachedLive(fixtureId: number, data: LiveMatchData, ttl = LIVE_TTL): Promise<void> {
   if (!redis) return
   try {
-    await redis.set(K.live(fixtureId), data, { ex: LIVE_TTL })
+    await redis.set(K.live(fixtureId), data, { ex: ttl })
   } catch (err) {
     console.log("[v0] redis setCachedLive failed:", err instanceof Error ? err.message : err)
   }

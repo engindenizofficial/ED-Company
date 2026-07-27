@@ -14,6 +14,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "fixtureId gerekli." }, { status: 400 })
   }
 
+  const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
+
   try {
     let liveCachedAt = Date.now()
 
@@ -23,7 +25,9 @@ export async function GET(request: Request) {
       const fixture = await getFixtureById(fixtureId)
       if (!fixture) return NextResponse.json({ error: "Maç bulunamadı." }, { status: 404 })
       live = await getLiveMatchData(fixture)
-      await setCachedLive(fixtureId, live)
+      // Canlı maçlar 25s, bitmişler/başlamamışlar 6s cache
+      const ttl = LIVE_STATUSES.has(live.fixture.statusShort) ? 25 : 60 * 60 * 6
+      await setCachedLive(fixtureId, live, ttl)
       liveCachedAt = Date.now()
     } else {
       liveCachedAt = Date.now()
