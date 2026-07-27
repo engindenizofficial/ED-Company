@@ -58,7 +58,8 @@ async function apiFetch<T>(
 
   const res = await fetch(`${BASE_URL}${path}?${search.toString()}`, {
     headers: { "x-apisports-key": key },
-    next: { revalidate },
+    // revalidate === 0 => Next.js Data Cache tamamen atlanır (canlı skor için gerekli)
+    ...(revalidate === 0 ? { cache: "no-store" as const } : { next: { revalidate } }),
   })
 
   if (!res.ok) {
