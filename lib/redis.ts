@@ -3,12 +3,9 @@ import type { FixturePlayerStat, FixturesResponse, LeaguePageData, LiveMatchData
 
 // Shared server-side Redis store.
 
-// Normalize the URL: @upstash/redis only accepts https:// REST URLs.
-// If a rediss:// or redis:// TCP URL was accidentally provided, convert it.
 function normalizeUpstashUrl(raw: string | undefined): string | undefined {
   if (!raw) return undefined
   if (raw.startsWith("https://")) return raw
-  // rediss://default:<token>@<host>:<port>  →  https://<host>
   const match = raw.match(/^redis[s]?:\/\/[^@]+@([^:]+)/)
   if (match) return `https://${match[1]}`
   return raw
@@ -27,10 +24,6 @@ try {
   redis = null
 }
 
-// ---------------------------------------------------------------------------
-// Key helpers
-// ---------------------------------------------------------------------------
-
 const K = {
   fixtures: (date: string) => `ed:fixtures:${date}`,
   live: (fixtureId: number) => `ed:live:${fixtureId}`,
@@ -39,17 +32,11 @@ const K = {
   league: (leagueId: number, season: number) => `ed:league:${leagueId}:${season}`,
 }
 
-// TTLs (seconds)
-const FIXTURES_TTL = 60 * 60 * 12    // 12h
-const LIVE_TTL = 60 * 60 * 6         // 6h
-const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
-const PLAYER_TTL = 60 * 60 * 24      // 24h
-const LEAGUE_TTL = 60 * 60 * 6       // 6h
-
-
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
+const FIXTURES_TTL = 60 * 60 * 12
+const LIVE_TTL = 60 * 60 * 6
+const PLAYER_STATS_TTL = 60 * 60 * 6
+const PLAYER_TTL = 60 * 60 * 24
+const LEAGUE_TTL = 60 * 60 * 6
 
 export async function getCachedFixtures(date: string): Promise<FixturesResponse | null> {
   if (!redis) return null
@@ -70,10 +57,6 @@ export async function setCachedFixtures(date: string, data: FixturesResponse): P
   }
 }
 
-// ---------------------------------------------------------------------------
-// Live match data
-// ---------------------------------------------------------------------------
-
 export async function getCachedLive(fixtureId: number): Promise<LiveMatchData | null> {
   if (!redis) return null
   try {
@@ -92,10 +75,6 @@ export async function setCachedLive(fixtureId: number, data: LiveMatchData): Pro
     console.log("[v0] redis setCachedLive failed:", err instanceof Error ? err.message : err)
   }
 }
-
-// ---------------------------------------------------------------------------
-// Fixture player stats
-// ---------------------------------------------------------------------------
 
 export async function getCachedFixturePlayerStats(fixtureId: number): Promise<FixturePlayerStat[] | null> {
   if (!redis) return null
@@ -116,10 +95,6 @@ export async function setCachedFixturePlayerStats(fixtureId: number, data: Fixtu
   }
 }
 
-// ---------------------------------------------------------------------------
-// Player page data
-// ---------------------------------------------------------------------------
-
 export async function getCachedPlayer(playerId: number): Promise<PlayerPageData | null> {
   if (!redis) return null
   try {
@@ -139,12 +114,6 @@ export async function setCachedPlayer(playerId: number, data: PlayerPageData): P
   }
 }
 
-// ---------------------------------------------------------------------------
-// League page data
-// ---------------------------------------------------------------------------
-// League page data
-// ---------------------------------------------------------------------------
-
 export async function getCachedLeague(leagueId: number, season: number): Promise<LeaguePageData | null> {
   if (!redis) return null
   try {
@@ -163,5 +132,3 @@ export async function setCachedLeague(leagueId: number, season: number, data: Le
     console.log("[v0] redis setCachedLeague failed:", err instanceof Error ? err.message : err)
   }
 }
-
-
