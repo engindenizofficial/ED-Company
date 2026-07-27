@@ -1,14 +1,12 @@
 "use client"
 
-import { CalendarDays, Trophy, Users } from "lucide-react"
+import { CalendarDays } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 const tabs = [
   { href: "/", label: "Maçlar", icon: CalendarDays },
-  { href: "/players", label: "Oyuncular", icon: Users },
-  { href: "/leagues", label: "Ligler", icon: Trophy },
 ]
 
 export function NavTabs() {
@@ -21,10 +19,7 @@ export function NavTabs() {
     >
       <div className="mx-auto flex max-w-4xl gap-0 px-4">
         {tabs.map(({ href, label, icon: Icon }) => {
-          const active =
-            href === "/"
-              ? pathname === "/" || (pathname !== "/players" && pathname !== "/leagues" && !pathname.startsWith("/player") && !pathname.startsWith("/league") && !pathname.startsWith("/team"))
-              : pathname === href || pathname.startsWith(href + "/")
+          const active = pathname === "/" || (!pathname.startsWith("/player") && !pathname.startsWith("/league") && !pathname.startsWith("/team"))
           return (
             <Link
               key={href}
