@@ -1,5 +1,5 @@
 import { Redis } from "@upstash/redis"
-import type { FixturePlayerStat, FixturesResponse, LiveMatchData, PlayerPageData } from "./types"
+import type { FixturePlayerStat, FixturesResponse, LiveMatchData } from "./types"
 
 // Shared server-side store.
 
@@ -35,14 +35,13 @@ const K = {
   fixtures: (date: string) => `ed:fixtures:${date}`,
   live: (fixtureId: number) => `ed:live:${fixtureId}`,
   playerStats: (fixtureId: number) => `ed:fxplayers:${fixtureId}`,
-  player: (playerId: number) => `ed:player:${playerId}`,
+
 }
 
 // TTLs (seconds)
 const FIXTURES_TTL = 60 * 60 * 12    // 12h
 const LIVE_TTL = 60 * 60 * 6         // 6h
 const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
-const PLAYER_TTL = 60 * 60 * 24      // 24h
 
 
 // ---------------------------------------------------------------------------
@@ -114,27 +113,6 @@ export async function setCachedFixturePlayerStats(fixtureId: number, data: Fixtu
   }
 }
 
-// ---------------------------------------------------------------------------
-// Player page data
-// ---------------------------------------------------------------------------
 
-export async function getCachedPlayer(playerId: number): Promise<PlayerPageData | null> {
-  if (!redis) return null
-  try {
-    return (await redis.get<PlayerPageData>(K.player(playerId))) ?? null
-  } catch (err) {
-    console.log("[v0] redis getCachedPlayer failed:", err instanceof Error ? err.message : err)
-    return null
-  }
-}
-
-export async function setCachedPlayer(playerId: number, data: PlayerPageData): Promise<void> {
-  if (!redis) return
-  try {
-    await redis.set(K.player(playerId), data, { ex: PLAYER_TTL })
-  } catch (err) {
-    console.log("[v0] redis setCachedPlayer failed:", err instanceof Error ? err.message : err)
-  }
-}
 
 

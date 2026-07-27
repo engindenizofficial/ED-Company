@@ -1,7 +1,6 @@
 "use client"
 
 import { Clock } from "lucide-react"
-import Link from "next/link"
 import { cn } from "@/lib/utils"
 import type { Fixture } from "@/lib/types"
 
@@ -109,13 +108,10 @@ export function FixtureList({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={group.logo || "/placeholder.svg"} alt="" className="h-4 w-4 object-contain" />
             ) : null}
-            <Link
-              href={`/league/${group.id}`}
-              className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary"
-            >
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {group.name}
               <span className="ml-1.5 font-normal text-muted-foreground/70">{group.country}</span>
-            </Link>
+            </span>
           </div>
           <ul className="flex flex-col gap-1.5">
             {group.items.map((f) => {
@@ -193,13 +189,9 @@ function TeamRow({
         // eslint-disable-next-line @next/next/no-img-element
         <img src={logo || "/placeholder.svg"} alt="" className="h-4 w-4 shrink-0 object-contain" />
       ) : null}
-      <Link
-        href={`/team/${id}`}
-        onClick={(e) => e.stopPropagation()}
-        className="truncate text-sm font-medium text-foreground hover:text-primary hover:underline"
-      >
+      <span className="truncate text-sm font-medium text-foreground">
         {name}
-      </Link>
+      </span>
       {played ? <span className="ml-auto text-sm font-bold tabular-nums text-foreground">{goals}</span> : null}
     </div>
   )
