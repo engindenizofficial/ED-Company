@@ -1,5 +1,5 @@
 import { Redis } from "@upstash/redis"
-import type { FixturePlayerStat, FixturesResponse, LeaguePageData, LiveMatchData, PlayerPageData } from "./types"
+import type { FixturePlayerStat, FixturesResponse, LiveMatchData, PlayerPageData } from "./types"
 
 // Shared server-side store.
 
@@ -36,7 +36,6 @@ const K = {
   live: (fixtureId: number) => `ed:live:${fixtureId}`,
   playerStats: (fixtureId: number) => `ed:fxplayers:${fixtureId}`,
   player: (playerId: number) => `ed:player:${playerId}`,
-  league: (leagueId: number, season: number) => `ed:league:${leagueId}:${season}`,
 }
 
 // TTLs (seconds)
@@ -44,7 +43,6 @@ const FIXTURES_TTL = 60 * 60 * 12    // 12h
 const LIVE_TTL = 60 * 60 * 6         // 6h
 const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
 const PLAYER_TTL = 60 * 60 * 24      // 24h
-const LEAGUE_TTL = 60 * 60 * 6       // 6h
 
 
 // ---------------------------------------------------------------------------
@@ -136,29 +134,6 @@ export async function setCachedPlayer(playerId: number, data: PlayerPageData): P
     await redis.set(K.player(playerId), data, { ex: PLAYER_TTL })
   } catch (err) {
     console.log("[v0] redis setCachedPlayer failed:", err instanceof Error ? err.message : err)
-  }
-}
-
-// ---------------------------------------------------------------------------
-// League page data
-// ---------------------------------------------------------------------------
-
-export async function getCachedLeague(leagueId: number, season: number): Promise<LeaguePageData | null> {
-  if (!redis) return null
-  try {
-    return (await redis.get<LeaguePageData>(K.league(leagueId, season))) ?? null
-  } catch (err) {
-    console.log("[v0] redis getCachedLeague failed:", err instanceof Error ? err.message : err)
-    return null
-  }
-}
-
-export async function setCachedLeague(leagueId: number, season: number, data: LeaguePageData): Promise<void> {
-  if (!redis) return
-  try {
-    await redis.set(K.league(leagueId, season), data, { ex: LEAGUE_TTL })
-  } catch (err) {
-    console.log("[v0] redis setCachedLeague failed:", err instanceof Error ? err.message : err)
   }
 }
 
