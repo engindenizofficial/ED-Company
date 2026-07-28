@@ -8,8 +8,10 @@ import {
 import type { Fixture, FixturesResponse } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
-// Her maç için birbirinden bağımsız API çağrıları yapılacak, bu sürebilir.
 export const maxDuration = 60
+
+// Şu anda oynanmakta olan maçların statusShort değerleri
+const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "BT", "P", "LIVE"])
 
 function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
@@ -29,8 +31,11 @@ export async function POST() {
     return NextResponse.json({ error: `Fikstürler çekilemedi: ${message}` }, { status: 502 })
   }
 
-  // 2. Her maçın analizini API'den paralel çek ve cache'le
-  // Çok fazla maç varsa API kotasını korumak için sıralı değil, eş zamanlı ama sınırlı adet çalıştır.
+  // 2. Yalnızca CANLI maçların analizini API'den çek ve cache'le.
+  //    Bitmış veya başlamamış maçların detayları daha önce yüklendiyse
+  //    zaten cache'de durur; tekrar çekmiyoruz (API kotası korunur).
+  const liveFixtures = fixtures.filter((f) => LIVE_STATUSES.has(f.statusShort))
+
   const CONCURRENCY = 5
   let completed = 0
   let failed = 0
@@ -53,16 +58,16 @@ export async function POST() {
     }
   }
 
-  // Concurrency limiti ile sırayla çalıştır
-  for (let i = 0; i < fixtures.length; i += CONCURRENCY) {
-    const batch = fixtures.slice(i, i + CONCURRENCY)
+  for (let i = 0; i < liveFixtures.length; i += CONCURRENCY) {
+    const batch = liveFixtures.slice(i, i + CONCURRENCY)
     await Promise.all(batch.map(analyzeFixture))
   }
 
   return NextResponse.json({
     ok: true,
     date,
-    total: fixtures.length,
+    totalFixtures: fixtures.length,
+    liveFixtures: liveFixtures.length,
     completed,
     failed,
     cachedAt: Date.now(),

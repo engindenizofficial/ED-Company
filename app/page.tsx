@@ -85,24 +85,29 @@ export default function Page() {
     loadAnalysis(selected.id, false)
   }, [selected, loadAnalysis])
 
-  // Yenile butonu: tüm fikstürler + tüm maç analizleri API'den çekilip 6 saat cache'lenir.
-  // Açık/kapalı panel fark etmez — her maçın verisi güncellenir.
+  // Canlı maç statusShort değerleri
+  const LIVE_STATUSES = useMemo(() => new Set(["1H", "HT", "2H", "ET", "BT", "P", "LIVE"]), [])
+
+  // Yenile butonu:
+  // - Tüm fikstürler API'den güncellenir (tümü, canlı/bitmis/başlamamış fark etmez)
+  // - Sadece CANLI maçların panel verileri (analiz) yeniden API'den çekilir
+  // - Canlı olmayan maçların analizi değiştirilmez (cache'de kaldığı gibi kalır)
   const handleRefresh = useCallback(async () => {
     if (refreshing) return
     setRefreshing(true)
     try {
-      // /api/refresh: fikstürleri + her maçın analizini API'den çeker, Redis'e yazar
+      // /api/refresh: fikstürleri günceller + sadece canlı maçların analizini API'den çeker
       await fetch("/api/refresh", { method: "POST" })
-      // Güncel fikstürleri cache'den yükle (artık taze)
+      // Tüm fikstürleri cache'den yükle (artık taze)
       await loadFixtures(false)
-      // Açık bir panel varsa onun analizini de cache'den tazele
-      if (selected) {
+      // Açık panel canlı bir maçsa, taze analizi cache'den göster
+      if (selected && LIVE_STATUSES.has(selected.statusShort)) {
         await loadAnalysis(selected.id, false)
       }
     } finally {
       setRefreshing(false)
     }
-  }, [refreshing, loadFixtures, selected, loadAnalysis])
+  }, [refreshing, loadFixtures, selected, loadAnalysis, LIVE_STATUSES])
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
