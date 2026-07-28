@@ -85,14 +85,19 @@ export default function Page() {
     loadAnalysis(selected.id, false)
   }, [selected, loadAnalysis])
 
-  // Yenile butonu: tüm verileri API'den tazele, 6 saat cache'le
+  // Yenile butonu: tüm fikstürler + tüm maç analizleri API'den çekilip 6 saat cache'lenir.
+  // Açık/kapalı panel fark etmez — her maçın verisi güncellenir.
   const handleRefresh = useCallback(async () => {
     if (refreshing) return
     setRefreshing(true)
     try {
-      await loadFixtures(true)
+      // /api/refresh: fikstürleri + her maçın analizini API'den çeker, Redis'e yazar
+      await fetch("/api/refresh", { method: "POST" })
+      // Güncel fikstürleri cache'den yükle (artık taze)
+      await loadFixtures(false)
+      // Açık bir panel varsa onun analizini de cache'den tazele
       if (selected) {
-        await loadAnalysis(selected.id, true)
+        await loadAnalysis(selected.id, false)
       }
     } finally {
       setRefreshing(false)
