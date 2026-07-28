@@ -83,17 +83,16 @@ export default function Page() {
     fetchAnalysis(selected.id)
   }, [selected, fetchAnalysis])
 
-  // Yenile butonu: fikstürleri + açık analizi yenile
+  // Yenile butonu: sadece fikstür listesini günceller
   const handleRefresh = useCallback(async () => {
     if (refreshing) return
     setRefreshing(true)
     try {
       await fetchFixtures()
-      if (selected) await fetchAnalysis(selected.id)
     } finally {
       setRefreshing(false)
     }
-  }, [refreshing, fetchFixtures, fetchAnalysis, selected])
+  }, [refreshing, fetchFixtures])
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
