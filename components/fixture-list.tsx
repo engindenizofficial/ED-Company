@@ -90,13 +90,11 @@ export function FixtureList({
   fixtures,
   selectedId,
   onSelect,
-  fetchingIds,
   renderExpanded,
 }: {
   fixtures: Fixture[]
   selectedId: number | null
   onSelect: (f: Fixture) => void
-  fetchingIds: Set<number>
   renderExpanded: (f: Fixture) => React.ReactNode
 }) {
   const groups = groupByLeague(fixtures)
@@ -120,7 +118,6 @@ export function FixtureList({
               const active = f.id === selectedId
               const live = isLive(f.statusShort)
               const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
-              const fetching = fetchingIds.has(f.id)
               return (
                 <li key={f.id}>
                   <button
@@ -155,9 +152,7 @@ export function FixtureList({
                             {statusLabel(f.statusShort)}
                           </span>
                         ) : null}
-                        {fetching ? (
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
-                        ) : null}
+
                       </div>
                     </div>
                   </button>

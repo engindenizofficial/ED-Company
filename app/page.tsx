@@ -2,6 +2,7 @@
 
 import { LoaderCircle, Search } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { FixtureList } from "@/components/fixture-list"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -140,8 +141,6 @@ export default function Page() {
   const date = todayTR()
   const [selected, setSelected] = useState<Fixture | null>(null)
   const [query, setQuery] = useState("")
-  const [fetchingIds, setFetchingIds] = useState<Set<number>>(new Set())
-  const [prefetchedCount, setPrefetchedCount] = useState(0)
 
   const { fixturesData, isLoading: fixturesLoading } = useFixturesStream()
 
@@ -159,66 +158,6 @@ export default function Page() {
     return fixtures.filter((f) => buildSearchIndex(f).includes(q))
   }, [fixtures, query])
 
-  // Sequential prefetch: fixtures yüklenince önce hangileri Redis'te var kontrol et,
-  // cache'deki maçları hemen say, sadece eksik olanları 3s arayla çek.
-  const fixtureSignature = fixtures.map((f) => f.id).join(",")
-  const prefetchedSignatures = useRef<Set<string>>(new Set())
-
-  useEffect(() => {
-    if (!fixtureSignature) return
-    if (prefetchedSignatures.current.has(fixtureSignature)) return
-    prefetchedSignatures.current.add(fixtureSignature)
-
-    let cancelled = false
-
-    ;(async () => {
-      // 1. Hangi fixture'lar zaten Redis'te cache'li?
-      let alreadyCachedIds: Set<number> = new Set()
-      try {
-        const res = await fetch("/api/analyze/cached-ids", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids: fixtures.map((f) => f.id) }),
-        })
-        const data = await res.json()
-        alreadyCachedIds = new Set<number>(data.cachedIds ?? [])
-      } catch {
-        // Redis erişilemiyorsa hepsini prefetch et
-      }
-
-      if (cancelled) return
-
-      // 2. Cache'deki maçları hemen sayaca ekle
-      setPrefetchedCount(alreadyCachedIds.size)
-
-      // 3. Sadece cache'de olmayan maçları sırayla çek
-      const missing = fixtures.filter((f) => !alreadyCachedIds.has(f.id))
-
-      for (const f of missing) {
-        if (cancelled) break
-        setFetchingIds((s) => new Set([...s, f.id]))
-        try {
-          await fetch(`/api/analyze?fixtureId=${f.id}`)
-        } catch {
-          // Sorun değil, tıklandığında tekrar dener
-        }
-        setFetchingIds((s) => {
-          const next = new Set(s)
-          next.delete(f.id)
-          return next
-        })
-        setPrefetchedCount((c) => c + 1)
-        if (!cancelled) await new Promise<void>((r) => setTimeout(r, 3000))
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  // fixtureSignature string'i fixtures'ın özeti, doğrudan dep olarak kullanılıyor
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fixtureSignature])
-
   const handleSelect = useCallback((f: Fixture) => {
     setSelected((cur) => (cur?.id === f.id ? null : f))
   }, [])
@@ -232,17 +171,6 @@ export default function Page() {
             <span className="text-foreground">Company</span>
           </h1>
           <div className="flex items-center gap-3">
-            {fixtures.length > 0 ? (
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                {fetchingIds.size > 0 ? (
-                  <LoaderCircle className="h-3 w-3 animate-spin text-primary" />
-                ) : null}
-                Detaylı veri:{" "}
-                <span className="font-semibold tabular-nums text-foreground">
-                  {prefetchedCount}/{fixtures.length}
-                </span>
-              </span>
-            ) : null}
             <ThemeToggle />
           </div>
         </div>
@@ -290,7 +218,6 @@ export default function Page() {
             fixtures={filtered}
             selectedId={selected?.id ?? null}
             onSelect={handleSelect}
-            fetchingIds={fetchingIds}
             renderExpanded={() => (
               <AnalysisPanel
                 data={analysis}
