@@ -82,8 +82,7 @@ async function safeFetch<T>(
 ): Promise<T[]> {
   try {
     return await apiFetch<T>(path, params, revalidate)
-  } catch (err) {
-    console.log(`[v0] api-football ${path} failed:`, err instanceof Error ? err.message : err)
+  } catch {
     return []
   }
 }

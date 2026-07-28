@@ -38,9 +38,9 @@ const K = {
 
 }
 
-// TTLs (seconds)
-const FIXTURES_TTL = 8               // 8s — SSE stream her 10s'de sorgular, cache expire olmuş olur
-const LIVE_TTL = 8                   // 8s — analiz SSE stream her 10s'de sorgular, taze veri için
+// TTLs (seconds) — tüm veriler 6 saat cache'de kalır, yalnızca kullanıcı yenile butonuna basınca güncellenir
+const FIXTURES_TTL = 60 * 60 * 6     // 6h
+const LIVE_TTL = 60 * 60 * 6         // 6h
 const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
 
 
@@ -113,22 +113,7 @@ export async function setCachedFixturePlayerStats(fixtureId: number, data: Fixtu
   }
 }
 
-// ---------------------------------------------------------------------------
-// Bulk cache check — returns which fixture IDs already have live data cached
-// ---------------------------------------------------------------------------
 
-export async function getCachedFixtureIds(fixtureIds: number[]): Promise<number[]> {
-  if (!redis || fixtureIds.length === 0) return []
-  try {
-    const keys = fixtureIds.map((id) => K.live(id))
-    // mget returns an array of values (null if missing)
-    const values = await redis.mget<(LiveMatchData | null)[]>(...keys)
-    return fixtureIds.filter((_, i) => values[i] !== null)
-  } catch (err) {
-    console.log("[v0] redis getCachedFixtureIds failed:", err instanceof Error ? err.message : err)
-    return []
-  }
-}
 
 
 

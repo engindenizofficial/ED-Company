@@ -15,33 +15,33 @@ export async function GET(request: Request) {
   const date = todayTR()
   const refresh = searchParams.get("refresh") === "1"
 
-  try {
-    let fixtures: Fixture[] | null = null
-    let cachedAt = Date.now()
-
-    if (!refresh) {
+  // Yenile butonuna basılmadıysa cache'den döndür
+  if (!refresh) {
+    try {
       const cached = await getCachedFixtures(date)
-      if (cached) {
-        fixtures = cached.fixtures
-        cachedAt = cached.cachedAt
-      }
+      if (cached) return NextResponse.json(cached)
+    } catch {
+      // Redis erişim hatası, devam et
     }
+  }
 
-    if (!fixtures) {
-      fixtures = await getFixturesByDate(date)
-      cachedAt = Date.now()
-    }
-
-    const payload: FixturesResponse = { date, fixtures, cachedAt }
+  // API'den taze veri çek
+  try {
+    const fixtures: Fixture[] = await getFixturesByDate(date)
+    const payload: FixturesResponse = { date, fixtures, cachedAt: Date.now() }
     await setCachedFixtures(date, payload)
-
     return NextResponse.json(payload)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Bilinmeyen hata"
     console.log("[v0] fixtures API failed:", message)
 
-    const cached = await getCachedFixtures(date)
-    if (cached) return NextResponse.json({ ...cached, stale: true })
+    // API başarısız olursa eski cache'i döndür
+    try {
+      const cached = await getCachedFixtures(date)
+      if (cached) return NextResponse.json({ ...cached, stale: true })
+    } catch {
+      // ignore
+    }
 
     return NextResponse.json({ error: message }, { status: 502 })
   }

@@ -14,53 +14,63 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "fixtureId gerekli." }, { status: 400 })
   }
 
-  const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
+  // Yenile butonuna basılmadıysa cache'den döndür
+  if (!refresh) {
+    try {
+      const cachedLive = await getCachedLive(fixtureId)
+      const cachedPlayerStats = await getCachedFixturePlayerStats(fixtureId)
+      if (cachedLive && cachedPlayerStats) {
+        const payload: AnalysisResponse = {
+          live: cachedLive,
+          playerStats: cachedPlayerStats,
+          liveCachedAt: Date.now(),
+        }
+        return NextResponse.json(payload)
+      }
+    } catch {
+      // Redis erişim hatası, devam et
+    }
+  }
 
+  // API'den taze veri çek
   try {
-    let liveCachedAt = Date.now()
+    const fixture = await getFixtureById(fixtureId)
+    if (!fixture) return NextResponse.json({ error: "Maç bulunamadı." }, { status: 404 })
 
-    // Live match data
-    let live = refresh ? null : await getCachedLive(fixtureId)
-    if (!live) {
-      const fixture = await getFixtureById(fixtureId)
-      if (!fixture) return NextResponse.json({ error: "Maç bulunamadı." }, { status: 404 })
-      live = await getLiveMatchData(fixture)
-      // Canlı maçlar 25s, bitmişler/başlamamışlar 6s cache
-      const ttl = LIVE_STATUSES.has(live.fixture.statusShort) ? 25 : 60 * 60 * 6
-      await setCachedLive(fixtureId, live, ttl)
-      liveCachedAt = Date.now()
-    } else {
-      liveCachedAt = Date.now()
-    }
+    const [live, playerStats] = await Promise.all([
+      getLiveMatchData(fixture),
+      getFixturePlayerStats(fixtureId),
+    ])
 
-    // Player stats
-    let playerStats = refresh ? null : await getCachedFixturePlayerStats(fixtureId)
-    if (!playerStats) {
-      playerStats = await getFixturePlayerStats(fixtureId)
-      await setCachedFixturePlayerStats(fixtureId, playerStats)
-    }
+    await Promise.all([
+      setCachedLive(fixtureId, live),
+      setCachedFixturePlayerStats(fixtureId, playerStats),
+    ])
 
     const payload: AnalysisResponse = {
       live,
       playerStats,
-      liveCachedAt,
+      liveCachedAt: Date.now(),
     }
-
     return NextResponse.json(payload)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Bilinmeyen hata"
     console.log("[v0] analyze API failed:", message)
 
-    // Fallback to cached live data
-    const cached = await getCachedLive(fixtureId)
-    if (cached) {
-      const cachedPlayerStats = await getCachedFixturePlayerStats(fixtureId)
-      return NextResponse.json({
-        live: cached,
-        playerStats: cachedPlayerStats ?? [],
-        liveCachedAt: Date.now(),
-        stale: true,
-      } satisfies AnalysisResponse)
+    // API başarısız olursa eski cache'i döndür
+    try {
+      const cached = await getCachedLive(fixtureId)
+      if (cached) {
+        const cachedPlayerStats = await getCachedFixturePlayerStats(fixtureId)
+        return NextResponse.json({
+          live: cached,
+          playerStats: cachedPlayerStats ?? [],
+          liveCachedAt: Date.now(),
+          stale: true,
+        } satisfies AnalysisResponse)
+      }
+    } catch {
+      // ignore
     }
 
     return NextResponse.json({ error: message }, { status: 502 })
