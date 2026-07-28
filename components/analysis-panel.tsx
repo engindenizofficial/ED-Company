@@ -87,6 +87,7 @@ export function AnalysisPanel({
               const homeGoals = fixture.score?.home ?? fixture.goalsHome
               const awayGoals = fixture.score?.away ?? fixture.goalsAway
               const hasScore = homeGoals != null && awayGoals != null
+              const statusTr = translateStatus(fixture.statusShort, fixture.elapsed)
               return hasScore ? (
                 <>
                   <div className="flex items-center gap-2 text-3xl font-bold tabular-nums text-foreground">
@@ -95,20 +96,20 @@ export function AnalysisPanel({
                     <span>{awayGoals}</span>
                   </div>
                   {isLive ? (
-                    <span className="flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
+                    <span className="flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-destructive">
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
-                      {fixture.status}
+                      {statusTr}
                     </span>
                   ) : (
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                      {fixture.status}
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground">
+                      {statusTr}
                     </span>
                   )}
                 </>
               ) : (
                 <div className="flex flex-col items-center gap-1">
                   <span className="text-2xl font-bold text-muted-foreground">vs</span>
-                  <span className="text-[10px] text-muted-foreground">{fixture.status}</span>
+                  <span className="text-[10px] text-muted-foreground">{statusTr}</span>
                 </div>
               )
             })()}
@@ -343,6 +344,35 @@ function TeamHeader({ name, logo }: { name: string; logo: string }) {
 // ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Status label — Türkçe çeviri + canlı maçlarda dakika
+// ---------------------------------------------------------------------------
+
+function translateStatus(short: string, elapsed: number | null): string {
+  switch (short) {
+    case "1H": return typeof elapsed === "number" ? `${elapsed}'` : "1. Yarı"
+    case "2H": return typeof elapsed === "number" ? `${elapsed}'` : "2. Yarı"
+    case "ET": return typeof elapsed === "number" ? `${elapsed}' (Uzatma)` : "Uzatma"
+    case "HT": return "Devre Arası"
+    case "BT": return "Devre Arası"
+    case "P":  return "Penaltılar"
+    case "LIVE": return typeof elapsed === "number" ? `${elapsed}'` : "Canlı"
+    case "FT":  return "Maç Sonu"
+    case "AET": return "Maç Sonu (Uzatma)"
+    case "PEN": return "Maç Sonu (Pen.)"
+    case "NS":  return "Başlamadı"
+    case "TBD": return "Saat Belirsiz"
+    case "PST": return "Ertelendi"
+    case "CANC": return "İptal Edildi"
+    case "ABD": return "Tatil Edildi"
+    case "SUSP": return "Askıya Alındı"
+    case "INT": return "Ara Verildi"
+    case "AWD": return "Hükmen"
+    case "WO":  return "Hükmen"
+    default:    return short
+  }
+}
 
 const EVENT_ICONS: Record<string, string> = {
   Goal: "⚽",
