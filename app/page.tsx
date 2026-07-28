@@ -59,13 +59,12 @@ export default function Page() {
     loadFixtures(false)
   }, [loadFixtures])
 
-  // Maç seçilince analizi cache'den çek (refresh=0)
-  const loadAnalysis = useCallback(async (id: number, forceRefresh = false) => {
+  // Maç paneli açılınca her seferinde API'den taze veri çek — kaydedilmez, cache kullanılmaz
+  const loadAnalysis = useCallback(async (id: number) => {
     setAnalysisLoading(true)
     setAnalysisError(undefined)
     try {
-      const url = `/api/analyze?fixtureId=${id}${forceRefresh ? "&refresh=1" : ""}`
-      const res = await fetch(url)
+      const res = await fetch(`/api/analyze?fixtureId=${id}`)
       const data = await res.json() as AnalysisResponse
       setAnalysis(data)
     } catch (e) {
@@ -81,33 +80,20 @@ export default function Page() {
       setAnalysisError(undefined)
       return
     }
-    // Maç seçilince önce cache'den göster
-    loadAnalysis(selected.id, false)
+    // Panel her açıldığında API'den taze çek
+    loadAnalysis(selected.id)
   }, [selected, loadAnalysis])
 
-  // Canlı maç statusShort değerleri
-  const LIVE_STATUSES = useMemo(() => new Set(["1H", "HT", "2H", "ET", "BT", "P", "LIVE"]), [])
-
-  // Yenile butonu:
-  // - Tüm fikstürler API'den güncellenir (tümü, canlı/bitmis/başlamamış fark etmez)
-  // - Sadece CANLI maçların panel verileri (analiz) yeniden API'den çekilir
-  // - Canlı olmayan maçların analizi değiştirilmez (cache'de kaldığı gibi kalır)
+  // Yenile butonu: sadece fikstür listesini günceller, açık analiz paneline dokunmaz
   const handleRefresh = useCallback(async () => {
     if (refreshing) return
     setRefreshing(true)
     try {
-      // /api/refresh: fikstürleri günceller + sadece canlı maçların analizini API'den çeker
-      await fetch("/api/refresh", { method: "POST" })
-      // Tüm fikstürleri cache'den yükle (artık taze)
-      await loadFixtures(false)
-      // Açık panel canlı bir maçsa, taze analizi cache'den göster
-      if (selected && LIVE_STATUSES.has(selected.statusShort)) {
-        await loadAnalysis(selected.id, false)
-      }
+      await loadFixtures(true)
     } finally {
       setRefreshing(false)
     }
-  }, [refreshing, loadFixtures, selected, loadAnalysis, LIVE_STATUSES])
+  }, [refreshing, loadFixtures])
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
