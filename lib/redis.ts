@@ -39,8 +39,8 @@ const K = {
 }
 
 // TTLs (seconds)
-const FIXTURES_TTL = 8               // 8s — SSE stream her 10s'de sorgular, cache expire olmuş olur
-const LIVE_TTL = 8                   // 8s — analiz SSE stream her 10s'de sorgular, taze veri için
+const FIXTURES_TTL = 30              // 30s — polling manager 15s'de yazar, TTL aralarında cache'i canlı tutar
+const LIVE_TTL = 20                  // 20s — polling manager 10s'de yazar, TTL aralarında cache'i canlı tutar
 const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
 
 

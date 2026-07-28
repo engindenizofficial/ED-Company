@@ -1,16 +1,10 @@
-import { getFixturesByDate } from "@/lib/api-football"
+import { getCachedFixtures } from "@/lib/redis"
+import { pollingManager, todayTR } from "@/lib/polling-manager"
 import type { Fixture } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
-// SSE bağlantısı uzun süreceği için max süreyi artır
 export const maxDuration = 300
 
-/** Türkiye saatiyle bugünün tarihi (YYYY-MM-DD). */
-function todayTR(): string {
-  return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
-}
-
-/** İki fixture dizisini karşılaştırmak için özet string üretir. */
 function fixtureFingerprint(fixtures: Fixture[]): string {
   return fixtures
     .map((f) => `${f.id}:${f.goalsHome}-${f.goalsAway}:${f.statusShort}:${f.elapsed}`)
@@ -22,10 +16,10 @@ export async function GET() {
 
   const stream = new ReadableStream({
     async start(controller) {
-      let lastFingerprint = ""
       let closed = false
+      let lastFingerprint = ""
 
-      const send = (event: string, data: unknown) => {
+      function send(event: string, data: unknown) {
         if (closed) return
         try {
           controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
@@ -34,43 +28,31 @@ export async function GET() {
         }
       }
 
-      // İlk veriyi hemen gönder
-      try {
-        const date = todayTR()
-        const fixtures = await getFixturesByDate(date)
-        lastFingerprint = fixtureFingerprint(fixtures)
-        send("fixtures", { date, fixtures, cachedAt: Date.now() })
-      } catch (err) {
-        send("error", { message: err instanceof Error ? err.message : "Bilinmeyen hata" })
+      // İlk veriyi hemen Redis'ten gönder
+      const initial = await getCachedFixtures(todayTR())
+      if (initial && !closed) {
+        lastFingerprint = fixtureFingerprint(initial.fixtures)
+        send("fixtures", initial)
       }
 
-      // Her 10 saniyede bir kontrol et, değişim varsa push et
-      const interval = setInterval(async () => {
-        if (closed) {
-          clearInterval(interval)
-          return
+      // Polling manager her güncellemede bu callback'i tetikler;
+      // stream sadece Redis'i okur — API'ye doğrudan çarpmaz.
+      const unsubscribe = pollingManager.subscribeFixtures(async () => {
+        if (closed) { unsubscribe(); return }
+        const fresh = await getCachedFixtures(todayTR())
+        if (!fresh) return
+        const fp = fixtureFingerprint(fresh.fixtures)
+        if (fp !== lastFingerprint) {
+          lastFingerprint = fp
+          send("fixtures", fresh)
+        } else {
+          send("heartbeat", { ts: Date.now() })
         }
-        try {
-          const date = todayTR()
-          const fixtures = await getFixturesByDate(date)
-          const fingerprint = fixtureFingerprint(fixtures)
+      })
 
-          if (fingerprint !== lastFingerprint) {
-            lastFingerprint = fingerprint
-            send("fixtures", { date, fixtures, cachedAt: Date.now() })
-          } else {
-            // Değişim yoksa sadece heartbeat gönder (bağlantı canlı kalsın)
-            send("heartbeat", { ts: Date.now() })
-          }
-        } catch (err) {
-          send("error", { message: err instanceof Error ? err.message : "Bilinmeyen hata" })
-        }
-      }, 10_000)
-
-      // Stream kapanınca interval'i temizle
       return () => {
         closed = true
-        clearInterval(interval)
+        unsubscribe()
       }
     },
   })
