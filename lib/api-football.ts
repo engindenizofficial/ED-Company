@@ -443,41 +443,4 @@ export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData>
   }
 }
 
-// ---------------------------------------------------------------------------
-// Static vs dynamic split — used by polling manager to minimize API calls
-// ---------------------------------------------------------------------------
-
-export interface StaticMatchData {
-  lineups: TeamLineup[]
-  standings: StandingRow[]
-  injuries: InjuryItem[]
-  h2h: FormGame[]
-  homeStats: TeamSeasonStats | null
-  awayStats: TeamSeasonStats | null
-}
-
-/** Static parts: fetched once, valid for hours. */
-export async function getStaticMatchData(fixture: Fixture): Promise<StaticMatchData> {
-  const { id, home, away, league } = fixture
-  const [lineups, standings, injuries, h2h, homeStats, awayStats] = await Promise.all([
-    getLineups(id),
-    getStandings(league.id, league.season, [home.id, away.id]),
-    getInjuries(id),
-    getHeadToHead(home.id, away.id),
-    getTeamSeasonStats(home, league.id, league.season),
-    getTeamSeasonStats(away, league.id, league.season),
-  ])
-  return { lineups, standings, injuries, h2h, homeStats, awayStats }
-}
-
-/** Dynamic parts: fetched every poll cycle (events + statistics + fixture status). */
-export async function getDynamicMatchData(fixture: Fixture): Promise<Pick<LiveMatchData, "fixture" | "events" | "statistics">> {
-  const { id } = fixture
-  const [events, statistics] = await Promise.all([
-    getEvents(id),
-    getStatistics(id),
-  ])
-  return { fixture, events, statistics }
-}
-
 

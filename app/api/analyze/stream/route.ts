@@ -1,10 +1,13 @@
-import { getCachedLive, getCachedFixturePlayerStats } from "@/lib/redis"
-import { pollingManager, LIVE_STATUSES } from "@/lib/polling-manager"
+import { getFixtureById, getLiveMatchData, getFixturePlayerStats } from "@/lib/api-football"
+import { getCachedLive, setCachedLive, getCachedFixturePlayerStats, setCachedFixturePlayerStats } from "@/lib/redis"
 import type { AnalysisResponse } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 300
 
+const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
+const POLL_INTERVAL_MS = 10_000
+
+/** Analiz verisinden değişim tespiti için parmak izi üretir. */
 function fingerprint(data: AnalysisResponse): string {
   const { fixture } = data.live
   const events = data.live.events.length
@@ -21,67 +24,84 @@ export async function GET(request: Request) {
   }
 
   const encoder = new TextEncoder()
+  let closed = false
 
   const stream = new ReadableStream({
     async start(controller) {
-      let closed = false
-      let lastFingerprint = ""
-
-      function send(event: string, data: unknown) {
+      function send(event: string, data: string) {
         if (closed) return
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${data}\n\n`))
+      }
+
+      async function fetchAnalysis(): Promise<AnalysisResponse | null> {
         try {
-          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+          const fixture = await getFixtureById(fixtureId)
+          if (!fixture) return null
+          const live = await getLiveMatchData(fixture)
+          const isLive = LIVE_STATUSES.has(live.fixture.statusShort)
+          const ttl = isLive ? 8 : 60 * 60 * 6
+          await setCachedLive(fixtureId, live, ttl)
+
+          let playerStats = await getCachedFixturePlayerStats(fixtureId)
+          if (!playerStats) {
+            playerStats = await getFixturePlayerStats(fixtureId)
+            await setCachedFixturePlayerStats(fixtureId, playerStats)
+          }
+
+          return { live, playerStats, liveCachedAt: Date.now() }
         } catch {
-          closed = true
+          // Hata durumunda cache'den dön
+          const cached = await getCachedLive(fixtureId)
+          if (!cached) return null
+          const cachedPlayerStats = await getCachedFixturePlayerStats(fixtureId)
+          return { live: cached, playerStats: cachedPlayerStats ?? [], liveCachedAt: Date.now(), stale: true }
         }
       }
 
-      async function readFromCache(): Promise<AnalysisResponse | null> {
-        const live = await getCachedLive(fixtureId)
-        if (!live) return null
-        const playerStats = await getCachedFixturePlayerStats(fixtureId)
-        return { live, playerStats: playerStats ?? [], liveCachedAt: Date.now() }
-      }
+      let lastFingerprint = ""
 
-      // İlk veriyi hemen Redis'ten gönder
-      const initial = await readFromCache()
+      // İlk veriyi hemen gönder
+      const initial = await fetchAnalysis()
       if (initial && !closed) {
         lastFingerprint = fingerprint(initial)
-        send("analysis", initial)
+        send("analysis", JSON.stringify(initial))
       }
 
+      // Canlı değilse polling yapmaya gerek yok — bağlantıyı heartbeat ile canlı tut
       const isLiveMatch = initial
         ? LIVE_STATUSES.has(initial.live.fixture.statusShort)
         : false
 
       if (!isLiveMatch) {
-        // Canlı değil — sadece heartbeat, API'ye çarpmadan bağlantıyı koru
-        const hbInterval = setInterval(() => {
-          if (closed) { clearInterval(hbInterval); return }
-          send("heartbeat", { ts: Date.now() })
-        }, 30_000)
-        return () => { closed = true; clearInterval(hbInterval) }
+        // Maç canlı değil; sadece heartbeat gönder, API'ye tekrar çarpmadan bağlantıyı koru
+        while (!closed) {
+          await new Promise<void>((r) => setTimeout(r, 30_000))
+          if (!closed) send("heartbeat", "ping")
+        }
+        return
       }
 
-      // Canlı maç — polling manager'a abone ol.
-      // Manager API'yi çeker, Redis'e yazar, sonra bu callback'i tetikler.
-      const unsubscribe = pollingManager.subscribeAnalysis(fixtureId, async (updatedId) => {
-        if (updatedId !== fixtureId || closed) return
-        const fresh = await readFromCache()
-        if (!fresh) return
-        const fp = fingerprint(fresh)
+      // Canlı maç — polling döngüsü
+      while (!closed) {
+        await new Promise<void>((r) => setTimeout(r, POLL_INTERVAL_MS))
+        if (closed) break
+
+        const data = await fetchAnalysis()
+        if (!data || closed) continue
+
+        const fp = fingerprint(data)
         if (fp !== lastFingerprint) {
           lastFingerprint = fp
-          send("analysis", fresh)
+          send("analysis", JSON.stringify(data))
+          // Maç bitti mi? Polling'i durdur
+          if (!LIVE_STATUSES.has(data.live.fixture.statusShort)) break
         } else {
-          send("heartbeat", { ts: Date.now() })
+          send("heartbeat", "ping")
         }
-      })
-
-      return () => {
-        closed = true
-        unsubscribe()
       }
+    },
+    cancel() {
+      closed = true
     },
   })
 
