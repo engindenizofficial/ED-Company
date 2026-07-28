@@ -40,7 +40,7 @@ const K = {
 
 // TTLs (seconds)
 const FIXTURES_TTL = 8               // 8s — SSE stream her 10s'de sorgular, cache expire olmuş olur
-const LIVE_TTL = 60 * 60 * 6         // 6h
+const LIVE_TTL = 8                   // 8s — analiz SSE stream her 10s'de sorgular, taze veri için
 const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
 
 
