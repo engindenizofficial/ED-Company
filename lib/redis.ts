@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis"
 import type { FixturePlayerStat, FixturesResponse, LiveMatchData } from "./types"
+import type { StaticMatchData } from "./api-football"
 
 // Shared server-side store.
 
@@ -34,14 +35,15 @@ try {
 const K = {
   fixtures: (date: string) => `ed:fixtures:${date}`,
   live: (fixtureId: number) => `ed:live:${fixtureId}`,
+  staticMatch: (fixtureId: number) => `ed:static:${fixtureId}`,
   playerStats: (fixtureId: number) => `ed:fxplayers:${fixtureId}`,
-
 }
 
 // TTLs (seconds)
-const FIXTURES_TTL = 30              // 30s — polling manager 15s'de yazar, TTL aralarında cache'i canlı tutar
-const LIVE_TTL = 20                  // 20s — polling manager 10s'de yazar, TTL aralarında cache'i canlı tutar
-const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
+const FIXTURES_TTL    = 30              // 30s — polling manager 15s'de yazar
+const LIVE_TTL        = 20              // 20s — polling manager 10s'de dinamik veri yazar
+const STATIC_TTL      = 60 * 60 * 3    // 3h  — standings, h2h, lineups, injuries, team stats
+const PLAYER_STATS_TTL = 60 * 60 * 6   // 6h
 
 
 // ---------------------------------------------------------------------------
@@ -87,6 +89,29 @@ export async function setCachedLive(fixtureId: number, data: LiveMatchData, ttl 
     await redis.set(K.live(fixtureId), data, { ex: ttl })
   } catch (err) {
     console.log("[v0] redis setCachedLive failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Static match data (standings, h2h, lineups, injuries, team stats)
+// ---------------------------------------------------------------------------
+
+export async function getCachedStaticMatch(fixtureId: number): Promise<StaticMatchData | null> {
+  if (!redis) return null
+  try {
+    return (await redis.get<StaticMatchData>(K.staticMatch(fixtureId))) ?? null
+  } catch (err) {
+    console.log("[v0] redis getCachedStaticMatch failed:", err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+export async function setCachedStaticMatch(fixtureId: number, data: StaticMatchData): Promise<void> {
+  if (!redis) return
+  try {
+    await redis.set(K.staticMatch(fixtureId), data, { ex: STATIC_TTL })
+  } catch (err) {
+    console.log("[v0] redis setCachedStaticMatch failed:", err instanceof Error ? err.message : err)
   }
 }
 

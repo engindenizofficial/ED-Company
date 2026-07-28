@@ -12,18 +12,21 @@
 import {
   getFixturesByDate,
   getFixtureById,
-  getLiveMatchData,
+  getStaticMatchData,
+  getDynamicMatchData,
   getFixturePlayerStats,
 } from "@/lib/api-football"
 import {
   setCachedFixtures,
   setCachedLive,
+  getCachedStaticMatch,
+  setCachedStaticMatch,
   setCachedFixturePlayerStats,
 } from "@/lib/redis"
 import type { Fixture } from "@/lib/types"
 
 const FIXTURE_POLL_MS = 15_000   // Fixture listesi için 15s
-const LIVE_POLL_MS   = 10_000   // Canlı maç analizi için 10s
+const LIVE_POLL_MS   = 10_000   // Canlı maç — sadece events+statistics için 10s
 
 const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
 
@@ -57,6 +60,8 @@ class PollingManager {
   private liveIntervals = new Map<number, ReturnType<typeof setInterval>>()
   // fixtureId → abone sayısı (0'a düşünce interval durdurulur)
   private liveSubscriberCounts = new Map<number, number>()
+  // fixtureId → son player stats çekme zamanı (ms)
+  private lastPlayerStatsPoll = new Map<number, number>()
 
   private fixtureInterval: ReturnType<typeof setInterval> | null = null
 
@@ -98,25 +103,53 @@ class PollingManager {
   // -------------------------------------------------------------------------
   private async pollAnalysis(fixtureId: number) {
     try {
-      const fixture = await getFixtureById(fixtureId)
+      const fixture = await getFixtureById(fixtureId)  // 1 istek
       if (!fixture) return
 
-      const live = await getLiveMatchData(fixture)
-      const isLive = LIVE_STATUSES.has(live.fixture.statusShort)
-      const ttl = isLive ? 8 : 60 * 60 * 6
-      await setCachedLive(fixtureId, live, ttl)
+      const isLive = LIVE_STATUSES.has(fixture.statusShort)
 
-      // Player stats — maç canlıysa tekrar çek (istatistikler değişiyor)
-      if (isLive) {
-        const playerStats = await getFixturePlayerStats(fixtureId)
-        await setCachedFixturePlayerStats(fixtureId, playerStats)
+      // --- Statik veri: sadece cache yoksa çek (3 saatte bir yenilenir) ---
+      const cachedStatic = await getCachedStaticMatch(fixtureId)
+      let staticData = cachedStatic
+      if (!staticData) {
+        staticData = await getStaticMatchData(fixture)  // 6 istek — sadece ilk seferinde
+        await setCachedStaticMatch(fixtureId, staticData)
       }
 
+      // --- Dinamik veri: her poll döngüsünde sadece events + statistics ---
+      const dynamic = await getDynamicMatchData(fixture)  // 2 istek
+
+      // Statik + dinamik veriyi birleştir
+      const live = {
+        fixture: dynamic.fixture,
+        events: dynamic.events,
+        statistics: dynamic.statistics,
+        lineups: staticData.lineups,
+        standings: staticData.standings,
+        injuries: staticData.injuries,
+        h2h: staticData.h2h,
+        homeStats: staticData.homeStats,
+        awayStats: staticData.awayStats,
+      }
+
+      // Player stats — maç canlıysa periyodik olarak güncelle (her 60s)
+      if (isLive) {
+        const lastPlayerPoll = this.lastPlayerStatsPoll.get(fixtureId) ?? 0
+        if (Date.now() - lastPlayerPoll > 60_000) {
+          const playerStats = await getFixturePlayerStats(fixtureId)  // 1 istek — 60s'de bir
+          await setCachedFixturePlayerStats(fixtureId, playerStats)
+          this.lastPlayerStatsPoll.set(fixtureId, Date.now())
+        }
+      }
+
+      const ttl = isLive ? 20 : 60 * 60 * 6
+      await setCachedLive(fixtureId, live, ttl)
       this.notifyAnalysisSubscribers(fixtureId)
 
-      // Maç bittiyse interval'i kendi kendine durdur
+      // Maç bittiyse interval'i durdur
       if (!isLive) {
         this.stopLivePolling(fixtureId)
+        this.lastPlayerStatsPoll.delete(fixtureId)
       }
     } catch {
       // Sessizce geç — mevcut cache geçerli kalmaya devam eder
