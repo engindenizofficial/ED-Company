@@ -1,7 +1,7 @@
 "use client"
 
-import { LoaderCircle, Search } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { LoaderCircle, RefreshCw, Search } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { FixtureList } from "@/components/fixture-list"
@@ -25,130 +25,75 @@ function normalize(s: string): string {
   return s.toLocaleLowerCase("tr-TR").trim()
 }
 
-const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
-
-/** SSE stream'den gelen analiz verisini dinler, anlık günceller. */
-function useAnalysisStream(fixtureId: number | null) {
-  const [data, setData] = useState<AnalysisResponse | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
-  const retryTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const esRef = useRef<EventSource | null>(null)
-
-  useEffect(() => {
-    // Seçili maç yoksa temizle
-    if (!fixtureId) {
-      esRef.current?.close()
-      esRef.current = null
-      setData(null)
-      setIsLoading(false)
-      setError(null)
-      return
-    }
-
-    let cancelled = false
-    setIsLoading(true)
-    setError(null)
-    setData(null)
-
-    function connect() {
-      if (cancelled) return
-
-      const es = new EventSource(`/api/analyze/stream?fixtureId=${fixtureId}`)
-      esRef.current = es
-
-      es.addEventListener("analysis", (e) => {
-        if (cancelled) return
-        try {
-          const parsed = JSON.parse(e.data) as AnalysisResponse
-          setData(parsed)
-          setIsLoading(false)
-          setError(null)
-        } catch {
-          // parse hatası — görmezden gel
-        }
-      })
-
-      es.addEventListener("error", () => {
-        es.close()
-        if (!cancelled) {
-          retryTimeout.current = setTimeout(connect, 5_000)
-        }
-      })
-    }
-
-    connect()
-
-    return () => {
-      cancelled = true
-      esRef.current?.close()
-      if (retryTimeout.current) clearTimeout(retryTimeout.current)
-    }
-  }, [fixtureId])
-
-  return { data: data ?? undefined, isLoading, error: error ?? undefined }
-}
-
-/** SSE stream'den gelen fixture verilerini dinler, anlık günceller. */
-function useFixturesStream() {
-  const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const retryTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const esRef = useRef<EventSource | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    function connect() {
-      if (cancelled) return
-
-      const es = new EventSource("/api/fixtures/stream")
-      esRef.current = es
-
-      es.addEventListener("fixtures", (e) => {
-        if (cancelled) return
-        try {
-          const data = JSON.parse(e.data) as FixturesResponse
-          setFixturesData(data)
-          setIsLoading(false)
-        } catch {
-          // parse hatası — görmezden gel
-        }
-      })
-
-      es.addEventListener("error", () => {
-        es.close()
-        if (!cancelled) {
-          // 5 saniye sonra yeniden bağlan
-          retryTimeout.current = setTimeout(connect, 5_000)
-        }
-      })
-    }
-
-    connect()
-
-    return () => {
-      cancelled = true
-      esRef.current?.close()
-      if (retryTimeout.current) clearTimeout(retryTimeout.current)
-    }
-  }, [])
-
-  return { fixturesData, isLoading }
-}
-
 export default function Page() {
   const date = todayTR()
   const [selected, setSelected] = useState<Fixture | null>(null)
   const [query, setQuery] = useState("")
 
-  const { fixturesData, isLoading: fixturesLoading } = useFixturesStream()
+  // Fikstür verileri
+  const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(null)
+  const [fixturesLoading, setFixturesLoading] = useState(true)
 
-  const {
-    data: analysis,
-    error: analysisError,
-    isLoading: analysisLoading,
-  } = useAnalysisStream(selected?.id ?? null)
+  // Analiz verileri
+  const [analysis, setAnalysis] = useState<AnalysisResponse | undefined>(undefined)
+  const [analysisLoading, setAnalysisLoading] = useState(false)
+  const [analysisError, setAnalysisError] = useState<Error | undefined>(undefined)
+
+  // Genel yenileniyor durumu (buton animasyonu için)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const fetchFixtures = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/fixtures?date=${date}&refresh=1`)
+      const data = await res.json() as FixturesResponse
+      setFixturesData(data)
+    } catch {
+      // sessizce geç
+    } finally {
+      setFixturesLoading(false)
+    }
+  }, [date])
+
+  const fetchAnalysis = useCallback(async (id: number) => {
+    setAnalysisLoading(true)
+    setAnalysisError(undefined)
+    try {
+      const res = await fetch(`/api/analyze?fixtureId=${id}&refresh=1`)
+      const data = await res.json() as AnalysisResponse
+      setAnalysis(data)
+    } catch (e) {
+      setAnalysisError(e instanceof Error ? e : new Error("Bir hata oluştu"))
+    } finally {
+      setAnalysisLoading(false)
+    }
+  }, [])
+
+  // İlk yükleme
+  useEffect(() => {
+    fetchFixtures()
+  }, [fetchFixtures])
+
+  // Maç seçilince analizi çek
+  useEffect(() => {
+    if (!selected) {
+      setAnalysis(undefined)
+      setAnalysisError(undefined)
+      return
+    }
+    fetchAnalysis(selected.id)
+  }, [selected, fetchAnalysis])
+
+  // Yenile butonu: fikstürleri + açık analizi yenile
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      await fetchFixtures()
+      if (selected) await fetchAnalysis(selected.id)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [refreshing, fetchFixtures, fetchAnalysis, selected])
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
@@ -171,6 +116,15 @@ export default function Page() {
             <span className="text-foreground">Company</span>
           </h1>
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              aria-label="Verileri yenile"
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              Yenile
+            </button>
             <ThemeToggle />
           </div>
         </div>
