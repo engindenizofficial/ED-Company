@@ -39,7 +39,7 @@ const K = {
 }
 
 // TTLs (seconds)
-const FIXTURES_TTL = 55              // 55s — SWR her 60s'de yeniler, cache expire olmuş olur
+const FIXTURES_TTL = 8               // 8s — SSE stream her 10s'de sorgular, cache expire olmuş olur
 const LIVE_TTL = 60 * 60 * 6         // 6h
 const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
 

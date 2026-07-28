@@ -26,14 +26,6 @@ function normalize(s: string): string {
   return s.toLocaleLowerCase("tr-TR").trim()
 }
 
-const FIXTURES_SWR_OPTIONS = {
-  revalidateOnFocus: false,
-  revalidateOnReconnect: true,
-  revalidateIfStale: true,
-  dedupingInterval: 30_000,
-  refreshInterval: 60_000,
-} as const
-
 const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
 
 function analysisSwrOptions(fixture: Fixture | null) {
@@ -47,6 +39,54 @@ function analysisSwrOptions(fixture: Fixture | null) {
   }
 }
 
+/** SSE stream'den gelen fixture verilerini dinler, anlık günceller. */
+function useFixturesStream() {
+  const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const retryTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const esRef = useRef<EventSource | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    function connect() {
+      if (cancelled) return
+
+      const es = new EventSource("/api/fixtures/stream")
+      esRef.current = es
+
+      es.addEventListener("fixtures", (e) => {
+        if (cancelled) return
+        try {
+          const data = JSON.parse(e.data) as FixturesResponse
+          setFixturesData(data)
+          setIsLoading(false)
+        } catch {
+          // parse hatası — görmezden gel
+        }
+      })
+
+      es.addEventListener("error", () => {
+        es.close()
+        if (!cancelled) {
+          // 5 saniye sonra yeniden bağlan
+          retryTimeout.current = setTimeout(connect, 5_000)
+        }
+      })
+    }
+
+    connect()
+
+    return () => {
+      cancelled = true
+      esRef.current?.close()
+      if (retryTimeout.current) clearTimeout(retryTimeout.current)
+    }
+  }, [])
+
+  return { fixturesData, isLoading }
+}
+
 export default function Page() {
   const date = todayTR()
   const [selected, setSelected] = useState<Fixture | null>(null)
@@ -54,14 +94,9 @@ export default function Page() {
   const [fetchingIds, setFetchingIds] = useState<Set<number>>(new Set())
   const [prefetchedCount, setPrefetchedCount] = useState(0)
 
-  const fixturesKey = `/api/fixtures?date=${date}`
   const analysisKey = selected ? `/api/analyze?fixtureId=${selected.id}` : null
 
-  const { data: fixturesData, isLoading: fixturesLoading } = useSWR<FixturesResponse>(
-    fixturesKey,
-    fetcher,
-    FIXTURES_SWR_OPTIONS,
-  )
+  const { fixturesData, isLoading: fixturesLoading } = useFixturesStream()
 
   const {
     data: analysis,
