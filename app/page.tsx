@@ -68,6 +68,15 @@ export default function Page() {
     }
   }, [])
 
+  // Tüm fixture'ların analizini arka planda sessizce yenile (cache güncelleme)
+  const refreshAllAnalyses = useCallback(async (ids: number[]) => {
+    await Promise.all(
+      ids.map((id) =>
+        fetch(`/api/analyze?fixtureId=${id}&refresh=1`).catch(() => null)
+      )
+    )
+  }, [])
+
   // İlk yükleme
   useEffect(() => {
     fetchFixtures()
@@ -83,16 +92,22 @@ export default function Page() {
     fetchAnalysis(selected.id)
   }, [selected, fetchAnalysis])
 
-  // Yenile butonu: sadece fikstür listesini günceller
+  // Yenile butonu: fikstürleri + tüm maçların analizini günceller
   const handleRefresh = useCallback(async () => {
     if (refreshing) return
     setRefreshing(true)
     try {
       await fetchFixtures()
+      const allIds = (fixturesData?.fixtures ?? []).map((f) => f.id)
+      // Açık analiz panelini önce güncelle (UI hemen yenilenir)
+      if (selected) await fetchAnalysis(selected.id)
+      // Geri kalan tüm maçları paralel olarak arka planda güncelle
+      const otherIds = allIds.filter((id) => id !== selected?.id)
+      await refreshAllAnalyses(otherIds)
     } finally {
       setRefreshing(false)
     }
-  }, [refreshing, fetchFixtures])
+  }, [refreshing, fetchFixtures, fixturesData, selected, fetchAnalysis, refreshAllAnalyses])
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
