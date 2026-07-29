@@ -1,12 +1,12 @@
 "use client"
 
-import { LoaderCircle, RefreshCw, Search } from "lucide-react"
+import { LoaderCircle, RefreshCw } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { FixtureList } from "@/components/fixture-list"
+import { TeamSearchBar } from "@/components/team-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { buildSearchIndex } from "@/lib/tr-aliases"
 import type { AnalysisResponse, Fixture, FixturesResponse } from "@/lib/types"
 
 function todayTR(): string {
@@ -21,14 +21,10 @@ function formatDateLabel(iso: string): string {
   })
 }
 
-function normalize(s: string): string {
-  return s.toLocaleLowerCase("tr-TR").trim()
-}
 
 export default function Page() {
   const date = todayTR()
   const [selected, setSelected] = useState<Fixture | null>(null)
-  const [query, setQuery] = useState("")
 
   const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(null)
   const [fixturesLoading, setFixturesLoading] = useState(true)
@@ -97,12 +93,6 @@ export default function Page() {
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
-  const filtered = useMemo(() => {
-    const q = normalize(query)
-    if (!q) return fixtures
-    return fixtures.filter((f) => buildSearchIndex(f).includes(q))
-  }, [fixtures, query])
-
   const handleSelect = useCallback((f: Fixture) => {
     setSelected((cur) => (cur?.id === f.id ? null : f))
   }, [])
@@ -135,21 +125,12 @@ export default function Page() {
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold capitalize text-foreground">{formatDateLabel(date)}</h2>
             {!fixturesLoading ? (
-              <span className="text-xs text-muted-foreground">{filtered.length} maç</span>
+              <span className="text-xs text-muted-foreground">{fixtures.length} maç</span>
             ) : null}
           </div>
 
-          <label className="relative flex items-center">
-            <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Takım, lig veya ülke ara..."
-              className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
-              aria-label="Maçları filtrele"
-            />
-          </label>
+          {/* Takım arama — maç filtresi değil, takım paneli açar */}
+          <TeamSearchBar />
         </div>
 
         {fixturesLoading ? (
@@ -161,15 +142,9 @@ export default function Page() {
           <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
             Bu tarihte planlanmış maç bulunamadı.
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
-            {'"'}
-            {query}
-            {'"'} için sonuç bulunamadı.
-          </div>
         ) : (
           <FixtureList
-            fixtures={filtered}
+            fixtures={fixtures}
             selectedId={selected?.id ?? null}
             onSelect={handleSelect}
             renderExpanded={() => (
