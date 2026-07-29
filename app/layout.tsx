@@ -8,7 +8,7 @@ const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
 
 export const metadata: Metadata = {
-  title: 'ED Company | Maç Analiz Motoru',
+  title: 'ED Company',
   description:
     'Günün maçlarını AI Monte Carlo simülasyonuyla analiz eden ED Company motoru: skor tahmini, kazanma yüzdeleri ve taktiksel rapor.',
   generator: 'v0.app',
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Maç Analiz',
+    title: 'ED Company',
   },
   icons: {
     icon: [

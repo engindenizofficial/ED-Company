@@ -44,7 +44,7 @@ export default function Page() {
     setFixturesLoading(true)
     try {
       const url = `/api/fixtures?date=${date}${forceRefresh ? "&refresh=1" : ""}`
-      const res = await fetch(url)
+      const res = await fetch(url, { cache: "no-store" })
       const data = await res.json() as FixturesResponse
       setFixturesData(data)
     } catch {
@@ -64,7 +64,7 @@ export default function Page() {
     setAnalysisLoading(true)
     setAnalysisError(undefined)
     try {
-      const res = await fetch(`/api/analyze?fixtureId=${id}`)
+      const res = await fetch(`/api/analyze?fixtureId=${id}&t=${Date.now()}`, { cache: "no-store" })
       const data = await res.json() as AnalysisResponse
       setAnalysis(data)
     } catch (e) {
