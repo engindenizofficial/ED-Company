@@ -4,11 +4,8 @@ import { LoaderCircle, Search, X } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTeamPanel } from "@/contexts/team-context"
 import { useLeaguePanel } from "@/contexts/league-context"
-import { cn } from "@/lib/utils"
 import type { TeamSearchResult } from "@/app/api/teams/search/route"
 import type { LeagueSearchResult } from "@/app/api/leagues/search/route"
-
-type Tab = "team" | "league"
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value)
@@ -23,7 +20,6 @@ export function TeamSearchBar() {
   const { openTeam } = useTeamPanel()
   const { openLeague } = useLeaguePanel()
 
-  const [tab, setTab] = useState<Tab>("team")
   const [query, setQuery] = useState("")
   const [teamResults, setTeamResults] = useState<TeamSearchResult[]>([])
   const [leagueResults, setLeagueResults] = useState<LeagueSearchResult[]>([])
@@ -34,72 +30,44 @@ export function TeamSearchBar() {
   const containerRef = useRef<HTMLDivElement>(null)
   const debouncedQuery = useDebounce(query, 320)
 
-  // Ligler için: sorgu boşken tüm ligleri göster
+  // Arama — en az 2 karakter, hem takım hem lig paralel çekilir
   useEffect(() => {
-    if (tab === "league") {
-      setLoading(true)
-      fetch(`/api/leagues/search?q=${encodeURIComponent(debouncedQuery)}`)
-        .then((r) => r.json())
-        .then((data: { results: LeagueSearchResult[] }) => {
-          setLeagueResults(data.results ?? [])
-          setOpen(true)
-        })
-        .catch(() => setLeagueResults([]))
-        .finally(() => setLoading(false))
-      return
-    }
-
-    // Takım araması — en az 2 karakter
     if (debouncedQuery.length < 2) {
       setTeamResults([])
+      setLeagueResults([])
       setOpen(false)
       return
     }
+
     let cancelled = false
     setLoading(true)
-    fetch(`/api/teams/search?q=${encodeURIComponent(debouncedQuery)}`)
-      .then((r) => r.json())
-      .then((data: { results: TeamSearchResult[] }) => {
+
+    const q = encodeURIComponent(debouncedQuery)
+
+    Promise.all([
+      fetch(`/api/teams/search?q=${q}`).then((r) => r.json()) as Promise<{ results: TeamSearchResult[] }>,
+      fetch(`/api/leagues/search?q=${q}`).then((r) => r.json()) as Promise<{ results: LeagueSearchResult[] }>,
+    ])
+      .then(([teamData, leagueData]) => {
         if (cancelled) return
-        setTeamResults(data.results ?? [])
+        setTeamResults(teamData.results ?? [])
+        setLeagueResults(leagueData.results ?? [])
         setOpen(true)
       })
       .catch(() => {
-        if (!cancelled) setTeamResults([])
+        if (!cancelled) {
+          setTeamResults([])
+          setLeagueResults([])
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
+
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery, tab])
-
-  // Sekme değişince dropdown'ı kapat, query'yi sıfırla
-  const switchTab = useCallback((t: Tab) => {
-    setTab(t)
-    setQuery("")
-    setTeamResults([])
-    setLeagueResults([])
-    setOpen(false)
-    setTimeout(() => inputRef.current?.focus(), 50)
-  }, [])
-
-  // Lig sekmesine geçince ligleri hemen getir
-  useEffect(() => {
-    if (tab === "league") {
-      setLoading(true)
-      fetch("/api/leagues/search?q=")
-        .then((r) => r.json())
-        .then((data: { results: LeagueSearchResult[] }) => {
-          setLeagueResults(data.results ?? [])
-          setOpen(true)
-        })
-        .catch(() => setLeagueResults([]))
-        .finally(() => setLoading(false))
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab])
+  }, [debouncedQuery])
 
   // Dışarı tıklanınca kapat
   useEffect(() => {
@@ -117,6 +85,7 @@ export function TeamSearchBar() {
       openTeam({ id: result.id, name: result.name, logo: result.logo })
       setQuery("")
       setTeamResults([])
+      setLeagueResults([])
       setOpen(false)
     },
     [openTeam],
@@ -132,6 +101,8 @@ export function TeamSearchBar() {
         flagUrl: result.flagUrl,
       })
       setQuery("")
+      setTeamResults([])
+      setLeagueResults([])
       setOpen(false)
     },
     [openLeague],
@@ -140,48 +111,17 @@ export function TeamSearchBar() {
   const handleClear = useCallback(() => {
     setQuery("")
     setTeamResults([])
-    setOpen(tab === "league") // lig sekmesinde temizlense bile liste açık kalsın
+    setLeagueResults([])
+    setOpen(false)
     inputRef.current?.focus()
-  }, [tab])
+  }, [])
 
-  const placeholder =
-    tab === "team"
-      ? "Takım ara... (örn. Galatasaray, Arsenal)"
-      : "Lig ara... (örn. Premier League, Süper Lig)"
-
-  const currentResults = tab === "team" ? teamResults : leagueResults
-  const hasResults = currentResults.length > 0
+  const hasTeams = teamResults.length > 0
+  const hasLeagues = leagueResults.length > 0
+  const hasAnyResults = hasTeams || hasLeagues
 
   return (
     <div ref={containerRef} className="relative w-full">
-      {/* Sekme seçici */}
-      <div className="mb-2 flex gap-1 rounded-lg bg-secondary p-1">
-        <button
-          type="button"
-          onClick={() => switchTab("team")}
-          className={cn(
-            "flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors",
-            tab === "team"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          Takım
-        </button>
-        <button
-          type="button"
-          onClick={() => switchTab("league")}
-          className={cn(
-            "flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors",
-            tab === "league"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          Lig
-        </button>
-      </div>
-
       {/* Input */}
       <label className="relative flex items-center">
         <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />
@@ -191,12 +131,12 @@ export function TeamSearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => {
-            if (tab === "league") setOpen(true)
-            else if (currentResults.length > 0) setOpen(true)
+            // Odaklanınca sadece önceden sonuç varsa dropdown'ı aç
+            if (teamResults.length > 0 || leagueResults.length > 0) setOpen(true)
           }}
-          placeholder={placeholder}
+          placeholder="Takım / Lig ara..."
           className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-9 text-sm text-foreground outline-none transition-colors focus:border-primary"
-          aria-label={tab === "team" ? "Takım ara" : "Lig ara"}
+          aria-label="Takım veya lig ara"
           aria-expanded={open}
           aria-haspopup="listbox"
           autoComplete="off"
@@ -216,25 +156,26 @@ export function TeamSearchBar() {
       </label>
 
       {/* Dropdown */}
-      {open && (
+      {open && debouncedQuery.length >= 2 && (
         <div
           role="listbox"
-          aria-label={tab === "team" ? "Takım arama sonuçları" : "Lig arama sonuçları"}
-          className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-72 overflow-y-auto rounded-xl border border-border bg-card shadow-lg"
+          aria-label="Arama sonuçları"
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-80 overflow-y-auto rounded-xl border border-border bg-card shadow-lg"
         >
-          {!hasResults && !loading ? (
+          {!hasAnyResults && !loading ? (
             <div className="px-4 py-4 text-center text-sm text-muted-foreground">
-              {query
-                ? `"${query}" için sonuç bulunamadı.`
-                : tab === "league"
-                  ? "Ligler yükleniyor..."
-                  : "En az 2 karakter girin."}
+              {`"${query}" için sonuç bulunamadı.`}
             </div>
           ) : (
-            <ul className="flex flex-col divide-y divide-border/50">
-              {tab === "team"
-                ? (teamResults as TeamSearchResult[]).map((r) => (
-                    <li key={r.id} role="option">
+            <ul className="flex flex-col">
+              {/* Takımlar grubu */}
+              {hasTeams && (
+                <>
+                  <li className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Takımlar
+                  </li>
+                  {teamResults.map((r) => (
+                    <li key={`team-${r.id}`} role="option" className="border-t border-border/40 first:border-t-0">
                       <button
                         type="button"
                         onClick={() => handleSelectTeam(r)}
@@ -262,9 +203,18 @@ export function TeamSearchBar() {
                         </div>
                       </button>
                     </li>
-                  ))
-                : (leagueResults as LeagueSearchResult[]).map((r) => (
-                    <li key={r.id} role="option">
+                  ))}
+                </>
+              )}
+
+              {/* Ligler grubu */}
+              {hasLeagues && (
+                <>
+                  <li className={`px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground${hasTeams ? " border-t border-border/60" : ""}`}>
+                    Ligler
+                  </li>
+                  {leagueResults.map((r) => (
+                    <li key={`league-${r.id}`} role="option" className="border-t border-border/40 first:border-t-0">
                       <button
                         type="button"
                         onClick={() => handleSelectLeague(r)}
@@ -291,6 +241,8 @@ export function TeamSearchBar() {
                       </button>
                     </li>
                   ))}
+                </>
+              )}
             </ul>
           )}
         </div>
