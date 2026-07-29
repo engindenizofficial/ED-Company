@@ -262,13 +262,52 @@ export interface SquadPlayer {
   photo: string | null
 }
 
+export interface TeamTransfer {
+  date: string | null
+  type: string
+  teamFrom: TeamInfo
+  teamTo: TeamInfo
+  player: { id: number; name: string; photo: string | null }
+}
+
+export interface TeamTrophy {
+  league: string
+  country: string
+  season: string
+  place: string
+}
+
+export interface TeamCoach {
+  id: number
+  name: string
+  photo: string | null
+  nationality: string | null
+  age: number | null
+  career: { team: TeamInfo; start: string | null; end: string | null }[]
+}
+
+export interface TeamTopScorer {
+  player: { id: number; name: string; photo: string | null }
+  goals: number
+  assists: number
+  appearances: number
+  rating: string | null
+  yellowCards: number
+  redCards: number
+  pos: string | null
+}
+
 export interface TeamPageData {
   team: TeamInfo
-  venue: { name: string | null; city: string | null; capacity: number | null }
+  venue: { name: string | null; city: string | null; capacity: number | null; image: string | null }
   currentSeason: number
   stats: TeamSeasonStats | null
   squad: SquadPlayer[]
   recentFixtures: Fixture[]
   standings: StandingRow[]
+  transfers: TeamTransfer[]
+  trophies: TeamTrophy[]
+  coach: TeamCoach | null
+  topScorers: TeamTopScorer[]
   fetchedAt: number
 }

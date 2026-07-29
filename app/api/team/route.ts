@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server"
-import type { Fixture, SquadPlayer, StandingRow, TeamInfo, TeamPageData, TeamSeasonStats } from "@/lib/types"
+import type {
+  Fixture,
+  SquadPlayer,
+  StandingRow,
+  TeamCoach,
+  TeamInfo,
+  TeamPageData,
+  TeamSeasonStats,
+  TeamTopScorer,
+  TeamTransfer,
+  TeamTrophy,
+} from "@/lib/types"
 
 export const dynamic = "force-dynamic"
 
@@ -25,14 +36,20 @@ async function apiFetch<T>(path: string, params: Record<string, string | number>
 
 function currentSeason(): number {
   const now = new Date()
-  // Football seasons: Aug–May. If month >= August, season = current year, else previous year.
   return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
 }
 
 interface RawFixture {
-  fixture: { id: number; date: string; timestamp: number; status: { long: string; short: string; elapsed: number | null }; venue: { name: string | null } }
+  fixture: {
+    id: number; date: string; timestamp: number
+    status: { long: string; short: string; elapsed: number | null }
+    venue: { name: string | null }
+  }
   league: { id: number; name: string; country: string; logo: string; season: number; round: string }
-  teams: { home: { id: number; name: string; logo: string; winner: boolean | null }; away: { id: number; name: string; logo: string; winner: boolean | null } }
+  teams: {
+    home: { id: number; name: string; logo: string; winner: boolean | null }
+    away: { id: number; name: string; logo: string; winner: boolean | null }
+  }
   goals: { home: number | null; away: number | null }
 }
 
@@ -48,8 +65,6 @@ function mapFixture(r: RawFixture): Fixture {
   }
 }
 
-interface RawFormGame { fixture: { status: { short: string }; date: string }; league: { id: number; season: number }; teams: { home: { id: number; name: string; winner: boolean | null }; away: { id: number; name: string; winner: boolean | null } }; goals: { home: number | null; away: number | null } }
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const teamId = Number(searchParams.get("teamId"))
@@ -59,13 +74,27 @@ export async function GET(request: Request) {
 
   const season = currentSeason()
 
-  // Paralel çek: takım bilgisi, sezon istatistikleri, kadro, son maçlar, puan durumu
-  const [teamRaw, statsRaw, squadRaw, recentRaw, standingsRaw] = await Promise.all([
+  // Paralel çek: tüm veriler aynı anda isteniyor
+  const [
+    teamRaw,
+    statsRaw,
+    squadRaw,
+    recentRaw,
+    standingsRaw,
+    coachRaw,
+    trophiesRaw,
+    transfersRaw,
+    topScorersRaw,
+  ] = await Promise.all([
     apiFetch<any>("/teams", { id: teamId }),
     apiFetch<any>("/teams/statistics", { team: teamId, season }),
     apiFetch<any>("/players/squads", { team: teamId }),
-    apiFetch<RawFixture>("/fixtures", { team: teamId, last: 10 }),
+    apiFetch<RawFixture>("/fixtures", { team: teamId, last: 15 }),
     apiFetch<any>("/standings", { team: teamId, season }),
+    apiFetch<any>("/coachs", { team: teamId }),
+    apiFetch<any>("/trophies", { team: teamId }),
+    apiFetch<any>("/transfers", { team: teamId }),
+    apiFetch<any>("/players/topscorers", { league: 0, season, team: teamId }).catch(() => []),
   ])
 
   if (!teamRaw || teamRaw.length === 0) {
@@ -79,14 +108,18 @@ export async function GET(request: Request) {
     name: rawTeam.venue?.name ?? null,
     city: rawTeam.venue?.city ?? null,
     capacity: rawTeam.venue?.capacity ?? null,
+    image: rawTeam.venue?.image ?? null,
   }
 
   // Stats
-  const num = (v: unknown): number => { const n = typeof v === "string" ? parseFloat(v) : Number(v); return isFinite(n) ? n : 0 }
+  const num = (v: unknown): number => {
+    const n = typeof v === "string" ? parseFloat(v) : Number(v)
+    return isFinite(n) ? n : 0
+  }
+
   let teamStats: TeamSeasonStats | null = null
   const s = statsRaw?.[0] as any
   if (s?.fixtures) {
-    // Build recent form from last 6 finished fixtures
     const recentFinished = [...recentRaw]
       .filter(r => /FT|AET|PEN/.test(r.fixture.status.short))
       .sort((a, b) => b.fixture.timestamp - a.fixture.timestamp)
@@ -123,13 +156,13 @@ export async function GET(request: Request) {
     number: p.number ?? null, pos: p.position ?? null, photo: p.photo ?? null,
   }))
 
-  // Recent fixtures (last 10, sorted desc)
+  // Recent fixtures
   const recentFixtures: Fixture[] = [...recentRaw]
     .sort((a, b) => b.fixture.timestamp - a.fixture.timestamp)
-    .slice(0, 10)
+    .slice(0, 15)
     .map(mapFixture)
 
-  // Standings — flatten all groups
+  // Standings
   const standings: StandingRow[] = []
   for (const entry of standingsRaw ?? []) {
     const groups: any[][] = entry?.league?.standings ?? []
@@ -146,6 +179,78 @@ export async function GET(request: Request) {
     }
   }
 
-  const payload: TeamPageData = { team, venue, currentSeason: season, stats: teamStats, squad: players, recentFixtures, standings, fetchedAt: Date.now() }
+  // Coach
+  let coach: TeamCoach | null = null
+  const currentCoachRaw = coachRaw?.find((c: any) => {
+    const career = c.career ?? []
+    return career.some((j: any) => j.team?.id === teamId && !j.end)
+  }) ?? coachRaw?.[0]
+
+  if (currentCoachRaw) {
+    coach = {
+      id: currentCoachRaw.id,
+      name: currentCoachRaw.name ?? "",
+      photo: currentCoachRaw.photo ?? null,
+      nationality: currentCoachRaw.nationality ?? null,
+      age: currentCoachRaw.age ?? null,
+      career: (currentCoachRaw.career ?? []).slice(-5).map((j: any) => ({
+        team: { id: j.team?.id, name: j.team?.name ?? "", logo: j.team?.logo ?? "" },
+        start: j.start ?? null,
+        end: j.end ?? null,
+      })),
+    }
+  }
+
+  // Trophies
+  const trophies: TeamTrophy[] = (trophiesRaw ?? []).map((t: any) => ({
+    league: t.league ?? "",
+    country: t.country ?? "",
+    season: t.season ?? "",
+    place: t.place ?? "",
+  }))
+
+  // Transfers — son 20 transfer, tarih sıralı
+  const allTransfers: TeamTransfer[] = []
+  for (const entry of transfersRaw ?? []) {
+    const player = entry.player ?? {}
+    for (const tx of entry.transfers ?? []) {
+      allTransfers.push({
+        date: tx.date ?? null,
+        type: tx.type ?? "",
+        teamFrom: { id: tx.teams?.out?.id ?? 0, name: tx.teams?.out?.name ?? "", logo: tx.teams?.out?.logo ?? "" },
+        teamTo: { id: tx.teams?.in?.id ?? 0, name: tx.teams?.in?.name ?? "", logo: tx.teams?.in?.logo ?? "" },
+        player: { id: player.id ?? 0, name: player.name ?? "", photo: player.photo ?? null },
+      })
+    }
+  }
+  const transfers = allTransfers
+    .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""))
+    .slice(0, 20)
+
+  // Top scorers — try from the league the team plays in
+  let topScorers: TeamTopScorer[] = []
+  // Try to get top scorers from the league the team is in
+  if (standings.length > 0 && standingsRaw?.[0]?.league?.id) {
+    const leagueId = standingsRaw[0].league.id
+    const leagueTopScorers = await apiFetch<any>("/players/topscorers", { league: leagueId, season })
+    topScorers = (leagueTopScorers ?? []).slice(0, 10).map((entry: any) => ({
+      player: { id: entry.player?.id ?? 0, name: entry.player?.name ?? "", photo: entry.player?.photo ?? null },
+      goals: entry.statistics?.[0]?.goals?.total ?? 0,
+      assists: entry.statistics?.[0]?.goals?.assists ?? 0,
+      appearances: entry.statistics?.[0]?.games?.appearences ?? 0,
+      rating: entry.statistics?.[0]?.games?.rating ?? null,
+      yellowCards: entry.statistics?.[0]?.cards?.yellow ?? 0,
+      redCards: entry.statistics?.[0]?.cards?.red ?? 0,
+      pos: entry.statistics?.[0]?.games?.position ?? null,
+    }))
+  }
+
+  const payload: TeamPageData = {
+    team, venue, currentSeason: season,
+    stats: teamStats, squad: players,
+    recentFixtures, standings,
+    transfers, trophies, coach, topScorers,
+    fetchedAt: Date.now(),
+  }
   return NextResponse.json(payload)
 }
