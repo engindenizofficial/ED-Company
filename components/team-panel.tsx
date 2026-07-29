@@ -427,7 +427,7 @@ export function TeamPanel() {
       />
 
       {/* Panel */}
-      <div className="relative z-10 flex w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl sm:mx-4 sm:rounded-2xl sm:max-h-[90vh]">
+      <div className="relative z-10 flex w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl max-h-[90dvh] sm:mx-4 sm:rounded-2xl sm:max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-4">
           {team.logo ? (
