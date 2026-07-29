@@ -250,11 +250,48 @@ export interface AnalysisResponse {
   stale?: boolean
 }
 
+export interface LeagueSeasonStats {
+  /** Toplam maç sayısı */
+  totalMatches: number
+  /** Toplam gol */
+  totalGoals: number
+  /** Maç başı ortalama gol */
+  avgGoalsPerMatch: number
+  /** Toplam sarı kart */
+  yellowCards: number
+  /** Toplam kırmızı kart */
+  redCards: number
+}
+
+export interface LeagueTopScorer {
+  player: { id: number; name: string; photo: string | null; nationality: string | null }
+  team: TeamInfo
+  goals: number
+  assists: number
+  appearances: number
+  rating: string | null
+  yellowCards: number
+  redCards: number
+  pos: string | null
+}
+
+export interface LeagueTopAssist {
+  player: { id: number; name: string; photo: string | null; nationality: string | null }
+  team: TeamInfo
+  assists: number
+  goals: number
+  appearances: number
+  rating: string | null
+}
+
 export interface LeaguePageData {
-  league: { id: number; name: string; country: string; logo: string; season: number }
+  league: { id: number; name: string; country: string; logo: string; season: number; flagUrl: string | null }
   standings: StandingRow[]
-  topScorers: TopScorer[]
-  fixtures: Fixture[]
+  topScorers: LeagueTopScorer[]
+  topAssists: LeagueTopAssist[]
+  recentFixtures: Fixture[]
+  upcomingFixtures: Fixture[]
+  seasonStats: LeagueSeasonStats | null
   cachedAt: number
 }
 

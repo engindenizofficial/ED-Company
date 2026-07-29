@@ -4,6 +4,8 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { NavTabs } from '@/components/nav-tabs'
 import { TeamProvider } from '@/contexts/team-context'
 import { TeamPanel } from '@/components/team-panel'
+import { LeagueProvider } from '@/contexts/league-context'
+import { LeaguePanel } from '@/components/league-panel'
 import './globals.css'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
@@ -60,11 +62,14 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased">
-        <TeamProvider>
-          <NavTabs />
-          {children}
-          <TeamPanel />
-        </TeamProvider>
+        <LeagueProvider>
+          <TeamProvider>
+            <NavTabs />
+            {children}
+            <TeamPanel />
+            <LeaguePanel />
+          </TeamProvider>
+        </LeagueProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
