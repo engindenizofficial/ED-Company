@@ -36,6 +36,28 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
+function VenueMarquee({ text }: { text: string }) {
+  const isLong = text.length > 36
+  return (
+    <div className="flex items-center gap-1 overflow-hidden">
+      <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
+      <div className="relative min-w-0 flex-1 overflow-hidden">
+        {isLong ? (
+          <div
+            className="flex whitespace-nowrap"
+            style={{ animation: "marquee 14s linear infinite" }}
+          >
+            <span className="text-xs text-muted-foreground pr-12">{text}</span>
+            <span className="text-xs text-muted-foreground pr-12" aria-hidden="true">{text}</span>
+          </div>
+        ) : (
+          <p className="truncate text-xs text-muted-foreground">{text}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function FormDot({ result }: { result: "W" | "D" | "L" }) {
   return (
     <span
@@ -603,13 +625,12 @@ export function TeamPanel() {
               <Shield className="h-5 w-5 text-muted-foreground" />
             </div>
           )}
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-hidden">
             <h2 className="truncate text-base font-extrabold leading-tight text-foreground">{team.name}</h2>
             {data?.venue.name && (
-              <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                <MapPin className="h-3 w-3 shrink-0" />
-                {data.venue.name}{data.venue.city ? `, ${data.venue.city}` : ""}{data.venue.capacity ? ` · ${data.venue.capacity.toLocaleString("tr-TR")} kişilik` : ""}
-              </p>
+              <VenueMarquee
+                text={`${data.venue.name}${data.venue.city ? `, ${data.venue.city}` : ""}${data.venue.capacity ? ` · ${data.venue.capacity.toLocaleString("tr-TR")} kişilik` : ""}`}
+              />
             )}
           </div>
           <button

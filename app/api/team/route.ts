@@ -42,7 +42,7 @@ function currentSeason(): number {
 interface RawFixture {
   fixture: {
     id: number; date: string; timestamp: number
-    status: { long: string; short: string; elapsed: number | null }
+    status: { long: string; short: string; elapsed: number | null; extra?: number | null }
     venue: { name: string | null }
   }
   league: { id: number; name: string; country: string; logo: string; season: number; round: string }
@@ -57,7 +57,7 @@ function mapFixture(r: RawFixture): Fixture {
   return {
     id: r.fixture.id, date: r.fixture.date, timestamp: r.fixture.timestamp,
     status: r.fixture.status.long, statusShort: r.fixture.status.short,
-    elapsed: r.fixture.status.elapsed ?? null, venue: r.fixture.venue?.name ?? null,
+    elapsed: r.fixture.status.elapsed ?? null, elapsedExtra: r.fixture.status.extra ?? null, venue: r.fixture.venue?.name ?? null,
     league: { id: r.league.id, name: r.league.name, country: r.league.country, logo: r.league.logo, season: r.league.season, round: r.league.round },
     home: { id: r.teams.home.id, name: r.teams.home.name, logo: r.teams.home.logo },
     away: { id: r.teams.away.id, name: r.teams.away.name, logo: r.teams.away.logo },
@@ -209,11 +209,16 @@ export async function GET(request: Request) {
     place: t.place ?? "",
   }))
 
-  // Transfers — son 20 transfer, tarih sıralı
+  // Transfers — son 20 transfer, tarih sıralı, duplikasyon olmadan
+  const seenTransferKeys = new Set<string>()
   const allTransfers: TeamTransfer[] = []
   for (const entry of transfersRaw ?? []) {
     const player = entry.player ?? {}
     for (const tx of entry.transfers ?? []) {
+      // Aynı oyuncu + aynı tarih + aynı from+to kombinasyonu için tekrar ekleme
+      const key = `${player.id}-${tx.date ?? ""}-${tx.teams?.out?.id ?? 0}-${tx.teams?.in?.id ?? 0}`
+      if (seenTransferKeys.has(key)) continue
+      seenTransferKeys.add(key)
       allTransfers.push({
         date: tx.date ?? null,
         type: tx.type ?? "",

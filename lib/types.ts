@@ -25,6 +25,8 @@ export interface Fixture {
   statusShort: string
   // Live elapsed minute (only present while the match is being played).
   elapsed: number | null
+  // Uzatma süresi (örn. 90+3 → extra=3). Sadece uzatma döneminde dolu.
+  elapsedExtra: number | null
   venue: string | null
   league: LeagueInfo
   home: TeamInfo
@@ -101,6 +103,9 @@ export interface FormGame {
   result: "W" | "D" | "L"
   home: boolean
   date: string
+  /** H2H için gerçek takım adları */
+  homeTeam?: string
+  awayTeam?: string
 }
 
 export interface TeamSeasonStats {

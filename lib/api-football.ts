@@ -96,7 +96,7 @@ interface RawFixture {
     id: number
     date: string
     timestamp: number
-    status: { long: string; short: string; elapsed: number | null }
+    status: { long: string; short: string; elapsed: number | null; extra?: number | null }
     venue: { name: string | null }
   }
   league: { id: number; name: string; country: string; logo: string; season: number; round: string }
@@ -115,6 +115,7 @@ function mapFixture(r: RawFixture): Fixture {
     status: r.fixture.status.long,
     statusShort: r.fixture.status.short,
     elapsed: r.fixture.status.elapsed ?? null,
+    elapsedExtra: r.fixture.status.extra ?? null,
     venue: r.fixture.venue?.name ?? null,
     league: {
       id: r.league.id,
@@ -274,7 +275,11 @@ async function getHeadToHead(homeId: number, awayId: number): Promise<FormGame[]
     const conceded = (isHome ? r.goals.away : r.goals.home) ?? 0
     const opponent = isHome ? r.teams.away.name : r.teams.home.name
     const result: "W" | "D" | "L" = scored > conceded ? "W" : scored === conceded ? "D" : "L"
-    games.push({ opponent, scored, conceded, result, home: isHome, date: r.fixture.date })
+    games.push({
+      opponent, scored, conceded, result, home: isHome, date: r.fixture.date,
+      homeTeam: r.teams.home.name,
+      awayTeam: r.teams.away.name,
+    })
   }
   return games
 }

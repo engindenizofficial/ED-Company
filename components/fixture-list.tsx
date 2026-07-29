@@ -62,7 +62,12 @@ function liveText(f: Fixture): string {
   if (f.statusShort === "HT") return "İY"
   if (f.statusShort === "BT") return "Devre arası"
   if (f.statusShort === "P") return "Penaltılar"
-  if (typeof f.elapsed === "number") return `${f.elapsed}'`
+  if (typeof f.elapsed === "number") {
+    if (f.elapsedExtra != null && f.elapsedExtra > 0) {
+      return `${f.elapsed}+${f.elapsedExtra}'`
+    }
+    return `${f.elapsed}'`
+  }
   return statusLabel(f.statusShort)
 }
 

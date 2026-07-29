@@ -175,10 +175,10 @@ function AnalyzingState() {
 function MatchHeader({ fixture }: { fixture: AnalysisResponse["live"]["fixture"] }) {
   const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
   const isLive = LIVE_STATUSES.has(fixture.statusShort)
-  const homeGoals = fixture.score?.home ?? fixture.goalsHome
-  const awayGoals = fixture.score?.away ?? fixture.goalsAway
+  const homeGoals = fixture.goalsHome
+  const awayGoals = fixture.goalsAway
   const hasScore = homeGoals != null && awayGoals != null
-  const statusTr = translateStatus(fixture.statusShort, fixture.elapsed)
+  const statusTr = translateStatus(fixture.statusShort, fixture.elapsed, fixture.elapsedExtra)
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -315,15 +315,18 @@ function SectionHeader({
 // Status label — Türkçe çeviri + canlı maçlarda dakika
 // ---------------------------------------------------------------------------
 
-function translateStatus(short: string, elapsed: number | null): string {
+function translateStatus(short: string, elapsed: number | null, elapsedExtra?: number | null): string {
+  const min = typeof elapsed === "number"
+    ? (elapsedExtra != null && elapsedExtra > 0 ? `${elapsed}+${elapsedExtra}'` : `${elapsed}'`)
+    : null
   switch (short) {
-    case "1H": return typeof elapsed === "number" ? `${elapsed}'` : "1. Yarı"
-    case "2H": return typeof elapsed === "number" ? `${elapsed}'` : "2. Yarı"
-    case "ET": return typeof elapsed === "number" ? `${elapsed}' (Uzatma)` : "Uzatma"
+    case "1H": return min ?? "1. Yarı"
+    case "2H": return min ?? "2. Yarı"
+    case "ET": return min ? `${min} (Uzatma)` : "Uzatma"
     case "HT": return "Devre Arası"
     case "BT": return "Devre Arası"
     case "P":  return "Penaltılar"
-    case "LIVE": return typeof elapsed === "number" ? `${elapsed}'` : "Canlı"
+    case "LIVE": return min ?? "Canlı"
     case "FT":  return "Maç Sonu"
     case "AET": return "Maç Sonu (Uzatma)"
     case "PEN": return "Maç Sonu (Pen.)"
@@ -378,8 +381,21 @@ function eventIcon(type: string, detail: string): { bg: string; text: string; sy
     if (detail === "Red Card" || detail === "Yellow Red Card") return { bg: "bg-destructive/10", text: "text-destructive", symbol: "K" }
     return { bg: "bg-yellow-500/10", text: "text-yellow-600 dark:text-yellow-400", symbol: "S" }
   }
-  if (type === "subst") return { bg: "bg-accent/10", text: "text-accent-foreground", symbol: "D" }
+  if (type === "subst") return { bg: "bg-secondary", text: "text-muted-foreground", symbol: "↕" }
   return { bg: "bg-secondary", text: "text-muted-foreground", symbol: "•" }
+}
+
+function SubstitutionIcon() {
+  return (
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-secondary">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        {/* Yeşil yukarı ok — giren oyuncu */}
+        <path d="M7 6V2M5 4l2-2 2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="text-primary" style={{ color: "oklch(0.6 0.15 152)" }} />
+        {/* Kırmızı aşağı ok — çıkan oyuncu */}
+        <path d="M7 8v4m2-2-2 2-2-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" style={{ color: "oklch(0.58 0.22 25)" }} />
+      </svg>
+    </span>
+  )
 }
 
 function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: string }) {
@@ -388,6 +404,7 @@ function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: stri
     <ul className="flex flex-col gap-1">
       {sorted.map((ev, i) => {
         const isHome = ev.team === homeName
+        const isSubst = ev.type === "subst"
         const { bg, text, symbol } = eventIcon(ev.type, ev.detail)
         const detailTr = translateDetail(ev.detail)
         return (
@@ -397,18 +414,43 @@ function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: stri
               {ev.minute}{ev.extra ? `+${ev.extra}` : ""}&#39;
             </span>
 
-            {/* Icon pill */}
-            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold ${bg} ${text}`}>
-              {symbol}
-            </span>
+            {/* Icon pill — değişiklik için özel SVG simge */}
+            {isSubst ? (
+              <SubstitutionIcon />
+            ) : (
+              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold ${bg} ${text}`}>
+                {symbol}
+              </span>
+            )}
 
             {/* Details */}
             <div className={`flex min-w-0 flex-1 flex-col ${isHome ? "" : "items-end"}`}>
-              <span className="truncate text-xs font-semibold text-foreground">{ev.player ?? detailTr}</span>
-              {ev.assist && (
-                <span className="truncate text-[10px] text-muted-foreground">Asist: {ev.assist}</span>
+              {isSubst ? (
+                <>
+                  {/* Giren oyuncu — yeşil */}
+                  {ev.player && (
+                    <span className={`flex items-center gap-1 truncate text-xs font-semibold text-foreground ${isHome ? "" : "flex-row-reverse"}`}>
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                      {ev.player}
+                    </span>
+                  )}
+                  {/* Çıkan oyuncu — kırmızı (assist alanında geliyor) */}
+                  {ev.assist && (
+                    <span className={`flex items-center gap-1 truncate text-xs text-muted-foreground ${isHome ? "" : "flex-row-reverse"}`}>
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
+                      {ev.assist}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="truncate text-xs font-semibold text-foreground">{ev.player ?? detailTr}</span>
+                  {ev.assist && (
+                    <span className="truncate text-[10px] text-muted-foreground">Asist: {ev.assist}</span>
+                  )}
+                  <span className="text-[10px] text-muted-foreground">{detailTr}</span>
+                </>
               )}
-              <span className="text-[10px] text-muted-foreground">{detailTr}</span>
             </div>
           </li>
         )
@@ -440,8 +482,12 @@ const STAT_TYPE_TR: Record<string, string> = {
   "Passes %": "Pas İsabeti",
   "expected_goals": "Beklenen Gol (xG)",
   "Expected Goals": "Beklenen Gol (xG)",
+  "goals_prevented": "Kurtarılan Gol",
   "Penalty Kicks": "Penaltı",
 }
+
+// Bu istatistik tipleri her iki taraf da null/0 ise gösterilmez
+const HIDE_IF_BOTH_EMPTY = new Set(["expected_goals", "Expected Goals", "goals_prevented", "Goals Prevented"])
 
 function translateStat(type: string): string {
   return STAT_TYPE_TR[type] ?? type
@@ -459,6 +505,17 @@ function StatsList({
   const toNum = (v: string | number | null) =>
     typeof v === "string" ? Number.parseFloat(v.replace("%", "")) : (v ?? 0)
 
+  // Her iki taraf da null/boş olan ve HIDE_IF_BOTH_EMPTY setinde olan istatistikleri filtrele
+  const visibleStats = stats.filter((s) => {
+    if (!HIDE_IF_BOTH_EMPTY.has(s.type)) return true
+    const hv = s.home
+    const av = s.away
+    const bothEmpty =
+      (hv === null || hv === "" || hv === 0 || hv === "0") &&
+      (av === null || av === "" || av === 0 || av === "0")
+    return !bothEmpty
+  })
+
   return (
     <div className="flex flex-col gap-1">
       {/* Header */}
@@ -467,7 +524,7 @@ function StatsList({
         <span className="max-w-[40%] truncate text-right">{awayName}</span>
       </div>
 
-      {stats.map((s, i) => {
+      {visibleStats.map((s, i) => {
         const hv = toNum(s.home)
         const av = toNum(s.away)
         const total = hv + av || 1
@@ -718,21 +775,29 @@ function H2HList({
 }) {
   return (
     <ul className="flex flex-col gap-1.5">
-      {h2h.map((g, i) => (
-        <li
-          key={i}
-          className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-secondary/30 px-3 py-2.5"
-        >
-          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{g.date.slice(0, 10)}</span>
-          <span className="min-w-0 flex-1 truncate text-center text-xs text-foreground">
-            {g.home ? homeName : awayName} — {g.opponent}
-          </span>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="text-xs font-bold tabular-nums text-foreground">{g.scored}-{g.conceded}</span>
-            <ResultBadge result={g.result} />
-          </div>
-        </li>
-      ))}
+      {h2h.map((g, i) => {
+        // Gerçek maç adlarını kullan (varsa), yoksa perspective bazlı fallback
+        const displayHome = g.homeTeam ?? (g.home ? homeName : awayName)
+        const displayAway = g.awayTeam ?? (g.home ? g.opponent : homeName)
+        // Skoru perspektife göre değil, gerçek ev/deplasman bazlı göster
+        const homeGoals = g.homeTeam ? (g.home ? g.scored : g.conceded) : g.scored
+        const awayGoals = g.homeTeam ? (g.home ? g.conceded : g.scored) : g.conceded
+        return (
+          <li
+            key={i}
+            className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-secondary/30 px-3 py-2.5"
+          >
+            <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{g.date.slice(0, 10)}</span>
+            <span className="min-w-0 flex-1 truncate text-center text-xs text-foreground">
+              {displayHome} — {displayAway}
+            </span>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-xs font-bold tabular-nums text-foreground">{homeGoals}-{awayGoals}</span>
+              <ResultBadge result={g.result} />
+            </div>
+          </li>
+        )
+      })}
     </ul>
   )
 }
