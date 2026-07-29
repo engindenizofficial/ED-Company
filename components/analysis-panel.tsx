@@ -36,10 +36,14 @@ export function AnalysisPanel({
 
   if (error) {
     return (
-      <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 px-6 text-center">
-        <AlertCircle className="h-7 w-7 text-destructive" />
-        <p className="font-semibold text-destructive">Analiz yapılamadı</p>
-        <p className="max-w-sm text-sm text-muted-foreground">{error.message}</p>
+      <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 px-6 text-center">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+          <AlertCircle className="h-5 w-5 text-destructive" />
+        </div>
+        <div>
+          <p className="font-semibold text-foreground">Analiz yapılamadı</p>
+          <p className="mt-1 max-w-sm text-sm text-muted-foreground">{error.message}</p>
+        </div>
       </div>
     )
   }
@@ -48,11 +52,9 @@ export function AnalysisPanel({
     return (
       <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
-          <Target className="h-5 w-5" />
+          <Target className="h-5 w-5 text-primary" />
         </div>
-        <p className="max-w-xs text-balance text-sm">
-          Bu maç için detaylı analiz verisi hazırlanıyor.
-        </p>
+        <p className="max-w-xs text-balance text-sm">Bu maç için detaylı analiz verisi hazırlanıyor.</p>
       </div>
     )
   }
@@ -61,75 +63,19 @@ export function AnalysisPanel({
   const { fixture } = live
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-2">
       {/* ---------------------------------------------------------------- */}
       {/* 1. Match header                                                   */}
       {/* ---------------------------------------------------------------- */}
-      <section className="rounded-xl border border-border bg-card p-5">
-        {/* League header */}
-        <div className="mb-4 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-          {fixture.league.logo ? (
-            <img src={fixture.league.logo} alt="" className="h-4 w-4 object-contain" />
-          ) : null}
-          <span>
-            {fixture.league.name}
-            {fixture.league.round ? ` · ${fixture.league.round}` : ""}
-          </span>
-        </div>
-
-        {/* Teams + score */}
-        <div className="grid grid-cols-3 items-center gap-2">
-          <TeamHeader name={fixture.home.name} logo={fixture.home.logo} />
-          <div className="flex flex-col items-center gap-1.5">
-            {(() => {
-              const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
-              const isLive = LIVE_STATUSES.has(fixture.statusShort)
-              const homeGoals = fixture.score?.home ?? fixture.goalsHome
-              const awayGoals = fixture.score?.away ?? fixture.goalsAway
-              const hasScore = homeGoals != null && awayGoals != null
-              const statusTr = translateStatus(fixture.statusShort, fixture.elapsed)
-              return hasScore ? (
-                <>
-                  <div className="flex items-center gap-2 text-3xl font-bold tabular-nums text-foreground">
-                    <span>{homeGoals}</span>
-                    <span className="text-muted-foreground">-</span>
-                    <span>{awayGoals}</span>
-                  </div>
-                  {isLive ? (
-                    <span className="flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-destructive">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
-                      {statusTr}
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground">
-                      {statusTr}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-2xl font-bold text-muted-foreground">vs</span>
-                  <span className="text-[10px] text-muted-foreground">{statusTr}</span>
-                </div>
-              )
-            })()}
-          </div>
-          <TeamHeader name={fixture.away.name} logo={fixture.away.logo} />
-        </div>
-      </section>
+      <MatchHeader fixture={fixture} />
 
       {/* ---------------------------------------------------------------- */}
       {/* 2. Live events                                                    */}
       {/* ---------------------------------------------------------------- */}
       {live.events.length > 0 && (
         <Collapsible
-          defaultOpen={false}
-          header={
-            <SectionHeader
-              icon={<Activity className="h-3.5 w-3.5" />}
-              title={`Maç Olayları (${live.events.length})`}
-            />
-          }
+          defaultOpen
+          header={<SectionHeader icon={<Activity className="h-3.5 w-3.5" />} title={`Maç Olayları`} badge={String(live.events.length)} />}
         >
           <EventsList events={live.events} homeName={fixture.home.name} />
         </Collapsible>
@@ -140,14 +86,8 @@ export function AnalysisPanel({
       {/* ---------------------------------------------------------------- */}
       {live.statistics.length > 0 && (
         <Collapsible
-          defaultOpen={false}
-          header={
-            <SectionHeader
-              icon={<BarChart3 className="h-3.5 w-3.5" />}
-              title="Maç İstatistikleri"
-              sub="API-Football"
-            />
-          }
+          defaultOpen
+          header={<SectionHeader icon={<BarChart3 className="h-3.5 w-3.5" />} title="İstatistikler" />}
         >
           <StatsList stats={live.statistics} homeName={fixture.home.name} awayName={fixture.away.name} />
         </Collapsible>
@@ -158,14 +98,7 @@ export function AnalysisPanel({
       {/* ---------------------------------------------------------------- */}
       {live.lineups.length > 0 && (
         <Collapsible
-          defaultOpen={false}
-          header={
-            <SectionHeader
-              icon={<Users className="h-3.5 w-3.5" />}
-              title="İlk 11"
-              sub="API-Football"
-            />
-          }
+          header={<SectionHeader icon={<Users className="h-3.5 w-3.5" />} title="İlk 11" />}
         >
           <LineupsView lineups={live.lineups} />
         </Collapsible>
@@ -176,20 +109,9 @@ export function AnalysisPanel({
       {/* ---------------------------------------------------------------- */}
       {live.standings.length > 0 && (
         <Collapsible
-          defaultOpen={false}
-          header={
-            <SectionHeader
-              icon={<Shield className="h-3.5 w-3.5" />}
-              title="Puan Durumu"
-              sub="API-Football"
-            />
-          }
+          header={<SectionHeader icon={<Shield className="h-3.5 w-3.5" />} title="Puan Durumu" />}
         >
-          <StandingsTable
-            standings={live.standings}
-            homeId={fixture.home.id}
-            awayId={fixture.away.id}
-          />
+          <StandingsTable standings={live.standings} homeId={fixture.home.id} awayId={fixture.away.id} />
         </Collapsible>
       )}
 
@@ -198,14 +120,7 @@ export function AnalysisPanel({
       {/* ---------------------------------------------------------------- */}
       {(live.homeStats || live.awayStats) && (
         <Collapsible
-          defaultOpen={false}
-          header={
-            <SectionHeader
-              icon={<TrendingUp className="h-3.5 w-3.5" />}
-              title="Sezon İstatistikleri & Form"
-              sub="API-Football"
-            />
-          }
+          header={<SectionHeader icon={<TrendingUp className="h-3.5 w-3.5" />} title="Sezon İstatistikleri" />}
         >
           <div className="grid gap-3 sm:grid-cols-2">
             {live.homeStats && <TeamStatsCard stats={live.homeStats} label="Ev Sahibi" />}
@@ -219,14 +134,7 @@ export function AnalysisPanel({
       {/* ---------------------------------------------------------------- */}
       {live.h2h.length > 0 && (
         <Collapsible
-          defaultOpen={false}
-          header={
-            <SectionHeader
-              icon={<Swords className="h-3.5 w-3.5" />}
-              title="Karşılıklı Son Maçlar"
-              sub="API-Football"
-            />
-          }
+          header={<SectionHeader icon={<Swords className="h-3.5 w-3.5" />} title="Karşılıklı Maçlar" badge={String(live.h2h.length)} />}
         >
           <H2HList h2h={live.h2h} homeName={fixture.home.name} awayName={fixture.away.name} />
         </Collapsible>
@@ -237,14 +145,7 @@ export function AnalysisPanel({
       {/* ---------------------------------------------------------------- */}
       {live.injuries.length > 0 && (
         <Collapsible
-          defaultOpen={false}
-          header={
-            <SectionHeader
-              icon={<AlertTriangle className="h-3.5 w-3.5" />}
-              title={`Sakatlık / Ceza Raporu (${live.injuries.length})`}
-              sub="API-Football"
-            />
-          }
+          header={<SectionHeader icon={<AlertTriangle className="h-3.5 w-3.5" />} title="Sakatlık / Ceza" badge={String(live.injuries.length)} />}
         >
           <InjuryList injuries={live.injuries} />
         </Collapsible>
@@ -259,9 +160,84 @@ export function AnalysisPanel({
 
 function AnalyzingState() {
   return (
-    <div className="flex min-h-[120px] items-center justify-center gap-2 text-sm text-muted-foreground">
-      <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
-      Veriler yükleniyor...
+    <div className="flex min-h-[120px] flex-col items-center justify-center gap-3">
+      <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+      <p className="text-sm text-muted-foreground">Veriler yükleniyor...</p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Match header
+// ---------------------------------------------------------------------------
+
+function MatchHeader({ fixture }: { fixture: AnalysisResponse["live"]["fixture"] }) {
+  const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
+  const isLive = LIVE_STATUSES.has(fixture.statusShort)
+  const homeGoals = fixture.score?.home ?? fixture.goalsHome
+  const awayGoals = fixture.score?.away ?? fixture.goalsAway
+  const hasScore = homeGoals != null && awayGoals != null
+  const statusTr = translateStatus(fixture.statusShort, fixture.elapsed)
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* League strip */}
+      <div className="flex items-center justify-center gap-2 border-b border-border bg-secondary/40 px-4 py-2">
+        {fixture.league.logo && (
+          <img src={fixture.league.logo} alt="" className="h-4 w-4 object-contain" />
+        )}
+        <span className="text-[11px] font-medium text-muted-foreground">
+          {fixture.league.name}
+          {fixture.league.round ? ` · ${fixture.league.round}` : ""}
+        </span>
+      </div>
+
+      {/* Teams + score */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-5">
+        {/* Home */}
+        <div className="flex flex-col items-center gap-2">
+          {fixture.home.logo && (
+            <img src={fixture.home.logo} alt={fixture.home.name} className="h-14 w-14 object-contain drop-shadow-sm" />
+          )}
+          <span className="text-center text-sm font-semibold text-foreground text-balance leading-tight">{fixture.home.name}</span>
+        </div>
+
+        {/* Score / Status */}
+        <div className="flex flex-col items-center gap-2 min-w-[72px]">
+          {hasScore ? (
+            <>
+              <div className="flex items-center gap-1.5">
+                <span className="text-3xl font-black tabular-nums text-foreground">{homeGoals}</span>
+                <span className="text-xl font-light text-muted-foreground">—</span>
+                <span className="text-3xl font-black tabular-nums text-foreground">{awayGoals}</span>
+              </div>
+              {isLive ? (
+                <span className="flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-2.5 py-0.5 text-[10px] font-bold tracking-wide text-destructive uppercase">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
+                  {statusTr}
+                </span>
+              ) : (
+                <span className="rounded-full border border-border bg-secondary px-2.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+                  {statusTr}
+                </span>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="text-2xl font-bold text-muted-foreground/50">vs</span>
+              <span className="text-[10px] font-medium text-muted-foreground">{statusTr}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Away */}
+        <div className="flex flex-col items-center gap-2">
+          {fixture.away.logo && (
+            <img src={fixture.away.logo} alt={fixture.away.name} className="h-14 w-14 object-contain drop-shadow-sm" />
+          )}
+          <span className="text-center text-sm font-semibold text-foreground text-balance leading-tight">{fixture.away.name}</span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -285,17 +261,23 @@ function Collapsible({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 px-5 py-4 text-left"
+        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-secondary/40"
         aria-expanded={open}
       >
-        <div>{header}</div>
-        {open ? (
-          <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
+        <div className="flex-1 min-w-0">{header}</div>
+        <div className="shrink-0 rounded-full border border-border p-0.5">
+          {open ? (
+            <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+        </div>
       </button>
-      {open && <div className="border-t border-border px-5 pb-5 pt-4">{children}</div>}
+      {open && (
+        <div className="border-t border-border px-4 pb-4 pt-3.5">
+          {children}
+        </div>
+      )}
     </section>
   )
 }
@@ -307,43 +289,26 @@ function Collapsible({
 function SectionHeader({
   icon,
   title,
-  sub,
+  badge,
 }: {
   icon: React.ReactNode
   title: string
-  sub?: string
+  badge?: string
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-muted-foreground">{icon}</span>
+    <div className="flex items-center gap-2.5">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+        {icon}
+      </span>
       <span className="text-sm font-semibold text-foreground">{title}</span>
-      {sub && (
-        <span className="rounded-full border border-border bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
-          {sub}
+      {badge && (
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-[10px] font-semibold text-muted-foreground">
+          {badge}
         </span>
       )}
     </div>
   )
 }
-
-// ---------------------------------------------------------------------------
-// Team header
-// ---------------------------------------------------------------------------
-
-function TeamHeader({ name, logo }: { name: string; logo: string }) {
-  return (
-    <div className="flex flex-col items-center gap-2 text-center">
-      {logo ? (
-        <img src={logo} alt={name} className="h-12 w-12 object-contain" />
-      ) : null}
-      <span className="text-balance text-sm font-semibold text-foreground">{name}</span>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Events
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Status label — Türkçe çeviri + canlı maçlarda dakika
@@ -374,19 +339,9 @@ function translateStatus(short: string, elapsed: number | null): string {
   }
 }
 
-const EVENT_ICONS: Record<string, string> = {
-  Goal: "⚽",
-  Card: "🟨",
-  subst: "🔄",
-  Var: "📺",
-}
-
-const EVENT_TYPE_TR: Record<string, string> = {
-  Goal: "Gol",
-  Card: "Kart",
-  subst: "Oyuncu Değişikliği",
-  Var: "VAR",
-}
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
 
 const EVENT_DETAIL_TR: Record<string, string> = {
   "Normal Goal": "Normal Gol",
@@ -396,12 +351,12 @@ const EVENT_DETAIL_TR: Record<string, string> = {
   "Yellow Card": "Sarı Kart",
   "Red Card": "Kırmızı Kart",
   "Yellow Red Card": "İkinci Sarı Kart",
-  "Substitution 1": "Değişiklik",
-  "Substitution 2": "Değişiklik",
-  "Substitution 3": "Değişiklik",
-  "Substitution 4": "Değişiklik",
-  "Substitution 5": "Değişiklik",
-  "Substitution 6": "Değişiklik",
+  "Substitution 1": "Oyuncu Değişikliği",
+  "Substitution 2": "Oyuncu Değişikliği",
+  "Substitution 3": "Oyuncu Değişikliği",
+  "Substitution 4": "Oyuncu Değişikliği",
+  "Substitution 5": "Oyuncu Değişikliği",
+  "Substitution 6": "Oyuncu Değişikliği",
   "Goal cancelled": "Gol İptal",
   "Penalty confirmed": "Penaltı Onaylandı",
   "Penalty cancelled": "Penaltı İptal",
@@ -411,6 +366,59 @@ const EVENT_DETAIL_TR: Record<string, string> = {
 function translateDetail(detail: string): string {
   return EVENT_DETAIL_TR[detail] ?? detail
 }
+
+function eventIcon(type: string, detail: string): { bg: string; text: string; symbol: string } {
+  if (type === "Goal") {
+    if (detail === "Own Goal") return { bg: "bg-destructive/10", text: "text-destructive", symbol: "OG" }
+    if (detail === "Penalty") return { bg: "bg-primary/10", text: "text-primary", symbol: "P" }
+    return { bg: "bg-primary/10", text: "text-primary", symbol: "G" }
+  }
+  if (type === "Card") {
+    if (detail === "Red Card" || detail === "Yellow Red Card") return { bg: "bg-destructive/10", text: "text-destructive", symbol: "K" }
+    return { bg: "bg-yellow-500/10", text: "text-yellow-600 dark:text-yellow-400", symbol: "S" }
+  }
+  if (type === "subst") return { bg: "bg-accent/10", text: "text-accent-foreground", symbol: "D" }
+  return { bg: "bg-secondary", text: "text-muted-foreground", symbol: "•" }
+}
+
+function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: string }) {
+  const sorted = [...events].sort((a, b) => a.minute - b.minute)
+  return (
+    <ul className="flex flex-col gap-1">
+      {sorted.map((ev, i) => {
+        const isHome = ev.team === homeName
+        const { bg, text, symbol } = eventIcon(ev.type, ev.detail)
+        const detailTr = translateDetail(ev.detail)
+        return (
+          <li key={i} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 ${isHome ? "" : "flex-row-reverse"}`}>
+            {/* Minute */}
+            <span className="w-8 shrink-0 text-center text-[11px] font-bold tabular-nums text-muted-foreground">
+              {ev.minute}{ev.extra ? `+${ev.extra}` : ""}&#39;
+            </span>
+
+            {/* Icon pill */}
+            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold ${bg} ${text}`}>
+              {symbol}
+            </span>
+
+            {/* Details */}
+            <div className={`flex min-w-0 flex-1 flex-col ${isHome ? "" : "items-end"}`}>
+              <span className="truncate text-xs font-semibold text-foreground">{ev.player ?? detailTr}</span>
+              {ev.assist && (
+                <span className="truncate text-[10px] text-muted-foreground">Asist: {ev.assist}</span>
+              )}
+              <span className="text-[10px] text-muted-foreground">{detailTr}</span>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Statistics
+// ---------------------------------------------------------------------------
 
 const STAT_TYPE_TR: Record<string, string> = {
   "Shots on Goal": "İsabetli Şut",
@@ -438,42 +446,6 @@ function translateStat(type: string): string {
   return STAT_TYPE_TR[type] ?? type
 }
 
-function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: string }) {
-  const sorted = [...events].sort((a, b) => a.minute - b.minute)
-  return (
-    <ul className="flex flex-col gap-1.5">
-      {sorted.map((ev, i) => {
-        const isHome = ev.team === homeName
-        const icon = EVENT_ICONS[ev.type] ?? "•"
-        const typeTr = EVENT_TYPE_TR[ev.type] ?? ev.type
-        const detailTr = translateDetail(ev.detail)
-        return (
-          <li
-            key={i}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${
-              isHome ? "bg-secondary" : "bg-secondary/50 flex-row-reverse text-right"
-            }`}
-          >
-            <span className="w-9 shrink-0 text-xs font-bold tabular-nums text-muted-foreground">
-              {ev.minute}&apos;{ev.extra ? `+${ev.extra}` : ""}
-            </span>
-            <span>{icon}</span>
-            <div className="flex min-w-0 flex-col">
-              <span className="truncate font-medium text-foreground">{ev.player ?? typeTr}</span>
-              {ev.assist && <span className="truncate text-[11px] text-muted-foreground">Asist: {ev.assist}</span>}
-              <span className="text-[10px] text-muted-foreground">{detailTr}</span>
-            </div>
-          </li>
-        )
-      })}
-    </ul>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Statistics
-// ---------------------------------------------------------------------------
-
 function StatsList({
   stats,
   homeName,
@@ -487,11 +459,13 @@ function StatsList({
     typeof v === "string" ? Number.parseFloat(v.replace("%", "")) : (v ?? 0)
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <span className="truncate">{homeName}</span>
-        <span className="truncate text-right">{awayName}</span>
+    <div className="flex flex-col gap-1">
+      {/* Header */}
+      <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-muted-foreground">
+        <span className="max-w-[40%] truncate">{homeName}</span>
+        <span className="max-w-[40%] truncate text-right">{awayName}</span>
       </div>
+
       {stats.map((s, i) => {
         const hv = toNum(s.home)
         const av = toNum(s.away)
@@ -499,15 +473,17 @@ function StatsList({
         const hPct = Math.round((hv / total) * 100)
         const aPct = 100 - hPct
         return (
-          <div key={i} className="flex flex-col gap-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-bold tabular-nums text-foreground">{s.home ?? "—"}</span>
-              <span className="text-muted-foreground">{translateStat(s.type)}</span>
-              <span className="font-bold tabular-nums text-foreground">{s.away ?? "—"}</span>
+          <div key={i} className="flex flex-col gap-1.5 py-1.5">
+            {/* Values + label */}
+            <div className="flex items-center justify-between gap-2">
+              <span className="w-10 text-left text-xs font-bold tabular-nums text-foreground">{s.home ?? "—"}</span>
+              <span className="flex-1 text-center text-[11px] text-muted-foreground">{translateStat(s.type)}</span>
+              <span className="w-10 text-right text-xs font-bold tabular-nums text-foreground">{s.away ?? "—"}</span>
             </div>
+            {/* Bar */}
             <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-              <div className="h-full bg-primary" style={{ width: `${hPct}%` }} />
-              <div className="h-full bg-accent" style={{ width: `${aPct}%` }} />
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${hPct}%` }} />
+              <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${aPct}%` }} />
             </div>
           </div>
         )
@@ -524,48 +500,55 @@ function LineupsView({ lineups }: { lineups: TeamLineup[] }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       {lineups.map((l) => (
-        <div key={l.team} className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
+        <div key={l.team} className="flex flex-col gap-3 rounded-lg border border-border bg-secondary/30 p-3">
+          {/* Team + formation */}
+          <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-semibold text-foreground">{l.team}</span>
-            <span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
-              {l.formation ?? "—"}
-            </span>
+            {l.formation && (
+              <span className="rounded-md border border-border bg-card px-2 py-0.5 text-[11px] font-mono font-semibold text-muted-foreground">
+                {l.formation}
+              </span>
+            )}
           </div>
           {l.coach && (
-            <p className="text-[11px] text-muted-foreground">Teknik Direktör: {l.coach}</p>
+            <p className="text-[11px] text-muted-foreground">TD: {l.coach}</p>
           )}
+
+          {/* Starting XI */}
           {l.startXI.length > 0 && (
-            <>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">İlk 11</p>
+            <div>
+              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-primary">İlk 11</p>
               <ol className="grid grid-cols-2 gap-x-3 gap-y-1">
                 {l.startXI.map((p, idx) => (
-                  <li key={idx} className="flex items-center gap-1.5 text-xs text-foreground">
-                    <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">
+                  <li key={idx} className="flex items-center gap-1.5 text-xs">
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-primary/10 text-[9px] font-bold tabular-nums text-primary">
                       {p.number ?? "—"}
                     </span>
-                    <span className="truncate">{p.name}</span>
+                    <span className="truncate text-foreground">{p.name}</span>
                     {p.pos && (
-                      <span className="shrink-0 text-[10px] text-muted-foreground">({p.pos})</span>
+                      <span className="shrink-0 text-[9px] text-muted-foreground">({p.pos})</span>
                     )}
                   </li>
                 ))}
               </ol>
-            </>
+            </div>
           )}
+
+          {/* Substitutes */}
           {l.substitutes.length > 0 && (
-            <>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Yedekler
-              </p>
+            <div>
+              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Yedekler</p>
               <ol className="grid grid-cols-2 gap-x-3 gap-y-1">
                 {l.substitutes.map((p, idx) => (
-                  <li key={idx} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span className="w-4 shrink-0 text-right tabular-nums">{p.number ?? "—"}</span>
-                    <span className="truncate">{p.name}</span>
+                  <li key={idx} className="flex items-center gap-1.5 text-xs">
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-secondary text-[9px] tabular-nums text-muted-foreground">
+                      {p.number ?? "—"}
+                    </span>
+                    <span className="truncate text-muted-foreground">{p.name}</span>
                   </li>
                 ))}
               </ol>
-            </>
+            </div>
           )}
         </div>
       ))}
@@ -590,17 +573,17 @@ function StandingsTable({
     <div className="overflow-x-auto -mx-1">
       <table className="w-full min-w-[460px] text-xs">
         <thead>
-          <tr className="text-muted-foreground">
-            <th className="pb-2 text-left font-medium">#</th>
-            <th className="pb-2 text-left font-medium">Takım</th>
-            <th className="pb-2 text-center font-medium">O</th>
-            <th className="pb-2 text-center font-medium">G</th>
-            <th className="pb-2 text-center font-medium">B</th>
-            <th className="pb-2 text-center font-medium">M</th>
-            <th className="pb-2 text-center font-medium">AG</th>
-            <th className="pb-2 text-center font-medium">YG</th>
-            <th className="pb-2 text-center font-medium">P</th>
-            <th className="pb-2 text-left font-medium">Son 5</th>
+          <tr className="border-b border-border">
+            <th className="pb-2 pl-1 text-left font-semibold text-muted-foreground">#</th>
+            <th className="pb-2 text-left font-semibold text-muted-foreground">Takım</th>
+            <th className="pb-2 text-center font-semibold text-muted-foreground">O</th>
+            <th className="pb-2 text-center font-semibold text-primary">G</th>
+            <th className="pb-2 text-center font-semibold text-muted-foreground">B</th>
+            <th className="pb-2 text-center font-semibold text-destructive">M</th>
+            <th className="pb-2 text-center font-semibold text-muted-foreground">AG</th>
+            <th className="pb-2 text-center font-semibold text-muted-foreground">YG</th>
+            <th className="pb-2 text-center font-semibold text-foreground">P</th>
+            <th className="pb-2 text-left font-semibold text-muted-foreground">Son 5</th>
           </tr>
         </thead>
         <tbody>
@@ -609,19 +592,25 @@ function StandingsTable({
             return (
               <tr
                 key={row.teamId}
-                className={`border-t border-border ${isHighlighted ? "bg-primary/10 font-semibold" : ""}`}
+                className={`border-b border-border/50 last:border-0 transition-colors ${
+                  isHighlighted
+                    ? "bg-primary/8 font-semibold"
+                    : "hover:bg-secondary/40"
+                }`}
               >
-                <td className="py-1.5 text-muted-foreground">{row.rank}</td>
-                <td className="py-1.5 max-w-[140px] truncate pr-2 text-foreground">{row.team}</td>
-                <td className="py-1.5 text-center tabular-nums text-muted-foreground">{row.played}</td>
-                <td className="py-1.5 text-center tabular-nums text-primary">{row.win}</td>
-                <td className="py-1.5 text-center tabular-nums text-muted-foreground">{row.draw}</td>
-                <td className="py-1.5 text-center tabular-nums text-destructive">{row.lose}</td>
-                <td className="py-1.5 text-center tabular-nums text-foreground">{row.goalsFor}</td>
-                <td className="py-1.5 text-center tabular-nums text-foreground">{row.goalsAgainst}</td>
-                <td className="py-1.5 text-center tabular-nums font-bold text-foreground">{row.points}</td>
-                <td className="py-1.5">
-                  {row.form ? <FormBadge form={row.form.slice(-5)} /> : <span className="text-muted-foreground">—</span>}
+                <td className="py-2 pl-1 tabular-nums text-muted-foreground">{row.rank}</td>
+                <td className="max-w-[140px] truncate py-2 pr-2 text-foreground">{row.team}</td>
+                <td className="py-2 text-center tabular-nums text-muted-foreground">{row.played}</td>
+                <td className="py-2 text-center tabular-nums font-semibold text-primary">{row.win}</td>
+                <td className="py-2 text-center tabular-nums text-muted-foreground">{row.draw}</td>
+                <td className="py-2 text-center tabular-nums text-destructive">{row.lose}</td>
+                <td className="py-2 text-center tabular-nums text-foreground">{row.goalsFor}</td>
+                <td className="py-2 text-center tabular-nums text-foreground">{row.goalsAgainst}</td>
+                <td className="py-2 text-center tabular-nums font-bold text-foreground">{row.points}</td>
+                <td className="py-2">
+                  {row.form
+                    ? <FormBadge form={row.form.slice(-5)} />
+                    : <span className="text-muted-foreground">—</span>}
                 </td>
               </tr>
             )
@@ -638,40 +627,48 @@ function StandingsTable({
 
 function TeamStatsCard({ stats, label }: { stats: TeamSeasonStats; label: string }) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg bg-secondary p-4">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-secondary/30 p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {stats.team.logo && (
+            <img src={stats.team.logo} alt={stats.team.name} className="h-7 w-7 object-contain" />
+          )}
+          <span className="text-sm font-semibold text-foreground">{stats.team.name}</span>
+        </div>
+        <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
+      </div>
+
+      {/* Form */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="text-[11px] text-muted-foreground">Son Form</span>
         <FormBadge form={stats.formString} />
       </div>
-      <div className="flex items-center gap-2">
-        {stats.team.logo && (
-          <img src={stats.team.logo} alt={stats.team.name} className="h-7 w-7 object-contain" />
-        )}
-        <span className="text-sm font-semibold text-foreground">{stats.team.name}</span>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-3 gap-2">
+        <StatCell label="Oynanan" value={stats.played} />
+        <StatCell label="Att. Ort." value={stats.goalsForAvg.toFixed(1)} />
+        <StatCell label="Yed. Ort." value={stats.goalsAgainstAvg.toFixed(1)} />
+        <StatCell label="Galibiyet" value={stats.wins} accent="text-primary" />
+        <StatCell label="Beraberlik" value={stats.draws} />
+        <StatCell label="Mağlubiyet" value={stats.losses} accent="text-destructive" />
+        <StatCell label="Gol Yok" value={stats.cleanSheets} />
+        <StatCell label="Skorsuz" value={stats.failedToScore} />
       </div>
-      <dl className="grid grid-cols-3 gap-2 text-center">
-        <StatDl label="Oynanan" value={stats.played} />
-        <StatDl label="Att. Ort." value={stats.goalsForAvg.toFixed(1)} />
-        <StatDl label="Yed. Ort." value={stats.goalsAgainstAvg.toFixed(1)} />
-        <StatDl label="Galibiyet" value={stats.wins} accent="text-primary" />
-        <StatDl label="Beraberlik" value={stats.draws} />
-        <StatDl label="Mağlubiyet" value={stats.losses} accent="text-destructive" />
-        <StatDl label="Klinsmann" value={stats.cleanSheets} />
-        <StatDl label="Gol Yok" value={stats.failedToScore} />
-      </dl>
+
+      {/* Recent matches */}
       {stats.recent.length > 0 && (
         <div>
-          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Son Maçlar
-          </p>
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Son Maçlar</p>
           <ul className="flex flex-col gap-1">
             {stats.recent.map((g, i) => (
-              <li key={i} className="flex items-center justify-between rounded-md px-2 py-1 text-xs">
-                <span className="text-muted-foreground">{g.date.slice(0, 10)}</span>
-                <span className="truncate px-1 text-foreground">vs {g.opponent}</span>
-                <span className="tabular-nums font-bold text-foreground">
-                  {g.scored}-{g.conceded}
-                </span>
+              <li key={i} className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-card px-2.5 py-1.5 text-xs">
+                <span className="shrink-0 tabular-nums text-muted-foreground">{g.date.slice(0, 10)}</span>
+                <span className="min-w-0 flex-1 truncate text-center text-foreground">vs {g.opponent}</span>
+                <span className="shrink-0 tabular-nums font-bold text-foreground">{g.scored}-{g.conceded}</span>
                 <ResultBadge result={g.result} />
               </li>
             ))}
@@ -682,24 +679,24 @@ function TeamStatsCard({ stats, label }: { stats: TeamSeasonStats; label: string
   )
 }
 
-function StatDl({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
+function StatCell({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
-    <div className="flex flex-col">
-      <dt className="text-[10px] uppercase text-muted-foreground">{label}</dt>
-      <dd className={`text-sm font-bold tabular-nums ${accent ?? "text-foreground"}`}>{value}</dd>
+    <div className="flex flex-col items-center rounded-lg border border-border/50 bg-card px-2 py-2 text-center">
+      <span className={`text-sm font-bold tabular-nums ${accent ?? "text-foreground"}`}>{value}</span>
+      <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
     </div>
   )
 }
 
 function ResultBadge({ result }: { result: "W" | "D" | "L" }) {
   const map = {
-    W: { label: "G", cls: "bg-primary text-primary-foreground" },
-    D: { label: "B", cls: "bg-muted text-muted-foreground" },
-    L: { label: "M", cls: "bg-destructive text-primary-foreground" },
+    W: { label: "G", cls: "bg-primary/15 text-primary border-primary/20" },
+    D: { label: "B", cls: "bg-secondary text-muted-foreground border-border" },
+    L: { label: "M", cls: "bg-destructive/15 text-destructive border-destructive/20" },
   }
   const { label, cls } = map[result]
   return (
-    <span className={`flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold ${cls}`}>
+    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[9px] font-bold ${cls}`}>
       {label}
     </span>
   )
@@ -719,20 +716,18 @@ function H2HList({
   awayName: string
 }) {
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-col gap-1.5">
       {h2h.map((g, i) => (
         <li
           key={i}
-          className="flex items-center justify-between rounded-lg bg-secondary px-3 py-2 text-sm"
+          className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-secondary/30 px-3 py-2.5"
         >
-          <span className="text-[11px] text-muted-foreground">{g.date.slice(0, 10)}</span>
-          <span className="text-xs text-muted-foreground">
-            {g.home ? homeName : awayName} vs {g.opponent}
+          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{g.date.slice(0, 10)}</span>
+          <span className="min-w-0 flex-1 truncate text-center text-xs text-foreground">
+            {g.home ? homeName : awayName} — {g.opponent}
           </span>
-          <div className="flex items-center gap-2">
-            <span className="font-bold tabular-nums text-foreground">
-              {g.scored}-{g.conceded}
-            </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="text-xs font-bold tabular-nums text-foreground">{g.scored}-{g.conceded}</span>
             <ResultBadge result={g.result} />
           </div>
         </li>
@@ -756,15 +751,17 @@ function InjuryList({ injuries }: { injuries: InjuryItem[] }) {
     <div className="flex flex-col gap-4">
       {Object.entries(byTeam).map(([team, items]) => (
         <div key={team}>
-          <p className="mb-2 text-xs font-semibold text-foreground">{team}</p>
-          <ul className="flex flex-col gap-1.5">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-foreground">{team}</p>
+          <ul className="flex flex-col gap-1">
             {items.map((item, i) => (
               <li
                 key={i}
-                className="flex items-start justify-between rounded-lg bg-secondary px-3 py-2 text-xs"
+                className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-secondary/30 px-3 py-2 text-xs"
               >
-                <span className="font-medium text-foreground">{item.player}</span>
-                <span className="text-right text-muted-foreground">{item.reason || item.type}</span>
+                <span className="font-semibold text-foreground">{item.player}</span>
+                <span className="shrink-0 rounded-full border border-destructive/20 bg-destructive/10 px-2 py-0.5 text-[10px] text-destructive">
+                  {item.reason || item.type}
+                </span>
               </li>
             ))}
           </ul>
