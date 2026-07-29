@@ -252,3 +252,23 @@ export interface LeaguePageData {
   fixtures: Fixture[]
   cachedAt: number
 }
+
+export interface SquadPlayer {
+  id: number
+  name: string
+  age: number | null
+  number: number | null
+  pos: string | null
+  photo: string | null
+}
+
+export interface TeamPageData {
+  team: TeamInfo
+  venue: { name: string | null; city: string | null; capacity: number | null }
+  currentSeason: number
+  stats: TeamSeasonStats | null
+  squad: SquadPlayer[]
+  recentFixtures: Fixture[]
+  standings: StandingRow[]
+  fetchedAt: number
+}

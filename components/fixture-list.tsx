@@ -1,6 +1,7 @@
 "use client"
 
 import { Clock } from "lucide-react"
+import { TeamButton } from "@/components/team-panel"
 import { cn } from "@/lib/utils"
 import type { Fixture } from "@/lib/types"
 
@@ -190,9 +191,12 @@ function TeamRow({
         // eslint-disable-next-line @next/next/no-img-element
         <img src={logo || "/placeholder.svg"} alt="" className="h-4 w-4 shrink-0 object-contain" />
       ) : null}
-      <span className="truncate text-sm font-medium text-foreground">
+      <TeamButton
+        team={{ id, name, logo }}
+        className="truncate text-sm font-medium text-foreground hover:underline"
+      >
         {name}
-      </span>
+      </TeamButton>
       {played ? <span className="ml-auto text-sm font-bold tabular-nums text-foreground">{goals}</span> : null}
     </div>
   )

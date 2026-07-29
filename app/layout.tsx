@@ -2,6 +2,8 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { NavTabs } from '@/components/nav-tabs'
+import { TeamProvider } from '@/contexts/team-context'
+import { TeamPanel } from '@/components/team-panel'
 import './globals.css'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
@@ -58,8 +60,11 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased">
-        <NavTabs />
-        {children}
+        <TeamProvider>
+          <NavTabs />
+          {children}
+          <TeamPanel />
+        </TeamProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

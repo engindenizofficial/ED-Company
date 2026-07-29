@@ -18,6 +18,7 @@ import {
 import { useState } from "react"
 import type { AnalysisResponse, FormGame, InjuryItem, MatchEvent, StatItem, StandingRow, TeamLineup, TeamSeasonStats } from "@/lib/types"
 import { FormBadge } from "./form-badge"
+import { TeamButton } from "./team-panel"
 
 // ---------------------------------------------------------------------------
 // Public component
@@ -195,12 +196,12 @@ function MatchHeader({ fixture }: { fixture: AnalysisResponse["live"]["fixture"]
       {/* Teams + score */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-5">
         {/* Home */}
-        <div className="flex flex-col items-center gap-2">
+        <TeamButton team={fixture.home} className="flex flex-col items-center gap-2">
           {fixture.home.logo && (
             <img src={fixture.home.logo} alt={fixture.home.name} className="h-14 w-14 object-contain drop-shadow-sm" />
           )}
-          <span className="text-center text-sm font-semibold text-foreground text-balance leading-tight">{fixture.home.name}</span>
-        </div>
+          <span className="text-center text-sm font-semibold text-foreground text-balance leading-tight hover:text-primary transition-colors">{fixture.home.name}</span>
+        </TeamButton>
 
         {/* Score / Status */}
         <div className="flex flex-col items-center gap-2 min-w-[72px]">
@@ -231,12 +232,12 @@ function MatchHeader({ fixture }: { fixture: AnalysisResponse["live"]["fixture"]
         </div>
 
         {/* Away */}
-        <div className="flex flex-col items-center gap-2">
+        <TeamButton team={fixture.away} className="flex flex-col items-center gap-2">
           {fixture.away.logo && (
             <img src={fixture.away.logo} alt={fixture.away.name} className="h-14 w-14 object-contain drop-shadow-sm" />
           )}
-          <span className="text-center text-sm font-semibold text-foreground text-balance leading-tight">{fixture.away.name}</span>
-        </div>
+          <span className="text-center text-sm font-semibold text-foreground text-balance leading-tight hover:text-primary transition-colors">{fixture.away.name}</span>
+        </TeamButton>
       </div>
     </div>
   )
@@ -630,12 +631,12 @@ function TeamStatsCard({ stats, label }: { stats: TeamSeasonStats; label: string
     <div className="flex flex-col gap-3 rounded-xl border border-border bg-secondary/30 p-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <TeamButton team={stats.team} className="flex items-center gap-2">
           {stats.team.logo && (
             <img src={stats.team.logo} alt={stats.team.name} className="h-7 w-7 object-contain" />
           )}
-          <span className="text-sm font-semibold text-foreground">{stats.team.name}</span>
-        </div>
+          <span className="text-sm font-semibold text-foreground hover:text-primary transition-colors">{stats.team.name}</span>
+        </TeamButton>
         <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
