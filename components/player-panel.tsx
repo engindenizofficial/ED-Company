@@ -125,15 +125,36 @@ function SeasonStatsSection({ stats }: { stats: PlayerSeasonStats[] }) {
   const lineups = s.lineups ?? 0
   const minutes = s.minutes ?? 0
   const yellow = s.yellowCards ?? 0
+  const yellowRed = s.yellowRedCards ?? 0
   const red = s.redCards ?? 0
   const rating = s.rating ? parseFloat(s.rating) : null
+  // Shots
   const shotsTotal = s.shotsTotal ?? 0
   const shotsOn = s.shotsOn ?? 0
+  // Passes
   const passesTotal = s.passesTotal ?? 0
+  const passesKey = s.passesKey ?? 0
   const passAccuracy = s.passesAccuracy ? parseFloat(s.passesAccuracy) : null
+  // Tackles
   const tacklesTotal = s.tacklesTotal ?? 0
+  const interceptions = s.interceptions ?? 0
+  const blockedShots = s.blockedShots ?? 0
+  // Duels
+  const duelsTotal = s.duelsTotal ?? 0
+  const duelsWon = s.duelsWon ?? 0
+  // Dribbles
   const dribblesAttempted = s.dribblesAttempted ?? 0
   const dribblesSuccess = s.dribblesSuccess ?? 0
+  // Fouls
+  const foulsDrawn = s.foulsDrawn ?? 0
+  const foulsCommitted = s.foulsCommitted ?? 0
+  // Offsides
+  const offsides = s.offsides ?? 0
+  // Penalty
+  const penaltyWon = s.penaltyWon ?? 0
+  const penaltyScored = s.penaltyScored ?? 0
+  const penaltyMissed = s.penaltyMissed ?? 0
+  const penaltySaved = s.penaltySaved ?? 0
 
   return (
     <div className="flex flex-col gap-1">
@@ -224,17 +245,24 @@ function SeasonStatsSection({ stats }: { stats: PlayerSeasonStats[] }) {
             )}
             {passesTotal > 0 && (
               <StatBar
-                label={`Pas${passAccuracy != null ? ` (${passAccuracy.toFixed(0)}% isabet)` : ""}`}
+                label={`Pas${passAccuracy != null ? ` · ${passAccuracy.toFixed(0)}% isabet` : ""}${passesKey > 0 ? ` · ${passesKey} kilit` : ""}`}
                 value={passesTotal}
                 max={Math.max(passesTotal, 1000)}
               />
             )}
             {tacklesTotal > 0 && (
               <StatBar
-                label="Top kapma"
+                label={`Top kapma${interceptions > 0 ? ` · ${interceptions} müdahale` : ""}${blockedShots > 0 ? ` · ${blockedShots} blok` : ""}`}
                 value={tacklesTotal}
                 max={Math.max(tacklesTotal, 100)}
                 accent
+              />
+            )}
+            {duelsTotal > 0 && (
+              <StatBar
+                label={`İkili mücadele (${duelsWon}/${duelsTotal} kazanıldı)`}
+                value={duelsWon}
+                max={duelsTotal}
               />
             )}
             {dribblesAttempted > 0 && (
@@ -242,18 +270,72 @@ function SeasonStatsSection({ stats }: { stats: PlayerSeasonStats[] }) {
                 label={`Dribling (${dribblesSuccess}/${dribblesAttempted})`}
                 value={dribblesSuccess}
                 max={dribblesAttempted}
+                accent
+              />
+            )}
+            {foulsDrawn > 0 && (
+              <StatBar
+                label={`Faul kazanıldı · ${foulsCommitted > 0 ? `${foulsCommitted} yapıldı` : ""}`}
+                value={foulsDrawn}
+                max={Math.max(foulsDrawn, foulsCommitted, 50)}
               />
             )}
           </div>
 
+          {/* Penalty & Offsides */}
+          {(penaltyScored > 0 || penaltyMissed > 0 || penaltyWon > 0 || penaltySaved > 0 || offsides > 0) && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {penaltyScored > 0 && (
+                <div className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5">
+                  <span className="text-xs font-semibold tabular-nums text-primary">{penaltyScored}</span>
+                  <span className="text-[10px] text-muted-foreground">Penaltı gol</span>
+                </div>
+              )}
+              {penaltyMissed > 0 && (
+                <div className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5">
+                  <span className="text-xs font-semibold tabular-nums text-destructive">{penaltyMissed}</span>
+                  <span className="text-[10px] text-muted-foreground">Kaçırılan</span>
+                </div>
+              )}
+              {penaltyWon > 0 && (
+                <div className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5">
+                  <span className="text-xs font-semibold tabular-nums text-foreground">{penaltyWon}</span>
+                  <span className="text-[10px] text-muted-foreground">Pen. kazanıldı</span>
+                </div>
+              )}
+              {penaltySaved > 0 && (
+                <div className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5">
+                  <span className="text-xs font-semibold tabular-nums text-foreground">{penaltySaved}</span>
+                  <span className="text-[10px] text-muted-foreground">Kurtarılan pen.</span>
+                </div>
+              )}
+              {offsides > 0 && (
+                <div className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5">
+                  <span className="text-xs font-semibold tabular-nums text-foreground">{offsides}</span>
+                  <span className="text-[10px] text-muted-foreground">Ofsayt</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Cards */}
-          {(yellow > 0 || red > 0) && (
-            <div className="mt-4 flex items-center gap-3">
+          {(yellow > 0 || yellowRed > 0 || red > 0) && (
+            <div className="mt-3 flex items-center gap-2">
               {yellow > 0 && (
                 <div className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5">
                   <span className="inline-block h-3.5 w-2.5 rounded-[2px] bg-yellow-400" />
                   <span className="text-xs font-semibold tabular-nums text-foreground">{yellow}</span>
                   <span className="text-[10px] text-muted-foreground">Sarı</span>
+                </div>
+              )}
+              {yellowRed > 0 && (
+                <div className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5">
+                  <span className="inline-flex h-3.5 w-3 shrink-0">
+                    <span className="inline-block h-3.5 w-2 -mr-0.5 rounded-[2px] bg-yellow-400" />
+                    <span className="inline-block h-3.5 w-2 rounded-[2px] bg-red-500" />
+                  </span>
+                  <span className="text-xs font-semibold tabular-nums text-foreground">{yellowRed}</span>
+                  <span className="text-[10px] text-muted-foreground">Sarı-kırmızı</span>
                 </div>
               )}
               {red > 0 && (

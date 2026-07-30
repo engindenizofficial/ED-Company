@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic"
 
 const BASE_URL = "https://v3.football.api-sports.io"
 
-// Top 20 lig (takım aramasıyla aynı liste)
+// En iyi 20 lig — takım aramasıyla birebir aynı liste
 const TOP_LEAGUE_IDS = [
   39,  // Premier League
   140, // La Liga
@@ -46,25 +46,54 @@ function currentSeason(): number {
   return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
 }
 
-async function apiFetch<T>(path: string, params: Record<string, string | number>): Promise<T[]> {
+/**
+ * Bir lig için oyuncu araması yapar.
+ * /players?search=NAME&league=ID&season=YEAR — API-Football'un doğru arama endpoint'i.
+ * next.revalidate ile 1 saat önbelleğe alınır (sorgu dinamik olduğu için tam 24 saat uygun değil).
+ */
+async function searchPlayersInLeague(
+  q: string,
+  leagueId: number,
+  season: number,
+): Promise<PlayerSearchResult[]> {
   const key = process.env.API_FOOTBALL_KEY
   if (!key) return []
-  const search = new URLSearchParams()
-  for (const [k, v] of Object.entries(params)) search.set(k, String(v))
+
+  const params = new URLSearchParams({
+    search: q,
+    league: String(leagueId),
+    season: String(season),
+  })
+
   try {
-    const res = await fetch(`${BASE_URL}${path}?${search}`, {
+    const res = await fetch(`${BASE_URL}/players?${params}`, {
       headers: { "x-apisports-key": key },
-      next: { revalidate: 86400 }, // 24 saat Next.js cache — takım aramasıyla aynı strateji
+      next: { revalidate: 3600 }, // 1 saat — arama bazlı cache
     })
     if (!res.ok) return []
     const json = await res.json()
-    return (json.response as T[]) ?? []
+    const entries: any[] = json.response ?? []
+
+    return entries.map((entry) => {
+      const p = entry.player ?? {}
+      const firstStat = entry.statistics?.[0] ?? {}
+      return {
+        id: p.id ?? 0,
+        name: p.name ?? "",
+        photo: p.photo ?? null,
+        nationality: p.nationality ?? null,
+        age: p.age ?? null,
+        teamId: firstStat.team?.id ?? null,
+        teamName: firstStat.team?.name ?? null,
+        teamLogo: firstStat.team?.logo ?? null,
+      }
+    })
   } catch {
     return []
   }
 }
 
-// Türkçe normalize
+// Türkçe normalize: ş→s, ç→c, ğ→g, ü→u, ö→o, ı→i
 function normalizeTR(s: string): string {
   return s
     .toLocaleLowerCase("tr-TR")
@@ -86,37 +115,24 @@ export async function GET(req: NextRequest) {
 
   const season = currentSeason()
 
-  // Tüm liglerin kadrolarını paralel çek — Next.js 24 saat cache
-  const squadsPerLeague = await Promise.all(
-    LEAGUE_IDS.map((leagueId) =>
-      apiFetch<any>("/players/squads", { league: leagueId, season })
-    )
+  // Tüm ligleri paralel sorgula — her biri kendi Next.js önbelleğiyle çalışır
+  const perLeague = await Promise.all(
+    LEAGUE_IDS.map((leagueId) => searchPlayersInLeague(q, leagueId, season))
   )
 
+  // Deduplikasyon ve Türkçe normalize filtreleme
   const qNorm = normalizeTR(q)
   const seen = new Set<number>()
   const results: PlayerSearchResult[] = []
 
-  for (const leagueSquads of squadsPerLeague) {
-    for (const entry of leagueSquads) {
-      const team = entry.team ?? {}
-      for (const p of entry.players ?? []) {
-        if (!p.id || seen.has(p.id)) continue
-        const nameNorm = normalizeTR(p.name ?? "")
-        if (!nameNorm.includes(qNorm)) continue
-        seen.add(p.id)
-        results.push({
-          id: p.id,
-          name: p.name ?? "",
-          photo: p.photo ?? null,
-          nationality: p.nationality ?? null,
-          age: p.age ?? null,
-          teamId: team.id ?? null,
-          teamName: team.name ?? null,
-          teamLogo: team.logo ?? null,
-        })
-        if (results.length >= 20) break
-      }
+  for (const leaguePlayers of perLeague) {
+    for (const p of leaguePlayers) {
+      if (!p.id || seen.has(p.id)) continue
+      // API zaten arama filtresi uyguluyor; yine de normalize kontrol ekleyebiliriz
+      const nameNorm = normalizeTR(p.name)
+      if (!nameNorm.includes(qNorm)) continue
+      seen.add(p.id)
+      results.push(p)
       if (results.length >= 20) break
     }
     if (results.length >= 20) break

@@ -107,14 +107,35 @@ export async function GET(request: Request) {
           assists: stat.goals?.assists ?? null,
           yellowCards: stat.cards?.yellow ?? null,
           redCards: stat.cards?.red ?? null,
+          yellowRedCards: stat.cards?.yellowred ?? null,
           rating: stat.games?.rating ?? null,
+          // Shots
           shotsTotal: stat.shots?.total ?? null,
           shotsOn: stat.shots?.on ?? null,
+          // Passes
           passesTotal: stat.passes?.total ?? null,
+          passesKey: stat.passes?.key ?? null,
           passesAccuracy: stat.passes?.accuracy != null ? String(stat.passes.accuracy) : null,
+          // Tackles
           tacklesTotal: stat.tackles?.total ?? null,
+          interceptions: stat.tackles?.interceptions ?? null,
+          blockedShots: stat.tackles?.blocks ?? null,
+          // Duels
+          duelsTotal: stat.duels?.total ?? null,
+          duelsWon: stat.duels?.won ?? null,
+          // Dribbles
           dribblesAttempted: stat.dribbles?.attempts ?? null,
           dribblesSuccess: stat.dribbles?.success ?? null,
+          // Fouls
+          foulsDrawn: stat.fouls?.drawn ?? null,
+          foulsCommitted: stat.fouls?.committed ?? null,
+          // Offsides
+          offsides: stat.offsides ?? null,
+          // Penalty
+          penaltyWon: stat.penalty?.won ?? null,
+          penaltyScored: stat.penalty?.scored ?? null,
+          penaltyMissed: stat.penalty?.missed ?? null,
+          penaltySaved: stat.penalty?.saved ?? null,
         })
       }
     }

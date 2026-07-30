@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { useTeamPanel } from "@/contexts/team-context"
+import { PlayerButton } from "@/components/player-panel"
 import { cn } from "@/lib/utils"
 import type {
   Fixture,
@@ -305,7 +306,11 @@ function SquadSection({ squad }: { squad: SquadPlayer[] }) {
               <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{POS_LABEL[pos] ?? pos}</p>
               <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                 {grouped[pos].map(p => (
-                  <div key={p.id} className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-2">
+                  <PlayerButton
+                    key={p.id}
+                    player={{ id: p.id, name: p.name, photo: p.photo ?? null }}
+                    className="flex w-full items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-secondary"
+                  >
                     {p.photo ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={p.photo} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover border border-border" />
@@ -318,7 +323,7 @@ function SquadSection({ squad }: { squad: SquadPlayer[] }) {
                       <p className="truncate text-xs font-medium text-foreground">{p.name}</p>
                       {p.age != null && <p className="text-[10px] text-muted-foreground">{p.age} yaş</p>}
                     </div>
-                  </div>
+                  </PlayerButton>
                 ))}
               </div>
             </div>
@@ -358,7 +363,7 @@ function TopScorersSection({ scorers }: { scorers: TeamTopScorer[] }) {
                   <tr key={s.player.id} className="hover:bg-secondary/50 transition-colors">
                     <td className="py-2 pr-2 tabular-nums font-semibold text-muted-foreground">{i + 1}</td>
                     <td className="py-2 pr-2">
-                      <div className="flex items-center gap-2">
+                      <PlayerButton player={{ id: s.player.id, name: s.player.name, photo: s.player.photo ?? null }} className="flex items-center gap-2">
                         {s.player.photo ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={s.player.photo} alt="" className="h-6 w-6 rounded-full object-cover border border-border shrink-0" />
@@ -367,8 +372,8 @@ function TopScorersSection({ scorers }: { scorers: TeamTopScorer[] }) {
                             <Users className="h-3 w-3 text-muted-foreground" />
                           </div>
                         )}
-                        <span className="font-medium text-foreground">{s.player.name}</span>
-                      </div>
+                        <span className="font-medium text-foreground hover:text-primary">{s.player.name}</span>
+                      </PlayerButton>
                     </td>
                     <td className="py-2 px-2 text-center tabular-nums font-bold text-primary">{s.goals}</td>
                     <td className="py-2 px-2 text-center tabular-nums text-accent-foreground">{s.assists}</td>
@@ -541,16 +546,16 @@ function TransfersSection({ transfers, teamId }: { transfers: TeamTransfer[]; te
               <div className="flex flex-col gap-1.5">
                 {incoming.map((t, i) => (
                   <div key={i} className="flex items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
-                    <div className="flex min-w-0 items-center gap-2">
+                    <PlayerButton player={{ id: t.player.id, name: t.player.name, photo: t.player.photo ?? null }} className="flex min-w-0 items-center gap-2">
                       {t.player.photo ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={t.player.photo} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover border border-border" />
                       ) : null}
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-foreground">{t.player.name}</p>
+                      <div className="min-w-0 text-left">
+                        <p className="truncate font-medium text-foreground hover:text-primary">{t.player.name}</p>
                         <p className="text-[10px] text-muted-foreground truncate">← {t.teamFrom.name}</p>
                       </div>
-                    </div>
+                    </PlayerButton>
                     <div className="flex shrink-0 flex-col items-end gap-0.5">
                       {t.type && t.type !== "N/A" && (
                         <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{t.type}</span>
@@ -568,16 +573,16 @@ function TransfersSection({ transfers, teamId }: { transfers: TeamTransfer[]; te
               <div className="flex flex-col gap-1.5">
                 {outgoing.map((t, i) => (
                   <div key={i} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
-                    <div className="flex min-w-0 items-center gap-2">
+                    <PlayerButton player={{ id: t.player.id, name: t.player.name, photo: t.player.photo ?? null }} className="flex min-w-0 items-center gap-2">
                       {t.player.photo ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={t.player.photo} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover border border-border" />
                       ) : null}
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-foreground">{t.player.name}</p>
+                      <div className="min-w-0 text-left">
+                        <p className="truncate font-medium text-foreground hover:text-primary">{t.player.name}</p>
                         <p className="text-[10px] text-muted-foreground truncate">→ {t.teamTo.name}</p>
                       </div>
-                    </div>
+                    </PlayerButton>
                     <div className="flex shrink-0 flex-col items-end gap-0.5">
                       {t.type && t.type !== "N/A" && (
                         <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{t.type}</span>

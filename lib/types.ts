@@ -169,14 +169,35 @@ export interface PlayerSeasonStats {
   assists: number | null
   yellowCards: number | null
   redCards: number | null
+  yellowRedCards: number | null
   rating: string | null
+  // Shots
   shotsTotal: number | null
   shotsOn: number | null
+  // Passes
   passesTotal: number | null
+  passesKey: number | null
   passesAccuracy: string | null
+  // Tackles
   tacklesTotal: number | null
+  interceptions: number | null
+  blockedShots: number | null
+  // Duels
+  duelsTotal: number | null
+  duelsWon: number | null
+  // Dribbles
   dribblesAttempted: number | null
   dribblesSuccess: number | null
+  // Fouls
+  foulsDrawn: number | null
+  foulsCommitted: number | null
+  // Offsides
+  offsides: number | null
+  // Penalty
+  penaltyWon: number | null
+  penaltyScored: number | null
+  penaltyMissed: number | null
+  penaltySaved: number | null
 }
 
 export interface Transfer {

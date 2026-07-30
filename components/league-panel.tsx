@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { useLeaguePanel } from "@/contexts/league-context"
+import { PlayerButton } from "@/components/player-panel"
 import { cn } from "@/lib/utils"
 import type {
   Fixture,
@@ -241,7 +242,7 @@ function TopScorersSection({ scorers }: { scorers: LeagueTopScorer[] }) {
                   <tr key={s.player.id} className="transition-colors hover:bg-secondary/50">
                     <td className="py-2 pr-2 tabular-nums font-semibold text-muted-foreground">{i + 1}</td>
                     <td className="py-2 pr-2">
-                      <div className="flex items-center gap-2">
+                      <PlayerButton player={{ id: s.player.id, name: s.player.name, photo: s.player.photo ?? null }} className="flex items-center gap-2">
                         {s.player.photo ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
@@ -254,8 +255,8 @@ function TopScorersSection({ scorers }: { scorers: LeagueTopScorer[] }) {
                             <Users className="h-3 w-3 text-muted-foreground" />
                           </div>
                         )}
-                        <span className="font-medium text-foreground">{s.player.name}</span>
-                      </div>
+                        <span className="font-medium text-foreground hover:text-primary">{s.player.name}</span>
+                      </PlayerButton>
                     </td>
                     <td className="px-2 py-2 text-center">
                       {s.team.logo ? (
@@ -317,7 +318,7 @@ function TopAssistsSection({ assists }: { assists: LeagueTopAssist[] }) {
                   <tr key={s.player.id} className="transition-colors hover:bg-secondary/50">
                     <td className="py-2 pr-2 tabular-nums font-semibold text-muted-foreground">{i + 1}</td>
                     <td className="py-2 pr-2">
-                      <div className="flex items-center gap-2">
+                      <PlayerButton player={{ id: s.player.id, name: s.player.name, photo: s.player.photo ?? null }} className="flex items-center gap-2">
                         {s.player.photo ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
@@ -330,8 +331,8 @@ function TopAssistsSection({ assists }: { assists: LeagueTopAssist[] }) {
                             <Users className="h-3 w-3 text-muted-foreground" />
                           </div>
                         )}
-                        <span className="font-medium text-foreground">{s.player.name}</span>
-                      </div>
+                        <span className="font-medium text-foreground hover:text-primary">{s.player.name}</span>
+                      </PlayerButton>
                     </td>
                     <td className="px-2 py-2 text-center">
                       {s.team.logo ? (
