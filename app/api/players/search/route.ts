@@ -28,8 +28,6 @@ const TOP_LEAGUE_IDS = [
   128, // Liga Profesional (Arjantin)
 ]
 
-const LEAGUE_IDS = [...new Set(TOP_LEAGUE_IDS)]
-
 export interface PlayerSearchResult {
   id: number
   name: string
@@ -49,7 +47,7 @@ function currentSeason(): number {
 /**
  * Bir lig için oyuncu araması yapar.
  * /players?search=NAME&league=ID&season=YEAR — API-Football'un doğru arama endpoint'i.
- * next.revalidate ile 1 saat önbelleğe alınır (sorgu dinamik olduğu için tam 24 saat uygun değil).
+ * next.revalidate ile 1 saat önbelleğe alınır.
  */
 async function searchPlayersInLeague(
   q: string,
@@ -68,7 +66,7 @@ async function searchPlayersInLeague(
   try {
     const res = await fetch(`${BASE_URL}/players?${params}`, {
       headers: { "x-apisports-key": key },
-      next: { revalidate: 3600 }, // 1 saat — arama bazlı cache
+      next: { revalidate: 3600 },
     })
     if (!res.ok) return []
     const json = await res.json()
@@ -117,7 +115,7 @@ export async function GET(req: NextRequest) {
 
   // Tüm ligleri paralel sorgula — her biri kendi Next.js önbelleğiyle çalışır
   const perLeague = await Promise.all(
-    LEAGUE_IDS.map((leagueId) => searchPlayersInLeague(q, leagueId, season))
+    TOP_LEAGUE_IDS.map((leagueId) => searchPlayersInLeague(q, leagueId, season))
   )
 
   // Deduplikasyon ve Türkçe normalize filtreleme
@@ -128,7 +126,6 @@ export async function GET(req: NextRequest) {
   for (const leaguePlayers of perLeague) {
     for (const p of leaguePlayers) {
       if (!p.id || seen.has(p.id)) continue
-      // API zaten arama filtresi uyguluyor; yine de normalize kontrol ekleyebiliriz
       const nameNorm = normalizeTR(p.name)
       if (!nameNorm.includes(qNorm)) continue
       seen.add(p.id)
