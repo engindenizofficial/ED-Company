@@ -47,7 +47,9 @@ export interface MatchEvent {
   extra: number | null
   team: string
   player: string | null
+  playerId: number | null
   assist: string | null
+  assistId: number | null
   type: string
   detail: string
 }
@@ -92,6 +94,7 @@ export interface StandingRow {
 export interface InjuryItem {
   team: string
   player: string
+  playerId: number | null
   reason: string
   type: string
 }

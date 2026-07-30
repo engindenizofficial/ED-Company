@@ -19,6 +19,7 @@ import { useState } from "react"
 import type { AnalysisResponse, FormGame, InjuryItem, MatchEvent, StatItem, StandingRow, TeamLineup, TeamSeasonStats } from "@/lib/types"
 import { FormBadge } from "./form-badge"
 import { TeamButton } from "./team-panel"
+import { PlayerButton } from "./player-panel"
 
 // ---------------------------------------------------------------------------
 // Public component
@@ -431,22 +432,42 @@ function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: stri
                   {ev.player && (
                     <span className={`flex items-center gap-1 truncate text-xs font-semibold text-foreground ${isHome ? "" : "flex-row-reverse"}`}>
                       <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-                      {ev.player}
+                      {ev.playerId ? (
+                        <PlayerButton player={{ id: ev.playerId, name: ev.player, photo: null }} className="truncate hover:text-primary">
+                          {ev.player}
+                        </PlayerButton>
+                      ) : ev.player}
                     </span>
                   )}
                   {/* Çıkan oyuncu — kırmızı (assist alanında geliyor) */}
                   {ev.assist && (
                     <span className={`flex items-center gap-1 truncate text-xs text-muted-foreground ${isHome ? "" : "flex-row-reverse"}`}>
                       <span className="h-2 w-2 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
-                      {ev.assist}
+                      {ev.assistId ? (
+                        <PlayerButton player={{ id: ev.assistId, name: ev.assist, photo: null }} className="truncate hover:text-primary">
+                          {ev.assist}
+                        </PlayerButton>
+                      ) : ev.assist}
                     </span>
                   )}
                 </>
               ) : (
                 <>
-                  <span className="truncate text-xs font-semibold text-foreground">{ev.player ?? detailTr}</span>
+                  {ev.player && ev.playerId ? (
+                    <PlayerButton player={{ id: ev.playerId, name: ev.player, photo: null }} className="truncate text-xs font-semibold text-foreground hover:text-primary">
+                      {ev.player}
+                    </PlayerButton>
+                  ) : (
+                    <span className="truncate text-xs font-semibold text-foreground">{ev.player ?? detailTr}</span>
+                  )}
                   {ev.assist && (
-                    <span className="truncate text-[10px] text-muted-foreground">Asist: {ev.assist}</span>
+                    <span className="truncate text-[10px] text-muted-foreground">
+                      Asist: {ev.assistId ? (
+                        <PlayerButton player={{ id: ev.assistId, name: ev.assist, photo: null }} className="hover:text-primary">
+                          {ev.assist}
+                        </PlayerButton>
+                      ) : ev.assist}
+                    </span>
                   )}
                   <span className="text-[10px] text-muted-foreground">{detailTr}</span>
                 </>
@@ -582,7 +603,13 @@ function LineupsView({ lineups }: { lineups: TeamLineup[] }) {
                     <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-primary/10 text-[9px] font-bold tabular-nums text-primary">
                       {p.number ?? "—"}
                     </span>
-                    <span className="truncate text-foreground">{p.name}</span>
+                    {p.id ? (
+                      <PlayerButton player={{ id: p.id, name: p.name, photo: null }} className="truncate text-foreground hover:text-primary">
+                        {p.name}
+                      </PlayerButton>
+                    ) : (
+                      <span className="truncate text-foreground">{p.name}</span>
+                    )}
                     {p.pos && (
                       <span className="shrink-0 text-[9px] text-muted-foreground">({p.pos})</span>
                     )}
@@ -602,7 +629,13 @@ function LineupsView({ lineups }: { lineups: TeamLineup[] }) {
                     <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-secondary text-[9px] tabular-nums text-muted-foreground">
                       {p.number ?? "—"}
                     </span>
-                    <span className="truncate text-muted-foreground">{p.name}</span>
+                    {p.id ? (
+                      <PlayerButton player={{ id: p.id, name: p.name, photo: null }} className="truncate text-muted-foreground hover:text-primary">
+                        {p.name}
+                      </PlayerButton>
+                    ) : (
+                      <span className="truncate text-muted-foreground">{p.name}</span>
+                    )}
                   </li>
                 ))}
               </ol>
@@ -824,7 +857,13 @@ function InjuryList({ injuries }: { injuries: InjuryItem[] }) {
                 key={i}
                 className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-secondary/30 px-3 py-2 text-xs"
               >
-                <span className="font-semibold text-foreground">{item.player}</span>
+                {item.playerId ? (
+                  <PlayerButton player={{ id: item.playerId, name: item.player, photo: null }} className="font-semibold text-foreground hover:text-primary">
+                    {item.player}
+                  </PlayerButton>
+                ) : (
+                  <span className="font-semibold text-foreground">{item.player}</span>
+                )}
                 <span className="shrink-0 rounded-full border border-destructive/20 bg-destructive/10 px-2 py-0.5 text-[10px] text-destructive">
                   {item.reason || item.type}
                 </span>

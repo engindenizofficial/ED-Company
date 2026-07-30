@@ -319,6 +319,7 @@ async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
   return raw.map((r) => ({
     team: r.team?.name ?? "",
     player: r.player?.name ?? "",
+    playerId: r.player?.id ?? null,
     reason: r.player?.reason ?? "",
     type: r.player?.type ?? "",
   }))
@@ -331,7 +332,9 @@ async function getEvents(fixtureId: number): Promise<MatchEvent[]> {
     extra: r.time?.extra ?? null,
     team: r.team?.name ?? "",
     player: r.player?.name ?? null,
+    playerId: r.player?.id ?? null,
     assist: r.assist?.name ?? null,
+    assistId: r.assist?.id ?? null,
     type: r.type ?? "",
     detail: r.detail ?? "",
   }))
