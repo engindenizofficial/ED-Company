@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import type { PlayerPageData, PlayerProfile, PlayerSeasonStats, Transfer, Trophy } from "@/lib/types"
+import type { PlayerPageData, PlayerProfile, PlayerSeasonStats, SidelinedEntry, Transfer, Trophy } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
 
@@ -37,10 +37,11 @@ export async function GET(request: Request) {
 
   const season = currentSeason()
 
-  const [playerRaw, trophiesRaw, transfersRaw] = await Promise.all([
+  const [playerRaw, trophiesRaw, transfersRaw, sidelinedRaw] = await Promise.all([
     apiFetch<any>("/players", { id: playerId, season }),
     apiFetch<any>("/trophies", { player: playerId }),
     apiFetch<any>("/transfers", { player: playerId }),
+    apiFetch<any>("/sidelined", { player: playerId }),
   ])
 
   if (!playerRaw || playerRaw.length === 0) {
@@ -152,11 +153,23 @@ export async function GET(request: Request) {
     place: t.place ?? "",
   }))
 
+  // Sidelined / Injuries history
+  const sidelined: SidelinedEntry[] = (sidelinedRaw ?? [])
+    .map((s: any) => ({
+      type: s.player?.reason ?? s.type ?? s.reason ?? "Bilinmiyor",
+      start: s.start ?? null,
+      end: s.end ?? null,
+    }))
+    .sort((a: SidelinedEntry, b: SidelinedEntry) =>
+      (b.start ?? "").localeCompare(a.start ?? "")
+    )
+
   const payload: PlayerPageData = {
     profile,
     stats: uniqueStats,
     transfers,
     trophies,
+    sidelined,
     cachedAt: Date.now(),
   }
 

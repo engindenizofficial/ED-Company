@@ -224,11 +224,18 @@ export interface FixturePlayerStat {
   substitute: boolean
 }
 
+export interface SidelinedEntry {
+  type: string
+  start: string | null
+  end: string | null
+}
+
 export interface PlayerPageData {
   profile: PlayerProfile
   stats: PlayerSeasonStats[]
   transfers: Transfer[]
   trophies: Trophy[]
+  sidelined: SidelinedEntry[]
   cachedAt: number
 }
 

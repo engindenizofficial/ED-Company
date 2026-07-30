@@ -1,8 +1,33 @@
 import { NextRequest, NextResponse } from "next/server"
+import { redis } from "@/lib/redis"
 
 export const dynamic = "force-dynamic"
 
 const BASE_URL = "https://v3.football.api-sports.io"
+
+// Top 20 ligler (en yaygın) — aynı takım aramasındaki strateji
+const TOP_LEAGUE_IDS = [
+  39,  // Premier League
+  140, // La Liga
+  135, // Serie A
+  78,  // Bundesliga
+  61,  // Ligue 1
+  94,  // Primeira Liga
+  88,  // Eredivisie
+  144, // Jupiler Pro League
+  203, // Süper Lig
+  179, // Scottish Premiership
+  197, // Super League Greece
+  218, // Saudi Pro League
+  253, // MLS
+  128, // Liga Profesional Argentina
+  71,  // Brasileirao
+  262, // Liga MX
+  2,   // UEFA Champions League
+  3,   // UEFA Europa League
+  848, // UEFA Conference League
+  1,   // World Cup
+]
 
 export interface PlayerSearchResult {
   id: number
@@ -15,6 +40,11 @@ export interface PlayerSearchResult {
   teamLogo: string | null
 }
 
+function currentSeason(): number {
+  const now = new Date()
+  return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
+}
+
 async function apiFetch<T>(path: string, params: Record<string, string | number>): Promise<T[]> {
   const key = process.env.API_FOOTBALL_KEY
   if (!key) return []
@@ -23,7 +53,7 @@ async function apiFetch<T>(path: string, params: Record<string, string | number>
   try {
     const res = await fetch(`${BASE_URL}${path}?${search}`, {
       headers: { "x-apisports-key": key },
-      next: { revalidate: 3600 },
+      next: { revalidate: 86400 },
     })
     if (!res.ok) return []
     const json = await res.json()
@@ -46,37 +76,73 @@ function normalizeTR(s: string): string {
     .trim()
 }
 
+// Tüm top-20 lig kadrolarını Redis'te önbelleğe alır; cache miss durumunda API'den çeker.
+async function getAllPlayersIndex(season: number): Promise<PlayerSearchResult[]> {
+  const cacheKey = `players:index:${season}`
+
+  // Redis cache hit
+  try {
+    const cached = await redis.get<PlayerSearchResult[]>(cacheKey)
+    if (cached && cached.length > 0) return cached
+  } catch {
+    // Redis erişilemiyorsa devam et
+  }
+
+  // API'den paralel çek — her lig için kadro
+  const squads = await Promise.all(
+    TOP_LEAGUE_IDS.map((leagueId) =>
+      apiFetch<any>("/players/squads", { league: leagueId, season })
+    )
+  )
+
+  const seen = new Set<number>()
+  const players: PlayerSearchResult[] = []
+
+  for (const leagueSquads of squads) {
+    for (const entry of leagueSquads) {
+      const team = entry.team ?? {}
+      for (const p of entry.players ?? []) {
+        if (!p.id || seen.has(p.id)) continue
+        seen.add(p.id)
+        players.push({
+          id: p.id,
+          name: p.name ?? "",
+          photo: p.photo ?? null,
+          nationality: p.nationality ?? null,
+          age: p.age ?? null,
+          teamId: team.id ?? null,
+          teamName: team.name ?? null,
+          teamLogo: team.logo ?? null,
+        })
+      }
+    }
+  }
+
+  // 24 saat cache
+  if (players.length > 0) {
+    try {
+      await redis.set(cacheKey, players, { ex: 86400 })
+    } catch {
+      // sessizce geç
+    }
+  }
+
+  return players
+}
+
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? ""
   if (q.length < 2) {
     return NextResponse.json({ results: [] })
   }
 
-  const season = new Date().getMonth() >= 7 ? new Date().getFullYear() : new Date().getFullYear() - 1
-
-  const raw = await apiFetch<any>("/players", { search: q, season })
+  const season = currentSeason()
+  const allPlayers = await getAllPlayersIndex(season)
 
   const qNorm = normalizeTR(q)
-  const results: PlayerSearchResult[] = raw
-    .filter((entry: any) => {
-      const name = normalizeTR(entry?.player?.name ?? "")
-      return name.includes(qNorm)
-    })
+  const results = allPlayers
+    .filter((p) => normalizeTR(p.name).includes(qNorm))
     .slice(0, 20)
-    .map((entry: any) => {
-      const p = entry.player ?? {}
-      const stats = entry.statistics?.[0] ?? {}
-      return {
-        id: p.id ?? 0,
-        name: p.name ?? "",
-        photo: p.photo ?? null,
-        nationality: p.nationality ?? null,
-        age: p.age ?? null,
-        teamId: stats.team?.id ?? null,
-        teamName: stats.team?.name ?? null,
-        teamLogo: stats.team?.logo ?? null,
-      }
-    })
 
   return NextResponse.json({ results })
 }

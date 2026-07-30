@@ -9,6 +9,8 @@ import {
   LoaderCircle,
   Medal,
   Shield,
+  ShieldAlert,
+  Star,
   Trophy,
   UserRound,
   UserRoundX,
@@ -19,6 +21,7 @@ import { usePlayerPanel } from "@/contexts/player-context"
 import { cn } from "@/lib/utils"
 import type {
   PlayerSeasonStats,
+  SidelinedEntry,
   Transfer,
   Trophy as TrophyType,
 } from "@/lib/types"
@@ -26,6 +29,13 @@ import type {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+const POS_LABEL: Record<string, string> = {
+  Goalkeeper: "Kaleci",
+  Defender: "Defans",
+  Midfielder: "Orta Saha",
+  Attacker: "Forvet",
+}
 
 function SectionHeader({
   icon,
@@ -71,18 +81,22 @@ function StatBar({
   value,
   max,
   accent = false,
+  suffix,
 }: {
   label: string
   value: number
   max: number
   accent?: boolean
+  suffix?: string
 }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between text-xs">
         <span className="text-muted-foreground">{label}</span>
-        <span className="font-semibold tabular-nums text-foreground">{value}</span>
+        <span className="font-semibold tabular-nums text-foreground">
+          {value}{suffix ?? ""}
+        </span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
         <div
@@ -92,13 +106,6 @@ function StatBar({
       </div>
     </div>
   )
-}
-
-const POS_LABEL: Record<string, string> = {
-  Goalkeeper: "Kaleci",
-  Defender: "Defans",
-  Midfielder: "Orta Saha",
-  Attacker: "Forvet",
 }
 
 // ---------------------------------------------------------------------------
@@ -115,10 +122,18 @@ function SeasonStatsSection({ stats }: { stats: PlayerSeasonStats[] }) {
   const goals = s.goals ?? 0
   const assists = s.assists ?? 0
   const appearances = s.appearances ?? 0
+  const lineups = s.lineups ?? 0
   const minutes = s.minutes ?? 0
   const yellow = s.yellowCards ?? 0
   const red = s.redCards ?? 0
   const rating = s.rating ? parseFloat(s.rating) : null
+  const shotsTotal = s.shotsTotal ?? 0
+  const shotsOn = s.shotsOn ?? 0
+  const passesTotal = s.passesTotal ?? 0
+  const passAccuracy = s.passesAccuracy ? parseFloat(s.passesAccuracy) : null
+  const tacklesTotal = s.tacklesTotal ?? 0
+  const dribblesAttempted = s.dribblesAttempted ?? 0
+  const dribblesSuccess = s.dribblesSuccess ?? 0
 
   return (
     <div className="flex flex-col gap-1">
@@ -146,6 +161,7 @@ function SeasonStatsSection({ stats }: { stats: PlayerSeasonStats[] }) {
                   )}
                 >
                   {st.season}/{String(st.season + 1).slice(2)}
+                  {st.league.name ? ` · ${st.league.name}` : ""}
                 </button>
               ))}
             </div>
@@ -176,36 +192,56 @@ function SeasonStatsSection({ stats }: { stats: PlayerSeasonStats[] }) {
           </div>
 
           {/* Key numbers */}
-          <div className="mb-4 flex items-center justify-around rounded-lg bg-secondary/50 py-3">
+          <div className="mb-4 grid grid-cols-4 gap-1 rounded-lg bg-secondary/50 py-3">
             {[
               { label: "Gol", value: goals, color: "text-primary" },
               { label: "Asist", value: assists, color: "text-accent-foreground" },
               { label: "Maç", value: appearances, color: "text-foreground" },
+              { label: "11'de", value: lineups, color: "text-muted-foreground" },
             ].map(({ label, value, color }) => (
               <div key={label} className="flex flex-col items-center gap-0.5">
-                <span className={cn("text-2xl font-extrabold tabular-nums", color)}>{value}</span>
+                <span className={cn("text-xl font-extrabold tabular-nums", color)}>{value}</span>
                 <span className="text-[10px] text-muted-foreground">{label}</span>
               </div>
             ))}
           </div>
 
-          {/* Bars */}
+          {/* Stat bars */}
           <div className="flex flex-col gap-3">
-            <StatBar label="Oynanan dakika" value={minutes} max={Math.max(minutes, 3420)} />
-            {s.shotsTotal != null && (
-              <StatBar label="Şut (isabetli)" value={s.shotsOn ?? 0} max={Math.max(s.shotsTotal, 1)} accent />
-            )}
-            {s.passesTotal != null && (
-              <StatBar label="Pas (toplam)" value={s.passesTotal} max={Math.max(s.passesTotal, 1000)} />
-            )}
-            {s.tacklesTotal != null && (
-              <StatBar label="Top kapma" value={s.tacklesTotal} max={Math.max(s.tacklesTotal, 100)} accent />
-            )}
-            {s.dribblesAttempted != null && s.dribblesAttempted > 0 && (
+            <StatBar
+              label="Oynanan dakika"
+              value={minutes}
+              max={Math.max(minutes, 3420)}
+              suffix=" dk"
+            />
+            {shotsTotal > 0 && (
               <StatBar
-                label={`Dribling (${s.dribblesSuccess ?? 0}/${s.dribblesAttempted})`}
-                value={s.dribblesSuccess ?? 0}
-                max={s.dribblesAttempted}
+                label={`Şut isabeti (${shotsOn}/${shotsTotal})`}
+                value={shotsOn}
+                max={shotsTotal}
+                accent
+              />
+            )}
+            {passesTotal > 0 && (
+              <StatBar
+                label={`Pas${passAccuracy != null ? ` (${passAccuracy.toFixed(0)}% isabet)` : ""}`}
+                value={passesTotal}
+                max={Math.max(passesTotal, 1000)}
+              />
+            )}
+            {tacklesTotal > 0 && (
+              <StatBar
+                label="Top kapma"
+                value={tacklesTotal}
+                max={Math.max(tacklesTotal, 100)}
+                accent
+              />
+            )}
+            {dribblesAttempted > 0 && (
+              <StatBar
+                label={`Dribling (${dribblesSuccess}/${dribblesAttempted})`}
+                value={dribblesSuccess}
+                max={dribblesAttempted}
               />
             )}
           </div>
@@ -229,6 +265,71 @@ function SeasonStatsSection({ stats }: { stats: PlayerSeasonStats[] }) {
               )}
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Sidelined / Injury History Section
+// ---------------------------------------------------------------------------
+
+function SidelinedSection({ sidelined }: { sidelined: SidelinedEntry[] }) {
+  const [open, setOpen] = useState(false)
+  if (sidelined.length === 0) return null
+
+  function formatDate(d: string | null): string {
+    if (!d) return "?"
+    return new Date(d).toLocaleDateString("tr-TR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })
+  }
+
+  function durationDays(start: string | null, end: string | null): string | null {
+    if (!start || !end) return null
+    const diff = Math.round(
+      (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24),
+    )
+    if (diff < 0) return null
+    return `${diff} gün`
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <SectionHeader
+        icon={<ShieldAlert className="h-3.5 w-3.5" />}
+        title="Sakatlık / Ceza Geçmişi"
+        open={open}
+        onToggle={() => setOpen((p) => !p)}
+        badge={sidelined.length}
+      />
+      {open && (
+        <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-card p-4">
+          {sidelined.map((s, i) => {
+            const dur = durationDays(s.start, s.end)
+            return (
+              <div
+                key={i}
+                className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs"
+              >
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="truncate font-medium text-foreground">{s.type}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {formatDate(s.start)}
+                    {s.end ? ` – ${formatDate(s.end)}` : " – devam"}
+                  </span>
+                </div>
+                {dur && (
+                  <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    {dur}
+                  </span>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
@@ -300,7 +401,9 @@ function TrophiesSection({ trophies }: { trophies: TrophyType[] }) {
   if (trophies.length === 0) return null
 
   const won = trophies.filter((t) => t.place === "Winner")
-  const runnerUp = trophies.filter((t) => t.place === "Runner-up" || t.place === "2nd Place")
+  const runnerUp = trophies.filter(
+    (t) => t.place === "Runner-up" || t.place === "2nd Place",
+  )
   const other = trophies.filter(
     (t) => t.place !== "Winner" && t.place !== "Runner-up" && t.place !== "2nd Place",
   )
@@ -327,7 +430,12 @@ function TrophiesSection({ trophies }: { trophies: TrophyType[] }) {
                     key={i}
                     className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs"
                   >
-                    <span className="font-medium text-foreground">{t.league}</span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium text-foreground">{t.league}</span>
+                      {t.country && (
+                        <span className="text-[10px] text-muted-foreground">{t.country}</span>
+                      )}
+                    </div>
                     <span className="tabular-nums text-muted-foreground">{t.season}</span>
                   </div>
                 ))}
@@ -345,7 +453,12 @@ function TrophiesSection({ trophies }: { trophies: TrophyType[] }) {
                     key={i}
                     className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-xs"
                   >
-                    <span className="font-medium text-foreground">{t.league}</span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium text-foreground">{t.league}</span>
+                      {t.country && (
+                        <span className="text-[10px] text-muted-foreground">{t.country}</span>
+                      )}
+                    </div>
                     <span className="tabular-nums text-muted-foreground">{t.season}</span>
                   </div>
                 ))}
@@ -365,7 +478,9 @@ function TrophiesSection({ trophies }: { trophies: TrophyType[] }) {
                   >
                     <div className="flex flex-col gap-0.5">
                       <span className="font-medium text-foreground">{t.league}</span>
-                      <span className="text-[10px] text-muted-foreground">{t.place}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {t.place}{t.country ? ` · ${t.country}` : ""}
+                      </span>
                     </div>
                     <span className="tabular-nums text-muted-foreground">{t.season}</span>
                   </div>
@@ -373,6 +488,133 @@ function TrophiesSection({ trophies }: { trophies: TrophyType[] }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Career Summary Section (tüm sezonların özeti)
+// ---------------------------------------------------------------------------
+
+function CareerSummarySection({ stats }: { stats: PlayerSeasonStats[] }) {
+  const [open, setOpen] = useState(false)
+  if (stats.length < 2) return null
+
+  const totals = stats.reduce(
+    (acc, s) => ({
+      goals: acc.goals + (s.goals ?? 0),
+      assists: acc.assists + (s.assists ?? 0),
+      appearances: acc.appearances + (s.appearances ?? 0),
+      minutes: acc.minutes + (s.minutes ?? 0),
+      yellow: acc.yellow + (s.yellowCards ?? 0),
+      red: acc.red + (s.redCards ?? 0),
+    }),
+    { goals: 0, assists: 0, appearances: 0, minutes: 0, yellow: 0, red: 0 },
+  )
+
+  return (
+    <div className="flex flex-col gap-1">
+      <SectionHeader
+        icon={<Star className="h-3.5 w-3.5" />}
+        title="Kariyer Özeti"
+        open={open}
+        onToggle={() => setOpen((p) => !p)}
+        badge={`${stats.length} sezon`}
+      />
+      {open && (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="mb-4 grid grid-cols-3 gap-1 rounded-lg bg-secondary/50 py-3">
+            {[
+              { label: "Toplam Gol", value: totals.goals, color: "text-primary" },
+              { label: "Toplam Asist", value: totals.assists, color: "text-accent-foreground" },
+              { label: "Toplam Maç", value: totals.appearances, color: "text-foreground" },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="flex flex-col items-center gap-0.5">
+                <span className={cn("text-xl font-extrabold tabular-nums", color)}>{value}</span>
+                <span className="text-center text-[10px] text-muted-foreground">{label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-col gap-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Toplam dakika</span>
+              <span className="font-semibold tabular-nums text-foreground">
+                {totals.minutes.toLocaleString("tr-TR")} dk
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Maç başı gol</span>
+              <span className="font-semibold tabular-nums text-foreground">
+                {totals.appearances > 0
+                  ? (totals.goals / totals.appearances).toFixed(2)
+                  : "–"}
+              </span>
+            </div>
+            {(totals.yellow > 0 || totals.red > 0) && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Kartlar</span>
+                <div className="flex items-center gap-2">
+                  {totals.yellow > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="inline-block h-3 w-2 rounded-[2px] bg-yellow-400" />
+                      <span className="tabular-nums text-foreground">{totals.yellow}</span>
+                    </div>
+                  )}
+                  {totals.red > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="inline-block h-3 w-2 rounded-[2px] bg-red-500" />
+                      <span className="tabular-nums text-foreground">{totals.red}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          {/* Sezon bazlı tablo */}
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
+                  <th className="pb-1.5 pr-2 font-medium">Sezon</th>
+                  <th className="pb-1.5 pr-2 font-medium">Takım</th>
+                  <th className="pb-1.5 px-2 text-center font-medium">M</th>
+                  <th className="pb-1.5 px-2 text-center font-medium">G</th>
+                  <th className="pb-1.5 pl-2 text-center font-medium">A</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {stats.map((s, i) => (
+                  <tr key={i} className="transition-colors hover:bg-secondary/50">
+                    <td className="py-1.5 pr-2 tabular-nums text-muted-foreground">
+                      {s.season}/{String(s.season + 1).slice(2)}
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <div className="flex items-center gap-1.5">
+                        {s.team.logo && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={s.team.logo} alt="" className="h-4 w-4 object-contain" />
+                        )}
+                        <span className="truncate font-medium text-foreground max-w-[80px]">
+                          {s.team.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-1.5 px-2 text-center tabular-nums text-muted-foreground">
+                      {s.appearances ?? "–"}
+                    </td>
+                    <td className="py-1.5 px-2 text-center tabular-nums font-bold text-primary">
+                      {s.goals ?? "–"}
+                    </td>
+                    <td className="py-1.5 pl-2 text-center tabular-nums text-accent-foreground">
+                      {s.assists ?? "–"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -412,10 +654,10 @@ export function PlayerPanel() {
             <img
               src={player.photo}
               alt={player.name}
-              className="h-11 w-11 rounded-full object-cover border border-border"
+              className="h-12 w-12 rounded-full object-cover border border-border"
             />
           ) : (
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary border border-border">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary border border-border">
               <UserRound className="h-5 w-5 text-muted-foreground" />
             </div>
           )}
@@ -423,7 +665,7 @@ export function PlayerPanel() {
             <h2 className="truncate text-base font-extrabold leading-tight text-foreground">
               {player.name}
             </h2>
-            {profile && (
+            {profile ? (
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                 {profile.nationality && <span>{profile.nationality}</span>}
                 {profile.age && (
@@ -438,13 +680,27 @@ export function PlayerPanel() {
                     <span>{POS_LABEL[profile.position] ?? profile.position}</span>
                   </>
                 )}
+                {profile.number != null && (
+                  <>
+                    <span className="text-border">·</span>
+                    <span>#{profile.number}</span>
+                  </>
+                )}
                 {profile.height && (
                   <>
                     <span className="text-border">·</span>
                     <span>{profile.height}</span>
                   </>
                 )}
+                {profile.weight && (
+                  <>
+                    <span className="text-border">·</span>
+                    <span>{profile.weight}</span>
+                  </>
+                )}
               </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Yükleniyor...</p>
             )}
           </div>
           <button
@@ -457,16 +713,14 @@ export function PlayerPanel() {
           </button>
         </div>
 
-        {/* Current club badge */}
+        {/* Current club banner */}
         {profile?.team && (
           <div className="flex items-center gap-2 border-b border-border bg-secondary/50 px-4 py-2 shrink-0">
             {profile.team.logo && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={profile.team.logo} alt="" className="h-4 w-4 object-contain" />
             )}
-            <span className="text-xs text-muted-foreground">
-              {profile.team.name}
-            </span>
+            <span className="text-xs text-muted-foreground">{profile.team.name}</span>
             {profile.league && (
               <>
                 <span className="text-border">·</span>
@@ -475,6 +729,10 @@ export function PlayerPanel() {
                   <img src={profile.league.logo} alt="" className="h-4 w-4 object-contain" />
                 )}
                 <span className="text-xs text-muted-foreground">{profile.league.name}</span>
+                <span className="text-border">·</span>
+                <span className="text-xs text-muted-foreground">
+                  {profile.league.season}/{String(profile.league.season + 1).slice(2)}
+                </span>
               </>
             )}
             {profile.injured && (
@@ -505,8 +763,10 @@ export function PlayerPanel() {
           {!loading && !error && data && (
             <div className="flex flex-col gap-4">
               <SeasonStatsSection stats={data.stats} />
+              <CareerSummarySection stats={data.stats} />
               {data.trophies.length > 0 && <TrophiesSection trophies={data.trophies} />}
               {data.transfers.length > 0 && <TransfersSection transfers={data.transfers} />}
+              {data.sidelined.length > 0 && <SidelinedSection sidelined={data.sidelined} />}
             </div>
           )}
         </div>
@@ -516,7 +776,7 @@ export function PlayerPanel() {
 }
 
 // ---------------------------------------------------------------------------
-// Reusable clickable player button
+// Reusable clickable player button (takım paneli gibi yerlerden tetiklenir)
 // ---------------------------------------------------------------------------
 
 export function PlayerButton({
