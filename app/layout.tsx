@@ -6,6 +6,8 @@ import { TeamProvider } from '@/contexts/team-context'
 import { TeamPanel } from '@/components/team-panel'
 import { LeagueProvider } from '@/contexts/league-context'
 import { LeaguePanel } from '@/components/league-panel'
+import { PlayerProvider } from '@/contexts/player-context'
+import { PlayerPanel } from '@/components/player-panel'
 import './globals.css'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
@@ -64,10 +66,13 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <LeagueProvider>
           <TeamProvider>
-            <NavTabs />
-            {children}
-            <TeamPanel />
-            <LeaguePanel />
+            <PlayerProvider>
+              <NavTabs />
+              {children}
+              <TeamPanel />
+              <LeaguePanel />
+              <PlayerPanel />
+            </PlayerProvider>
           </TeamProvider>
         </LeagueProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

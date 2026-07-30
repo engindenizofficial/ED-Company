@@ -4,8 +4,10 @@ import { LoaderCircle, Search, X } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTeamPanel } from "@/contexts/team-context"
 import { useLeaguePanel } from "@/contexts/league-context"
+import { usePlayerPanel } from "@/contexts/player-context"
 import type { TeamSearchResult } from "@/app/api/teams/search/route"
 import type { LeagueSearchResult } from "@/app/api/leagues/search/route"
+import type { PlayerSearchResult } from "@/app/api/players/search/route"
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value)
@@ -19,10 +21,12 @@ function useDebounce<T>(value: T, delay: number): T {
 export function TeamSearchBar() {
   const { openTeam } = useTeamPanel()
   const { openLeague } = useLeaguePanel()
+  const { openPlayer } = usePlayerPanel()
 
   const [query, setQuery] = useState("")
   const [teamResults, setTeamResults] = useState<TeamSearchResult[]>([])
   const [leagueResults, setLeagueResults] = useState<LeagueSearchResult[]>([])
+  const [playerResults, setPlayerResults] = useState<PlayerSearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
 
@@ -35,6 +39,7 @@ export function TeamSearchBar() {
     if (debouncedQuery.length < 2) {
       setTeamResults([])
       setLeagueResults([])
+      setPlayerResults([])
       setOpen(false)
       return
     }
@@ -47,17 +52,20 @@ export function TeamSearchBar() {
     Promise.all([
       fetch(`/api/teams/search?q=${q}`).then((r) => r.json()) as Promise<{ results: TeamSearchResult[] }>,
       fetch(`/api/leagues/search?q=${q}`).then((r) => r.json()) as Promise<{ results: LeagueSearchResult[] }>,
+      fetch(`/api/players/search?q=${q}`).then((r) => r.json()) as Promise<{ results: PlayerSearchResult[] }>,
     ])
-      .then(([teamData, leagueData]) => {
+      .then(([teamData, leagueData, playerData]) => {
         if (cancelled) return
         setTeamResults(teamData.results ?? [])
         setLeagueResults(leagueData.results ?? [])
+        setPlayerResults(playerData.results ?? [])
         setOpen(true)
       })
       .catch(() => {
         if (!cancelled) {
           setTeamResults([])
           setLeagueResults([])
+          setPlayerResults([])
         }
       })
       .finally(() => {
@@ -108,17 +116,31 @@ export function TeamSearchBar() {
     [openLeague],
   )
 
+  const handleSelectPlayer = useCallback(
+    (result: PlayerSearchResult) => {
+      openPlayer({ id: result.id, name: result.name, photo: result.photo })
+      setQuery("")
+      setTeamResults([])
+      setLeagueResults([])
+      setPlayerResults([])
+      setOpen(false)
+    },
+    [openPlayer],
+  )
+
   const handleClear = useCallback(() => {
     setQuery("")
     setTeamResults([])
     setLeagueResults([])
+    setPlayerResults([])
     setOpen(false)
     inputRef.current?.focus()
   }, [])
 
   const hasTeams = teamResults.length > 0
   const hasLeagues = leagueResults.length > 0
-  const hasAnyResults = hasTeams || hasLeagues
+  const hasPlayers = playerResults.length > 0
+  const hasAnyResults = hasTeams || hasLeagues || hasPlayers
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -134,9 +156,9 @@ export function TeamSearchBar() {
             // Odaklanınca sadece önceden sonuç varsa dropdown'ı aç
             if (teamResults.length > 0 || leagueResults.length > 0) setOpen(true)
           }}
-          placeholder="Takım / Lig ara..."
+          placeholder="Takım / Lig / Oyuncu ara..."
           className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-9 text-sm text-foreground outline-none transition-colors focus:border-primary"
-          aria-label="Takım veya lig ara"
+          aria-label="Takım, lig veya oyuncu ara"
           aria-expanded={open}
           aria-haspopup="listbox"
           autoComplete="off"
@@ -236,6 +258,45 @@ export function TeamSearchBar() {
                               <img src={r.flagUrl} alt="" className="h-3 w-4 rounded-[2px] object-cover" />
                             )}
                             <span className="truncate text-[11px] text-muted-foreground">{r.country}</span>
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </>
+              )}
+
+              {/* Oyuncular grubu */}
+              {hasPlayers && (
+                <>
+                  <li className={`px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground${hasTeams || hasLeagues ? " border-t border-border/60" : ""}`}>
+                    Oyuncular
+                  </li>
+                  {playerResults.map((r) => (
+                    <li key={`player-${r.id}`} role="option" className="border-t border-border/40 first:border-t-0">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPlayer(r)}
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-secondary"
+                      >
+                        {r.photo ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={r.photo} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover border border-border" />
+                        ) : (
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground">
+                            {r.name.charAt(0)}
+                          </div>
+                        )}
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate text-sm font-semibold text-foreground">{r.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            {r.teamLogo && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={r.teamLogo} alt="" className="h-3 w-3 object-contain" />
+                            )}
+                            <span className="truncate text-[11px] text-muted-foreground">
+                              {r.teamName ?? "Serbest"}{r.nationality ? ` · ${r.nationality}` : ""}
+                            </span>
                           </div>
                         </div>
                       </button>
