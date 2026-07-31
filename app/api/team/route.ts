@@ -28,7 +28,11 @@ async function apiFetch<T>(path: string, params: Record<string, string | number>
     })
     if (!res.ok) return []
     const json = await res.json()
-    return (json.response as T[]) ?? []
+    const r = json.response
+    // Bazı endpoint'ler (örn. /teams/statistics) array yerine object döndürür
+    if (Array.isArray(r)) return r as T[]
+    if (r && typeof r === "object") return [r] as T[]
+    return []
   } catch {
     return []
   }
@@ -73,29 +77,61 @@ export async function GET(request: Request) {
   }
 
   const season = currentSeason()
+  const prevSeason = season - 1
 
-  // Paralel çek: tüm veriler aynı anda isteniyor
+  // İlk tur: takım, kadro, son maçlar, standings, koç, kupalar, transferler
   const [
     teamRaw,
-    statsRaw,
     squadRaw,
     recentRaw,
     standingsRaw,
+    standingsRawPrev,
     coachRaw,
     trophiesRaw,
     transfersRaw,
-    topScorersRaw,
   ] = await Promise.all([
     apiFetch<any>("/teams", { id: teamId }),
-    apiFetch<any>("/teams/statistics", { team: teamId, season }),
     apiFetch<any>("/players/squads", { team: teamId }),
     apiFetch<RawFixture>("/fixtures", { team: teamId, last: 15 }),
     apiFetch<any>("/standings", { team: teamId, season }),
+    apiFetch<any>("/standings", { team: teamId, season: prevSeason }),
     apiFetch<any>("/coachs", { team: teamId }),
     apiFetch<any>("/trophies", { team: teamId }),
     apiFetch<any>("/transfers", { team: teamId }),
-    apiFetch<any>("/players/topscorers", { league: 0, season, team: teamId }).catch(() => []),
   ])
+
+  // Hangi standings'i kullanacağımızı belirle
+  const effectiveStandingsRaw = (standingsRaw?.length > 0) ? standingsRaw : standingsRawPrev
+  const effectiveStandingsSeason = (standingsRaw?.length > 0) ? season : prevSeason
+
+  // League ID'yi standings veya recent fixtures'dan al
+  let detectedLeagueId: number | null = null
+  if (effectiveStandingsRaw?.length > 0 && effectiveStandingsRaw[0]?.league?.id) {
+    detectedLeagueId = effectiveStandingsRaw[0].league.id
+  } else if (recentRaw?.length > 0) {
+    detectedLeagueId = recentRaw[0]?.league?.id ?? null
+  }
+
+  // İkinci tur: stats (league parametresiyle) ve top scorers
+  const [statsRaw, statsRawPrev, topScorersRaw, topScorersRawPrev] = await Promise.all([
+    detectedLeagueId
+      ? apiFetch<any>("/teams/statistics", { team: teamId, season: effectiveStandingsSeason, league: detectedLeagueId })
+      : apiFetch<any>("/teams/statistics", { team: teamId, season }),
+    detectedLeagueId
+      ? apiFetch<any>("/teams/statistics", { team: teamId, season: effectiveStandingsSeason - 1, league: detectedLeagueId })
+      : Promise.resolve([]),
+    detectedLeagueId
+      ? apiFetch<any>("/players/topscorers", { league: detectedLeagueId, season: effectiveStandingsSeason })
+      : Promise.resolve([]),
+    detectedLeagueId
+      ? apiFetch<any>("/players/topscorers", { league: detectedLeagueId, season: effectiveStandingsSeason - 1 })
+      : Promise.resolve([]),
+  ])
+
+  // Hangi sezonda stats verisi var belirle
+  const hasCurrentStats = !!(statsRaw?.[0] as any)?.fixtures?.played?.total
+  const effectiveSeason = hasCurrentStats ? effectiveStandingsSeason : effectiveStandingsSeason - 1
+  const effectiveStatsRaw = hasCurrentStats ? statsRaw : statsRawPrev
 
   if (!teamRaw || teamRaw.length === 0) {
     return NextResponse.json({ error: "Takım bulunamadı." }, { status: 404 })
@@ -118,7 +154,7 @@ export async function GET(request: Request) {
   }
 
   let teamStats: TeamSeasonStats | null = null
-  const s = statsRaw?.[0] as any
+  const s = effectiveStatsRaw?.[0] as any
   if (s?.fixtures) {
     const recentFinished = [...recentRaw]
       .filter(r => /FT|AET|PEN/.test(r.fixture.status.short))
@@ -164,7 +200,7 @@ export async function GET(request: Request) {
 
   // Standings
   const standings: StandingRow[] = []
-  for (const entry of standingsRaw ?? []) {
+  for (const entry of effectiveStandingsRaw ?? []) {
     const groups: any[][] = entry?.league?.standings ?? []
     for (const group of groups) {
       for (const row of group) {
@@ -232,26 +268,21 @@ export async function GET(request: Request) {
     .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""))
     .slice(0, 20)
 
-  // Top scorers — try from the league the team plays in
-  let topScorers: TeamTopScorer[] = []
-  // Try to get top scorers from the league the team is in
-  if (standings.length > 0 && standingsRaw?.[0]?.league?.id) {
-    const leagueId = standingsRaw[0].league.id
-    const leagueTopScorers = await apiFetch<any>("/players/topscorers", { league: leagueId, season })
-    topScorers = (leagueTopScorers ?? []).slice(0, 10).map((entry: any) => ({
-      player: { id: entry.player?.id ?? 0, name: entry.player?.name ?? "", photo: entry.player?.photo ?? null },
-      goals: entry.statistics?.[0]?.goals?.total ?? 0,
-      assists: entry.statistics?.[0]?.goals?.assists ?? 0,
-      appearances: entry.statistics?.[0]?.games?.appearences ?? 0,
-      rating: entry.statistics?.[0]?.games?.rating ?? null,
-      yellowCards: entry.statistics?.[0]?.cards?.yellow ?? 0,
-      redCards: entry.statistics?.[0]?.cards?.red ?? 0,
-      pos: entry.statistics?.[0]?.games?.position ?? null,
-    }))
-  }
+  // Top scorers — ikinci turdan gelen sonuçları kullan
+  const rawScorers = (topScorersRaw?.length > 0 ? topScorersRaw : topScorersRawPrev) ?? []
+  const topScorers: TeamTopScorer[] = rawScorers.slice(0, 10).map((entry: any) => ({
+    player: { id: entry.player?.id ?? 0, name: entry.player?.name ?? "", photo: entry.player?.photo ?? null },
+    goals: entry.statistics?.[0]?.goals?.total ?? 0,
+    assists: entry.statistics?.[0]?.goals?.assists ?? 0,
+    appearances: entry.statistics?.[0]?.games?.appearences ?? 0,
+    rating: entry.statistics?.[0]?.games?.rating ?? null,
+    yellowCards: entry.statistics?.[0]?.cards?.yellow ?? 0,
+    redCards: entry.statistics?.[0]?.cards?.red ?? 0,
+    pos: entry.statistics?.[0]?.games?.position ?? null,
+  }))
 
   const payload: TeamPageData = {
-    team, venue, currentSeason: season,
+    team, venue, currentSeason: effectiveSeason,
     stats: teamStats, squad: players,
     recentFixtures, standings,
     transfers, trophies, coach, topScorers,
