@@ -126,12 +126,14 @@ export function FixtureList({
               const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
               return (
                 <li key={f.id}>
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => onSelect(f)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(f) } }}
                     aria-pressed={active}
                     className={cn(
-                      "w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
+                      "w-full cursor-pointer rounded-lg border px-3 py-2.5 text-left transition-colors",
                       active
                         ? "border-primary bg-primary/10"
                         : "border-border bg-card hover:border-primary/40 hover:bg-secondary",
@@ -161,7 +163,7 @@ export function FixtureList({
 
                       </div>
                     </div>
-                  </button>
+                  </div>
                   {active ? (
                     <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-1.5 rounded-lg border border-primary/30 bg-card p-4">
                       {renderExpanded(f)}
