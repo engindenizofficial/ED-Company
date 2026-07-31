@@ -24,6 +24,10 @@ async function apiFetch<T>(path: string, params: Record<string, string | number>
   }
 }
 
+function currentSeason(): number {
+  const now = new Date()
+  return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -34,23 +38,18 @@ export async function GET(request: Request) {
 
   const season = currentSeason()
 
-  // playerRaw + yardımcı veriler paralel çek
-  const [playerRaw, playerRawPrev, trophiesRaw, transfersRaw, sidelinedRaw] = await Promise.all([
+  const [playerRaw, trophiesRaw, transfersRaw, sidelinedRaw] = await Promise.all([
     apiFetch<any>("/players", { id: playerId, season }),
-    apiFetch<any>("/players", { id: playerId, season: season - 1 }),
     apiFetch<any>("/trophies", { player: playerId }),
     apiFetch<any>("/transfers", { player: playerId }),
     apiFetch<any>("/sidelined", { player: playerId }),
   ])
 
-  // Mevcut sezonda veri yoksa bir öncekine düş
-  const effectivePlayerRaw = (playerRaw && playerRaw.length > 0) ? playerRaw : playerRawPrev
-
-  if (!effectivePlayerRaw || effectivePlayerRaw.length === 0) {
+  if (!playerRaw || playerRaw.length === 0) {
     return NextResponse.json({ error: "Oyuncu bulunamadı." }, { status: 404 })
   }
 
-  const entry = effectivePlayerRaw[0]
+  const entry = playerRaw[0]
   const p = entry.player ?? {}
 
   // Profile
@@ -82,10 +81,8 @@ export async function GET(request: Request) {
       : null,
   }
 
-  // Gerçek veri sezonunu belirle (profil hangi sezondaysa oradan başla)
-  const effectiveSeason = (playerRaw && playerRaw.length > 0) ? season : season - 1
-  // All seasons stats — fetch multiple seasons (last 5, effective season'dan geriye)
-  const seasons = [effectiveSeason, effectiveSeason - 1, effectiveSeason - 2, effectiveSeason - 3, effectiveSeason - 4]
+  // All seasons stats — fetch multiple seasons (last 5)
+  const seasons = [season, season - 1, season - 2, season - 3, season - 4]
   const allSeasonRaw = await Promise.all(
     seasons.map((s) => apiFetch<any>("/players", { id: playerId, season: s }))
   )

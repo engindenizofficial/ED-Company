@@ -16,6 +16,7 @@ const BASE_URL = "https://v3.football.api-sports.io"
 async function apiFetch<T>(
   path: string,
   params: Record<string, string | number>,
+  revalidate = 3600,
 ): Promise<T[]> {
   const key = process.env.API_FOOTBALL_KEY
   if (!key) return []
@@ -24,14 +25,11 @@ async function apiFetch<T>(
   try {
     const res = await fetch(`${BASE_URL}${path}?${search}`, {
       headers: { "x-apisports-key": key },
-      cache: "no-store",
+      next: { revalidate },
     })
     if (!res.ok) return []
     const json = await res.json()
-    const r = json.response
-    if (Array.isArray(r)) return r as T[]
-    if (r && typeof r === "object") return [r] as T[]
-    return []
+    return (json.response as T[]) ?? []
   } catch {
     return []
   }
