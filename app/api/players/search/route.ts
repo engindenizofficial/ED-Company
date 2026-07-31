@@ -4,28 +4,31 @@ export const dynamic = "force-dynamic"
 
 const BASE_URL = "https://v3.football.api-sports.io"
 
-// En iyi 20 lig — takım aramasıyla birebir aynı liste
+// Dünyanın en iyi 20 ligi + büyük yıldızların oynadığı ek ligler
 const TOP_LEAGUE_IDS = [
-  39,  // Premier League
-  140, // La Liga
-  135, // Serie A
-  78,  // Bundesliga
-  61,  // Ligue 1
-  203, // Süper Lig
-  2,   // Champions League
-  3,   // Europa League
-  848, // Conference League
-  88,  // Eredivisie
-  94,  // Primeira Liga
-  144, // Jupiler Pro League
-  179, // Scottish Premiership
+  39,  // Premier League (İngiltere)
+  140, // La Liga (İspanya)
+  135, // Serie A (İtalya)
+  78,  // Bundesliga (Almanya)
+  61,  // Ligue 1 (Fransa)
+  203, // Süper Lig (Türkiye)
+  88,  // Eredivisie (Hollanda)
+  94,  // Primeira Liga (Portekiz)
+  144, // Jupiler Pro League (Belçika)
+  179, // Scottish Premiership (İskoçya)
   197, // Super League (Yunanistan)
   207, // Super League (İsviçre)
-  235, // Premier Liga (Rusya)
-  253, // MLS
-  262, // Liga MX
+  253, // MLS (ABD)
+  262, // Liga MX (Meksika)
   71,  // Série A (Brezilya)
   128, // Liga Profesional (Arjantin)
+  307, // Saudi Pro League — Ronaldo, Benzema vb.
+  98,  // J1 League (Japonya)
+  169, // Ekstraklasa (Polonya)
+  235, // Premier Liga (Rusya)
+  2,   // UEFA Champions League
+  3,   // UEFA Europa League
+  848, // UEFA Conference League
 ]
 
 export interface PlayerSearchResult {
@@ -39,21 +42,31 @@ export interface PlayerSearchResult {
   teamLogo: string | null
 }
 
+// In-memory cache: arama sonuçlarını 10 dakika sakla (API rate limit koruması)
+const searchCache = new Map<string, { data: PlayerSearchResult[]; ts: number }>()
+const CACHE_TTL_MS = 10 * 60 * 1000 // 10 dakika
+
 function currentSeason(): number {
   const now = new Date()
-  return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
+  return now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
 }
 
-/**
- * Bir lig için oyuncu araması yapar.
- * /players?search=NAME&league=ID&season=YEAR — API-Football'un doğru arama endpoint'i.
- * next.revalidate ile 1 saat önbelleğe alınır.
- */
-async function searchPlayersInLeague(
+// Normalize: Türkçe + tüm aksan/diakritik karakterleri kaldır (é→e, ã→a, ñ→n vb.)
+function normalize(s: string): string {
+  return s
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g")
+    .replace(/ü/g, "u").replace(/ö/g, "o").replace(/ı/g, "i").replace(/İ/g, "i")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+}
+
+async function fetchPlayersFromAPI(
   q: string,
   leagueId: number,
   season: number,
-): Promise<PlayerSearchResult[]> {
+): Promise<any[]> {
   const key = process.env.API_FOOTBALL_KEY
   if (!key) return []
 
@@ -64,45 +77,69 @@ async function searchPlayersInLeague(
   })
 
   try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000)
     const res = await fetch(`${BASE_URL}/players?${params}`, {
       headers: { "x-apisports-key": key },
-      next: { revalidate: 3600 },
+      next: { revalidate: 600 }, // CDN/ISR cache: 10 dakika
+      signal: controller.signal,
     })
+    clearTimeout(timer)
     if (!res.ok) return []
     const json = await res.json()
-    const entries: any[] = json.response ?? []
-
-    return entries.map((entry) => {
-      const p = entry.player ?? {}
-      const firstStat = entry.statistics?.[0] ?? {}
-      return {
-        id: p.id ?? 0,
-        name: p.name ?? "",
-        photo: p.photo ?? null,
-        nationality: p.nationality ?? null,
-        age: p.age ?? null,
-        teamId: firstStat.team?.id ?? null,
-        teamName: firstStat.team?.name ?? null,
-        teamLogo: firstStat.team?.logo ?? null,
-      }
-    })
+    return json.response ?? []
   } catch {
     return []
   }
 }
 
-// Türkçe normalize: ş→s, ç→c, ğ→g, ü→u, ö→o, ı→i
-function normalizeTR(s: string): string {
-  return s
-    .toLocaleLowerCase("tr-TR")
-    .replace(/ş/g, "s")
-    .replace(/ç/g, "c")
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ö/g, "o")
-    .replace(/ı/g, "i")
-    .replace(/İ/g, "i")
-    .trim()
+function mapEntries(entries: any[]): PlayerSearchResult[] {
+  return entries.map((entry) => {
+    const p = entry.player ?? {}
+    const firstStat = entry.statistics?.[0] ?? {}
+    return {
+      id: p.id ?? 0,
+      name: p.name ?? "",
+      photo: p.photo ?? null,
+      nationality: p.nationality ?? null,
+      age: p.age ?? null,
+      teamId: firstStat.team?.id ?? null,
+      teamName: firstStat.team?.name ?? null,
+      teamLogo: firstStat.team?.logo ?? null,
+    }
+  })
+}
+
+async function searchPlayersInLeague(
+  q: string,
+  leagueId: number,
+  season: number,
+): Promise<PlayerSearchResult[]> {
+  let entries = await fetchPlayersFromAPI(q, leagueId, season)
+  // Mevcut sezonda sonuç yoksa bir önceki sezonu dene
+  if (entries.length === 0) {
+    entries = await fetchPlayersFromAPI(q, leagueId, season - 1)
+  }
+  return mapEntries(entries)
+}
+
+// Ligleri n'li gruplar halinde sırayla işle (rate limit koruması)
+async function searchInBatches(
+  q: string,
+  season: number,
+  batchSize = 8,
+): Promise<PlayerSearchResult[][]> {
+  const results: PlayerSearchResult[][] = []
+  for (let i = 0; i < TOP_LEAGUE_IDS.length; i += batchSize) {
+    const batch = TOP_LEAGUE_IDS.slice(i, i + batchSize)
+    const batchResults = await Promise.allSettled(
+      batch.map((leagueId) => searchPlayersInLeague(q, leagueId, season))
+    )
+    for (const r of batchResults) {
+      results.push(r.status === "fulfilled" ? r.value : [])
+    }
+  }
+  return results
 }
 
 export async function GET(req: NextRequest) {
@@ -112,28 +149,36 @@ export async function GET(req: NextRequest) {
   }
 
   const season = currentSeason()
+  const cacheKey = `${normalize(q)}:${season}`
 
-  // Tüm ligleri paralel sorgula — her biri kendi Next.js önbelleğiyle çalışır
-  const perLeague = await Promise.all(
-    TOP_LEAGUE_IDS.map((leagueId) => searchPlayersInLeague(q, leagueId, season))
-  )
+  // Cache'den dön
+  const cached = searchCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return NextResponse.json({ results: cached.data })
+  }
 
-  // Deduplikasyon ve Türkçe normalize filtreleme
-  const qNorm = normalizeTR(q)
+  const perLeague = await searchInBatches(q, season)
+
+  // Deduplikasyon + normalize filtrele
+  const qNorm = normalize(q)
   const seen = new Set<number>()
   const results: PlayerSearchResult[] = []
 
   for (const leaguePlayers of perLeague) {
     for (const p of leaguePlayers) {
       if (!p.id || seen.has(p.id)) continue
-      const nameNorm = normalizeTR(p.name)
-      if (!nameNorm.includes(qNorm)) continue
+      if (!normalize(p.name).includes(qNorm)) continue
       seen.add(p.id)
       results.push(p)
-      if (results.length >= 20) break
     }
-    if (results.length >= 20) break
   }
 
-  return NextResponse.json({ results })
+  const final = results.slice(0, 50)
+
+  // Sadece sonuç varsa cache'e yaz — boş sonucu cache'leme (rate limit geçici hataları için)
+  if (final.length > 0) {
+    searchCache.set(cacheKey, { data: final, ts: Date.now() })
+  }
+
+  return NextResponse.json({ results: final })
 }
