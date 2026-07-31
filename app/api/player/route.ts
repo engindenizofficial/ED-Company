@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import type { PlayerPageData, PlayerProfile, PlayerSeasonStats, SidelinedEntry, Transfer, Trophy } from "@/lib/types"
+import { currentSeason } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
 

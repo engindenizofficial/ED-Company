@@ -7,6 +7,7 @@ import type {
   StandingRow,
   TeamInfo,
 } from "@/lib/types"
+import { currentSeason } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
 
@@ -32,11 +33,6 @@ async function apiFetch<T>(
   } catch {
     return []
   }
-}
-
-function currentSeason(): number {
-  const now = new Date()
-  return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
 }
 
 interface RawFixture {
