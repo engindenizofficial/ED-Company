@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getCachedAllTeams, setCachedAllTeams } from "@/lib/redis"
 
 export const dynamic = "force-dynamic"
 
@@ -92,68 +93,52 @@ function normalizeTR(s: string): string {
     .trim()
 }
 
-export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get("q")?.trim() ?? ""
-  if (q.length < 2) {
-    return NextResponse.json({ results: [] })
-  }
+const LEAGUE_META: Record<number, { name: string; logo: string }> = {
+  2:   { name: "Champions League",         logo: "https://media.api-sports.io/football/leagues/2.png" },
+  3:   { name: "Europa League",            logo: "https://media.api-sports.io/football/leagues/3.png" },
+  848: { name: "Conference League",        logo: "https://media.api-sports.io/football/leagues/848.png" },
+  39:  { name: "Premier League",           logo: "https://media.api-sports.io/football/leagues/39.png" },
+  140: { name: "La Liga",                  logo: "https://media.api-sports.io/football/leagues/140.png" },
+  135: { name: "Serie A",                  logo: "https://media.api-sports.io/football/leagues/135.png" },
+  78:  { name: "Bundesliga",               logo: "https://media.api-sports.io/football/leagues/78.png" },
+  61:  { name: "Ligue 1",                  logo: "https://media.api-sports.io/football/leagues/61.png" },
+  94:  { name: "Primeira Liga",            logo: "https://media.api-sports.io/football/leagues/94.png" },
+  203: { name: "Süper Lig",               logo: "https://media.api-sports.io/football/leagues/203.png" },
+  88:  { name: "Eredivisie",               logo: "https://media.api-sports.io/football/leagues/88.png" },
+  235: { name: "Premier Liga",             logo: "https://media.api-sports.io/football/leagues/235.png" },
+  144: { name: "Jupiler Pro League",       logo: "https://media.api-sports.io/football/leagues/144.png" },
+  197: { name: "Super League",             logo: "https://media.api-sports.io/football/leagues/197.png" },
+  332: { name: "Ukrainian Premier League", logo: "https://media.api-sports.io/football/leagues/332.png" },
+  345: { name: "Czech Liga",               logo: "https://media.api-sports.io/football/leagues/345.png" },
+  119: { name: "Superliga",                logo: "https://media.api-sports.io/football/leagues/119.png" },
+  179: { name: "Scottish Premiership",     logo: "https://media.api-sports.io/football/leagues/179.png" },
+  106: { name: "Ekstraklasa",              logo: "https://media.api-sports.io/football/leagues/106.png" },
+  103: { name: "Eliteserien",              logo: "https://media.api-sports.io/football/leagues/103.png" },
+  218: { name: "Bundesliga",               logo: "https://media.api-sports.io/football/leagues/218.png" },
+  207: { name: "Super League",             logo: "https://media.api-sports.io/football/leagues/207.png" },
+  172: { name: "Super Liga",               logo: "https://media.api-sports.io/football/leagues/172.png" },
+}
 
-  const season = new Date().getFullYear()
-
-  // Tüm ligleri paralel sorgula
+/** 23 ligin tüm takımlarını API'den çekip döndürür (Redis cache yoksa). */
+async function fetchAllTeams(season: number): Promise<TeamSearchResult[]> {
   const promises = LEAGUE_IDS.map(async (leagueId) => {
     const raw = await apiFetch("/teams", { league: leagueId, season })
     return { leagueId, teams: raw }
   })
-
   const allLeagueResults = await Promise.all(promises)
 
-  // Lig metadata için ayrı bir istek atmıyoruz — fixture listesinde zaten var
-  // Lig adını ve logosunu API /leagues endpoint'inden çekmek yerine
-  // sabit bir map kullanıyoruz (daha hızlı, API limiti tüketmez)
-  const LEAGUE_META: Record<number, { name: string; logo: string }> = {
-    2:   { name: "Champions League",        logo: "https://media.api-sports.io/football/leagues/2.png" },
-    3:   { name: "Europa League",           logo: "https://media.api-sports.io/football/leagues/3.png" },
-    848: { name: "Conference League",       logo: "https://media.api-sports.io/football/leagues/848.png" },
-    39:  { name: "Premier League",          logo: "https://media.api-sports.io/football/leagues/39.png" },
-    140: { name: "La Liga",                 logo: "https://media.api-sports.io/football/leagues/140.png" },
-    135: { name: "Serie A",                 logo: "https://media.api-sports.io/football/leagues/135.png" },
-    78:  { name: "Bundesliga",              logo: "https://media.api-sports.io/football/leagues/78.png" },
-    61:  { name: "Ligue 1",                 logo: "https://media.api-sports.io/football/leagues/61.png" },
-    94:  { name: "Primeira Liga",           logo: "https://media.api-sports.io/football/leagues/94.png" },
-    203: { name: "Süper Lig",              logo: "https://media.api-sports.io/football/leagues/203.png" },
-    88:  { name: "Eredivisie",              logo: "https://media.api-sports.io/football/leagues/88.png" },
-    235: { name: "Premier Liga",            logo: "https://media.api-sports.io/football/leagues/235.png" },
-    144: { name: "Jupiler Pro League",      logo: "https://media.api-sports.io/football/leagues/144.png" },
-    197: { name: "Super League",            logo: "https://media.api-sports.io/football/leagues/197.png" },
-    332: { name: "Ukrainian Premier League",logo: "https://media.api-sports.io/football/leagues/332.png" },
-    345: { name: "Czech Liga",              logo: "https://media.api-sports.io/football/leagues/345.png" },
-    119: { name: "Superliga",               logo: "https://media.api-sports.io/football/leagues/119.png" },
-    179: { name: "Scottish Premiership",    logo: "https://media.api-sports.io/football/leagues/179.png" },
-    106: { name: "Ekstraklasa",             logo: "https://media.api-sports.io/football/leagues/106.png" },
-    103: { name: "Eliteserien",             logo: "https://media.api-sports.io/football/leagues/103.png" },
-    218: { name: "Bundesliga",              logo: "https://media.api-sports.io/football/leagues/218.png" },
-    207: { name: "Super League",            logo: "https://media.api-sports.io/football/leagues/207.png" },
-    172: { name: "Super Liga",              logo: "https://media.api-sports.io/football/leagues/172.png" },
-  }
-
-  const qNorm = normalizeTR(q)
   const seen = new Set<number>()
-  const results: TeamSearchResult[] = []
+  const all: TeamSearchResult[] = []
 
   for (const { leagueId, teams } of allLeagueResults) {
     const meta = LEAGUE_META[leagueId] ?? { name: `Lig ${leagueId}`, logo: "" }
     for (const entry of teams) {
       const t = entry.team
-      // Milli takımları atla
       if (t.national) continue
-      // Duplikasyon kontrolü (bir takım birden fazla ligde/kupada olabilir)
+      // Bir takım birden fazla ligde/kupada olabilir — öncelik ulusal lige ver (ID sırası)
       if (seen.has(t.id)) continue
-      // Eşleşme kontrolü
-      const nameNorm = normalizeTR(t.name)
-      if (!nameNorm.includes(qNorm)) continue
       seen.add(t.id)
-      results.push({
+      all.push({
         id: t.id,
         name: t.name,
         logo: t.logo,
@@ -164,7 +149,29 @@ export async function GET(req: NextRequest) {
       })
     }
   }
+  return all
+}
 
-  // En fazla 20 sonuç döndür
+export async function GET(req: NextRequest) {
+  const q = req.nextUrl.searchParams.get("q")?.trim() ?? ""
+  if (q.length < 2) {
+    return NextResponse.json({ results: [] })
+  }
+
+  const season = new Date().getFullYear()
+
+  // 1) Cache'den oku — yoksa API'den çekip yaz
+  let allTeams = await getCachedAllTeams(season)
+  if (!allTeams) {
+    allTeams = await fetchAllTeams(season)
+    if (allTeams.length > 0) {
+      await setCachedAllTeams(season, allTeams)
+    }
+  }
+
+  // 2) Lokal filtreleme — sıfır API isteği
+  const qNorm = normalizeTR(q)
+  const results = allTeams.filter((t) => normalizeTR(t.name).includes(qNorm))
+
   return NextResponse.json({ results: results.slice(0, 20) })
 }

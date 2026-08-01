@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis"
 import type { FixturePlayerStat, FixturesResponse, LiveMatchData } from "./types"
+import type { TeamSearchResult } from "@/app/api/teams/search/route"
 
 // Shared server-side store.
 
@@ -35,13 +36,14 @@ const K = {
   fixtures: (date: string) => `ed:fixtures:${date}`,
   live: (fixtureId: number) => `ed:live:${fixtureId}`,
   playerStats: (fixtureId: number) => `ed:fxplayers:${fixtureId}`,
-
+  allTeams: (season: number) => `ed:allteams:${season}`,
 }
 
 // TTLs (seconds) — tüm veriler 6 saat cache'de kalır, yalnızca kullanıcı yenile butonuna basınca güncellenir
 const FIXTURES_TTL = 60 * 60 * 6     // 6h
 const LIVE_TTL = 60 * 60 * 6         // 6h
 const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
+const ALL_TEAMS_TTL = 60 * 60 * 24 * 7 // 7 gün — kadro nadiren değişir
 
 
 // ---------------------------------------------------------------------------
@@ -110,6 +112,29 @@ export async function setCachedFixturePlayerStats(fixtureId: number, data: Fixtu
     await redis.set(K.playerStats(fixtureId), data, { ex: PLAYER_STATS_TTL })
   } catch (err) {
     console.log("[v0] redis setCachedFixturePlayerStats failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// All teams (tüm 23 ligin takım listesi — arama için)
+// ---------------------------------------------------------------------------
+
+export async function getCachedAllTeams(season: number): Promise<TeamSearchResult[] | null> {
+  if (!redis) return null
+  try {
+    return (await redis.get<TeamSearchResult[]>(K.allTeams(season))) ?? null
+  } catch (err) {
+    console.log("[v0] redis getCachedAllTeams failed:", err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+export async function setCachedAllTeams(season: number, data: TeamSearchResult[]): Promise<void> {
+  if (!redis) return
+  try {
+    await redis.set(K.allTeams(season), data, { ex: ALL_TEAMS_TTL })
+  } catch (err) {
+    console.log("[v0] redis setCachedAllTeams failed:", err instanceof Error ? err.message : err)
   }
 }
 
