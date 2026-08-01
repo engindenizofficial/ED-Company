@@ -20,19 +20,32 @@ import type {
 
 const BASE_URL = "https://v3.football.api-sports.io"
 
-// Popular leagues to surface first (API-Football league IDs)
+// Öncelikli ligler — sıralama bu listeye göre yapılır.
+// Tüm 23 aranabilir lig buraya dahil, dışarıdakiler arkaya atılır.
 export const FEATURED_LEAGUES = [
-  39, // Premier League
+  2,   // Champions League
+  3,   // Europa League
+  848, // Conference League
+  39,  // Premier League
   140, // La Liga
   135, // Serie A
-  78, // Bundesliga
-  61, // Ligue 1
+  78,  // Bundesliga
+  61,  // Ligue 1
+  94,  // Primeira Liga
   203, // Süper Lig
-  2, // Champions League
-  3, // Europa League
-  848, // Conference League
-  88, // Eredivisie
-  94, // Primeira Liga
+  88,  // Eredivisie
+  235, // Premier Liga (Rusya)
+  144, // Jupiler Pro League (Belçika)
+  197, // Super League (Yunanistan)
+  332, // Ukrainian Premier League
+  345, // Czech Liga
+  119, // Superliga (Danimarka)
+  179, // Scottish Premiership
+  106, // Ekstraklasa (Polonya)
+  103, // Eliteserien (Norveç)
+  218, // Bundesliga (Avusturya)
+  207, // Super League (İsviçre)
+  172, // Super Liga (Sırbistan)
 ]
 
 class ApiFootballError extends Error {
