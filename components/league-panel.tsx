@@ -552,3 +552,34 @@ export function LeaguePanel() {
     </div>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Reusable clickable league name / button
+// ---------------------------------------------------------------------------
+
+export function LeagueButton({
+  league,
+  children,
+  className,
+}: {
+  league: { id: number; name: string; logo: string; country: string; flagUrl: string | null }
+  children: React.ReactNode
+  className?: string
+}) {
+  const { openLeague } = useLeaguePanel()
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        openLeague(league)
+      }}
+      className={cn(
+        "cursor-pointer rounded transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className,
+      )}
+    >
+      {children}
+    </button>
+  )
+}

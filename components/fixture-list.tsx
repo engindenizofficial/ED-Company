@@ -2,6 +2,7 @@
 
 import { Clock } from "lucide-react"
 import { TeamButton } from "@/components/team-panel"
+import { LeagueButton } from "@/components/league-panel"
 import { cn } from "@/lib/utils"
 import type { Fixture } from "@/lib/types"
 
@@ -114,10 +115,13 @@ export function FixtureList({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={group.logo || "/placeholder.svg"} alt="" className="h-4 w-4 object-contain" />
             ) : null}
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <LeagueButton
+              league={{ id: group.id, name: group.name, logo: group.logo, country: group.country, flagUrl: null }}
+              className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary"
+            >
               {group.name}
               <span className="ml-1.5 font-normal text-muted-foreground/70">{group.country}</span>
-            </span>
+            </LeagueButton>
           </div>
           <ul className="flex flex-col gap-1.5">
             {group.items.map((f) => {
