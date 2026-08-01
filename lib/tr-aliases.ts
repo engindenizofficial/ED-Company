@@ -38,6 +38,48 @@ const COUNTRY_ALIASES: Record<string, string> = {
   world: "dünya",
 }
 
+// Map İngilizce ülke adı → görüntülenecek Türkçe karşılık
+const COUNTRY_TR_DISPLAY: Record<string, string> = {
+  England: "İngiltere",
+  Spain: "İspanya",
+  Germany: "Almanya",
+  Italy: "İtalya",
+  France: "Fransa",
+  Netherlands: "Hollanda",
+  Portugal: "Portekiz",
+  Turkey: "Türkiye",
+  Belgium: "Belçika",
+  Scotland: "İskoçya",
+  Greece: "Yunanistan",
+  Russia: "Rusya",
+  Brazil: "Brezilya",
+  Argentina: "Arjantin",
+  USA: "ABD",
+  Austria: "Avusturya",
+  Switzerland: "İsviçre",
+  Denmark: "Danimarka",
+  Sweden: "İsveç",
+  Norway: "Norveç",
+  Poland: "Polonya",
+  Ukraine: "Ukrayna",
+  Croatia: "Hırvatistan",
+  Serbia: "Sırbistan",
+  "Czech Republic": "Çekya",
+  Romania: "Romanya",
+  Ireland: "İrlanda",
+  "Saudi Arabia": "Suudi Arabistan",
+  Japan: "Japonya",
+  Mexico: "Meksika",
+  World: "Dünya",
+  Europe: "Avrupa",
+}
+
+/** Verilen İngilizce ülke adını Türkçe görüntüleme adına çevirir.
+ *  Eşleşme bulunamazsa orijinal değeri döndürür. */
+export function toTurkishCountry(country: string): string {
+  return COUNTRY_TR_DISPLAY[country] ?? country
+}
+
 const LEAGUE_ALIASES: Array<{ match: string; tr: string }> = [
   { match: "champions league", tr: "şampiyonlar ligi" },
   { match: "europa league", tr: "avrupa ligi" },

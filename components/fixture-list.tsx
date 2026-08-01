@@ -4,6 +4,7 @@ import { Clock } from "lucide-react"
 import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
 import { cn } from "@/lib/utils"
+import { toTurkishCountry } from "@/lib/tr-aliases"
 import type { Fixture } from "@/lib/types"
 
 function kickoff(iso: string): string {
@@ -120,7 +121,7 @@ export function FixtureList({
               className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary"
             >
               {group.name}
-              <span className="ml-1.5 font-normal text-muted-foreground/70">{group.country}</span>
+              <span className="ml-1.5 font-normal text-muted-foreground/70">{toTurkishCountry(group.country)}</span>
             </LeagueButton>
           </div>
           <ul className="flex flex-col gap-1.5">

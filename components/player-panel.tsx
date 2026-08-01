@@ -19,6 +19,7 @@ import {
 import { useState } from "react"
 import { usePlayerPanel } from "@/contexts/player-context"
 import { cn } from "@/lib/utils"
+import { toTurkishCountry } from "@/lib/tr-aliases"
 import type {
   PlayerSeasonStats,
   SidelinedEntry,
@@ -515,7 +516,7 @@ function TrophiesSection({ trophies }: { trophies: TrophyType[] }) {
                     <div className="flex flex-col gap-0.5">
                       <span className="font-medium text-foreground">{t.league}</span>
                       {t.country && (
-                        <span className="text-[10px] text-muted-foreground">{t.country}</span>
+                        <span className="text-[10px] text-muted-foreground">{toTurkishCountry(t.country)}</span>
                       )}
                     </div>
                     <span className="tabular-nums text-muted-foreground">{t.season}</span>
@@ -538,7 +539,7 @@ function TrophiesSection({ trophies }: { trophies: TrophyType[] }) {
                     <div className="flex flex-col gap-0.5">
                       <span className="font-medium text-foreground">{t.league}</span>
                       {t.country && (
-                        <span className="text-[10px] text-muted-foreground">{t.country}</span>
+                        <span className="text-[10px] text-muted-foreground">{toTurkishCountry(t.country)}</span>
                       )}
                     </div>
                     <span className="tabular-nums text-muted-foreground">{t.season}</span>
@@ -561,7 +562,7 @@ function TrophiesSection({ trophies }: { trophies: TrophyType[] }) {
                     <div className="flex flex-col gap-0.5">
                       <span className="font-medium text-foreground">{t.league}</span>
                       <span className="text-[10px] text-muted-foreground">
-                        {t.place}{t.country ? ` · ${t.country}` : ""}
+                        {t.place}{t.country ? ` · ${toTurkishCountry(t.country)}` : ""}
                       </span>
                     </div>
                     <span className="tabular-nums text-muted-foreground">{t.season}</span>

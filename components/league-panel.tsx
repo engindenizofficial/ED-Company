@@ -17,6 +17,7 @@ import { useState } from "react"
 import { useLeaguePanel } from "@/contexts/league-context"
 import { PlayerButton } from "@/components/player-panel"
 import { cn } from "@/lib/utils"
+import { toTurkishCountry } from "@/lib/tr-aliases"
 import type {
   Fixture,
   LeagueSeasonStats,
@@ -489,7 +490,7 @@ export function LeaguePanel() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={league.flagUrl} alt="" className="h-3 w-4 object-cover rounded-[2px]" />
               )}
-              <p className="text-xs text-muted-foreground">{league.country}</p>
+              <p className="text-xs text-muted-foreground">{toTurkishCountry(league.country)}</p>
             </div>
           </div>
           <button
