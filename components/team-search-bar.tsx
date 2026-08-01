@@ -6,6 +6,7 @@ import { useTeamPanel } from "@/contexts/team-context"
 import { useLeaguePanel } from "@/contexts/league-context"
 import type { TeamSearchResult } from "@/app/api/teams/search/route"
 import type { LeagueSearchResult } from "@/app/api/leagues/search/route"
+import { toTurkishCountry } from "@/lib/tr-aliases"
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value)
@@ -196,7 +197,7 @@ export function TeamSearchBar() {
                               <img src={r.leagueLogo} alt="" className="h-3 w-3 object-contain" />
                             )}
                             <span className="truncate text-[11px] text-muted-foreground">
-                              {r.leagueName}{r.country ? ` · ${r.country}` : ""}
+                              {r.leagueName}{r.country ? ` · ${toTurkishCountry(r.country)}` : ""}
                             </span>
                           </div>
                         </div>
