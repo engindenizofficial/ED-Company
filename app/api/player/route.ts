@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { toTurkishCountry } from "@/lib/tr-aliases"
 import type { PlayerPageData, PlayerProfile, PlayerSeasonStats, SidelinedEntry, Transfer, Trophy } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
       ? {
           id: currentStats.league.id,
           name: currentStats.league.name,
-          country: currentStats.league.country,
+          country: toTurkishCountry(currentStats.league.country),
           logo: currentStats.league.logo ?? "",
           season: currentStats.league.season,
         }
@@ -97,7 +98,7 @@ export async function GET(request: Request) {
           league: {
             id: stat.league?.id ?? 0,
             name: stat.league?.name ?? "",
-            country: stat.league?.country ?? "",
+            country: toTurkishCountry(stat.league?.country ?? ""),
             logo: stat.league?.logo ?? "",
           },
           appearances: stat.games?.appearences ?? null,
@@ -169,7 +170,7 @@ export async function GET(request: Request) {
   // Trophies
   const trophies: Trophy[] = (trophiesRaw ?? []).map((t: any) => ({
     league: t.league ?? "",
-    country: t.country ?? "",
+    country: toTurkishCountry(t.country ?? ""),
     season: t.season ?? "",
     place: t.place ?? "",
   }))

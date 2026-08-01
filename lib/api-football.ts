@@ -17,6 +17,7 @@ import type {
   Transfer,
   Trophy,
 } from "./types"
+import { toTurkishCountry } from "./tr-aliases"
 
 const BASE_URL = "https://v3.football.api-sports.io"
 
@@ -120,7 +121,7 @@ function mapFixture(r: RawFixture): Fixture {
     league: {
       id: r.league.id,
       name: r.league.name,
-      country: r.league.country,
+      country: toTurkishCountry(r.league.country),
       logo: r.league.logo,
       season: r.league.season,
       round: r.league.round,

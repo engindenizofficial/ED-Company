@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { toTurkishCountry } from "@/lib/tr-aliases"
 import type {
   Fixture,
   SquadPlayer,
@@ -58,7 +59,7 @@ function mapFixture(r: RawFixture): Fixture {
     id: r.fixture.id, date: r.fixture.date, timestamp: r.fixture.timestamp,
     status: r.fixture.status.long, statusShort: r.fixture.status.short,
     elapsed: r.fixture.status.elapsed ?? null, elapsedExtra: r.fixture.status.extra ?? null, venue: r.fixture.venue?.name ?? null,
-    league: { id: r.league.id, name: r.league.name, country: r.league.country, logo: r.league.logo, season: r.league.season, round: r.league.round },
+    league: { id: r.league.id, name: r.league.name, country: toTurkishCountry(r.league.country), logo: r.league.logo, season: r.league.season, round: r.league.round },
     home: { id: r.teams.home.id, name: r.teams.home.name, logo: r.teams.home.logo },
     away: { id: r.teams.away.id, name: r.teams.away.name, logo: r.teams.away.logo },
     goalsHome: r.goals.home, goalsAway: r.goals.away,
@@ -204,7 +205,7 @@ export async function GET(request: Request) {
   // Trophies
   const trophies: TeamTrophy[] = (trophiesRaw ?? []).map((t: any) => ({
     league: t.league ?? "",
-    country: t.country ?? "",
+    country: toTurkishCountry(t.country ?? ""),
     season: t.season ?? "",
     place: t.place ?? "",
   }))

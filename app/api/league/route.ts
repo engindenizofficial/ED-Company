@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { toTurkishCountry } from "@/lib/tr-aliases"
 import type {
   Fixture,
   LeaguePageData,
@@ -68,7 +69,7 @@ function mapFixture(r: RawFixture): Fixture {
     league: {
       id: r.league.id,
       name: r.league.name,
-      country: r.league.country,
+      country: toTurkishCountry(r.league.country),
       logo: r.league.logo,
       season: r.league.season,
       round: r.league.round,
@@ -108,7 +109,7 @@ export async function GET(request: Request) {
   const leagueInfo = {
     id: rawLeague.league?.id ?? leagueId,
     name: rawLeague.league?.name ?? "",
-    country: rawLeague.country?.name ?? "",
+    country: toTurkishCountry(rawLeague.country?.name ?? ""),
     logo: rawLeague.league?.logo ?? "",
     season,
     flagUrl: rawLeague.country?.flag ?? null,

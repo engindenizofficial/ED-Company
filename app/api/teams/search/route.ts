@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCachedAllTeams, setCachedAllTeams } from "@/lib/redis"
+import { toTurkishCountry } from "@/lib/tr-aliases"
 
 export const dynamic = "force-dynamic"
 
@@ -142,7 +143,7 @@ async function fetchAllTeams(season: number): Promise<TeamSearchResult[]> {
         id: t.id,
         name: t.name,
         logo: t.logo,
-        country: t.country,
+        country: toTurkishCountry(t.country),
         leagueId,
         leagueName: meta.name,
         leagueLogo: meta.logo,
