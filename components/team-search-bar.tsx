@@ -235,7 +235,7 @@ export function TeamSearchBar() {
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={r.flagUrl} alt="" className="h-3 w-4 rounded-[2px] object-cover" />
                             )}
-                            <span className="truncate text-[11px] text-muted-foreground">{r.country}</span>
+                            <span className="truncate text-[11px] text-muted-foreground">{toTurkishCountry(r.country)}</span>
                           </div>
                         </div>
                       </button>

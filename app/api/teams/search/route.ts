@@ -4,29 +4,31 @@ export const dynamic = "force-dynamic"
 
 const BASE_URL = "https://v3.football.api-sports.io"
 
-// En iyi 20 lig (API-Football league ID'leri) — milli takım ligleri hariç
+// Aranabilir ligler (API-Football league ID'leri) — milli takım ligleri hariç
 const TOP_LEAGUE_IDS = [
-  39,  // Premier League
-  140, // La Liga
-  135, // Serie A
-  78,  // Bundesliga
-  61,  // Ligue 1
-  203, // Süper Lig
   2,   // Champions League
   3,   // Europa League
   848, // Conference League
-  88,  // Eredivisie
-  94,  // Primeira Liga
-  144, // Jupiler Pro League (Belçika)
-  88,  // Eredivisie
-  179, // Scottish Premiership
-  197, // Super League (Yunanistan)
-  207, // Super League (İsviçre)
-  218, // Ligue Pro (Avusturya)
+  39,  // Premier League (İngiltere)
+  140, // La Liga (İspanya)
+  135, // Serie A (İtalya)
+  78,  // Bundesliga (Almanya)
+  61,  // Ligue 1 (Fransa)
+  94,  // Primeira Liga (Portekiz)
+  203, // Süper Lig (Türkiye)
+  88,  // Eredivisie (Hollanda)
   235, // Premier Liga (Rusya)
-  253, // Major League Soccer
-  262, // Liga MX
-  71,  // Série A (Brezilya)
+  144, // Jupiler Pro League (Belçika)
+  197, // Super League (Yunanistan)
+  332, // Ukrainian Premier League (Ukrayna)
+  345, // Czech Liga (Çekya)
+  119, // Superliga (Danimarka)
+  179, // Scottish Premiership (İskoçya)
+  106, // Ekstraklasa (Polonya)
+  103, // Eliteserien (Norveç)
+  218, // Bundesliga (Avusturya)
+  207, // Super League (İsviçre)
+  172, // Super Liga (Sırbistan)
 ]
 
 // Sadece benzersiz ID'ler
@@ -110,26 +112,29 @@ export async function GET(req: NextRequest) {
   // Lig adını ve logosunu API /leagues endpoint'inden çekmek yerine
   // sabit bir map kullanıyoruz (daha hızlı, API limiti tüketmez)
   const LEAGUE_META: Record<number, { name: string; logo: string }> = {
-    39: { name: "Premier League", logo: "https://media.api-sports.io/football/leagues/39.png" },
-    140: { name: "La Liga", logo: "https://media.api-sports.io/football/leagues/140.png" },
-    135: { name: "Serie A", logo: "https://media.api-sports.io/football/leagues/135.png" },
-    78: { name: "Bundesliga", logo: "https://media.api-sports.io/football/leagues/78.png" },
-    61: { name: "Ligue 1", logo: "https://media.api-sports.io/football/leagues/61.png" },
-    203: { name: "Süper Lig", logo: "https://media.api-sports.io/football/leagues/203.png" },
-    2: { name: "Champions League", logo: "https://media.api-sports.io/football/leagues/2.png" },
-    3: { name: "Europa League", logo: "https://media.api-sports.io/football/leagues/3.png" },
-    848: { name: "Conference League", logo: "https://media.api-sports.io/football/leagues/848.png" },
-    88: { name: "Eredivisie", logo: "https://media.api-sports.io/football/leagues/88.png" },
-    94: { name: "Primeira Liga", logo: "https://media.api-sports.io/football/leagues/94.png" },
-    144: { name: "Jupiler Pro League", logo: "https://media.api-sports.io/football/leagues/144.png" },
-    179: { name: "Scottish Premiership", logo: "https://media.api-sports.io/football/leagues/179.png" },
-    197: { name: "Super League", logo: "https://media.api-sports.io/football/leagues/197.png" },
-    207: { name: "Super League", logo: "https://media.api-sports.io/football/leagues/207.png" },
-    218: { name: "Bundesliga", logo: "https://media.api-sports.io/football/leagues/218.png" },
-    235: { name: "Premier Liga", logo: "https://media.api-sports.io/football/leagues/235.png" },
-    253: { name: "MLS", logo: "https://media.api-sports.io/football/leagues/253.png" },
-    262: { name: "Liga MX", logo: "https://media.api-sports.io/football/leagues/262.png" },
-    71: { name: "Série A", logo: "https://media.api-sports.io/football/leagues/71.png" },
+    2:   { name: "Champions League",        logo: "https://media.api-sports.io/football/leagues/2.png" },
+    3:   { name: "Europa League",           logo: "https://media.api-sports.io/football/leagues/3.png" },
+    848: { name: "Conference League",       logo: "https://media.api-sports.io/football/leagues/848.png" },
+    39:  { name: "Premier League",          logo: "https://media.api-sports.io/football/leagues/39.png" },
+    140: { name: "La Liga",                 logo: "https://media.api-sports.io/football/leagues/140.png" },
+    135: { name: "Serie A",                 logo: "https://media.api-sports.io/football/leagues/135.png" },
+    78:  { name: "Bundesliga",              logo: "https://media.api-sports.io/football/leagues/78.png" },
+    61:  { name: "Ligue 1",                 logo: "https://media.api-sports.io/football/leagues/61.png" },
+    94:  { name: "Primeira Liga",           logo: "https://media.api-sports.io/football/leagues/94.png" },
+    203: { name: "Süper Lig",              logo: "https://media.api-sports.io/football/leagues/203.png" },
+    88:  { name: "Eredivisie",              logo: "https://media.api-sports.io/football/leagues/88.png" },
+    235: { name: "Premier Liga",            logo: "https://media.api-sports.io/football/leagues/235.png" },
+    144: { name: "Jupiler Pro League",      logo: "https://media.api-sports.io/football/leagues/144.png" },
+    197: { name: "Super League",            logo: "https://media.api-sports.io/football/leagues/197.png" },
+    332: { name: "Ukrainian Premier League",logo: "https://media.api-sports.io/football/leagues/332.png" },
+    345: { name: "Czech Liga",              logo: "https://media.api-sports.io/football/leagues/345.png" },
+    119: { name: "Superliga",               logo: "https://media.api-sports.io/football/leagues/119.png" },
+    179: { name: "Scottish Premiership",    logo: "https://media.api-sports.io/football/leagues/179.png" },
+    106: { name: "Ekstraklasa",             logo: "https://media.api-sports.io/football/leagues/106.png" },
+    103: { name: "Eliteserien",             logo: "https://media.api-sports.io/football/leagues/103.png" },
+    218: { name: "Bundesliga",              logo: "https://media.api-sports.io/football/leagues/218.png" },
+    207: { name: "Super League",            logo: "https://media.api-sports.io/football/leagues/207.png" },
+    172: { name: "Super Liga",              logo: "https://media.api-sports.io/football/leagues/172.png" },
   }
 
   const qNorm = normalizeTR(q)
