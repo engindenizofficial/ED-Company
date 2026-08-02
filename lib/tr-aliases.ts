@@ -221,11 +221,12 @@ const COUNTRY_TR_DISPLAY: Record<string, string> = {
 }
 
 /** Verilen İngilizce ülke adını Türkçe görüntüleme adına çevirir.
- *  Büyük/küçük harf ve tire farkını tolere eder.
+ *  Büyük/küçük harf, tire ve fazladan boşluk farkını tolere eder.
  *  Eşleşme bulunamazsa orijinal değeri döndürür. */
 export function toTurkishCountry(country: string): string {
   if (!country) return country
-  const key = country.toLowerCase().trim()
+  // API bazen "Czech-Republic", "South-Korea", "El-Salvador" gibi tireli gönderir
+  const key = country.toLowerCase().trim().replace(/-/g, " ")
   return COUNTRY_TR_DISPLAY[key] ?? country
 }
 
@@ -253,7 +254,7 @@ export function buildSearchIndex(f: Fixture): string {
   const parts = [f.home.name, f.away.name, f.league.name, f.league.country]
   const base = parts.join(" ").toLocaleLowerCase("tr-TR")
 
-  const country = f.league.country.toLowerCase()
+  const country = f.league.country.toLowerCase().replace(/-/g, " ")
   const countryAlias = COUNTRY_ALIASES[country]
   if (countryAlias) parts.push(countryAlias)
 
