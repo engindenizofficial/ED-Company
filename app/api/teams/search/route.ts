@@ -60,6 +60,15 @@ export interface TeamSearchResult {
   leagueLogo: string
 }
 
+/** Türkiye saatiyle gece yarısına kadar kalan saniye. */
+function secondsUntilMidnightTR(): number {
+  const now = new Date()
+  const todayTR = now.toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
+  const midnight = new Date(`${todayTR}T00:00:00+03:00`)
+  midnight.setDate(midnight.getDate() + 1)
+  return Math.max(60, Math.floor((midnight.getTime() - now.getTime()) / 1000))
+}
+
 async function apiFetch(path: string, params: Record<string, string | number>): Promise<RawTeam[]> {
   const key = process.env.API_FOOTBALL_KEY
   if (!key) return []
@@ -70,7 +79,7 @@ async function apiFetch(path: string, params: Record<string, string | number>): 
   try {
     const res = await fetch(`${BASE_URL}${path}?${search}`, {
       headers: { "x-apisports-key": key },
-      next: { revalidate: 86400 }, // 24 saat cache — takım listesi nadiren değişir
+      next: { revalidate: secondsUntilMidnightTR() }, // TR gece yarısına kadar cache'le
     })
     if (!res.ok) return []
     const json = await res.json()
