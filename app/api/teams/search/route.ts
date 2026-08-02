@@ -133,19 +133,37 @@ const LEAGUE_META: Record<number, { name: string; logo: string }> = {
   286: { name: "Super Liga",               logo: "https://media.api-sports.io/football/leagues/286.png" },
 }
 
-/** 23 ligin tüm takımlarını API'den çekip döndürür (Redis cache yoksa).
+const BATCH_SIZE = 4
+const BATCH_DELAY_MS = 1200 // API-Football rate limit: ~30 req/min → 2s arayla güvenli
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms))
+}
+
+/** 23 ligin tüm takımlarını API'den batch batch çekip döndürür.
+ *  Promise.all ile hepsini aynı anda göndermek rate limit'i patlattığından
+ *  BATCH_SIZE'lık gruplar halinde, aralarında kısa beklemeyle çekilir.
  *  Her lig için önce currentSeason dener, boş gelirse bir önceki sezonu dener.
  */
 async function fetchAllTeams(season: number): Promise<TeamSearchResult[]> {
-  const promises = LEAGUE_IDS.map(async (leagueId) => {
-    let raw = await apiFetch("/teams", { league: leagueId, season })
-    // Bu lig için sezon henüz açılmamışsa bir önceki sezona fallback yap
-    if (raw.length === 0) {
-      raw = await apiFetch("/teams", { league: leagueId, season: season - 1 })
+  const allLeagueResults: { leagueId: number; teams: RawTeam[] }[] = []
+
+  for (let i = 0; i < LEAGUE_IDS.length; i += BATCH_SIZE) {
+    const batch = LEAGUE_IDS.slice(i, i + BATCH_SIZE)
+    const batchResults = await Promise.all(
+      batch.map(async (leagueId) => {
+        let raw = await apiFetch("/teams", { league: leagueId, season })
+        if (raw.length === 0) {
+          raw = await apiFetch("/teams", { league: leagueId, season: season - 1 })
+        }
+        return { leagueId, teams: raw }
+      })
+    )
+    allLeagueResults.push(...batchResults)
+    if (i + BATCH_SIZE < LEAGUE_IDS.length) {
+      await sleep(BATCH_DELAY_MS)
     }
-    return { leagueId, teams: raw }
-  })
-  const allLeagueResults = await Promise.all(promises)
+  }
 
   const seen = new Set<number>()
   const all: TeamSearchResult[] = []
