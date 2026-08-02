@@ -30,6 +30,8 @@ const COUNTRY_ALIASES: Record<string, string> = {
   croatia: "hırvatistan",
   serbia: "sırbistan",
   "czech-republic": "çekya çek cumhuriyeti",
+  "czech republic": "çekya çek cumhuriyeti",
+  "czechia": "çekya çek cumhuriyeti",
   romania: "romanya",
   ireland: "irlanda",
   "saudi-arabia": "suudi arabistan",
