@@ -1,5 +1,5 @@
 import { Redis } from "@upstash/redis"
-import type { FixturePlayerStat, FixturesResponse, LiveMatchData } from "./types"
+import type { FixturesResponse } from "./types"
 import type { TeamSearchResult } from "@/app/api/teams/search/route"
 
 // Shared server-side store.
@@ -34,16 +34,21 @@ try {
 
 const K = {
   fixtures: (date: string) => `ed:fixtures:${date}`,
-  live: (fixtureId: number) => `ed:live:${fixtureId}`,
-  playerStats: (fixtureId: number) => `ed:fxplayers:${fixtureId}`,
   allTeams: (season: number) => `ed:allteams:${season}`,
 }
 
-// TTLs (seconds) — tüm veriler 6 saat cache'de kalır, yalnızca kullanıcı yenile butonuna basınca güncellenir
-const FIXTURES_TTL = 60 * 60 * 6     // 6h
-const LIVE_TTL = 60 * 60 * 6         // 6h
-const PLAYER_STATS_TTL = 60 * 60 * 6 // 6h
-const ALL_TEAMS_TTL = 60 * 60 * 24 * 7 // 7 gün — kadro nadiren değişir
+// Fixtures: 6 saat
+const FIXTURES_TTL = 60 * 60 * 6
+
+/** allTeams için gece yarısı UTC+3'e kadar kalan süreyi saniye cinsinden döndürür. */
+function secondsUntilMidnightTR(): number {
+  const now = new Date()
+  // Istanbul gece yarısı
+  const midnight = new Date(now.toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" }))
+  midnight.setDate(midnight.getDate() + 1)
+  const msLeft = midnight.getTime() - now.getTime()
+  return Math.max(60, Math.floor(msLeft / 1000))
+}
 
 
 // ---------------------------------------------------------------------------
@@ -70,52 +75,6 @@ export async function setCachedFixtures(date: string, data: FixturesResponse): P
 }
 
 // ---------------------------------------------------------------------------
-// Live match data
-// ---------------------------------------------------------------------------
-
-export async function getCachedLive(fixtureId: number): Promise<LiveMatchData | null> {
-  if (!redis) return null
-  try {
-    return (await redis.get<LiveMatchData>(K.live(fixtureId))) ?? null
-  } catch (err) {
-    console.log("[v0] redis getCachedLive failed:", err instanceof Error ? err.message : err)
-    return null
-  }
-}
-
-export async function setCachedLive(fixtureId: number, data: LiveMatchData, ttl = LIVE_TTL): Promise<void> {
-  if (!redis) return
-  try {
-    await redis.set(K.live(fixtureId), data, { ex: ttl })
-  } catch (err) {
-    console.log("[v0] redis setCachedLive failed:", err instanceof Error ? err.message : err)
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Fixture player stats
-// ---------------------------------------------------------------------------
-
-export async function getCachedFixturePlayerStats(fixtureId: number): Promise<FixturePlayerStat[] | null> {
-  if (!redis) return null
-  try {
-    return (await redis.get<FixturePlayerStat[]>(K.playerStats(fixtureId))) ?? null
-  } catch (err) {
-    console.log("[v0] redis getCachedFixturePlayerStats failed:", err instanceof Error ? err.message : err)
-    return null
-  }
-}
-
-export async function setCachedFixturePlayerStats(fixtureId: number, data: FixturePlayerStat[]): Promise<void> {
-  if (!redis) return
-  try {
-    await redis.set(K.playerStats(fixtureId), data, { ex: PLAYER_STATS_TTL })
-  } catch (err) {
-    console.log("[v0] redis setCachedFixturePlayerStats failed:", err instanceof Error ? err.message : err)
-  }
-}
-
-// ---------------------------------------------------------------------------
 // All teams (tüm 23 ligin takım listesi — arama için)
 // ---------------------------------------------------------------------------
 
@@ -132,7 +91,7 @@ export async function getCachedAllTeams(season: number): Promise<TeamSearchResul
 export async function setCachedAllTeams(season: number, data: TeamSearchResult[]): Promise<void> {
   if (!redis) return
   try {
-    await redis.set(K.allTeams(season), data, { ex: ALL_TEAMS_TTL })
+    await redis.set(K.allTeams(season), data, { ex: secondsUntilMidnightTR() })
   } catch (err) {
     console.log("[v0] redis setCachedAllTeams failed:", err instanceof Error ? err.message : err)
   }
