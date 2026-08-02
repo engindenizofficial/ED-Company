@@ -91,7 +91,7 @@ export async function GET(request: Request) {
   const season = currentSeason()
 
   // Paralel olarak tüm veriyi çek
-  const [leagueRaw, standingsRaw, topScorersRaw, topAssistsRaw, recentRaw, upcomingRaw] =
+  const [leagueRaw, standingsRaw, topScorersRaw, topAssistsRaw, recentRaw, upcomingRaw, topYellowRaw, topRedRaw] =
     await Promise.all([
       apiFetch<any>("/leagues", { id: leagueId, season }),
       apiFetch<any>("/standings", { league: leagueId, season }),
@@ -99,6 +99,8 @@ export async function GET(request: Request) {
       apiFetch<any>("/players/topassists", { league: leagueId, season }),
       apiFetch<RawFixture>("/fixtures", { league: leagueId, season, last: 10 }),
       apiFetch<RawFixture>("/fixtures", { league: leagueId, season, next: 10 }),
+      apiFetch<any>("/players/topyellowcards", { league: leagueId, season }),
+      apiFetch<any>("/players/topredcards", { league: leagueId, season }),
     ])
 
   if (!leagueRaw || leagueRaw.length === 0) {
@@ -208,9 +210,13 @@ export async function GET(request: Request) {
     )
     const totalGoals = standings.reduce((s, r) => s + r.goalsFor, 0)
     const avgGoalsPerMatch = totalMatches > 0 ? totalGoals / totalMatches : 0
-    // Kart sayılarını topscorers'dan topla
-    const yellowCards = topScorers.reduce((s, p) => s + p.yellowCards, 0)
-    const redCards = topScorers.reduce((s, p) => s + p.redCards, 0)
+    // Kart sayılarını topyellowcards / topredcards listelerinden topla
+    const yellowCards = (topYellowRaw ?? []).reduce(
+      (s: number, e: any) => s + (e.statistics?.[0]?.cards?.yellow ?? 0), 0,
+    )
+    const redCards = (topRedRaw ?? []).reduce(
+      (s: number, e: any) => s + (e.statistics?.[0]?.cards?.red ?? 0), 0,
+    )
     seasonStats = {
       totalMatches,
       totalGoals,
