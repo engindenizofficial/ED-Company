@@ -22,7 +22,7 @@ const TOP_LEAGUE_IDS = [
   235, // Premier Liga (Rusya)
   144, // Jupiler Pro League (Belçika)
   197, // Super League (Yunanistan)
-  332, // Ukrainian Premier League (Ukrayna)
+  333, // Ukrainian Premier League (Ukrayna)
   345, // Czech Liga (Çekya)
   119, // Superliga (Danimarka)
   179, // Scottish Premiership (İskoçya)
@@ -30,7 +30,7 @@ const TOP_LEAGUE_IDS = [
   103, // Eliteserien (Norveç)
   218, // Bundesliga (Avusturya)
   207, // Super League (İsviçre)
-  172, // Super Liga (Sırbistan)
+  286, // Super Liga (Sırbistan)
 ]
 
 // Sadece benzersiz ID'ler
@@ -109,7 +109,7 @@ const LEAGUE_META: Record<number, { name: string; logo: string }> = {
   235: { name: "Premier Liga",             logo: "https://media.api-sports.io/football/leagues/235.png" },
   144: { name: "Jupiler Pro League",       logo: "https://media.api-sports.io/football/leagues/144.png" },
   197: { name: "Super League",             logo: "https://media.api-sports.io/football/leagues/197.png" },
-  332: { name: "Ukrainian Premier League", logo: "https://media.api-sports.io/football/leagues/332.png" },
+  333: { name: "Ukrainian Premier League", logo: "https://media.api-sports.io/football/leagues/333.png" },
   345: { name: "Czech Liga",               logo: "https://media.api-sports.io/football/leagues/345.png" },
   119: { name: "Superliga",                logo: "https://media.api-sports.io/football/leagues/119.png" },
   179: { name: "Scottish Premiership",     logo: "https://media.api-sports.io/football/leagues/179.png" },
@@ -117,7 +117,7 @@ const LEAGUE_META: Record<number, { name: string; logo: string }> = {
   103: { name: "Eliteserien",              logo: "https://media.api-sports.io/football/leagues/103.png" },
   218: { name: "Bundesliga",               logo: "https://media.api-sports.io/football/leagues/218.png" },
   207: { name: "Super League",             logo: "https://media.api-sports.io/football/leagues/207.png" },
-  172: { name: "Super Liga",               logo: "https://media.api-sports.io/football/leagues/172.png" },
+  286: { name: "Super Liga",               logo: "https://media.api-sports.io/football/leagues/286.png" },
 }
 
 /** 23 ligin tüm takımlarını API'den çekip döndürür (Redis cache yoksa). */
