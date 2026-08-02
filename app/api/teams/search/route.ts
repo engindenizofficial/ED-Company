@@ -6,11 +6,12 @@ export const dynamic = "force-dynamic"
 
 const BASE_URL = "https://v3.football.api-sports.io"
 
-// Aranabilir ligler (API-Football league ID'leri) — milli takım ligleri hariç
+// Aranabilir ligler (API-Football league ID'leri) — milli takım ligleri hariç.
+// ÖNEMLI: Ulusal ligler önce, Avrupa kupaları en sona.
+// seen-set mantığı nedeniyle ilk gelen ligde kaydedilen takım o lig etiketi
+// alır — bu yüzden ulusal ligler önde olmalı ki Liverpool "Premier League"
+// altında, Galatasaray "Süper Lig" altında görünsün.
 const TOP_LEAGUE_IDS = [
-  2,   // Champions League
-  3,   // Europa League
-  848, // Conference League
   39,  // Premier League (İngiltere)
   140, // La Liga (İspanya)
   135, // Serie A (İtalya)
@@ -31,6 +32,9 @@ const TOP_LEAGUE_IDS = [
   218, // Bundesliga (Avusturya)
   207, // Super League (İsviçre)
   286, // Super Liga (Sırbistan)
+  2,   // Champions League (ulusal ligde kaydedilemeyen takımlar için)
+  3,   // Europa League
+  848, // Conference League
 ]
 
 // Sadece benzersiz ID'ler
