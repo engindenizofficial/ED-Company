@@ -127,9 +127,9 @@ const TOP_LEAGUES: LeagueSearchResult[] = [
     aliases: ["yunanistan ligi"],
   },
   {
-    id: 332,
+    id: 333,
     name: "Ukrainian Premier League",
-    logo: "https://media.api-sports.io/football/leagues/332.png",
+    logo: "https://media.api-sports.io/football/leagues/333.png",
     country: "Ukrayna",
     flagUrl: "https://media.api-sports.io/flags/ua.svg",
     aliases: ["ukrayna ligi"],
@@ -191,9 +191,9 @@ const TOP_LEAGUES: LeagueSearchResult[] = [
     aliases: ["isvicre ligi", "İsviçre ligi"],
   },
   {
-    id: 172,
+    id: 286,
     name: "Super Liga",
-    logo: "https://media.api-sports.io/football/leagues/172.png",
+    logo: "https://media.api-sports.io/football/leagues/286.png",
     country: "Sırbistan",
     flagUrl: "https://media.api-sports.io/flags/rs.svg",
     aliases: ["sirbistan ligi", "sırbistan ligi"],

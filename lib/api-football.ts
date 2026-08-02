@@ -41,7 +41,7 @@ export const FEATURED_LEAGUE_IDS: number[] = [
   235, // Premier Liga (Russia)
   144, // Jupiler Pro League
   197, // Super League (Greece)
-  332, // Ukrainian Premier League
+  333, // Ukrainian Premier League
   345, // Czech Liga
   119, // Superliga (Denmark)
   179, // Scottish Premiership
@@ -49,7 +49,7 @@ export const FEATURED_LEAGUE_IDS: number[] = [
   103, // Eliteserien
   218, // Bundesliga (Austria)
   207, // Super League (Switzerland)
-  172, // Super Liga (Serbia)
+  286, // Super Liga (Serbia)
 ]
 
 /** Returns the priority rank for a league: 0 = highest (first in list), Infinity = not featured. */
