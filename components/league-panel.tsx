@@ -105,8 +105,6 @@ function SeasonOverviewSection({ stats }: { stats: LeagueSeasonStats }) {
     { label: "Oynanan Maç", value: stats.totalMatches.toLocaleString("tr-TR") },
     { label: "Toplam Gol", value: stats.totalGoals.toLocaleString("tr-TR") },
     { label: "Maç Başı Gol", value: stats.avgGoalsPerMatch.toFixed(2) },
-    { label: "Sarı Kart", value: stats.yellowCards.toLocaleString("tr-TR") },
-    { label: "Kırmızı Kart", value: stats.redCards.toLocaleString("tr-TR") },
   ]
   return (
     <div className="flex flex-col gap-1">
@@ -117,7 +115,7 @@ function SeasonOverviewSection({ stats }: { stats: LeagueSeasonStats }) {
         onToggle={() => setOpen((p) => !p)}
       />
       {open && (
-        <div className="grid grid-cols-3 gap-2 rounded-xl border border-border bg-card p-4 sm:grid-cols-5">
+        <div className="grid grid-cols-3 gap-2 rounded-xl border border-border bg-card p-4">
           {items.map(({ label, value }) => (
             <div key={label} className="flex flex-col items-center gap-0.5 rounded-lg bg-secondary/50 px-2 py-3">
               <span className="text-base font-extrabold tabular-nums text-foreground">{value}</span>
