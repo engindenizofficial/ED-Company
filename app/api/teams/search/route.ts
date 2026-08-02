@@ -133,10 +133,16 @@ const LEAGUE_META: Record<number, { name: string; logo: string }> = {
   286: { name: "Super Liga",               logo: "https://media.api-sports.io/football/leagues/286.png" },
 }
 
-/** 23 ligin tüm takımlarını API'den çekip döndürür (Redis cache yoksa). */
+/** 23 ligin tüm takımlarını API'den çekip döndürür (Redis cache yoksa).
+ *  Her lig için önce currentSeason dener, boş gelirse bir önceki sezonu dener.
+ */
 async function fetchAllTeams(season: number): Promise<TeamSearchResult[]> {
   const promises = LEAGUE_IDS.map(async (leagueId) => {
-    const raw = await apiFetch("/teams", { league: leagueId, season })
+    let raw = await apiFetch("/teams", { league: leagueId, season })
+    // Bu lig için sezon henüz açılmamışsa bir önceki sezona fallback yap
+    if (raw.length === 0) {
+      raw = await apiFetch("/teams", { league: leagueId, season: season - 1 })
+    }
     return { leagueId, teams: raw }
   })
   const allLeagueResults = await Promise.all(promises)
