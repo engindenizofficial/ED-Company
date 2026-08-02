@@ -22,65 +22,40 @@ import { toTurkishCountry } from "./tr-aliases"
 const BASE_URL = "https://v3.football.api-sports.io"
 
 // ---------------------------------------------------------------------------
-// League market-value ranking table
-// Approx. transfermarkt total squad value tiers (higher = more valuable).
-// Leagues not listed here fall back to score 0 (lowest priority).
+// Featured leagues — same order as the search bar (TOP_LEAGUES in leagues/search/route.ts)
+// Leagues in this list that have fixtures on a given day appear first,
+// in this exact order. All other leagues follow sorted by kick-off time.
 // ---------------------------------------------------------------------------
-export const LEAGUE_MARKET_VALUE: Record<number, number> = {
-  // Tier 1 — Top 5 + UEFA club comps
-  2: 9000,   // UEFA Champions League
-  3: 5500,   // UEFA Europa League
-  848: 3200, // UEFA Conference League
-  39: 8500,  // Premier League (England)
-  140: 7000, // La Liga (Spain)
-  135: 6500, // Serie A (Italy)
-  78: 6000,  // Bundesliga (Germany)
-  61: 5000,  // Ligue 1 (France)
+export const FEATURED_LEAGUE_IDS: number[] = [
+  2,   // Champions League
+  3,   // Europa League
+  848, // Conference League
+  39,  // Premier League
+  140, // La Liga
+  135, // Serie A
+  78,  // Bundesliga
+  61,  // Ligue 1
+  94,  // Primeira Liga
+  203, // Süper Lig
+  88,  // Eredivisie
+  235, // Premier Liga (Russia)
+  144, // Jupiler Pro League
+  197, // Super League (Greece)
+  332, // Ukrainian Premier League
+  345, // Czech Liga
+  119, // Superliga (Denmark)
+  179, // Scottish Premiership
+  106, // Ekstraklasa
+  103, // Eliteserien
+  218, // Bundesliga (Austria)
+  207, // Super League (Switzerland)
+  172, // Super Liga (Serbia)
+]
 
-  // Tier 2 — Strong European leagues
-  88: 2800,  // Eredivisie (Netherlands)
-  94: 2600,  // Primeira Liga (Portugal)
-  203: 2400, // Süper Lig (Turkey)
-  144: 2200, // Jupiler Pro League (Belgium)
-  179: 2000, // Scottish Premiership
-  106: 1800, // Ekstraklasa (Poland)
-  235: 1600, // Premier League (Russia)
-  218: 1500, // Super League (Greece)
-  207: 1400, // Super League (Switzerland)
-  113: 1400, // Allsvenskan (Sweden)
-  103: 1300, // Eliteserien (Norway)
-  119: 1300, // Superliga (Denmark)
-  345: 1200, // HNL (Croatia)
-  332: 1100, // SuperLiga (Serbia)
-  283: 1000, // Super Liga (Czech)
-  108: 1000, // Veikkausliiga (Finland)
-
-  // Tier 3 — Americas
-  13: 3000,  // Copa Libertadores
-  11: 2500,  // Copa Sudamericana
-  71: 3500,  // Brasileirão Serie A
-  128: 2200, // Liga Profesional (Argentina)
-  262: 2000, // Liga MX (Mexico)
-  253: 1800, // MLS (USA)
-
-  // Tier 4 — Asia / Middle East
-  307: 1500, // Saudi Pro League
-  188: 1200, // J1 League (Japan)
-  292: 1000, // K League 1 (South Korea)
-  169: 900,  // A-League (Australia)
-
-  // Tier 5 — National / International
-  1: 6000,   // World Cup
-  4: 4000,   // Euro Championship
-  5: 3000,   // UEFA Nations League
-  6: 2500,   // Africa Cup
-  10: 2000,  // Copa America
-  29: 1500,  // AFC Asian Cup
-}
-
-/** Returns the market-value score for a given league id (0 if unknown). */
-export function leagueMarketScore(leagueId: number): number {
-  return LEAGUE_MARKET_VALUE[leagueId] ?? 0
+/** Returns the priority rank for a league: 0 = highest (first in list), Infinity = not featured. */
+function featuredRank(leagueId: number): number {
+  const idx = FEATURED_LEAGUE_IDS.indexOf(leagueId)
+  return idx === -1 ? Infinity : idx
 }
 
 class ApiFootballError extends Error {
@@ -187,18 +162,16 @@ function mapFixture(r: RawFixture): Fixture {
 export async function getFixturesByDate(date: string): Promise<Fixture[]> {
   const MAX_FIXTURES = 200
 
-  // Fetch all fixtures for the day. Leagues are ranked by their market-value
-  // score from the LEAGUE_MARKET_VALUE table; no extra API call needed.
   const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: "Europe/Istanbul" }, 120)
 
   const fixtures = raw.map(mapFixture)
 
-  // Sort: higher market-value score first; within the same league sort by kick-off time.
+  // Sort: featured leagues first (in their defined order), then the rest by kick-off time.
   fixtures.sort((a, b) => {
-    const aScore = leagueMarketScore(a.league.id)
-    const bScore = leagueMarketScore(b.league.id)
-    if (bScore !== aScore) return bScore - aScore // higher score = first
-    return a.timestamp - b.timestamp // same score → earlier kick-off first
+    const aRank = featuredRank(a.league.id)
+    const bRank = featuredRank(b.league.id)
+    if (aRank !== bRank) return aRank - bRank // lower rank index = earlier
+    return a.timestamp - b.timestamp // same league group → earlier kick-off first
   })
 
   // Apply 200-match limit but never cut a league in half:
