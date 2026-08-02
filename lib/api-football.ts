@@ -166,12 +166,44 @@ export async function getFixturesByDate(date: string): Promise<Fixture[]> {
 
   const fixtures = raw.map(mapFixture)
 
-  // Sort: featured leagues first (in their defined order), then the rest by kick-off time.
+  // For non-featured leagues, compute each league's earliest kick-off time
+  // so we can sort leagues as a whole block rather than interleaving matches.
+  const leagueFirstKickoff = new Map<number, number>()
+  for (const f of fixtures) {
+    const rank = featuredRank(f.league.id)
+    if (rank === Infinity) {
+      const current = leagueFirstKickoff.get(f.league.id)
+      if (current === undefined || f.timestamp < current) {
+        leagueFirstKickoff.set(f.league.id, f.timestamp)
+      }
+    }
+  }
+
+  // Sort:
+  //  1. Featured leagues first, in their defined list order.
+  //  2. Non-featured leagues grouped together, ordered by the league's
+  //     earliest kick-off time (earlier leagues come first).
+  //  3. Within any league, matches are ordered by kick-off time.
   fixtures.sort((a, b) => {
     const aRank = featuredRank(a.league.id)
     const bRank = featuredRank(b.league.id)
-    if (aRank !== bRank) return aRank - bRank // lower rank index = earlier
-    return a.timestamp - b.timestamp // same league group → earlier kick-off first
+
+    // Both featured — keep list order, then kick-off within league
+    if (aRank !== Infinity && bRank !== Infinity) {
+      if (aRank !== bRank) return aRank - bRank
+      return a.timestamp - b.timestamp
+    }
+
+    // One featured, one not — featured always wins
+    if (aRank !== Infinity) return -1
+    if (bRank !== Infinity) return 1
+
+    // Both non-featured — sort by league's earliest kick-off, then individual time
+    const aLeagueTime = leagueFirstKickoff.get(a.league.id) ?? a.timestamp
+    const bLeagueTime = leagueFirstKickoff.get(b.league.id) ?? b.timestamp
+    if (aLeagueTime !== bLeagueTime) return aLeagueTime - bLeagueTime
+    if (a.league.id !== b.league.id) return a.league.id - b.league.id
+    return a.timestamp - b.timestamp
   })
 
   // Apply 200-match limit but never cut a league in half:
