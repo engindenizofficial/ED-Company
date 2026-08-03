@@ -188,17 +188,17 @@ export async function GET(request: Request) {
     }
   }
 
-  // Coach — en son start tarihi olan ve bu takımda aktif (end=null) olan kişiyi seç
+  // Coach — sadece bu takımda end=null VE en geç start tarihine sahip olan seçilir.
+  // Fallback yok: aktif kayıt yoksa coach=null döner (yanlış antrenör gösterilmez).
   let coach: TeamCoach | null = null
   const activeForTeam = (coachRaw ?? []).filter((c: any) =>
     (c.career ?? []).some((j: any) => j.team?.id === teamId && !j.end)
   )
-  // Aktif birden fazla varsa (yardımcı teknik vb.) en son start'a sahip olanı al
   const currentCoachRaw = activeForTeam.sort((a: any, b: any) => {
     const aStart = (a.career ?? []).find((j: any) => j.team?.id === teamId && !j.end)?.start ?? ""
     const bStart = (b.career ?? []).find((j: any) => j.team?.id === teamId && !j.end)?.start ?? ""
     return bStart.localeCompare(aStart)
-  })[0] ?? coachRaw?.[0]
+  })[0] ?? null
 
   if (currentCoachRaw) {
     coach = {
@@ -223,21 +223,27 @@ export async function GET(request: Request) {
     place: t.place ?? "",
   }))
 
-  // Transfers — tarih sıralı, çok katmanlı deduplication
+  // Transfers — tarih sıralı, yön-bağımsız deduplication
+  // API aynı transferi hem "gelen" hem "giden" entry olarak döndürebilir.
+  // Key'de from/to id'lerini sıralı kullanarak yönden bağımsız hale getiriyoruz.
   const seenTransferKeys = new Set<string>()
   const allTransfers: TeamTransfer[] = []
   for (const entry of transfersRaw ?? []) {
     const player = entry.player ?? {}
+    const normalName = (player.name ?? "").toLowerCase().replace(/\s+/g, "")
     for (const tx of entry.transfers ?? []) {
-      // player.name (ID bazen farklı olabilir) + tarih + from + to
-      const key = `${(player.name ?? "").toLowerCase().replace(/\s+/g, "")}-${tx.date ?? ""}-${tx.teams?.out?.id ?? 0}-${tx.teams?.in?.id ?? 0}`
+      const fromId = tx.teams?.out?.id ?? 0
+      const toId = tx.teams?.in?.id ?? 0
+      // from/to çiftini sıralı tut → A→B ile B→A aynı key üretir
+      const pairKey = [fromId, toId].sort((a, b) => a - b).join("-")
+      const key = `${normalName}-${tx.date ?? ""}-${pairKey}`
       if (seenTransferKeys.has(key)) continue
       seenTransferKeys.add(key)
       allTransfers.push({
         date: tx.date ?? null,
         type: tx.type ?? "",
-        teamFrom: { id: tx.teams?.out?.id ?? 0, name: tx.teams?.out?.name ?? "", logo: tx.teams?.out?.logo ?? "" },
-        teamTo: { id: tx.teams?.in?.id ?? 0, name: tx.teams?.in?.name ?? "", logo: tx.teams?.in?.logo ?? "" },
+        teamFrom: { id: fromId, name: tx.teams?.out?.name ?? "", logo: tx.teams?.out?.logo ?? "" },
+        teamTo: { id: toId, name: tx.teams?.in?.name ?? "", logo: tx.teams?.in?.logo ?? "" },
         player: { id: player.id ?? 0, name: player.name ?? "", photo: player.photo ?? null },
       })
     }
