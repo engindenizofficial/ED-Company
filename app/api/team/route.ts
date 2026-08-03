@@ -163,29 +163,42 @@ export async function GET(request: Request) {
     .slice(0, 15)
     .map(mapFixture)
 
-  // Standings
+  // Standings — her entry için league adını referans group olarak kullan (tutarsız row.group yerine)
   const standings: StandingRow[] = []
+  const seenStandingKeys = new Set<string>()
   for (const entry of standingsRaw ?? []) {
+    const leagueName: string = entry?.league?.name ?? ""
     const groups: any[][] = entry?.league?.standings ?? []
     for (const group of groups) {
       for (const row of group) {
+        // Aynı takım+lig kombinasyonunu bir kez ekle
+        const sKey = `${row.team?.id ?? 0}-${leagueName}`
+        if (seenStandingKeys.has(sKey)) continue
+        seenStandingKeys.add(sKey)
+        // group label: birden fazla grup varsa (UCL gibi) row.group, tek grupsa leagueName
+        const groupLabel = groups.length > 1 && row.group ? row.group : leagueName
         standings.push({
           rank: row.rank, team: row.team?.name ?? "", teamId: row.team?.id ?? 0,
           points: row.points ?? 0, played: row.all?.played ?? 0,
           win: row.all?.win ?? 0, draw: row.all?.draw ?? 0, lose: row.all?.lose ?? 0,
           goalsFor: row.all?.goals?.for ?? 0, goalsAgainst: row.all?.goals?.against ?? 0,
-          form: row.form ?? null, group: row.group ?? entry?.league?.name ?? "",
+          form: row.form ?? null, group: groupLabel,
         })
       }
     }
   }
 
-  // Coach
+  // Coach — en son start tarihi olan ve bu takımda aktif (end=null) olan kişiyi seç
   let coach: TeamCoach | null = null
-  const currentCoachRaw = coachRaw?.find((c: any) => {
-    const career = c.career ?? []
-    return career.some((j: any) => j.team?.id === teamId && !j.end)
-  }) ?? coachRaw?.[0]
+  const activeForTeam = (coachRaw ?? []).filter((c: any) =>
+    (c.career ?? []).some((j: any) => j.team?.id === teamId && !j.end)
+  )
+  // Aktif birden fazla varsa (yardımcı teknik vb.) en son start'a sahip olanı al
+  const currentCoachRaw = activeForTeam.sort((a: any, b: any) => {
+    const aStart = (a.career ?? []).find((j: any) => j.team?.id === teamId && !j.end)?.start ?? ""
+    const bStart = (b.career ?? []).find((j: any) => j.team?.id === teamId && !j.end)?.start ?? ""
+    return bStart.localeCompare(aStart)
+  })[0] ?? coachRaw?.[0]
 
   if (currentCoachRaw) {
     coach = {
@@ -210,14 +223,14 @@ export async function GET(request: Request) {
     place: t.place ?? "",
   }))
 
-  // Transfers — son 20 transfer, tarih sıralı, duplikasyon olmadan
+  // Transfers — tarih sıralı, çok katmanlı deduplication
   const seenTransferKeys = new Set<string>()
   const allTransfers: TeamTransfer[] = []
   for (const entry of transfersRaw ?? []) {
     const player = entry.player ?? {}
     for (const tx of entry.transfers ?? []) {
-      // Aynı oyuncu + aynı tarih + aynı from+to kombinasyonu için tekrar ekleme
-      const key = `${player.id}-${tx.date ?? ""}-${tx.teams?.out?.id ?? 0}-${tx.teams?.in?.id ?? 0}`
+      // player.name (ID bazen farklı olabilir) + tarih + from + to
+      const key = `${(player.name ?? "").toLowerCase().replace(/\s+/g, "")}-${tx.date ?? ""}-${tx.teams?.out?.id ?? 0}-${tx.teams?.in?.id ?? 0}`
       if (seenTransferKeys.has(key)) continue
       seenTransferKeys.add(key)
       allTransfers.push({
@@ -231,7 +244,7 @@ export async function GET(request: Request) {
   }
   const transfers = allTransfers
     .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""))
-    .slice(0, 20)
+    .slice(0, 25)
 
   // Top scorers — try from the league the team plays in
   let topScorers: TeamTopScorer[] = []

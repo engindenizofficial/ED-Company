@@ -159,7 +159,9 @@ function SeasonStatsSection({ stats }: { stats: TeamSeasonStats }) {
 function FormSection({ stats }: { stats: TeamSeasonStats }) {
   const [open, setOpen] = useState(true)
   const recent = stats.recent.slice(0, 6)
-  if (recent.length === 0) return null
+  // formString'den gelen son 6 harfi de fallback olarak tut
+  const formCharsFromString = stats.formString ? stats.formString.slice(-6).split("") : []
+  if (recent.length === 0 && formCharsFromString.length === 0) return null
   return (
     <section className="flex flex-col gap-1">
       <SectionHeader
@@ -170,9 +172,14 @@ function FormSection({ stats }: { stats: TeamSeasonStats }) {
       />
       {open && (
         <div className="rounded-2xl border border-border/70 bg-card p-4 flex flex-col gap-3">
-          {/* Form dots row */}
+          {/* Form dots row — maç detayı yoksa sadece formString'den göster */}
           <div className="flex items-center gap-1.5">
-            {recent.map((g, i) => <FormDot key={i} result={g.result} />)}
+            {recent.length > 0
+              ? recent.map((g, i) => <FormDot key={i} result={g.result} />)
+              : formCharsFromString.map((ch, i) => (
+                  <FormDot key={i} result={ch as "W" | "D" | "L"} />
+                ))
+            }
           </div>
           {/* Match rows */}
           <div className="flex flex-col gap-1">
@@ -707,8 +714,8 @@ function TransfersSection({ transfers, teamId }: { transfers: TeamTransfer[]; te
                 <ArrowDownLeft className="h-3 w-3 text-primary" />
                 Gelenler ({incoming.length})
               </p>
-              {incoming.map((t, i) => (
-                <TransferRow key={i} transfer={t} direction="in" />
+              {incoming.map((t) => (
+                <TransferRow key={`in-${t.player.id}-${t.date}-${t.teamFrom.id}`} transfer={t} direction="in" />
               ))}
             </div>
           )}
@@ -718,8 +725,8 @@ function TransfersSection({ transfers, teamId }: { transfers: TeamTransfer[]; te
                 <ArrowUpRight className="h-3 w-3 text-destructive" />
                 Gidenler ({outgoing.length})
               </p>
-              {outgoing.map((t, i) => (
-                <TransferRow key={i} transfer={t} direction="out" />
+              {outgoing.map((t) => (
+                <TransferRow key={`out-${t.player.id}-${t.date}-${t.teamTo.id}`} transfer={t} direction="out" />
               ))}
             </div>
           )}
@@ -806,6 +813,16 @@ function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direc
 export function TeamPanel() {
   const { panel, closeTeam } = useTeamPanel()
   if (!panel) return null
+  return <TeamPanelInner key={panel.team.id} closeTeam={closeTeam} panel={panel} />
+}
+
+function TeamPanelInner({
+  panel,
+  closeTeam,
+}: {
+  panel: { team: { id: number; name: string; logo: string }; data: TeamPageData | null; loading: boolean; error: string | null }
+  closeTeam: () => void
+}) {
   const { team, data, loading, error } = panel
 
   return (
@@ -825,21 +842,8 @@ export function TeamPanel() {
       {/* Panel */}
       <div className="relative z-10 flex w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-border/60 bg-background shadow-2xl max-h-[92dvh] sm:mx-4 sm:rounded-3xl sm:max-h-[90vh]">
 
-        {/* Header — venue image as blurred background if available */}
+        {/* Header */}
         <div className="relative shrink-0 overflow-hidden">
-          {data?.venue.image && (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={data.venue.image}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover opacity-[0.12] blur-sm scale-110"
-                aria-hidden="true"
-              />
-              <div className="absolute inset-0 bg-gradient-to-b from-card/60 to-card" aria-hidden="true" />
-            </>
-          )}
-
           <div className="relative flex items-center gap-4 border-b border-border/60 px-5 py-4">
             {/* Logo */}
             {team.logo ? (
@@ -925,6 +929,33 @@ export function TeamPanel() {
 
           {!loading && !error && data && (
             <div className="flex flex-col gap-2">
+              {/* Venue image — shown only if available */}
+              {data.venue.image && (
+                <div className="overflow-hidden rounded-2xl border border-border/70">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={data.venue.image}
+                    alt={data.venue.name ?? "Stadyum"}
+                    className="w-full h-40 object-cover"
+                  />
+                  {data.venue.name && (
+                    <div className="flex items-center justify-between gap-2 bg-card px-3 py-2">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="text-xs font-semibold text-foreground">{data.venue.name}</span>
+                        {data.venue.city && (
+                          <span className="text-[11px] text-muted-foreground">· {data.venue.city}</span>
+                        )}
+                      </div>
+                      {data.venue.capacity != null && (
+                        <span className="shrink-0 rounded-lg border border-border bg-secondary px-2 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
+                          {data.venue.capacity.toLocaleString("tr-TR")} kişi
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               {data.stats && <SeasonStatsSection stats={data.stats} />}
               {data.stats && <FormSection stats={data.stats} />}
               {data.coach && <CoachSection coach={data.coach} />}
