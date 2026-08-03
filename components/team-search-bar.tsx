@@ -121,11 +121,21 @@ export function TeamSearchBar() {
   const hasLeagues = leagueResults.length > 0
   const hasAnyResults = hasTeams || hasLeagues
 
+  const isActive = open && debouncedQuery.length >= 2
+
   return (
     <div ref={containerRef} className="relative w-full">
-      {/* Input */}
+      {/* Input wrapper — pill shape, inset icon, focus ring via outline */}
       <label className="relative flex items-center">
-        <Search className="pointer-events-none absolute left-3.5 h-3.5 w-3.5 text-muted-foreground" />
+        {/* Left icon */}
+        <span className="pointer-events-none absolute left-3.5 flex h-full items-center">
+          {loading ? (
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin text-primary" />
+          ) : (
+            <Search className={`h-3.5 w-3.5 transition-colors ${query.length > 0 ? "text-primary" : "text-muted-foreground/60"}`} />
+          )}
+        </span>
+
         <input
           ref={inputRef}
           type="search"
@@ -135,116 +145,155 @@ export function TeamSearchBar() {
             if (teamResults.length > 0 || leagueResults.length > 0) setOpen(true)
           }}
           placeholder="Takım veya lig ara..."
-          className="w-full rounded-xl border border-border/70 bg-card py-2.5 pl-10 pr-9 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/50 focus:border-primary focus:ring-0"
+          className="
+            w-full rounded-xl border bg-secondary/50 py-2.5 pl-10 pr-10
+            text-sm font-medium text-foreground outline-none
+            placeholder:font-normal placeholder:text-muted-foreground/45
+            transition-all duration-150
+            border-border/50
+            focus:border-primary/60 focus:bg-card focus:shadow-sm
+            [&::-webkit-search-cancel-button]:hidden
+          "
           aria-label="Takım veya lig ara"
-          aria-expanded={open}
+          aria-expanded={isActive}
           aria-haspopup="listbox"
           autoComplete="off"
         />
-        {loading ? (
-          <LoaderCircle className="pointer-events-none absolute right-3 h-4 w-4 animate-spin text-muted-foreground" />
-        ) : query.length > 0 ? (
+
+        {/* Right: clear button */}
+        {query.length > 0 && !loading && (
           <button
             type="button"
             onClick={handleClear}
-            className="absolute right-3 flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+            className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-full bg-border/60 text-muted-foreground transition-all hover:bg-border hover:text-foreground"
             aria-label="Aramayı temizle"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-3 w-3" />
           </button>
-        ) : null}
+        )}
       </label>
 
       {/* Dropdown */}
-      {open && debouncedQuery.length >= 2 && (
+      {isActive && (
         <div
           role="listbox"
           aria-label="Arama sonuçları"
-          className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-80 overflow-y-auto rounded-xl border border-border/60 bg-card/95 shadow-xl backdrop-blur-md"
+          className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-border/60 bg-card/98 shadow-2xl backdrop-blur-xl"
         >
           {!hasAnyResults && !loading ? (
-            <div className="px-4 py-4 text-center text-sm text-muted-foreground">
-              {`"${query}" için sonuç bulunamadı.`}
+            <div className="flex flex-col items-center gap-1.5 px-4 py-8 text-center">
+              <Search className="h-5 w-5 text-muted-foreground/30" />
+              <p className="text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">{`"${query}"`}</span> için sonuç bulunamadı
+              </p>
             </div>
           ) : (
-            <ul className="flex flex-col">
-              {/* Takımlar grubu */}
+            <ul className="flex flex-col py-1.5">
+              {/* Takımlar */}
               {hasTeams && (
                 <>
-                  <li className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Takımlar
+                  <li className="flex items-center gap-2 px-3.5 py-2">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">
+                      Takımlar
+                    </span>
+                    <span className="h-px flex-1 bg-border/50" />
+                    <span className="text-[10px] tabular-nums text-muted-foreground/40">{teamResults.length}</span>
                   </li>
                   {teamResults.map((r) => (
-                    <li key={`team-${r.id}`} role="option" className="border-t border-border/40 first:border-t-0">
+                    <li key={`team-${r.id}`} role="option">
                       <button
                         type="button"
                         onClick={() => handleSelectTeam(r)}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-secondary"
+                        className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-secondary/70"
                       >
-                        {r.logo ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={r.logo} alt="" className="h-7 w-7 shrink-0 object-contain" />
-                        ) : (
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground">
-                            {r.name.charAt(0)}
-                          </div>
-                        )}
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate text-sm font-semibold text-foreground">{r.name}</span>
+                        {/* Logo */}
+                        <div className="relative h-8 w-8 shrink-0">
+                          {r.logo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={r.logo} alt="" className="h-8 w-8 object-contain" />
+                          ) : (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-[11px] font-black text-muted-foreground">
+                              {r.name.charAt(0)}
+                            </div>
+                          )}
+                        </div>
+                        {/* Info */}
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="truncate text-[13px] font-semibold text-foreground group-hover:text-primary transition-colors">
+                            {r.name}
+                          </span>
                           <div className="flex items-center gap-1.5">
                             {r.leagueLogo && (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={r.leagueLogo} alt="" className="h-3 w-3 object-contain" />
+                              <img src={r.leagueLogo} alt="" className="h-3 w-3 object-contain opacity-70" />
                             )}
-                            <span className="truncate text-[11px] text-muted-foreground">
+                            <span className="truncate text-[11px] text-muted-foreground/70">
                               {r.leagueName}{r.country ? ` · ${toTurkishCountry(r.country)}` : ""}
                             </span>
                           </div>
                         </div>
+                        {/* Arrow hint */}
+                        <span className="shrink-0 text-[10px] text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100">
+                          →
+                        </span>
                       </button>
                     </li>
                   ))}
                 </>
               )}
 
-              {/* Ligler grubu */}
+              {/* Ligler */}
               {hasLeagues && (
                 <>
-                  <li className={`px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground${hasTeams ? " border-t border-border/60" : ""}`}>
-                    Ligler
+                  <li className={`flex items-center gap-2 px-3.5 py-2${hasTeams ? " mt-1 border-t border-border/40 pt-3" : ""}`}>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">
+                      Ligler
+                    </span>
+                    <span className="h-px flex-1 bg-border/50" />
+                    <span className="text-[10px] tabular-nums text-muted-foreground/40">{leagueResults.length}</span>
                   </li>
                   {leagueResults.map((r) => (
-                    <li key={`league-${r.id}`} role="option" className="border-t border-border/40 first:border-t-0">
+                    <li key={`league-${r.id}`} role="option">
                       <button
                         type="button"
                         onClick={() => handleSelectLeague(r)}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-secondary"
+                        className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-secondary/70"
                       >
-                        {r.logo ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={r.logo} alt="" className="h-7 w-7 shrink-0 object-contain" />
-                        ) : (
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground">
-                            {r.name.charAt(0)}
-                          </div>
-                        )}
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate text-sm font-semibold text-foreground">{r.name}</span>
+                        {/* Logo */}
+                        <div className="relative h-8 w-8 shrink-0">
+                          {r.logo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={r.logo} alt="" className="h-8 w-8 object-contain" />
+                          ) : (
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-[11px] font-black text-muted-foreground">
+                              {r.name.charAt(0)}
+                            </div>
+                          )}
+                        </div>
+                        {/* Info */}
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="truncate text-[13px] font-semibold text-foreground group-hover:text-primary transition-colors">
+                            {r.name}
+                          </span>
                           <div className="flex items-center gap-1.5">
                             {r.flagUrl && (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={r.flagUrl} alt="" className="h-3 w-4 rounded-[2px] object-cover" />
+                              <img src={r.flagUrl} alt="" className="h-3 w-4 rounded-sm object-cover opacity-80" />
                             )}
-                            <span className="truncate text-[11px] text-muted-foreground">{toTurkishCountry(r.country)}</span>
+                            <span className="truncate text-[11px] text-muted-foreground/70">
+                              {toTurkishCountry(r.country)}
+                            </span>
                           </div>
                         </div>
+                        {/* Arrow hint */}
+                        <span className="shrink-0 text-[10px] text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100">
+                          →
+                        </span>
                       </button>
                     </li>
                   ))}
                 </>
               )}
-
-
             </ul>
           )}
         </div>
