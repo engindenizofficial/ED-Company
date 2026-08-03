@@ -108,23 +108,28 @@ export function FixtureList({
   const groups = groupByLeague(fixtures)
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       {groups.map((group) => (
-        <div key={group.id} className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 px-1">
+        <div key={group.id} className="flex flex-col gap-1.5">
+          {/* League header */}
+          <div className="flex items-center gap-2.5 px-1 pb-1">
             {group.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={group.logo || "/placeholder.svg"} alt="" className="h-4 w-4 object-contain" />
+              <img src={group.logo || "/placeholder.svg"} alt="" className="h-[18px] w-[18px] object-contain opacity-90" />
             ) : null}
             <LeagueButton
               league={{ id: group.id, name: group.name, logo: group.logo, country: group.country, flagUrl: null }}
-              className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary"
+              className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground hover:text-primary transition-colors"
             >
               {group.name}
-              <span className="ml-1.5 font-normal text-muted-foreground/70">{toTurkishCountry(group.country)}</span>
+              <span className="ml-1.5 font-normal opacity-60">{toTurkishCountry(group.country)}</span>
             </LeagueButton>
+            <div className="ml-auto h-px flex-1 bg-border/60" />
+            <span className="text-[10px] tabular-nums text-muted-foreground/50">{group.items.length}</span>
           </div>
-          <ul className="flex flex-col gap-1.5">
+
+          {/* Fixture cards */}
+          <ul className="flex flex-col gap-1">
             {group.items.map((f) => {
               const active = f.id === selectedId
               const live = isLive(f.statusShort)
@@ -136,39 +141,51 @@ export function FixtureList({
                     onClick={() => onSelect(f)}
                     aria-pressed={active}
                     className={cn(
-                      "w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
+                      "group w-full rounded-xl border px-4 py-3 text-left transition-all duration-150",
                       active
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-card hover:border-primary/40 hover:bg-secondary",
+                        ? "border-primary/60 bg-primary/[0.07] shadow-sm"
+                        : "border-border/70 bg-card hover:border-border hover:bg-card/80",
                     )}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex items-center gap-4">
+                      {/* Teams column */}
+                      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                         <TeamRow id={f.home.id} name={f.home.name} logo={f.home.logo} goals={f.goalsHome} played={played} />
                         <TeamRow id={f.away.id} name={f.away.name} logo={f.away.logo} goals={f.goalsAway} played={played} />
                       </div>
 
-                      <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1 tabular-nums">
-                          <Clock className="h-3 w-3" />
-                          {kickoff(f.date)}
-                        </span>
-                        {live ? (
-                          <span className="flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-destructive">
-                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
-                            {liveText(f)}
-                          </span>
-                        ) : played ? (
-                          <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium">
-                            {statusLabel(f.statusShort)}
-                          </span>
-                        ) : null}
+                      {/* Divider */}
+                      <div className="h-9 w-px bg-border/50" />
 
+                      {/* Status column */}
+                      <div className="flex w-16 shrink-0 flex-col items-center gap-1">
+                        {live ? (
+                          <>
+                            <span className="flex items-center gap-1 text-[10px] font-bold tabular-nums text-destructive">
+                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
+                              CANLI
+                            </span>
+                            <span className="text-[11px] font-semibold tabular-nums text-foreground">{liveText(f)}</span>
+                          </>
+                        ) : played ? (
+                          <>
+                            <span className="text-[10px] font-medium text-muted-foreground/60">Tamamlandı</span>
+                            <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{statusLabel(f.statusShort)}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-[10px] text-muted-foreground/60">Başlangıç</span>
+                            <span className="flex items-center gap-1 text-[13px] font-bold tabular-nums text-foreground">
+                              <Clock className="h-3 w-3 text-muted-foreground" />
+                              {kickoff(f.date)}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </button>
                   {active ? (
-                    <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-1.5 rounded-lg border border-primary/30 bg-card p-4">
+                    <div className="animate-in fade-in slide-in-from-top-1 duration-200 mt-1 rounded-xl border border-primary/30 bg-card/80 p-4 backdrop-blur-sm">
                       {renderExpanded(f)}
                     </div>
                   ) : null}
@@ -196,18 +213,22 @@ function TeamRow({
   played: boolean
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2.5">
       {logo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={logo || "/placeholder.svg"} alt="" className="h-4 w-4 shrink-0 object-contain" />
-      ) : null}
+        <img src={logo || "/placeholder.svg"} alt="" className="h-5 w-5 shrink-0 object-contain" />
+      ) : (
+        <div className="h-5 w-5 shrink-0 rounded-full bg-secondary" />
+      )}
       <TeamButton
         team={{ id, name, logo }}
-        className="truncate text-sm font-medium text-foreground hover:underline"
+        className="min-w-0 truncate text-sm font-semibold text-foreground hover:text-primary transition-colors"
       >
         {name}
       </TeamButton>
-      {played ? <span className="ml-auto text-sm font-bold tabular-nums text-foreground">{goals}</span> : null}
+      {played ? (
+        <span className="ml-auto text-base font-black tabular-nums text-foreground">{goals ?? 0}</span>
+      ) : null}
     </div>
   )
 }

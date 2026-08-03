@@ -99,47 +99,56 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-[49px] z-10 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <h1 className="text-xl font-extrabold leading-none tracking-tight">
-            <span className="brand-gradient bg-clip-text text-transparent">ED</span>{" "}
-            <span className="text-foreground">Company</span>
-          </h1>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              aria-label="Verileri yenile"
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              Yenile
-            </button>
-            <ThemeToggle />
+      {/* Hero Header */}
+      <header className="sticky top-[49px] z-10 border-b border-border/60 bg-background/80 backdrop-blur-md">
+        <div className="mx-auto max-w-4xl px-5">
+          {/* Top row: date label + actions */}
+          <div className="flex items-center justify-between gap-3 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                  Günün Maçları
+                </span>
+                <h1 className="text-sm font-bold capitalize text-foreground leading-tight">
+                  {formatDateLabel(date)}
+                </h1>
+              </div>
+              {!fixturesLoading && (
+                <span className="rounded-full border border-border bg-card px-2.5 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                  {fixtures.length} maç
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                aria-label="Verileri yenile"
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-all hover:border-primary/50 hover:text-primary disabled:opacity-40"
+              >
+                <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+                Yenile
+              </button>
+              <ThemeToggle />
+            </div>
+          </div>
+
+          {/* Search row */}
+          <div className="pb-3">
+            <TeamSearchBar />
           </div>
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-4xl flex-col gap-4 px-4 py-6">
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold capitalize text-foreground">{formatDateLabel(date)}</h2>
-            {!fixturesLoading ? (
-              <span className="text-xs text-muted-foreground">{fixtures.length} maç</span>
-            ) : null}
-          </div>
-
-          {/* Takım arama — maç filtresi değil, takım paneli açar */}
-          <TeamSearchBar />
-        </div>
-
+      <main className="mx-auto flex max-w-4xl flex-col gap-0 px-5 py-5">
         {fixturesLoading ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-12 text-sm text-muted-foreground">
-            <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
-            Maçlar yükleniyor...
+          <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card py-16 text-sm text-muted-foreground">
+            <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+            <span className="text-xs font-medium tracking-wide">Maçlar yükleniyor</span>
           </div>
         ) : fixtures.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
+          <div className="rounded-2xl border border-border/60 bg-card px-4 py-16 text-center text-sm text-muted-foreground">
             Bu tarihte planlanmış maç bulunamadı.
           </div>
         ) : (

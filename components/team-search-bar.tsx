@@ -125,7 +125,7 @@ export function TeamSearchBar() {
     <div ref={containerRef} className="relative w-full">
       {/* Input */}
       <label className="relative flex items-center">
-        <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-3.5 h-3.5 w-3.5 text-muted-foreground" />
         <input
           ref={inputRef}
           type="search"
@@ -134,8 +134,8 @@ export function TeamSearchBar() {
           onFocus={() => {
             if (teamResults.length > 0 || leagueResults.length > 0) setOpen(true)
           }}
-          placeholder="Takım / Lig ara..."
-          className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-9 text-sm text-foreground outline-none transition-colors focus:border-primary"
+          placeholder="Takım veya lig ara..."
+          className="w-full rounded-xl border border-border/70 bg-card py-2.5 pl-10 pr-9 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/50 focus:border-primary focus:ring-0"
           aria-label="Takım veya lig ara"
           aria-expanded={open}
           aria-haspopup="listbox"
@@ -160,7 +160,7 @@ export function TeamSearchBar() {
         <div
           role="listbox"
           aria-label="Arama sonuçları"
-          className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-80 overflow-y-auto rounded-xl border border-border bg-card shadow-lg"
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-80 overflow-y-auto rounded-xl border border-border/60 bg-card/95 shadow-xl backdrop-blur-md"
         >
           {!hasAnyResults && !loading ? (
             <div className="px-4 py-4 text-center text-sm text-muted-foreground">
