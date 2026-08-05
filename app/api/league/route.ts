@@ -4,6 +4,7 @@ import type {
   Fixture,
   LeaguePageData,
   LeagueTopAssist,
+  LeagueTopCard,
   LeagueTopScorer,
   StandingRow,
   TeamInfo,
@@ -188,6 +189,42 @@ export async function GET(request: Request) {
     }
   })
 
+  // Top yellow cards
+  const topYellowCards: LeagueTopCard[] = (topYellowRaw ?? []).slice(0, 20).map((entry: any) => ({
+    player: {
+      id: entry.player?.id ?? 0,
+      name: entry.player?.name ?? "",
+      photo: entry.player?.photo ?? null,
+      nationality: entry.player?.nationality ?? null,
+    },
+    team: {
+      id: entry.statistics?.[0]?.team?.id ?? 0,
+      name: entry.statistics?.[0]?.team?.name ?? "",
+      logo: entry.statistics?.[0]?.team?.logo ?? "",
+    },
+    yellow: entry.statistics?.[0]?.cards?.yellow ?? 0,
+    red: entry.statistics?.[0]?.cards?.red ?? 0,
+    appearances: entry.statistics?.[0]?.games?.appearences ?? 0,
+  }))
+
+  // Top red cards
+  const topRedCards: LeagueTopCard[] = (topRedRaw ?? []).slice(0, 20).map((entry: any) => ({
+    player: {
+      id: entry.player?.id ?? 0,
+      name: entry.player?.name ?? "",
+      photo: entry.player?.photo ?? null,
+      nationality: entry.player?.nationality ?? null,
+    },
+    team: {
+      id: entry.statistics?.[0]?.team?.id ?? 0,
+      name: entry.statistics?.[0]?.team?.name ?? "",
+      logo: entry.statistics?.[0]?.team?.logo ?? "",
+    },
+    yellow: entry.statistics?.[0]?.cards?.yellow ?? 0,
+    red: entry.statistics?.[0]?.cards?.red ?? 0,
+    appearances: entry.statistics?.[0]?.games?.appearences ?? 0,
+  }))
+
   // Son maçlar (biten)
   const recentFixtures: Fixture[] = [...recentRaw]
     .filter((r) => /FT|AET|PEN/.test(r.fixture.status.short))
@@ -231,6 +268,8 @@ export async function GET(request: Request) {
     standings,
     topScorers,
     topAssists,
+    topYellowCards,
+    topRedCards,
     recentFixtures,
     upcomingFixtures,
     seasonStats,

@@ -315,11 +315,21 @@ export interface LeagueTopAssist {
   rating: string | null
 }
 
+export interface LeagueTopCard {
+  player: { id: number; name: string; photo: string | null; nationality: string | null }
+  team: TeamInfo
+  yellow: number
+  red: number
+  appearances: number
+}
+
 export interface LeaguePageData {
   league: { id: number; name: string; country: string; logo: string; season: number; flagUrl: string | null }
   standings: StandingRow[]
   topScorers: LeagueTopScorer[]
   topAssists: LeagueTopAssist[]
+  topYellowCards: LeagueTopCard[]
+  topRedCards: LeagueTopCard[]
   recentFixtures: Fixture[]
   upcomingFixtures: Fixture[]
   seasonStats: LeagueSeasonStats | null
