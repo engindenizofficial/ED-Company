@@ -130,13 +130,11 @@ function TeamLogo({ logo, name }: { logo: string; name: string }) {
 // ---------------------------------------------------------------------------
 
 function SeasonOverviewSection({ stats }: { stats: LeagueSeasonStats }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const items = [
     { label: "Oynanan Maç", value: stats.totalMatches.toLocaleString("tr-TR") },
     { label: "Toplam Gol", value: stats.totalGoals.toLocaleString("tr-TR") },
     { label: "Maç Başı Gol", value: stats.avgGoalsPerMatch.toFixed(2) },
-    { label: "Sarı Kart", value: stats.yellowCards.toLocaleString("tr-TR") },
-    { label: "Kırmızı Kart", value: stats.redCards.toLocaleString("tr-TR") },
   ]
   return (
     <section className="flex flex-col gap-1">
@@ -149,18 +147,7 @@ function SeasonOverviewSection({ stats }: { stats: LeagueSeasonStats }) {
       {open && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           <div className="grid grid-cols-3 gap-2">
-            {items.slice(0, 3).map(({ label, value }) => (
-              <div
-                key={label}
-                className="flex flex-col items-center gap-0.5 rounded-xl border border-border/60 bg-secondary/30 px-2 py-3"
-              >
-                <span className="text-xl font-black tabular-nums leading-none text-foreground">{value}</span>
-                <span className="mt-1 text-center text-[10px] leading-tight text-muted-foreground">{label}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {items.slice(3).map(({ label, value }) => (
+            {items.map(({ label, value }) => (
               <div
                 key={label}
                 className="flex flex-col items-center gap-0.5 rounded-xl border border-border/60 bg-secondary/30 px-2 py-3"
@@ -181,7 +168,7 @@ function SeasonOverviewSection({ stats }: { stats: LeagueSeasonStats }) {
 // ---------------------------------------------------------------------------
 
 function StandingsSection({ standings }: { standings: StandingRow[] }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   if (standings.length === 0) return null
 
   const groups = standings.reduce<Record<string, StandingRow[]>>((acc, r) => {
