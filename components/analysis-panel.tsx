@@ -26,6 +26,7 @@ import type {
   InjuryItem,
   LineupPlayer,
   MatchPrediction,
+  ModelVote,
   MatchEvent,
   StatItem,
   StandingRow,
@@ -1043,8 +1044,70 @@ function InjuryList({ injuries }: { injuries: InjuryItem[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// PredictionCard — AI tahmin kartı
+// PredictionCard — AI tahmin kartı (ensemble)
 // ---------------------------------------------------------------------------
+
+/** Model adını kısa etiket + renk sınıfına çevirir */
+function modelLabel(modelId: string): { short: string; colorCls: string } {
+  if (modelId.startsWith("openai/"))     return { short: "GPT-4o",   colorCls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" }
+  if (modelId.startsWith("anthropic/")) return { short: "Claude",   colorCls: "bg-orange-500/10  text-orange-600  border-orange-500/20  dark:text-orange-400"  }
+  if (modelId.startsWith("google/"))    return { short: "Gemini",   colorCls: "bg-blue-500/10    text-blue-600    border-blue-500/20    dark:text-blue-400"    }
+  return { short: modelId.split("/")[0], colorCls: "bg-secondary text-muted-foreground border-border/60" }
+}
+
+function ModelVoteRow({
+  vote,
+  homeName,
+  awayName,
+}: {
+  vote: ModelVote
+  homeName: string
+  awayName: string
+}) {
+  const { short, colorCls } = modelLabel(vote.model)
+  const winnerLabel =
+    vote.winner === "home" ? homeName : vote.winner === "away" ? awayName : "Beraberlik"
+
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-secondary/20 px-3 py-2">
+      {/* Model chip */}
+      <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold", colorCls)}>
+        {short}
+      </span>
+
+      {/* Tahmini skor */}
+      <span className="tabular-nums text-xs font-black text-foreground">
+        {vote.homeScore} – {vote.awayScore}
+      </span>
+
+      {/* Kazanan */}
+      <span className="min-w-0 truncate text-xs text-foreground font-semibold">{winnerLabel}</span>
+
+      {/* BTTS + O/U */}
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        <span className={cn(
+          "rounded-full border px-1.5 py-0.5 text-[9px] font-semibold",
+          vote.btts
+            ? "border-primary/25 bg-primary/8 text-primary"
+            : "border-border/60 bg-secondary/60 text-muted-foreground",
+        )}>
+          {vote.btts ? "KG Var" : "KG Yok"}
+        </span>
+        <span className={cn(
+          "rounded-full border px-1.5 py-0.5 text-[9px] font-semibold",
+          vote.overUnder === "over"
+            ? "border-primary/25 bg-primary/8 text-primary"
+            : "border-border/60 bg-secondary/60 text-muted-foreground",
+        )}>
+          {vote.overUnder === "over" ? "2.5 Üst" : "2.5 Alt"}
+        </span>
+        <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">
+          %{vote.confidence}
+        </span>
+      </div>
+    </div>
+  )
+}
 
 function PredictionCard({
   prediction,
@@ -1057,13 +1120,17 @@ function PredictionCard({
   homeName: string
   awayName: string
 }) {
+  const [showVotes, setShowVotes] = useState(false)
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-4">
         <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-primary" />
         <div>
-          <p className="text-xs font-semibold text-foreground">AI tahmini hazırlanıyor...</p>
-          <p className="text-[11px] text-muted-foreground">Puan durumu, form ve kafa kafaya veriler analiz ediliyor</p>
+          <p className="text-xs font-semibold text-foreground">AI tahminleri hazırlanıyor...</p>
+          <p className="text-[11px] text-muted-foreground">
+            GPT-4o, Claude ve Gemini paralel olarak analiz yapıyor
+          </p>
         </div>
       </div>
     )
@@ -1085,6 +1152,8 @@ function PredictionCard({
         ? "text-yellow-600 dark:text-yellow-400"
         : "text-muted-foreground"
 
+  const modelCount = prediction.modelVotes?.length ?? 0
+
   return (
     <div className="rounded-2xl border border-primary/25 bg-card overflow-hidden">
       {/* Header */}
@@ -1092,7 +1161,12 @@ function PredictionCard({
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
           <Sparkles className="h-3.5 w-3.5" />
         </span>
-        <span className="text-sm font-semibold text-foreground">AI Tahmini</span>
+        <span className="text-sm font-semibold text-foreground">AI Ensemble Tahmini</span>
+        {modelCount > 0 && (
+          <span className="rounded-full border border-primary/20 bg-primary/8 px-2 py-0.5 text-[10px] font-bold text-primary">
+            {modelCount} model
+          </span>
+        )}
         <span className="ml-auto rounded-full border border-border/60 bg-secondary px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
           Gün sonuna kadar geçerli
         </span>
@@ -1102,7 +1176,9 @@ function PredictionCard({
         {/* Skor + kazanan */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Tahmini Skor</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Ağırlıklı Tahmini Skor
+            </span>
             <div className="flex items-baseline gap-1.5">
               <span className="text-3xl font-black tabular-nums text-foreground">{prediction.homeScore}</span>
               <span className="text-xl font-light text-muted-foreground/50">:</span>
@@ -1152,6 +1228,37 @@ function PredictionCard({
               </li>
             ))}
           </ul>
+        )}
+
+        {/* Model oyları akordeonu */}
+        {modelCount > 0 && (
+          <div className="border-t border-border/40 pt-3">
+            <button
+              type="button"
+              onClick={() => setShowVotes((v) => !v)}
+              className="flex w-full items-center justify-between text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <span>Model tahminlerini göster ({modelCount} model)</span>
+              {showVotes ? (
+                <ChevronUp className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </button>
+
+            {showVotes && (
+              <div className="mt-2.5 flex flex-col gap-1.5">
+                {prediction.modelVotes.map((vote, i) => (
+                  <ModelVoteRow
+                    key={i}
+                    vote={vote}
+                    homeName={homeName}
+                    awayName={awayName}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

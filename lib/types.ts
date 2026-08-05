@@ -278,22 +278,44 @@ export interface FixturesResponse {
   stale?: boolean
 }
 
+/** Tek bir modelin oy/tahmin verisi */
+export interface ModelVote {
+  /** Model tanımlayıcısı, örn: "openai/gpt-4o" */
+  model: string
+  /** Modelin tahmini kazanan */
+  winner: "home" | "away" | "draw"
+  /** Tahmini ev sahibi skoru */
+  homeScore: number
+  /** Tahmini deplasman skoru */
+  awayScore: number
+  /** 0-100 güven skoru */
+  confidence: number
+  /** İki takım da gol atar mı */
+  btts: boolean
+  /** 2.5 üstü / altı */
+  overUnder: "over" | "under"
+  /** Bu modelin öne çıkardığı anahtar faktörler */
+  keyFactors: string[]
+}
+
 export interface MatchPrediction {
   fixtureId: number
   homeScore: number
   awayScore: number
   /** "home" | "away" | "draw" */
   winner: "home" | "away" | "draw"
-  /** 0-100 arası güven skoru */
+  /** 0-100 arası güven skoru (ağırlıklı ortalama) */
   confidence: number
   /** Kısa Türkçe analiz özeti */
   summary: string
-  /** En önemli 1-5 etken */
+  /** En önemli 1-5 etken (tüm modellerden birleştirilmiş) */
   keyFactors: string[]
   /** İki takım da gol atar mı */
   btts: boolean
   /** 2.5 üstü / altı */
   overUnder: "over" | "under"
+  /** Her modelin bireysel oyu — UI'da göstermek için */
+  modelVotes: ModelVote[]
   /** Gün sonuna kadar cache'de kalır (TR gece yarısı) */
   cachedAt: number
 }
