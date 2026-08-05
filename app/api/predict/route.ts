@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server"
 import { generateObject } from "ai"
-import { z } from "zod/v4"
+import { createGateway } from "@ai-sdk/gateway"
+import { z } from "zod"
 import { getFixtureById, getLiveMatchData } from "@/lib/api-football"
 import { getCachedPrediction, setCachedPrediction } from "@/lib/redis"
 import type { MatchPrediction } from "@/lib/types"
+
+const ai = createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY })
 
 export const dynamic = "force-dynamic"
 
@@ -125,7 +128,7 @@ Türkçe olarak tahmin yap. Kesin cevap ver, çok genel ifadelerden kaçın.
   let result
   try {
     const generated = await generateObject({
-      model: "openai/gpt-4o-mini",
+      model: ai("openai/gpt-4o-mini"),
       schema: PredictionSchema,
       prompt: contextPrompt,
     })
