@@ -149,6 +149,9 @@ export interface PlayerProfile {
   firstname: string
   lastname: string
   age: number | null
+  birthDate: string | null
+  birthPlace: string | null
+  birthCountry: string | null
   nationality: string | null
   height: string | null
   weight: string | null
