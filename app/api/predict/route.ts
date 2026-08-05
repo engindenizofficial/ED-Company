@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server"
 import { generateObject } from "ai"
-import { gateway } from "@ai-sdk/gateway"
+import { createGateway } from "@ai-sdk/gateway"
 import { z } from "zod/v4"
 import { getFixtureById, getLiveMatchData } from "@/lib/api-football"
 import { getCachedPrediction, setCachedPrediction } from "@/lib/redis"
 import type { MatchPrediction, ModelVote } from "@/lib/types"
+
+// Key'i explicit olarak geç — Next.js preview'da auto-read çalışmayabilir
+const gateway = createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY })
 
 export const dynamic = "force-dynamic"
 
