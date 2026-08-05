@@ -80,6 +80,7 @@ export interface StandingRow {
   rank: number
   team: string
   teamId: number
+  teamLogo: string
   points: number
   played: number
   win: number

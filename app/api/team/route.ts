@@ -179,6 +179,7 @@ export async function GET(request: Request) {
         const groupLabel = groups.length > 1 && row.group ? row.group : leagueName
         standings.push({
           rank: row.rank, team: row.team?.name ?? "", teamId: row.team?.id ?? 0,
+          teamLogo: row.team?.logo ?? "",
           points: row.points ?? 0, played: row.all?.played ?? 0,
           win: row.all?.win ?? 0, draw: row.all?.draw ?? 0, lose: row.all?.lose ?? 0,
           goalsFor: row.all?.goals?.for ?? 0, goalsAgainst: row.all?.goals?.against ?? 0,

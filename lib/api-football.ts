@@ -350,6 +350,7 @@ async function getStandings(leagueId: number, season: number, teamIds: number[])
         rank: row.rank,
         team: row.team?.name ?? "",
         teamId: row.team?.id ?? 0,
+        teamLogo: row.team?.logo ?? "",
         points: row.points ?? 0,
         played: row.all?.played ?? 0,
         win: row.all?.win ?? 0,

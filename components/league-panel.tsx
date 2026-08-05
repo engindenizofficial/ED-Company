@@ -17,6 +17,7 @@ import {
 import { useState } from "react"
 import { useLeaguePanel } from "@/contexts/league-context"
 import { PlayerButton } from "@/components/player-panel"
+import { TeamButton } from "@/components/team-panel"
 import { cn } from "@/lib/utils"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import type {
@@ -201,25 +202,40 @@ function StandingsSection({ standings }: { standings: StandingRow[] }) {
                     <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
                       <th className="w-6 pb-2 pr-2 font-semibold">#</th>
                       <th className="pb-2 pr-2 font-semibold">Takım</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold">O</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold">G</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold">B</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold">M</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold">AG</th>
-                      <th className="pl-1.5 pb-2 text-center font-semibold">P</th>
+                      <th className="px-1.5 pb-2 text-center font-semibold" title="Oynanan">O</th>
+                      <th className="px-1.5 pb-2 text-center font-semibold" title="Galibiyet">G</th>
+                      <th className="px-1.5 pb-2 text-center font-semibold" title="Beraberlik">B</th>
+                      <th className="px-1.5 pb-2 text-center font-semibold" title="Mağlubiyet">M</th>
+                      <th className="px-1.5 pb-2 text-center font-semibold" title="Atılan Gol">A</th>
+                      <th className="px-1.5 pb-2 text-center font-semibold" title="Yenilen Gol">Y</th>
+                      <th className="px-1.5 pb-2 text-center font-semibold" title="Averaj">AV</th>
+                      <th className="pl-1.5 pb-2 text-center font-semibold" title="Puan">P</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {rows.map((r) => (
                       <tr key={r.rank} className="transition-colors hover:bg-secondary/40">
                         <td className="py-2 pr-2 tabular-nums text-muted-foreground">{r.rank}</td>
-                        <td className="max-w-[110px] truncate py-2 pr-2 font-semibold text-foreground">
-                          {r.team}
+                        <td className="py-2 pr-2">
+                          <TeamButton
+                            team={{ id: r.teamId, name: r.team, logo: r.teamLogo }}
+                            className="flex items-center gap-1.5"
+                          >
+                            {r.teamLogo ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={r.teamLogo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                            ) : null}
+                            <span className="max-w-[90px] truncate font-semibold text-foreground hover:text-primary">
+                              {r.team}
+                            </span>
+                          </TeamButton>
                         </td>
                         <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.played}</td>
                         <td className="px-1.5 py-2 text-center tabular-nums font-semibold text-primary">{r.win}</td>
                         <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.draw}</td>
                         <td className="px-1.5 py-2 text-center tabular-nums text-destructive">{r.lose}</td>
+                        <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.goalsFor}</td>
+                        <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.goalsAgainst}</td>
                         <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">
                           {r.goalsFor - r.goalsAgainst > 0 ? "+" : ""}
                           {r.goalsFor - r.goalsAgainst}
