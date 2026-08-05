@@ -7,7 +7,7 @@ import { AnalysisPanel } from "@/components/analysis-panel"
 import { FixtureList } from "@/components/fixture-list"
 import { TeamSearchBar } from "@/components/team-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
-import type { AnalysisResponse, Fixture, FixturesResponse } from "@/lib/types"
+import type { AnalysisResponse, Fixture, FixturesResponse, MatchPrediction } from "@/lib/types"
 
 function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
@@ -32,6 +32,9 @@ export default function Page() {
   const [analysis, setAnalysis] = useState<AnalysisResponse | undefined>(undefined)
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisError, setAnalysisError] = useState<Error | undefined>(undefined)
+
+  const [prediction, setPrediction] = useState<MatchPrediction | null>(null)
+  const [predictionLoading, setPredictionLoading] = useState(false)
 
   const [refreshing, setRefreshing] = useState(false)
 
@@ -70,15 +73,45 @@ export default function Page() {
     }
   }, [])
 
+  // Başlamamış maçlar için AI tahmini — Redis cache'den gelir (gün sonu TTL)
+  const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
+  const loadPrediction = useCallback(async (fixture: Fixture) => {
+    if (!PREDICTABLE_STATUSES.has(fixture.statusShort)) {
+      setPrediction(null)
+      return
+    }
+    setPredictionLoading(true)
+    setPrediction(null)
+    try {
+      const res = await fetch("/api/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fixtureId: fixture.id }),
+        cache: "no-store",
+      })
+      if (!res.ok) throw new Error("Tahmin alınamadı")
+      const data = await res.json() as MatchPrediction
+      setPrediction(data)
+    } catch {
+      setPrediction(null)
+    } finally {
+      setPredictionLoading(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (!selected) {
       setAnalysis(undefined)
       setAnalysisError(undefined)
+      setPrediction(null)
       return
     }
-    // Panel her açıldığında API'den taze çek
+    // Panel her açıldığında analiz verisini taze çek
     loadAnalysis(selected.id)
-  }, [selected, loadAnalysis])
+    // Başlamamış maçlar için AI tahminini de çek (Redis cache'den olabilir)
+    loadPrediction(selected)
+  }, [selected, loadAnalysis, loadPrediction])
 
   // Yenile butonu: sadece fikstür listesini günceller, açık analiz paneline dokunmaz
   const handleRefresh = useCallback(async () => {
@@ -161,6 +194,8 @@ export default function Page() {
                 data={analysis}
                 isLoading={analysisLoading}
                 error={analysisError as Error | undefined}
+                prediction={prediction}
+                predictionLoading={predictionLoading}
               />
             )}
           />

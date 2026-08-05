@@ -1,5 +1,5 @@
 import { Redis } from "@upstash/redis"
-import type { FixturesResponse } from "./types"
+import type { FixturesResponse, MatchPrediction } from "./types"
 import type { TeamSearchResult } from "@/app/api/teams/search/route"
 
 // Shared server-side store.
@@ -35,6 +35,7 @@ try {
 const K = {
   fixtures: (date: string) => `ed:fixtures:${date}`,
   allTeams: (season: number) => `ed:allteams:${season}`,
+  prediction: (fixtureId: number) => `ed:prediction:${fixtureId}`,
 }
 
 // Fixtures: 6 saat
@@ -94,6 +95,29 @@ export async function setCachedAllTeams(season: number, data: TeamSearchResult[]
     await redis.set(K.allTeams(season), data, { ex: secondsUntilMidnightTR() })
   } catch (err) {
     console.log("[v0] redis setCachedAllTeams failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Predictions
+// ---------------------------------------------------------------------------
+
+export async function getCachedPrediction(fixtureId: number): Promise<MatchPrediction | null> {
+  if (!redis) return null
+  try {
+    return (await redis.get<MatchPrediction>(K.prediction(fixtureId))) ?? null
+  } catch (err) {
+    console.log("[v0] redis getCachedPrediction failed:", err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+export async function setCachedPrediction(fixtureId: number, data: MatchPrediction): Promise<void> {
+  if (!redis) return
+  try {
+    await redis.set(K.prediction(fixtureId), data, { ex: secondsUntilMidnightTR() })
+  } catch (err) {
+    console.log("[v0] redis setCachedPrediction failed:", err instanceof Error ? err.message : err)
   }
 }
 

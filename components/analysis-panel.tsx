@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   MapPin,
   Shield,
+  Sparkles,
   Star,
   Swords,
   Target,
@@ -24,6 +25,7 @@ import type {
   FormGame,
   InjuryItem,
   LineupPlayer,
+  MatchPrediction,
   MatchEvent,
   StatItem,
   StandingRow,
@@ -43,10 +45,14 @@ export function AnalysisPanel({
   data,
   isLoading,
   error,
+  prediction,
+  predictionLoading,
 }: {
   data: AnalysisResponse | undefined
   isLoading: boolean
   error: Error | undefined
+  prediction?: MatchPrediction | null
+  predictionLoading?: boolean
 }) {
   if (isLoading) return <AnalyzingState />
 
@@ -78,6 +84,9 @@ export function AnalysisPanel({
   const { live, playerStats } = data
   const { fixture } = live
 
+  const LIVE_OR_FINISHED = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "FT", "AET", "PEN", "AWD", "WO"])
+  const isPredictable = !LIVE_OR_FINISHED.has(fixture.statusShort)
+
   // Oyuncu istatistiklerini ev sahibi / deplasman olarak böl
   const homePlayerStats = playerStats.filter((p) => p.teamId === fixture.home.id)
   const awayPlayerStats = playerStats.filter((p) => p.teamId === fixture.away.id)
@@ -88,7 +97,17 @@ export function AnalysisPanel({
       {/* 1. Match header */}
       <MatchHeader fixture={fixture} />
 
-      {/* 2. Live events */}
+      {/* 2. AI Prediction — sadece oynanmamış maçlarda */}
+      {isPredictable && (
+        <PredictionCard
+          prediction={prediction ?? null}
+          isLoading={predictionLoading ?? false}
+          homeName={fixture.home.name}
+          awayName={fixture.away.name}
+        />
+      )}
+
+      {/* 3. Live events */}
       {live.events.length > 0 && (
         <Collapsible
           defaultOpen
@@ -1019,6 +1038,122 @@ function InjuryList({ injuries }: { injuries: InjuryItem[] }) {
           </ul>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// PredictionCard — AI tahmin kartı
+// ---------------------------------------------------------------------------
+
+function PredictionCard({
+  prediction,
+  isLoading,
+  homeName,
+  awayName,
+}: {
+  prediction: MatchPrediction | null
+  isLoading: boolean
+  homeName: string
+  awayName: string
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-4">
+        <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-primary" />
+        <div>
+          <p className="text-xs font-semibold text-foreground">AI tahmini hazırlanıyor...</p>
+          <p className="text-[11px] text-muted-foreground">Puan durumu, form ve kafa kafaya veriler analiz ediliyor</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!prediction) return null
+
+  const winnerLabel =
+    prediction.winner === "home"
+      ? `${homeName} kazanır`
+      : prediction.winner === "away"
+        ? `${awayName} kazanır`
+        : "Beraberlik"
+
+  const confidenceColor =
+    prediction.confidence >= 70
+      ? "text-primary"
+      : prediction.confidence >= 50
+        ? "text-yellow-600 dark:text-yellow-400"
+        : "text-muted-foreground"
+
+  return (
+    <div className="rounded-2xl border border-primary/25 bg-card overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-2.5 border-b border-border/60 bg-primary/5 px-4 py-3">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Sparkles className="h-3.5 w-3.5" />
+        </span>
+        <span className="text-sm font-semibold text-foreground">AI Tahmini</span>
+        <span className="ml-auto rounded-full border border-border/60 bg-secondary px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+          Gün sonuna kadar geçerli
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-3 px-4 py-4">
+        {/* Skor + kazanan */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Tahmini Skor</span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-3xl font-black tabular-nums text-foreground">{prediction.homeScore}</span>
+              <span className="text-xl font-light text-muted-foreground/50">:</span>
+              <span className="text-3xl font-black tabular-nums text-foreground">{prediction.awayScore}</span>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <span className="rounded-lg border border-primary/25 bg-primary/8 px-3 py-1.5 text-xs font-bold text-primary">
+              {winnerLabel}
+            </span>
+            <span className={`text-[11px] font-semibold tabular-nums ${confidenceColor}`}>
+              %{prediction.confidence} güven
+            </span>
+          </div>
+        </div>
+
+        {/* Ek tahminler */}
+        <div className="flex flex-wrap gap-2">
+          <span className={cn(
+            "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold",
+            prediction.btts
+              ? "border-primary/25 bg-primary/8 text-primary"
+              : "border-border/60 bg-secondary text-muted-foreground",
+          )}>
+            {prediction.btts ? "İki takım da atar" : "Tek taraflı gol"}
+          </span>
+          <span className={cn(
+            "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold",
+            prediction.overUnder === "over"
+              ? "border-primary/25 bg-primary/8 text-primary"
+              : "border-border/60 bg-secondary text-muted-foreground",
+          )}>
+            {prediction.overUnder === "over" ? "2.5 Üstü" : "2.5 Altı"}
+          </span>
+        </div>
+
+        {/* Özet */}
+        <p className="text-xs leading-relaxed text-muted-foreground">{prediction.summary}</p>
+
+        {/* Anahtar faktörler */}
+        {prediction.keyFactors.length > 0 && (
+          <ul className="flex flex-col gap-1.5">
+            {prediction.keyFactors.map((factor, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-foreground">
+                <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                {factor}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }

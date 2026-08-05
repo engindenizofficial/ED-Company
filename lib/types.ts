@@ -278,11 +278,32 @@ export interface FixturesResponse {
   stale?: boolean
 }
 
+export interface MatchPrediction {
+  fixtureId: number
+  homeScore: number
+  awayScore: number
+  /** "home" | "away" | "draw" */
+  winner: "home" | "away" | "draw"
+  /** 0-100 arası güven skoru */
+  confidence: number
+  /** Kısa Türkçe analiz özeti */
+  summary: string
+  /** En önemli 1-5 etken */
+  keyFactors: string[]
+  /** İki takım da gol atar mı */
+  btts: boolean
+  /** 2.5 üstü / altı */
+  overUnder: "over" | "under"
+  /** Gün sonuna kadar cache'de kalır (TR gece yarısı) */
+  cachedAt: number
+}
+
 export interface AnalysisResponse {
   live: LiveMatchData
   playerStats: FixturePlayerStat[]
   liveCachedAt: number
   stale?: boolean
+  prediction?: MatchPrediction | null
 }
 
 export interface LeagueSeasonStats {
