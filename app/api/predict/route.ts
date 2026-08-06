@@ -5,7 +5,7 @@ import { google } from "@ai-sdk/google"
 import { xai } from "@ai-sdk/xai"
 import { z } from "zod/v4"
 import { getFixtureById, getLiveMatchData } from "@/lib/api-football"
-import { getCachedPrediction, setCachedPrediction } from "@/lib/redis"
+import { getCachedPrediction, setCachedPrediction, deleteAllPredictions } from "@/lib/redis"
 import type { MatchPrediction, ModelVote } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -257,4 +257,12 @@ Türkçe olarak tahmin yap. Kesin ve net cevap ver, genel ifadelerden kaçın.
   await setCachedPrediction(fixtureId, prediction)
 
   return NextResponse.json(prediction)
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/predict — tüm tahmin cache'ini temizler
+// ---------------------------------------------------------------------------
+export async function DELETE() {
+  const deleted = await deleteAllPredictions()
+  return NextResponse.json({ ok: true, deleted })
 }

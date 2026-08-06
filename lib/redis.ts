@@ -122,6 +122,27 @@ export async function setCachedPrediction(fixtureId: number, data: MatchPredicti
   }
 }
 
+/** ed:prediction:* ile eşleşen tüm tahmin key'lerini siler. */
+export async function deleteAllPredictions(): Promise<number> {
+  if (!redis) return 0
+  try {
+    let cursor = 0
+    const keys: string[] = []
+    do {
+      const [nextCursor, batch] = await redis.scan(cursor, { match: "ed:prediction:*", count: 100 })
+      cursor = Number(nextCursor)
+      keys.push(...batch)
+    } while (cursor !== 0)
+
+    if (keys.length === 0) return 0
+    await redis.del(...keys)
+    return keys.length
+  } catch (err) {
+    console.log("[v0] redis deleteAllPredictions failed:", err instanceof Error ? err.message : err)
+    return 0
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Prediction Results (başarı paneli)
 // ---------------------------------------------------------------------------

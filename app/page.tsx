@@ -1,6 +1,6 @@
 "use client"
 
-import { LoaderCircle, RefreshCw } from "lucide-react"
+import { LoaderCircle, RefreshCw, Trash2 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { AnalysisPanel } from "@/components/analysis-panel"
@@ -291,6 +291,22 @@ export default function Page() {
     saveResultIfNeeded(selected, prediction, analysis)
   }, [selected, prediction, analysis, analysisLoading, predictionLoading, saveResultIfNeeded])
 
+  const [clearingPredictions, setClearingPredictions] = useState(false)
+
+  const clearAllPredictions = useCallback(async () => {
+    if (clearingPredictions) return
+    setClearingPredictions(true)
+    try {
+      await fetch("/api/predict", { method: "DELETE", cache: "no-store" })
+      // Açık paneldeki tahmin görünümünü de sıfırla
+      setPrediction(null)
+    } catch {
+      // sessizce geç
+    } finally {
+      setClearingPredictions(false)
+    }
+  }, [clearingPredictions])
+
   const handleRefresh = useCallback(async () => {
     if (refreshing) return
     setRefreshing(true)
@@ -331,6 +347,18 @@ export default function Page() {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                onClick={clearAllPredictions}
+                disabled={clearingPredictions}
+                aria-label="Kayıtlı tahminleri sil"
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-all hover:border-destructive/50 hover:text-destructive disabled:opacity-40"
+              >
+                {clearingPredictions
+                  ? <LoaderCircle className="h-3 w-3 animate-spin" />
+                  : <Trash2 className="h-3 w-3" />
+                }
+                Tahminleri Sil
+              </button>
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
