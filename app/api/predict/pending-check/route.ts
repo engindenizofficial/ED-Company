@@ -59,24 +59,20 @@ async function discoverOrphanedPredictions(): Promise<{ fixtureId: number; pred:
  * Pending listesinde olmayan eski tahminleri de (ed:prediction:* taramasıyla) kontrol eder.
  */
 export async function POST() {
-  let pending = await getPendingPredictions()
+  // Her basışta orphan taraması yap — pending listesinde olmayan tahminleri ekle
+  const orphans = await discoverOrphanedPredictions()
+  for (const { fixtureId, pred } of orphans) {
+    await addPendingPrediction({
+      fixtureId,
+      date: todayTR(),
+      homeName: pred.homeName ?? "Ev Sahibi",
+      awayName: pred.awayName ?? "Deplasman",
+    })
+  }
 
-  // Eğer pending listesinde olmayan eski tahminler varsa onları da ekle
+  const pending = await getPendingPredictions()
   if (pending.length === 0) {
-    const orphans = await discoverOrphanedPredictions()
-    for (const { fixtureId, pred } of orphans) {
-      await addPendingPrediction({
-        fixtureId,
-        date: todayTR(),
-        homeName: pred.homeName ?? "Ev Sahibi",
-        awayName: pred.awayName ?? "Deplasman",
-      })
-    }
-    // Yeniden yükle
-    pending = await getPendingPredictions()
-    if (pending.length === 0) {
-      return NextResponse.json({ checked: 0, resolved: [] })
-    }
+    return NextResponse.json({ checked: 0, resolved: [] })
   }
 
   const resolved: PredictionResult[] = []
