@@ -63,6 +63,8 @@ function mapFixture(r: RawFixture): Fixture {
     home: { id: r.teams.home.id, name: r.teams.home.name, logo: r.teams.home.logo },
     away: { id: r.teams.away.id, name: r.teams.away.name, logo: r.teams.away.logo },
     goalsHome: r.goals.home, goalsAway: r.goals.away,
+    referee: null,
+    refereeCountry: null,
   }
 }
 

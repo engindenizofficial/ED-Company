@@ -33,6 +33,10 @@ export interface Fixture {
   away: TeamInfo
   goalsHome: number | null
   goalsAway: number | null
+  /** Hakem adı (API'de mevcutsa) */
+  referee: string | null
+  /** Hakemin ülkesi (bayrak için) */
+  refereeCountry: string | null
 }
 
 /** A fixture as sent to the client list. */

@@ -39,6 +39,44 @@ import { PlayerButton } from "./player-panel"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Ülke adını bayrak emoji'ye çevirir. ISO 3166-1 alpha-2 koduna göre. */
+function countryFlag(country: string): string {
+  const CODE_MAP: Record<string, string> = {
+    "England": "GB", "Scotland": "GB", "Wales": "GB", "Northern Ireland": "GB",
+    "Spain": "ES", "Germany": "DE", "Italy": "IT", "France": "FR",
+    "Netherlands": "NL", "Portugal": "PT", "Turkey": "TR", "Belgium": "BE",
+    "Greece": "GR", "Russia": "RU", "Austria": "AT", "Switzerland": "CH",
+    "Denmark": "DK", "Sweden": "SE", "Norway": "NO", "Poland": "PL",
+    "Ukraine": "UA", "Croatia": "HR", "Serbia": "RS", "Czech Republic": "CZ",
+    "Czechia": "CZ", "Romania": "RO", "Ireland": "IE", "Hungary": "HU",
+    "Slovakia": "SK", "Slovenia": "SI", "Bulgaria": "BG", "Finland": "FI",
+    "Iceland": "IS", "Albania": "AL", "Armenia": "AM", "Azerbaijan": "AZ",
+    "Belarus": "BY", "Bosnia": "BA", "Bosnia and Herzegovina": "BA",
+    "Cyprus": "CY", "Estonia": "EE", "Georgia": "GE", "Kosovo": "XK",
+    "Latvia": "LV", "Lithuania": "LT", "Luxembourg": "LU", "Malta": "MT",
+    "Moldova": "MD", "Montenegro": "ME", "North Macedonia": "MK",
+    "Brazil": "BR", "Argentina": "AR", "Colombia": "CO", "Chile": "CL",
+    "Peru": "PE", "Uruguay": "UY", "Paraguay": "PY", "Ecuador": "EC",
+    "USA": "US", "United States": "US", "Mexico": "MX", "Canada": "CA",
+    "Japan": "JP", "China": "CN", "South Korea": "KR", "Saudi Arabia": "SA",
+    "Iran": "IR", "Iraq": "IQ", "Israel": "IL", "Qatar": "QA",
+    "UAE": "AE", "United Arab Emirates": "AE", "Australia": "AU",
+    "Nigeria": "NG", "Ghana": "GH", "Egypt": "EG", "Morocco": "MA",
+    "Senegal": "SN", "Cameroon": "CM", "South Africa": "ZA",
+  }
+  const code = CODE_MAP[country] ?? CODE_MAP[country.trim()]
+  if (!code) return ""
+  return code
+    .toUpperCase()
+    .split("")
+    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
+    .join("")
+}
+
+// ---------------------------------------------------------------------------
 // Public component
 // ---------------------------------------------------------------------------
 
@@ -271,6 +309,18 @@ function MatchHeader({ fixture }: { fixture: AnalysisResponse["live"]["fixture"]
             <span className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
               <MapPin className="h-2.5 w-2.5 shrink-0" />
               <span className="truncate max-w-[90px]">{fixture.venue}</span>
+            </span>
+          )}
+          {/* Referee */}
+          {fixture.referee && (
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
+              <Flag className="h-2.5 w-2.5 shrink-0" />
+              {fixture.refereeCountry && (
+                <span aria-label={fixture.refereeCountry}>
+                  {countryFlag(fixture.refereeCountry)}
+                </span>
+              )}
+              <span className="truncate max-w-[110px]">{fixture.referee}</span>
             </span>
           )}
         </div>

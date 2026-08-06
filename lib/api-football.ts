@@ -121,6 +121,7 @@ interface RawFixture {
     timestamp: number
     status: { long: string; short: string; elapsed: number | null; extra?: number | null }
     venue: { name: string | null }
+    referee: string | null
   }
   league: { id: number; name: string; country: string; logo: string; season: number; round: string }
   teams: {
@@ -130,7 +131,16 @@ interface RawFixture {
   goals: { home: number | null; away: number | null }
 }
 
+/** API-Football hakemi "Ad Soyad (Ülke)" formatında döndürür. İkisini ayır. */
+function parseReferee(raw: string | null): { name: string | null; country: string | null } {
+  if (!raw) return { name: null, country: null }
+  const match = raw.match(/^(.+?)\s*\((.+?)\)\s*$/)
+  if (match) return { name: match[1].trim(), country: match[2].trim() }
+  return { name: raw.trim(), country: null }
+}
+
 function mapFixture(r: RawFixture): Fixture {
+  const { name: referee, country: refereeCountry } = parseReferee(r.fixture.referee ?? null)
   return {
     id: r.fixture.id,
     date: r.fixture.date,
@@ -152,6 +162,8 @@ function mapFixture(r: RawFixture): Fixture {
     away: { id: r.teams.away.id, name: r.teams.away.name, logo: r.teams.away.logo },
     goalsHome: r.goals.home,
     goalsAway: r.goals.away,
+    referee,
+    refereeCountry,
   }
 }
 
