@@ -5,7 +5,7 @@ import { google } from "@ai-sdk/google"
 import { xai } from "@ai-sdk/xai"
 import { z } from "zod/v4"
 import { getFixtureById, getLiveMatchData } from "@/lib/api-football"
-import { getCachedPrediction, setCachedPrediction, deleteAllPredictions } from "@/lib/redis"
+import { getCachedPrediction, setCachedPrediction, deleteAllPredictions, addPendingPrediction } from "@/lib/redis"
 import type { MatchPrediction, ModelVote } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -406,6 +406,10 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   }
 
   await setCachedPrediction(fixtureId, prediction)
+
+  // Bekleyen tahminler listesine ekle — yenile butonunda gerçek skorla karşılaştırılacak
+  const fixtureDate = fixture.date.slice(0, 10) // YYYY-MM-DD
+  await addPendingPrediction({ fixtureId, date: fixtureDate, homeName, awayName })
 
   return NextResponse.json(prediction)
 }

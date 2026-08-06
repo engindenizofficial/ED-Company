@@ -38,6 +38,14 @@ const K = {
   prediction: (fixtureId: number) => `ed:prediction:${fixtureId}`,
   predictionResults: (date: string) => `ed:prediction-results:${date}`,
   allTimePredictionResults: () => `ed:prediction-results:all`,
+  pendingPredictions: () => `ed:pending-predictions`,
+}
+
+export interface PendingPrediction {
+  fixtureId: number
+  date: string // YYYY-MM-DD (TR)
+  homeName: string
+  awayName: string
 }
 
 // Fixtures: 6 saat
@@ -192,6 +200,44 @@ export async function getAllTimePredictionResults(): Promise<PredictionResult[]>
   } catch (err) {
     console.log("[v0] redis getAllTimePredictionResults failed:", err instanceof Error ? err.message : err)
     return []
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pending Predictions (yenile butonunda kontrol edilecek bekleyen tahminler)
+// ---------------------------------------------------------------------------
+
+export async function getPendingPredictions(): Promise<PendingPrediction[]> {
+  if (!redis) return []
+  try {
+    return (await redis.get<PendingPrediction[]>(K.pendingPredictions())) ?? []
+  } catch (err) {
+    console.log("[v0] redis getPendingPredictions failed:", err instanceof Error ? err.message : err)
+    return []
+  }
+}
+
+export async function addPendingPrediction(entry: PendingPrediction): Promise<void> {
+  if (!redis) return
+  try {
+    const existing = await getPendingPredictions()
+    if (existing.some((p) => p.fixtureId === entry.fixtureId)) return
+    existing.push(entry)
+    // 30 gün TTL — yeterince uzun
+    await redis.set(K.pendingPredictions(), existing, { ex: 60 * 60 * 24 * 30 })
+  } catch (err) {
+    console.log("[v0] redis addPendingPrediction failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+export async function removePendingPrediction(fixtureId: number): Promise<void> {
+  if (!redis) return
+  try {
+    const existing = await getPendingPredictions()
+    const filtered = existing.filter((p) => p.fixtureId !== fixtureId)
+    await redis.set(K.pendingPredictions(), filtered, { ex: 60 * 60 * 24 * 30 })
+  } catch (err) {
+    console.log("[v0] redis removePendingPrediction failed:", err instanceof Error ? err.message : err)
   }
 }
 

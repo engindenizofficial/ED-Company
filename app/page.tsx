@@ -312,6 +312,22 @@ export default function Page() {
     if (refreshing) return
     setRefreshing(true)
     try {
+      // Bekleyen tahminleri kontrol et (geçmiş tarihlerdekiler dahil)
+      const checkRes = await fetch("/api/predict/pending-check", { method: "POST", cache: "no-store" })
+      if (checkRes.ok) {
+        const { resolved } = await checkRes.json() as { resolved: PredictionResult[] }
+        if (resolved.length > 0) {
+          setPredictionResults((prev) => {
+            const next = [...prev]
+            for (const r of resolved) {
+              const idx = next.findIndex((x) => x.fixtureId === r.fixtureId)
+              if (idx >= 0) next[idx] = r
+              else next.push(r)
+            }
+            return next
+          })
+        }
+      }
       await Promise.all([loadFixtures(true), loadPredictionResults()])
     } finally {
       setRefreshing(false)
