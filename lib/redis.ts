@@ -125,7 +125,8 @@ export async function getCachedPrediction(fixtureId: number): Promise<MatchPredi
 export async function setCachedPrediction(fixtureId: number, data: MatchPrediction): Promise<void> {
   if (!redis) return
   try {
-    await redis.set(K.prediction(fixtureId), data, { ex: secondsUntilMidnightTR() })
+    // 30 gün TTL — maç bittikten sonra pending-check'in tahmini bulabilmesi için
+    await redis.set(K.prediction(fixtureId), data, { ex: 60 * 60 * 24 * 30 })
   } catch (err) {
     console.log("[v0] redis setCachedPrediction failed:", err instanceof Error ? err.message : err)
   }

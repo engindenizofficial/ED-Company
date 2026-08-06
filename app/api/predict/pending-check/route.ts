@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
-import { getPendingPredictions, getCachedPrediction, removePendingPrediction, savePredictionResult } from "@/lib/redis"
-import type { PredictionResult } from "@/lib/types"
+import { Redis } from "@upstash/redis"
+import { getPendingPredictions, getCachedPrediction, removePendingPrediction, savePredictionResult, getAllTimePredictionResults, addPendingPrediction } from "@/lib/redis"
+import type { PredictionResult, MatchPrediction } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
 
@@ -16,17 +17,66 @@ function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
 }
 
+/** Redis'teki ed:prediction:* key'lerini tara, henüz sonuçlanmamış olanları bul */
+async function discoverOrphanedPredictions(): Promise<{ fixtureId: number; pred: MatchPrediction }[]> {
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+  if (!url || !token) return []
+
+  try {
+    const redis = new Redis({ url, token })
+    const alreadyResolved = await getAllTimePredictionResults()
+    const resolvedIds = new Set(alreadyResolved.map((r) => r.fixtureId))
+
+    let cursor = 0
+    const keys: string[] = []
+    do {
+      const [nextCursor, batch] = await redis.scan(cursor, { match: "ed:prediction:*", count: 100 })
+      cursor = Number(nextCursor)
+      keys.push(...(batch as string[]))
+    } while (cursor !== 0)
+
+    const orphans: { fixtureId: number; pred: MatchPrediction }[] = []
+    for (const key of keys) {
+      const match = key.match(/ed:prediction:(\d+)$/)
+      if (!match) continue
+      const fixtureId = Number(match[1])
+      if (resolvedIds.has(fixtureId)) continue // Zaten başarı panelinde
+      const pred = await redis.get<MatchPrediction>(key)
+      if (pred) orphans.push({ fixtureId, pred })
+    }
+    return orphans
+  } catch {
+    return []
+  }
+}
+
 /**
  * POST /api/predict/pending-check
  * Yenile butonuna basıldığında çağrılır.
  * Redis'teki bekleyen tahminlerin her birini API-Football'dan kontrol eder.
  * Bitmiş maçları başarı paneline işler ve bekleyen listesinden çıkarır.
+ * Pending listesinde olmayan eski tahminleri de (ed:prediction:* taramasıyla) kontrol eder.
  */
 export async function POST() {
-  const pending = await getPendingPredictions()
+  let pending = await getPendingPredictions()
 
+  // Eğer pending listesinde olmayan eski tahminler varsa onları da ekle
   if (pending.length === 0) {
-    return NextResponse.json({ checked: 0, resolved: [] })
+    const orphans = await discoverOrphanedPredictions()
+    for (const { fixtureId, pred } of orphans) {
+      await addPendingPrediction({
+        fixtureId,
+        date: todayTR(),
+        homeName: pred.homeName ?? "Ev Sahibi",
+        awayName: pred.awayName ?? "Deplasman",
+      })
+    }
+    // Yeniden yükle
+    pending = await getPendingPredictions()
+    if (pending.length === 0) {
+      return NextResponse.json({ checked: 0, resolved: [] })
+    }
   }
 
   const resolved: PredictionResult[] = []
