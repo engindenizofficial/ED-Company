@@ -15,16 +15,16 @@ const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
 // Her modelin ağırlığı oylama hesaplamasında kullanılır
 // ---------------------------------------------------------------------------
 const ENSEMBLE_MODELS = [
-  { id: "openai/gpt-4o",                       weight: 2.0 }, // OpenAI    — güçlü, dengeli f/p
-  { id: "anthropic/claude-sonnet-5",           weight: 2.0 }, // Anthropic — güçlü akıl yürütme, makul fiyat
-  { id: "google/gemini-2.5-pro",               weight: 2.0 }, // Google    — en güçlü Gemini, iyi f/p
-  { id: "deepseek/deepseek-v3.2-thinking",     weight: 2.0 }, // DeepSeek  — reasoning modeli, çok ucuz
-  { id: "meta/llama-4-maverick",               weight: 1.5 }, // Meta      — açık kaynak, düşük maliyet
-  { id: "alibaba/qwen3-235b-a22b-thinking",    weight: 1.5 }, // Alibaba   — büyük MoE, ucuz
-  { id: "mistral/mistral-large-3",             weight: 1.5 }, // Mistral   — Avrupa tabanlı, dengeli
-  { id: "cohere/command-a",                    weight: 1.5 }, // Cohere    — faktüel görevlerde güçlü
-  { id: "amazon/nova-pro",                     weight: 1.0 }, // Amazon    — AWS native, iyi f/p
-  { id: "minimax/minimax-m2.5",                weight: 1.0 }, // MiniMax   — yeni, ucuz, güçlü
+  { id: "openai/gpt-4o",                    weight: 2.0 }, // OpenAI     — güçlü, dengeli f/p
+  { id: "anthropic/claude-sonnet-5",        weight: 2.0 }, // Anthropic  — güçlü akıl yürütme, makul fiyat
+  { id: "google/gemini-2.5-pro",            weight: 2.0 }, // Google     — en güçlü Gemini, iyi f/p
+  { id: "deepseek/deepseek-v3.2-thinking",  weight: 2.0 }, // DeepSeek   — reasoning, çok ucuz
+  { id: "xai/grok-4.5",                     weight: 1.5 }, // xAI        — güçlü genel model
+  { id: "moonshotai/kimi-k3",               weight: 1.5 }, // Moonshot   — Çin tabanlı, güçlü
+  { id: "alibaba/qwen3-235b-a22b-thinking", weight: 1.5 }, // Alibaba    — büyük MoE, ucuz
+  { id: "mistral/mistral-large-3",          weight: 1.5 }, // Mistral    — Avrupa tabanlı, dengeli
+  { id: "amazon/nova-pro",                  weight: 1.0 }, // Amazon     — AWS native, iyi f/p
+  { id: "minimax/minimax-m2.5",             weight: 1.0 }, // MiniMax    — yeni, ucuz, güçlü
 ] as const
 
 const PredictionSchema = z.object({
@@ -185,17 +185,18 @@ ${formatInjuries(live.injuries)}
 Türkçe olarak tahmin yap. Kesin ve net cevap ver, genel ifadelerden kaçın.
 `.trim()
 
-  // 5. Tüm modelleri paralel çalıştır
-  const modelResults = await Promise.allSettled(
-    ENSEMBLE_MODELS.map(async ({ id, weight }) => {
-      const { object } = await generateObject({
+  // 5. Tüm modelleri sıralı çalıştır (rate limit'i önlemek için)
+  const modelResults: PromiseSettledResult<{ id: string; weight: number; object: z.infer<typeof PredictionSchema> }>[] = []
+  for (const { id, weight } of ENSEMBLE_MODELS) {
+    const result = await Promise.allSettled([
+      generateObject({
         model: gateway(id),
         schema: PredictionSchema,
         prompt: contextPrompt,
-      })
-      return { id, weight, object }
-    }),
-  )
+      }).then(({ object }) => ({ id, weight, object })),
+    ])
+    modelResults.push(result[0])
+  }
 
   // Başarılı sonuçları filtrele
   type ModelResult = { id: string; weight: number; object: z.infer<typeof PredictionSchema> }
