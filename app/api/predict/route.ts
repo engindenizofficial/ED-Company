@@ -82,6 +82,22 @@ function formatInjuries(injuries: LiveData["injuries"]): string {
   return injuries.map((i) => `${i.player} (${i.team}) — ${i.reason}`).join("; ")
 }
 
+function formatLineups(lineups: LiveData["lineups"]): string {
+  if (!lineups.length) return null as unknown as string
+  return lineups
+    .map((l) => {
+      const xi = l.startXI.map((p) => p.name).join(", ")
+      const subs = l.substitutes.map((p) => p.name).join(", ")
+      const parts: string[] = [`${l.team}`]
+      if (l.formation) parts.push(`Diziliş: ${l.formation}`)
+      if (l.coach) parts.push(`Teknik Direktör: ${l.coach}`)
+      if (xi) parts.push(`İlk 11: ${xi}`)
+      if (subs) parts.push(`Yedekler: ${subs}`)
+      return parts.join(" | ")
+    })
+    .join("\n")
+}
+
 function formatOdds(odds: LiveData["odds"], homeName: string, awayName: string): string {
   const { home, draw, away } = odds
   if (!home && !draw && !away) return "Bahis oranı verisi yok."
@@ -205,6 +221,7 @@ ${formatInjuries(live.injuries)}
 
 BAHİS ORANLARI (piyasa beklentisi — düşük oran = güçlü favori):
 ${formatOdds(live.odds, homeName, awayName)}
+${(() => { const l = formatLineups(live.lineups); return l ? `\nRESMİ KADRO (açıklandı):\n${l}` : "" })()}
 `.trim()
 
   // ---------------------------------------------------------------------------
