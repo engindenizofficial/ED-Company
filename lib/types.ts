@@ -130,13 +130,6 @@ export interface TeamSeasonStats {
   recent: FormGame[]
 }
 
-export interface SquadPlayer {
-  id: number
-  name: string
-  age: number | null
-  position: string | null
-}
-
 /** Everything we pulled live from API-Football for the detail panel. */
 export interface LiveMatchData {
   fixture: Fixture

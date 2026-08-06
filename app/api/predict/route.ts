@@ -93,7 +93,7 @@ function formatSquad(squad: LiveData["homeSquad"], teamName: string): string {
   if (!squad.length) return ""
   const grouped: Record<string, string[]> = {}
   for (const p of squad) {
-    const label = POS_LABEL[p.position ?? ""] ?? "Diğer"
+    const label = POS_LABEL[p.pos ?? ""] ?? "Diğer"
     if (!grouped[label]) grouped[label] = []
     grouped[label].push(p.name)
   }
@@ -371,9 +371,14 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     // Özet oluşturulamazsa devam et
   }
 
-  // 9. ModelVote dizisi
+  // 9. ModelVote dizisi — model alanı "provider/model-id" formatında olmalı (UI etiket eşleşmesi için)
+  const PROVIDER_MODEL_ID: Record<string, string> = {
+    openai: "openai/gpt-5.6-terra",
+    google: "google/gemini-3.6-flash",
+    xai:    "xai/grok-4.5",
+  }
   const modelVotes: ModelVote[] = successfulVotes.map((v) => ({
-    model:      v.label,
+    model:      PROVIDER_MODEL_ID[v.provider] ?? `${v.provider}/${v.label}`,
     winner:     v.vote.winner,
     homeScore:  v.vote.homeScore,
     awayScore:  v.vote.awayScore,

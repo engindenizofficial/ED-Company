@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 
 /** Yeni bir tahmin sonucu kaydeder (maç bittikten sonra otomatik çağrılır) */
 export async function POST(request: Request) {
-  let body: Partial<PredictionResult>
+  let body: Partial<PredictionResult> & { modelVotes?: Array<{ model: string; label?: string; winner: "home" | "away" | "draw"; homeScore: number; awayScore: number }> }
   try {
     body = await request.json()
   } catch {

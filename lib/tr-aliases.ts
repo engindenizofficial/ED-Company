@@ -205,7 +205,6 @@ const COUNTRY_TR_DISPLAY: Record<string, string> = {
   "rwanda": "Ruanda",
   "burkina faso": "Burkina Faso",
   "guinea": "Gine",
-  "zimbabwe": "Zimbabve",
   "sierra leone": "Sierra Leone",
   "liberia": "Liberya",
   "gabon": "Gabon",
@@ -224,8 +223,6 @@ const COUNTRY_TR_DISPLAY: Record<string, string> = {
   "south america": "Güney Amerika",
   "north america": "Kuzey Amerika",
   "oceania": "Okyanusya",
-  // Azerbaycan'lı takımlar için özel (API "Azerbaijan" dönüyor)
-  "azerbaijan": "Azerbaycan",
 }
 
 /** Verilen İngilizce ülke adını Türkçe görüntüleme adına çevirir.

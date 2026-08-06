@@ -417,7 +417,9 @@ async function getSquad(teamId: number): Promise<SquadPlayer[]> {
     id: p.id ?? 0,
     name: p.name ?? "",
     age: p.age ?? null,
-    position: p.position ?? null,
+    number: p.number ?? null,
+    pos: p.position ?? null,
+    photo: p.photo ?? null,
   }))
 }
 

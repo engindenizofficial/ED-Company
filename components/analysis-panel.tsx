@@ -1104,7 +1104,7 @@ function InjuryList({ injuries }: { injuries: InjuryItem[] }) {
 function modelLabel(modelId: string): { short: string; colorCls: string } {
   if (modelId.startsWith("openai/"))     return { short: "GPT-5.6 Terra",   colorCls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" }
   if (modelId.startsWith("anthropic/")) return { short: "Claude",     colorCls: "bg-orange-500/10  text-orange-600  border-orange-500/20  dark:text-orange-400"  }
-  if (modelId.startsWith("google/"))    return { short: "Gemini",     colorCls: "bg-blue-500/10    text-blue-600    border-blue-500/20    dark:text-blue-400"    }
+  if (modelId.startsWith("google/"))    return { short: "Gemini 3.6 Flash", colorCls: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" }
   if (modelId.startsWith("xai/"))       return { short: "Grok 4.5",   colorCls: "bg-violet-500/10  text-violet-600  border-violet-500/20  dark:text-violet-400"  }
   return { short: modelId.split("/")[0], colorCls: "bg-secondary text-muted-foreground border-border/60" }
 }

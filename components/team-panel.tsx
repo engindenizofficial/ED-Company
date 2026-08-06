@@ -29,6 +29,7 @@ import type {
   SquadPlayer,
   StandingRow,
   TeamCoach,
+  TeamPageData,
   TeamSeasonStats,
   TeamTopScorer,
   TeamTransfer,
