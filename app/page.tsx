@@ -84,11 +84,81 @@ export default function Page() {
     }
   }, [date])
 
+  // Sayfa açılışında bitmiş maçları otomatik kontrol et:
+  // Redis'te tahmini varsa skoru karşılaştır ve panele ekle.
+  // Tahmini yoksa hiçbir şey yapma.
+  const autoCheckFinished = useCallback(async (fixtures: Fixture[]) => {
+    const finished = fixtures.filter((f) => FINISHED_STATUSES.has(f.statusShort))
+    if (finished.length === 0) return
+
+    await Promise.allSettled(
+      finished.map(async (fixture) => {
+        if (savedResultIds.current.has(fixture.id)) return
+
+        // Sadece cache'den tahmin çek — yeni tahmin oluşturma
+        let pred: MatchPrediction | null = null
+        try {
+          const res = await fetch(`/api/predict/cached?fixtureId=${fixture.id}`, { cache: "no-store" })
+          if (res.ok) pred = (await res.json()) as MatchPrediction
+        } catch {
+          return
+        }
+
+        if (!pred) return // Bu maç için kayıtlı tahmin yok, geç
+
+        const homeGoals = fixture.goalsHome
+        const awayGoals = fixture.goalsAway
+        if (homeGoals == null || awayGoals == null) return
+
+        const winner = actualWinner(homeGoals, awayGoals)
+
+        try {
+          const res = await fetch("/api/prediction-results", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fixtureId: fixture.id,
+              homeName: fixture.home.name,
+              awayName: fixture.away.name,
+              predictedHome: pred.homeScore,
+              predictedAway: pred.awayScore,
+              predictedWinner: pred.winner,
+              actualHome: homeGoals,
+              actualAway: awayGoals,
+              actualWinner: winner,
+              confidence: pred.confidence,
+            }),
+            cache: "no-store",
+          })
+          if (res.ok) {
+            savedResultIds.current.add(fixture.id)
+            const data = (await res.json()) as { ok: boolean; result: PredictionResult }
+            if (data.ok) {
+              setPredictionResults((prev) => {
+                if (prev.some((r) => r.fixtureId === fixture.id)) return prev
+                return [...prev, data.result]
+              })
+            }
+          }
+        } catch {
+          // sessizce geç
+        }
+      }),
+    )
+  }, [])
+
   // İlk yükleme
   useEffect(() => {
     loadFixtures(false)
     loadPredictionResults()
   }, [loadFixtures, loadPredictionResults])
+
+  // Fikstürler yüklenince otomatik kontrol başlat
+  useEffect(() => {
+    if (!fixturesLoading && fixturesData) {
+      autoCheckFinished(fixturesData.fixtures ?? [])
+    }
+  }, [fixturesLoading, fixturesData, autoCheckFinished])
 
   // Maç paneli açılınca her seferinde API'den taze veri çek
   const loadAnalysis = useCallback(async (id: number) => {
