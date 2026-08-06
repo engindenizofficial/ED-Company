@@ -127,6 +127,9 @@ export function AnalysisPanel({
 
   const LIVE_OR_FINISHED = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "FT", "AET", "PEN", "AWD", "WO"])
   const isPredictable = !LIVE_OR_FINISHED.has(fixture.statusShort)
+  // Tahmin yapılmışsa maç başlamış/bitmişse de göster
+  const hasPrediction = !!(prediction)
+  const showPrediction = isPredictable || hasPrediction
 
   // Oyuncu istatistiklerini ev sahibi / deplasman olarak böl
   const homePlayerStats = playerStats.filter((p) => p.teamId === fixture.home.id)
@@ -138,14 +141,14 @@ export function AnalysisPanel({
       {/* 1. Match header */}
       <MatchHeader fixture={fixture} />
 
-      {/* 2. AI Prediction — sadece oynanmamış maçlarda */}
-      {isPredictable && (
+      {/* 2. AI Prediction — tahmin yapılmışsa her zaman göster, yapılmamışsa sadece oynanmamış maçlarda */}
+      {showPrediction && (
         <PredictionCard
           prediction={prediction ?? null}
           isLoading={predictionLoading ?? false}
           homeName={fixture.home.name}
           awayName={fixture.away.name}
-          onPredict={onPredict}
+          onPredict={isPredictable ? onPredict : undefined}
         />
       )}
 
