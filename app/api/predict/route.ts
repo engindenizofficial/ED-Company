@@ -17,7 +17,7 @@ const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
 // Ensemble konfigürasyonu — 3 farklı provider, f/p en iyi modeller
 // ---------------------------------------------------------------------------
 const ENSEMBLE_MODELS = [
-  { provider: "openai",  model: openai("gpt-4o"),                label: "GPT-4o"         },
+  { provider: "openai",  model: openai("gpt-5.6-terra"),         label: "GPT-5.6 Terra"  },
   { provider: "google",  model: google("gemini-3.5-flash"),      label: "Gemini 3.5 Flash" },
   { provider: "xai",     model: xai("grok-3-mini"),              label: "Grok 3 Mini"    },
 ] as const
@@ -257,7 +257,7 @@ ${(() => {
 `.trim()
 
   // ---------------------------------------------------------------------------
-  // GPT-4o — Taktik & Form Analisti
+  // GPT-5.6 Terra — Taktik & Form Analisti
   // Son form, puan durumu, ev/deplasman momentum odaklı
   // ---------------------------------------------------------------------------
   const promptGPT = `
@@ -354,7 +354,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   const allFactors = successfulVotes.flatMap((v) => v.vote.keyFactors)
   const uniqueFactors = [...new Set(allFactors)].slice(0, 5)
 
-  // 8. GPT-4o ile özet oluştur
+    // 8. GPT-5.6 Terra ile özet oluştur
   let summary = "Modeller tahminlerini tamamladı."
   try {
     const voteSummary = successfulVotes.map((v) => (
@@ -362,7 +362,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     )).join("\n")
 
     const { object: summaryObj } = await generateObject({
-      model: openai("gpt-4o"),
+      model: openai("gpt-5.6-terra"),
       schema: SummarySchema,
       prompt: `${contextPrompt}\n\nAI model tahminleri:\n${voteSummary}\n\nBu tahminleri ve maç verisini sentezleyerek 3-4 cümlelik Türkçe bir analiz özeti yaz.`,
     })

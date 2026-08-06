@@ -1102,7 +1102,7 @@ function InjuryList({ injuries }: { injuries: InjuryItem[] }) {
 
 /** Model adını kısa etiket + renk sınıfına çevirir */
 function modelLabel(modelId: string): { short: string; colorCls: string } {
-  if (modelId.startsWith("openai/"))     return { short: "GPT-4o",   colorCls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" }
+  if (modelId.startsWith("openai/"))     return { short: "GPT-5.6 Terra",   colorCls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" }
   if (modelId.startsWith("anthropic/")) return { short: "Claude",   colorCls: "bg-orange-500/10  text-orange-600  border-orange-500/20  dark:text-orange-400"  }
   if (modelId.startsWith("google/"))    return { short: "Gemini",   colorCls: "bg-blue-500/10    text-blue-600    border-blue-500/20    dark:text-blue-400"    }
   return { short: modelId.split("/")[0], colorCls: "bg-secondary text-muted-foreground border-border/60" }
@@ -1184,7 +1184,7 @@ function PredictionCard({
         <div>
           <p className="text-xs font-semibold text-foreground">AI tahminleri hazırlanıyor...</p>
           <p className="text-[11px] text-muted-foreground">
-            GPT-4o, Gemini 3.5 Flash ve Grok 3 Mini paralel olarak analiz yapıyor
+            GPT-5.6 Terra, Gemini 3.5 Flash ve Grok 3 Mini paralel olarak analiz yapıyor
           </p>
         </div>
       </div>
@@ -1200,7 +1200,7 @@ function PredictionCard({
           </span>
           <div>
             <p className="text-xs font-semibold text-foreground">AI Ensemble Tahmini</p>
-            <p className="text-[11px] text-muted-foreground">GPT-4o · Gemini 3.5 Flash · Grok 3 Mini</p>
+            <p className="text-[11px] text-muted-foreground">GPT-5.6 Terra · Gemini 3.5 Flash · Grok 3 Mini</p>
           </div>
         </div>
         {onPredict && (
