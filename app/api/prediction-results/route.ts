@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getPredictionResults, savePredictionResult } from "@/lib/redis"
+import { getPredictionResults, getAllTimePredictionResults, savePredictionResult } from "@/lib/redis"
 import type { PredictionResult } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -8,11 +8,17 @@ function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
 }
 
-/** Günün tüm tahmin sonuçlarını döndürür */
+/** Tüm tahmin sonuçlarını döndürür (all=1 parametresiyle tüm zamanlar) */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const date = searchParams.get("date") ?? todayTR()
+  const all = searchParams.get("all") === "1"
 
+  if (all) {
+    const results = await getAllTimePredictionResults()
+    return NextResponse.json({ results })
+  }
+
+  const date = searchParams.get("date") ?? todayTR()
   const results = await getPredictionResults(date)
   return NextResponse.json({ date, results })
 }
@@ -37,6 +43,7 @@ export async function POST(request: Request) {
     actualAway,
     actualWinner,
     confidence,
+    modelVotes,
   } = body
 
   if (
@@ -57,6 +64,19 @@ export async function POST(request: Request) {
   const scoreCorrect = predictedHome === actualHome && predictedAway === actualAway
   const sideCorrect = predictedWinner === actualWinner
 
+  // Her modelin bireysel doğruluğunu hesapla
+  const modelResults = Array.isArray(modelVotes)
+    ? modelVotes.map((v: any) => ({
+        model: v.model ?? "",
+        label: v.label ?? v.model ?? "",
+        winner: v.winner,
+        sideCorrect: v.winner === actualWinner,
+        homeScore: v.homeScore,
+        awayScore: v.awayScore,
+        scoreCorrect: v.homeScore === actualHome && v.awayScore === actualAway,
+      }))
+    : undefined
+
   const result: PredictionResult = {
     fixtureId,
     homeName,
@@ -71,6 +91,7 @@ export async function POST(request: Request) {
     sideCorrect,
     confidence,
     savedAt: Date.now(),
+    modelResults,
   }
 
   const date = todayTR()

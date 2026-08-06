@@ -37,6 +37,7 @@ const K = {
   allTeams: (season: number) => `ed:allteams:${season}`,
   prediction: (fixtureId: number) => `ed:prediction:${fixtureId}`,
   predictionResults: (date: string) => `ed:prediction-results:${date}`,
+  allTimePredictionResults: () => `ed:prediction-results:all`,
 }
 
 // Fixtures: 6 saat
@@ -160,8 +161,8 @@ export async function getPredictionResults(date: string): Promise<PredictionResu
 export async function savePredictionResult(date: string, result: PredictionResult): Promise<void> {
   if (!redis) return
   try {
+    // Günlük key'e kaydet
     const existing = await getPredictionResults(date)
-    // Aynı fixtureId varsa üstüne yaz, yoksa ekle
     const idx = existing.findIndex((r) => r.fixtureId === result.fixtureId)
     if (idx >= 0) {
       existing[idx] = result
@@ -169,8 +170,28 @@ export async function savePredictionResult(date: string, result: PredictionResul
       existing.push(result)
     }
     await redis.set(K.predictionResults(date), existing, { ex: secondsUntilMidnightTR() + 60 * 60 * 24 })
+
+    // Tüm zamanlar key'ine de kaydet (TTL yok — kalıcı)
+    const allTime = await getAllTimePredictionResults()
+    const allIdx = allTime.findIndex((r) => r.fixtureId === result.fixtureId)
+    if (allIdx >= 0) {
+      allTime[allIdx] = result
+    } else {
+      allTime.push(result)
+    }
+    await redis.set(K.allTimePredictionResults(), allTime)
   } catch (err) {
     console.log("[v0] redis savePredictionResult failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+export async function getAllTimePredictionResults(): Promise<PredictionResult[]> {
+  if (!redis) return []
+  try {
+    return (await redis.get<PredictionResult[]>(K.allTimePredictionResults())) ?? []
+  } catch (err) {
+    console.log("[v0] redis getAllTimePredictionResults failed:", err instanceof Error ? err.message : err)
+    return []
   }
 }
 

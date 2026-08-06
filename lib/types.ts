@@ -361,6 +361,16 @@ export interface PredictionResult {
   confidence: number
   /** Kaydedilme zamanı */
   savedAt: number
+  /** Her modelin bireysel tahmin sonuçları — per-AI başarı için */
+  modelResults?: Array<{
+    model: string
+    label: string
+    winner: "home" | "away" | "draw"
+    sideCorrect: boolean
+    homeScore: number
+    awayScore: number
+    scoreCorrect: boolean
+  }>
 }
 
 export interface AnalysisResponse {

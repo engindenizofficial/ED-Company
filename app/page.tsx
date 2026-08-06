@@ -69,20 +69,19 @@ export default function Page() {
     }
   }, [date])
 
-  // Günün tahmin sonuçlarını çek
+  // Tüm zamanlar tahmin sonuçlarını çek
   const loadPredictionResults = useCallback(async () => {
     try {
-      const res = await fetch(`/api/prediction-results?date=${date}`, { cache: "no-store" })
-      const data = await res.json() as { date: string; results: PredictionResult[] }
+      const res = await fetch(`/api/prediction-results?all=1`, { cache: "no-store" })
+      const data = await res.json() as { results: PredictionResult[] }
       if (data.results) {
         setPredictionResults(data.results)
-        // Zaten kaydedilmiş ID'leri işaretle
         data.results.forEach((r) => savedResultIds.current.add(r.fixtureId))
       }
     } catch {
       // sessizce geç
     }
-  }, [date])
+  }, [])
 
   // Sayfa açılışında bitmiş maçları otomatik kontrol et:
   // Redis'te tahmini varsa skoru karşılaştır ve panele ekle.
@@ -127,6 +126,7 @@ export default function Page() {
               actualAway: awayGoals,
               actualWinner: winner,
               confidence: pred.confidence,
+              modelVotes: pred.modelVotes ?? [],
             }),
             cache: "no-store",
           })
@@ -249,6 +249,7 @@ export default function Page() {
           actualAway: awayGoals,
           actualWinner: winner,
           confidence: pred.confidence,
+          modelVotes: pred.modelVotes ?? [],
         }),
         cache: "no-store",
       })
