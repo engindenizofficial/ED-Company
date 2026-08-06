@@ -180,9 +180,11 @@ export async function POST(request: Request) {
   const homeStanding = live.standings.find((s) => s.teamId === fixture.home.id)
   const awayStanding = live.standings.find((s) => s.teamId === fixture.away.id)
 
-  const contextPrompt = `
-Sen bir futbol analiz uzmanısın. Aşağıdaki verilere dayanarak ${homeName} - ${awayName} maçı için tahmin yap.
-
+  // ---------------------------------------------------------------------------
+  // Ortak veri bloğu — her prompt'ta tekrar eden bağlam
+  // ---------------------------------------------------------------------------
+  const sharedContext = `
+MAÇ: ${homeName} - ${awayName}
 LİG: ${fixture.league.name} (${fixture.league.season} sezonu)
 TARİH: ${new Date(fixture.date).toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
 ${fixture.venue ? `SAHA: ${fixture.venue}` : ""}
@@ -203,18 +205,85 @@ ${formatInjuries(live.injuries)}
 
 BAHİS ORANLARI (piyasa beklentisi — düşük oran = güçlü favori):
 ${formatOdds(live.odds, homeName, awayName)}
-
-Türkçe olarak tahmin yap. Kesin ve net cevap ver, genel ifadelerden kaçın.
-Bahis oranlarını bir kalibrasyon aracı olarak kullan: oranlar çok net bir favori gösteriyorsa güven skorunu buna göre ayarla, ancak istatistik verileri farklı bir hikaye anlatıyorsa bunu da belirt.
 `.trim()
 
-  // 5. 3 modeli paralel çalıştır
+  // ---------------------------------------------------------------------------
+  // GPT-4o — Taktik & Form Analisti
+  // Son form, puan durumu, ev/deplasman momentum odaklı
+  // ---------------------------------------------------------------------------
+  const promptGPT = `
+Sen deneyimli bir futbol taktik analistsin. Görevin ${homeName} - ${awayName} maçında
+her iki takımın güncel form, puan durumu ve ev/deplasman performansını değerlendirerek
+"şu an hangi takım daha iyi durumda?" sorusuna yanıt vermek ve maç sonucunu tahmin etmektir.
+
+Odaklan:
+- Son 5 maç formu ve momentum (üst üste galibiyet/mağlubiyet serileri)
+- Ev sahibi avantajı / deplasman zafiyeti
+- Puan sıralaması ve hedefler (şampiyonluk yarışı mı, düşme hattı mı?)
+- Bahis oranlarıyla form verilerini karşılaştır; tutarsızlık varsa belirt
+
+${sharedContext}
+
+Türkçe olarak kesin ve net tahmin yap.
+`.trim()
+
+  // ---------------------------------------------------------------------------
+  // Gemini 2.5 Flash — İstatistik & Gol Beklentisi Uzmanı
+  // Gol ortalamaları, BTTS, over/under, H2H sayısal analiz odaklı
+  // ---------------------------------------------------------------------------
+  const promptGemini = `
+Sen istatistik odaklı bir futbol analistsin. Görevin ${homeName} - ${awayName} maçında
+sayısal verileri kullanarak gol beklentisini ve maç skorunu tahmin etmektir.
+
+Odaklan:
+- Maç başı atılan/yenilen gol ortalamaları ve BTTS oranları
+- Kafa kafaya geçmiş skorlar (toplam gol eğilimi)
+- Her iki takımın defans/hücum dengesi
+- Bahis oranlarını istatistiksel bir kılavuz olarak kullan; 2.5 üst/alt için özellikle önemli
+- Over/under ve BTTS kararlarını somut istatistiklerle gerekçelendir
+
+${sharedContext}
+
+Türkçe olarak kesin ve net tahmin yap.
+`.trim()
+
+  // ---------------------------------------------------------------------------
+  // Grok 3 Mini — Bağlam & Motivasyon Analisti
+  // Sakatlıklar, maçın önemi, sürpriz faktörü odaklı
+  // ---------------------------------------------------------------------------
+  const promptGrok = `
+Sen futbolda bağlamsal faktörlere odaklanan bir analistsin. Görevin ${homeName} - ${awayName} maçında
+sahada görünmeyen ama sonucu etkileyebilecek faktörleri değerlendirerek sürpriz potansiyelini tespit etmektir.
+
+Odaklan:
+- Kritik sakatlıklar ve cezalar (yıldız oyuncular yok mu?)
+- Maçın iki takım için önemi (biri şampiyonluğa mı koşuyor, diğeri elenmiş mi?)
+- Deplasman takımının seyahat/fikstür yoğunluğu
+- Bahis oranları ile form verileri arasındaki tutarsızlıklar (sürpriz işareti olabilir)
+- Psikolojik avantaj/dezavantaj (büyük galibiyet sonrası özgüven, üst üste mağlubiyet baskısı)
+
+${sharedContext}
+
+Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse güven skorunu düşür ve bunu keyFactors'ta belirt.
+`.trim()
+
+  // Her modele ait prompt'u map'le
+  const modelPrompts: Record<string, string> = {
+    openai: promptGPT,
+    google: promptGemini,
+    xai:    promptGrok,
+  }
+
+  // Özet çağrısında kullanmak için ortak bağlamı sakla
+  const contextPrompt = sharedContext
+
+  // 5. 3 modeli paralel çalıştır — her biri kendi rolüne ait prompt'u alır
   const modelResults = await Promise.allSettled(
     ENSEMBLE_MODELS.map(async ({ provider, model, label }) => {
       const { object } = await generateObject({
         model,
         schema: PredictionSchema,
-        prompt: contextPrompt,
+        prompt: modelPrompts[provider] ?? contextPrompt,
       })
       return { provider, label, weight: WEIGHTS[provider] ?? 1.0, object }
     }),
