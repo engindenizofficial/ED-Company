@@ -82,6 +82,28 @@ function formatInjuries(injuries: LiveData["injuries"]): string {
   return injuries.map((i) => `${i.player} (${i.team}) — ${i.reason}`).join("; ")
 }
 
+const POS_LABEL: Record<string, string> = {
+  Goalkeeper: "Kaleci",
+  Defender: "Defans",
+  Midfielder: "Orta Saha",
+  Attacker: "Forvet",
+}
+
+function formatSquad(squad: LiveData["homeSquad"], teamName: string): string {
+  if (!squad.length) return ""
+  const grouped: Record<string, string[]> = {}
+  for (const p of squad) {
+    const label = POS_LABEL[p.position ?? ""] ?? "Diğer"
+    if (!grouped[label]) grouped[label] = []
+    grouped[label].push(p.name)
+  }
+  const order = ["Kaleci", "Defans", "Orta Saha", "Forvet", "Diğer"]
+  const lines = order
+    .filter((k) => grouped[k]?.length)
+    .map((k) => `  ${k}: ${grouped[k].join(", ")}`)
+  return `${teamName}:\n${lines.join("\n")}`
+}
+
 function formatLineups(lineups: LiveData["lineups"]): string {
   if (!lineups.length) return null as unknown as string
   return lineups
@@ -221,7 +243,17 @@ ${formatInjuries(live.injuries)}
 
 BAHİS ORANLARI (piyasa beklentisi — düşük oran = güçlü favori):
 ${formatOdds(live.odds, homeName, awayName)}
-${(() => { const l = formatLineups(live.lineups); return l ? `\nRESMİ KADRO (açıklandı):\n${l}` : "" })()}
+${(() => {
+  const lineup = formatLineups(live.lineups)
+  if (lineup) return `\nRESMİ 11 (açıklandı):\n${lineup}`
+  // Resmi 11 yoksa geniş kadroyu göster
+  const homeSquadStr = formatSquad(live.homeSquad, homeName)
+  const awaySquadStr = formatSquad(live.awaySquad, awayName)
+  if (homeSquadStr || awaySquadStr) {
+    return `\nKAYITLI KADRO (resmi 11 henüz açıklanmadı):\n${[homeSquadStr, awaySquadStr].filter(Boolean).join("\n")}`
+  }
+  return ""
+})()}
 `.trim()
 
   // ---------------------------------------------------------------------------

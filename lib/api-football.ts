@@ -8,6 +8,7 @@ import type {
   MatchEvent,
   PlayerProfile,
   PlayerSeasonStats,
+  SquadPlayer,
   StandingRow,
   StatItem,
   TeamInfo,
@@ -408,6 +409,18 @@ async function getOdds(fixtureId: number): Promise<{ home: number | null; draw: 
   return { home: null, draw: null, away: null }
 }
 
+async function getSquad(teamId: number): Promise<SquadPlayer[]> {
+  const raw = await safeFetch<any>("/players/squads", { team: teamId }, 3600)
+  if (!raw.length) return []
+  const players: any[] = raw[0]?.players ?? []
+  return players.map((p) => ({
+    id: p.id ?? 0,
+    name: p.name ?? "",
+    age: p.age ?? null,
+    position: p.position ?? null,
+  }))
+}
+
 async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
   const raw = await safeFetch<any>("/injuries", { fixture: fixtureId }, 1800)
   return raw.map((r) => ({
@@ -519,7 +532,7 @@ export async function getFixturePlayerStats(fixtureId: number): Promise<FixtureP
 /** Gathers the full live/contextual dataset for the detail panel. */
 export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData> {
   const { id, home, away, league } = fixture
-  const [events, statistics, lineups, standings, injuries, h2h, homeStats, awayStats, odds] =
+  const [events, statistics, lineups, standings, injuries, h2h, homeStats, awayStats, odds, homeSquad, awaySquad] =
     await Promise.all([
       getEvents(id),
       getStatistics(id),
@@ -530,6 +543,8 @@ export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData>
       getTeamSeasonStats(home, league.id, league.season),
       getTeamSeasonStats(away, league.id, league.season),
       getOdds(id),
+      getSquad(home.id),
+      getSquad(away.id),
     ])
 
   return {
@@ -543,6 +558,8 @@ export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData>
     homeStats,
     awayStats,
     odds,
+    homeSquad,
+    awaySquad,
   }
 }
 
