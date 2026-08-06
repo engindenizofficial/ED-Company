@@ -141,6 +141,7 @@ export interface LiveMatchData {
   h2h: FormGame[]
   homeStats: TeamSeasonStats | null
   awayStats: TeamSeasonStats | null
+  odds: { home: number | null; draw: number | null; away: number | null }
 }
 
 // ---------------------------------------------------------------------------

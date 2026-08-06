@@ -82,6 +82,30 @@ function formatInjuries(injuries: LiveData["injuries"]): string {
   return injuries.map((i) => `${i.player} (${i.team}) — ${i.reason}`).join("; ")
 }
 
+function formatOdds(odds: LiveData["odds"], homeName: string, awayName: string): string {
+  const { home, draw, away } = odds
+  if (!home && !draw && !away) return "Bahis oranı verisi yok."
+
+  const parts: string[] = []
+  if (home !== null) parts.push(`${homeName} kazanır: ${home.toFixed(2)}`)
+  if (draw !== null) parts.push(`Beraberlik: ${draw.toFixed(2)}`)
+  if (away !== null) parts.push(`${awayName} kazanır: ${away.toFixed(2)}`)
+
+  // Favorisini de belirt — oranı en düşük olan favori
+  const entries = [
+    { label: homeName, odd: home },
+    { label: "Beraberlik", odd: draw },
+    { label: awayName, odd: away },
+  ].filter((e): e is { label: string; odd: number } => e.odd !== null)
+
+  if (entries.length > 0) {
+    const favorite = entries.reduce((a, b) => (a.odd < b.odd ? a : b))
+    parts.push(`(Piyasa favorisi: ${favorite.label} @ ${favorite.odd.toFixed(2)})`)
+  }
+
+  return parts.join(" | ")
+}
+
 // ---------------------------------------------------------------------------
 // Ağırlıklı ensemble oylama
 // ---------------------------------------------------------------------------
@@ -177,7 +201,11 @@ ${formatH2H(live.h2h, homeName, awayName)}
 SAKATLIK / CEZA:
 ${formatInjuries(live.injuries)}
 
+BAHİS ORANLARI (piyasa beklentisi — düşük oran = güçlü favori):
+${formatOdds(live.odds, homeName, awayName)}
+
 Türkçe olarak tahmin yap. Kesin ve net cevap ver, genel ifadelerden kaçın.
+Bahis oranlarını bir kalibrasyon aracı olarak kullan: oranlar çok net bir favori gösteriyorsa güven skorunu buna göre ayarla, ancak istatistik verileri farklı bir hikaye anlatıyorsa bunu da belirt.
 `.trim()
 
   // 5. 3 modeli paralel çalıştır

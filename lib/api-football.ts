@@ -381,6 +381,33 @@ async function getStandings(leagueId: number, season: number, teamIds: number[])
   return rows
 }
 
+async function getOdds(fixtureId: number): Promise<{ home: number | null; draw: number | null; away: number | null }> {
+  const raw = await safeFetch<any>("/odds", { fixture: fixtureId }, 3600)
+  if (!raw.length) return { home: null, draw: null, away: null }
+
+  // İlk bookmaker'ın "Match Winner" (veya "1X2") bahsini bul
+  for (const entry of raw) {
+    for (const bookmaker of entry.bookmakers ?? []) {
+      for (const bet of bookmaker.bets ?? []) {
+        const name: string = (bet.name ?? "").toLowerCase()
+        if (name.includes("match winner") || name === "1x2") {
+          const values: Array<{ value: string; odd: string }> = bet.values ?? []
+          const parse = (label: string) => {
+            const found = values.find((v) => v.value.toLowerCase() === label)
+            return found ? parseFloat(found.odd) : null
+          }
+          return {
+            home: parse("home"),
+            draw: parse("draw"),
+            away: parse("away"),
+          }
+        }
+      }
+    }
+  }
+  return { home: null, draw: null, away: null }
+}
+
 async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
   const raw = await safeFetch<any>("/injuries", { fixture: fixtureId }, 1800)
   return raw.map((r) => ({
@@ -492,7 +519,7 @@ export async function getFixturePlayerStats(fixtureId: number): Promise<FixtureP
 /** Gathers the full live/contextual dataset for the detail panel. */
 export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData> {
   const { id, home, away, league } = fixture
-  const [events, statistics, lineups, standings, injuries, h2h, homeStats, awayStats] =
+  const [events, statistics, lineups, standings, injuries, h2h, homeStats, awayStats, odds] =
     await Promise.all([
       getEvents(id),
       getStatistics(id),
@@ -502,6 +529,7 @@ export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData>
       getHeadToHead(home.id, away.id),
       getTeamSeasonStats(home, league.id, league.season),
       getTeamSeasonStats(away, league.id, league.season),
+      getOdds(id),
     ])
 
   return {
@@ -514,6 +542,7 @@ export async function getLiveMatchData(fixture: Fixture): Promise<LiveMatchData>
     h2h,
     homeStats,
     awayStats,
+    odds,
   }
 }
 
