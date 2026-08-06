@@ -277,7 +277,7 @@ Türkçe olarak kesin ve net tahmin yap.
 `.trim()
 
   // ---------------------------------------------------------------------------
-  // Gemini 2.5 Flash — İstatistik & Gol Beklentisi Uzmanı
+  // Gemini 3.5 Flash — İstatistik & Gol Beklentisi Uzmanı
   // Gol ortalamaları, BTTS, over/under, H2H sayısal analiz odaklı
   // ---------------------------------------------------------------------------
   const promptGemini = `
