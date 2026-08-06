@@ -15,9 +15,16 @@ const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
 // Her modelin ağırlığı oylama hesaplamasında kullanılır
 // ---------------------------------------------------------------------------
 const ENSEMBLE_MODELS = [
-  { id: "openai/gpt-4o",            weight: 2.0 },
-  { id: "anthropic/claude-sonnet-5", weight: 1.5 },
-  { id: "google/gemini-2.5-flash",  weight: 1.5 },
+  { id: "openai/gpt-5",                     weight: 3.0 },
+  { id: "openai/gpt-5-pro",                 weight: 2.5 },
+  { id: "anthropic/claude-opus-5",          weight: 2.5 },
+  { id: "anthropic/claude-sonnet-5",        weight: 2.0 },
+  { id: "google/gemini-2.5-pro",            weight: 2.0 },
+  { id: "deepseek/deepseek-v3.2-thinking",  weight: 1.5 },
+  { id: "openai/gpt-4o",                    weight: 1.5 },
+  { id: "anthropic/claude-opus-4.8",        weight: 1.5 },
+  { id: "google/gemini-2.5-flash",          weight: 1.0 },
+  { id: "deepseek/deepseek-v3.2",           weight: 1.0 },
 ] as const
 
 const PredictionSchema = z.object({
