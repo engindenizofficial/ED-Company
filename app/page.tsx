@@ -175,53 +175,46 @@ export default function Page() {
     }
   }, [])
 
-  // Tahmin yükleme — başlamamış: yeni tahmin yap ve kaydet
-  // Canlı veya bitmiş: sadece cache'den getir, yoksa null döndür
+  // Tahmin yükleme — her durumda sadece cache'den okur, yeni tahmin oluşturmaz
   const loadPrediction = useCallback(async (fixture: Fixture) => {
-    const isLiveOrFinished = LIVE_OR_FINISHED.has(fixture.statusShort)
-
-    if (PREDICTABLE_STATUSES.has(fixture.statusShort)) {
-      // Başlamamış maç — normal tahmin akışı (cache veya yeni oluştur)
-      setPredictionLoading(true)
-      setPrediction(null)
-      try {
-        const res = await fetch("/api/predict", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fixtureId: fixture.id }),
-          cache: "no-store",
-        })
-        if (!res.ok) throw new Error("Tahmin alınamadı")
+    setPredictionLoading(true)
+    setPrediction(null)
+    try {
+      const res = await fetch(`/api/predict/cached?fixtureId=${fixture.id}`, { cache: "no-store" })
+      if (res.ok) {
         const data = await res.json() as MatchPrediction
         setPrediction(data)
-      } catch {
+      } else {
         setPrediction(null)
-      } finally {
-        setPredictionLoading(false)
       }
-    } else if (isLiveOrFinished) {
-      // Canlı veya bitmiş maç — sadece cache'den oku, yeni tahmin yapma
-      setPredictionLoading(true)
+    } catch {
       setPrediction(null)
-      try {
-        // Predict route zaten cache'e bakıyor. NS olmayan maçlar için 422 döner.
-        // Onun yerine Redis'e doğrudan erişen özel bir endpoint kullanıyoruz.
-        const res = await fetch(`/api/predict/cached?fixtureId=${fixture.id}`, { cache: "no-store" })
-        if (res.ok) {
-          const data = await res.json() as MatchPrediction
-          setPrediction(data)
-        } else {
-          setPrediction(null)
-        }
-      } catch {
-        setPrediction(null)
-      } finally {
-        setPredictionLoading(false)
-      }
-    } else {
-      setPrediction(null)
+    } finally {
+      setPredictionLoading(false)
     }
   }, [])
+
+  // Kullanıcı "Tahmin Al" butonuna basınca çağrılır — yeni tahmin üretir
+  const triggerPrediction = useCallback(async () => {
+    if (!selected || !PREDICTABLE_STATUSES.has(selected.statusShort)) return
+    setPredictionLoading(true)
+    setPrediction(null)
+    try {
+      const res = await fetch("/api/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fixtureId: selected.id }),
+        cache: "no-store",
+      })
+      if (!res.ok) throw new Error("Tahmin alınamadı")
+      const data = await res.json() as MatchPrediction
+      setPrediction(data)
+    } catch {
+      setPrediction(null)
+    } finally {
+      setPredictionLoading(false)
+    }
+  }, [selected])
 
   // Analiz verisi ve tahmin hazır olduğunda, bitmiş maçlar için otomatik sonuç kaydet
   const saveResultIfNeeded = useCallback(async (
@@ -385,6 +378,7 @@ export default function Page() {
                 error={analysisError as Error | undefined}
                 prediction={prediction}
                 predictionLoading={predictionLoading}
+                onPredict={triggerPrediction}
               />
             )}
           />

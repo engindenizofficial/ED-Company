@@ -86,12 +86,14 @@ export function AnalysisPanel({
   error,
   prediction,
   predictionLoading,
+  onPredict,
 }: {
   data: AnalysisResponse | undefined
   isLoading: boolean
   error: Error | undefined
   prediction?: MatchPrediction | null
   predictionLoading?: boolean
+  onPredict?: () => void
 }) {
   if (isLoading) return <AnalyzingState />
 
@@ -143,6 +145,7 @@ export function AnalysisPanel({
           isLoading={predictionLoading ?? false}
           homeName={fixture.home.name}
           awayName={fixture.away.name}
+          onPredict={onPredict}
         />
       )}
 
@@ -606,7 +609,7 @@ function PlayerStatsSection({
               <th className="pb-2 text-center font-semibold text-amber-500 w-9" title="Puan">Pn</th>
               <th className="pb-2 text-center font-semibold text-primary w-9" title="Gol">G</th>
               <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Asist">A</th>
-              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Şut">Şt</th>
+              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="��ut">Şt</th>
               <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="İsabetli Şut">İŞ</th>
               <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Pas">Ps</th>
               <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Dripling">Dr</th>
@@ -1164,11 +1167,13 @@ function PredictionCard({
   isLoading,
   homeName,
   awayName,
+  onPredict,
 }: {
   prediction: MatchPrediction | null
   isLoading: boolean
   homeName: string
   awayName: string
+  onPredict?: () => void
 }) {
   const [showVotes, setShowVotes] = useState(false)
 
@@ -1179,14 +1184,37 @@ function PredictionCard({
         <div>
           <p className="text-xs font-semibold text-foreground">AI tahminleri hazırlanıyor...</p>
           <p className="text-[11px] text-muted-foreground">
-            GPT-4o, Claude ve Gemini paralel olarak analiz yapıyor
+            GPT-4o, Gemini 2.5 Flash ve Grok 3 Mini paralel olarak analiz yapıyor
           </p>
         </div>
       </div>
     )
   }
 
-  if (!prediction) return null
+  if (!prediction) {
+    return (
+      <div className="flex items-center justify-between gap-4 rounded-2xl border border-border/70 bg-card px-4 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <Sparkles className="h-3.5 w-3.5" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold text-foreground">AI Ensemble Tahmini</p>
+            <p className="text-[11px] text-muted-foreground">GPT-4o · Gemini 2.5 Flash · Grok 3 Mini</p>
+          </div>
+        </div>
+        {onPredict && (
+          <button
+            type="button"
+            onClick={onPredict}
+            className="shrink-0 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-all hover:bg-primary/20 active:scale-95"
+          >
+            Tahmin Al
+          </button>
+        )}
+      </div>
+    )
+  }
 
   const winnerLabel =
     prediction.winner === "home"
