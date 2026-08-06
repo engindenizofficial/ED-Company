@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
-import { generateObject, gateway } from "ai"
+import { generateObject } from "ai"
+import { openai } from "@ai-sdk/openai"
+import { google } from "@ai-sdk/google"
+import { xai } from "@ai-sdk/xai"
 import { z } from "zod/v4"
 import { getFixtureById, getLiveMatchData } from "@/lib/api-football"
 import { getCachedPrediction, setCachedPrediction } from "@/lib/redis"
@@ -11,30 +14,28 @@ export const dynamic = "force-dynamic"
 const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
 
 // ---------------------------------------------------------------------------
-// Ensemble konfigürasyonu
-// Her modelin ağırlığı oylama hesaplamasında kullanılır
+// Ensemble konfigürasyonu — 3 farklı provider, f/p en iyi modeller
 // ---------------------------------------------------------------------------
 const ENSEMBLE_MODELS = [
-  { id: "openai/gpt-4o",                    weight: 2.0 }, // OpenAI     — güçlü, dengeli f/p
-  { id: "anthropic/claude-sonnet-5",        weight: 2.0 }, // Anthropic  — güçlü akıl yürütme, makul fiyat
-  { id: "google/gemini-2.5-pro",            weight: 2.0 }, // Google     — en güçlü Gemini, iyi f/p
-  { id: "deepseek/deepseek-v3.2-thinking",  weight: 2.0 }, // DeepSeek   — reasoning, çok ucuz
-  { id: "xai/grok-4.5",                     weight: 1.5 }, // xAI        — güçlü genel model
-  { id: "moonshotai/kimi-k3",               weight: 1.5 }, // Moonshot   — Çin tabanlı, güçlü
-  { id: "alibaba/qwen3-235b-a22b-thinking", weight: 1.5 }, // Alibaba    — büyük MoE, ucuz
-  { id: "mistral/mistral-large-3",          weight: 1.5 }, // Mistral    — Avrupa tabanlı, dengeli
-  { id: "amazon/nova-pro",                  weight: 1.0 }, // Amazon     — AWS native, iyi f/p
-  { id: "minimax/minimax-m2.5",             weight: 1.0 }, // MiniMax    — yeni, ucuz, güçlü
+  { provider: "openai",  model: openai("gpt-4o"),                label: "GPT-4o"         },
+  { provider: "google",  model: google("gemini-2.5-flash"),      label: "Gemini 2.5 Flash" },
+  { provider: "xai",     model: xai("grok-3-mini"),              label: "Grok 3 Mini"    },
 ] as const
 
+const WEIGHTS: Record<string, number> = {
+  "openai":  2.0,
+  "google":  1.5,
+  "xai":     1.5,
+}
+
 const PredictionSchema = z.object({
-  homeScore:   z.number().int().min(0).max(20).describe("Ev sahibi takımın tahmin edilen gol sayısı"),
-  awayScore:   z.number().int().min(0).max(20).describe("Deplasman takımının tahmin edilen gol sayısı"),
-  winner:      z.enum(["home", "away", "draw"]).describe("Maçı kimin kazanacağı ya da beraberlik"),
-  confidence:  z.number().min(0).max(100).describe("0-100 arası güven skoru"),
-  btts:        z.boolean().describe("İki takım da gol atar mı (Both Teams To Score)"),
-  overUnder:   z.enum(["over", "under"]).describe("Toplam gol 2.5 üstünde mi yoksa altında mı"),
-  keyFactors:  z.array(z.string()).min(1).max(5).describe("Tahmine en çok etki eden 1-5 faktör (Türkçe)"),
+  homeScore:  z.number().int().min(0).max(20).describe("Ev sahibi takımın tahmin edilen gol sayısı"),
+  awayScore:  z.number().int().min(0).max(20).describe("Deplasman takımının tahmin edilen gol sayısı"),
+  winner:     z.enum(["home", "away", "draw"]).describe("Maçı kimin kazanacağı ya da beraberlik"),
+  confidence: z.number().min(0).max(100).describe("0-100 arası güven skoru"),
+  btts:       z.boolean().describe("İki takım da gol atar mı (Both Teams To Score)"),
+  overUnder:  z.enum(["over", "under"]).describe("Toplam gol 2.5 üstünde mi yoksa altında mı"),
+  keyFactors: z.array(z.string()).min(1).max(5).describe("Tahmine en çok etki eden 1-5 faktör (Türkçe)"),
 })
 
 const SummarySchema = z.object({
@@ -44,7 +45,7 @@ const SummarySchema = z.object({
 })
 
 // ---------------------------------------------------------------------------
-// Yardımcı formatlayıcılar
+// Formatlayıcılar
 // ---------------------------------------------------------------------------
 type LiveData = Awaited<ReturnType<typeof getLiveMatchData>>
 type Standing = LiveData["standings"][number]
@@ -96,23 +97,17 @@ function weightedVote(
 } {
   const totalWeight = votes.reduce((s, v) => s + v.weight, 0)
 
-  // Kazanan: ağırlıklı oy sayısı en yüksek
   const winnerTally: Record<string, number> = { home: 0, away: 0, draw: 0 }
   for (const { vote, weight } of votes) winnerTally[vote.winner] += weight
   const winner = (Object.entries(winnerTally).sort((a, b) => b[1] - a[1])[0][0]) as "home" | "away" | "draw"
 
-  // Skor: ağırlıklı ortalama, tam sayıya yuvarla
   const homeScore = Math.round(votes.reduce((s, v) => s + v.vote.homeScore * v.weight, 0) / totalWeight)
   const awayScore = Math.round(votes.reduce((s, v) => s + v.vote.awayScore * v.weight, 0) / totalWeight)
-
-  // Güven: ağırlıklı ortalama
   const confidence = Math.round(votes.reduce((s, v) => s + v.vote.confidence * v.weight, 0) / totalWeight)
 
-  // BTTS: ağırlıklı çoğunluk
   const bttsScore = votes.reduce((s, v) => s + (v.vote.btts ? v.weight : 0), 0)
   const btts = bttsScore >= totalWeight / 2
 
-  // Over/Under: ağırlıklı çoğunluk
   const overScore = votes.reduce((s, v) => s + (v.vote.overUnder === "over" ? v.weight : 0), 0)
   const overUnder: "over" | "under" = overScore >= totalWeight / 2 ? "over" : "under"
 
@@ -130,7 +125,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "fixtureId gerekli." }, { status: 400 })
   }
 
-  // 1. Cache kontrolü
+  // 1. Cache kontrolü — daha önce yapılmış tahmin varsa direkt döndür
   const cached = await getCachedPrediction(fixtureId)
   if (cached) return NextResponse.json(cached)
 
@@ -185,59 +180,54 @@ ${formatInjuries(live.injuries)}
 Türkçe olarak tahmin yap. Kesin ve net cevap ver, genel ifadelerden kaçın.
 `.trim()
 
-  // 5. Tüm modelleri sıralı çalıştır (rate limit'i önlemek için)
-  const modelResults: PromiseSettledResult<{ id: string; weight: number; object: z.infer<typeof PredictionSchema> }>[] = []
-  for (const { id, weight } of ENSEMBLE_MODELS) {
-    const result = await Promise.allSettled([
-      generateObject({
-        model: gateway(id),
+  // 5. 3 modeli paralel çalıştır
+  const modelResults = await Promise.allSettled(
+    ENSEMBLE_MODELS.map(async ({ provider, model, label }) => {
+      const { object } = await generateObject({
+        model,
         schema: PredictionSchema,
         prompt: contextPrompt,
-      }).then(({ object }) => ({ id, weight, object })),
-    ])
-    modelResults.push(result[0])
-  }
+      })
+      return { provider, label, weight: WEIGHTS[provider] ?? 1.0, object }
+    }),
+  )
 
-  // Başarılı sonuçları filtrele
-  type ModelResult = { id: string; weight: number; object: z.infer<typeof PredictionSchema> }
+  type ModelResult = { provider: string; label: string; weight: number; object: z.infer<typeof PredictionSchema> }
   const successfulVotes = (modelResults as PromiseSettledResult<ModelResult>[])
     .filter((r): r is PromiseFulfilledResult<ModelResult> => r.status === "fulfilled")
-    .map((r) => ({ vote: r.value.object, weight: r.value.weight, modelId: r.value.id }))
+    .map((r) => ({ ...r.value, vote: r.value.object }))
 
   if (successfulVotes.length === 0) {
     return NextResponse.json({ error: "Tüm AI modelleri başarısız oldu." }, { status: 502 })
   }
 
-  // 6. Ağırlıklı oylama ile ensemble sonucu hesapla
+  // 6. Ağırlıklı oylama
   const ensemble = weightedVote(successfulVotes.map((v) => ({ vote: v.vote, weight: v.weight })))
 
-  // 7. Anahtar faktörleri tüm modellerden birleştir (tekrar düşür)
+  // 7. Anahtar faktörler — tüm modellerden birleştir
   const allFactors = successfulVotes.flatMap((v) => v.vote.keyFactors)
   const uniqueFactors = [...new Set(allFactors)].slice(0, 5)
 
-  // 8. GPT-4o'nun bakış açısını özetleme için kullan (başarılı ise)
+  // 8. GPT-4o ile özet oluştur
   let summary = "Modeller tahminlerini tamamladı."
   try {
-    const summaryModelId = successfulVotes.find((v) => v.modelId === "openai/gpt-4o")?.modelId
-      ?? successfulVotes[0].modelId
-
     const voteSummary = successfulVotes.map((v) => (
-      `${v.modelId}: ${v.vote.winner === "home" ? homeName : v.vote.winner === "away" ? awayName : "beraberlik"} (${v.vote.homeScore}-${v.vote.awayScore}), güven: %${v.vote.confidence}`
+      `${v.label}: ${v.vote.winner === "home" ? homeName : v.vote.winner === "away" ? awayName : "beraberlik"} (${v.vote.homeScore}-${v.vote.awayScore}), güven: %${v.vote.confidence}`
     )).join("\n")
 
     const { object: summaryObj } = await generateObject({
-      model: gateway(summaryModelId),
+      model: openai("gpt-4o"),
       schema: SummarySchema,
       prompt: `${contextPrompt}\n\nAI model tahminleri:\n${voteSummary}\n\nBu tahminleri ve maç verisini sentezleyerek 3-4 cümlelik Türkçe bir analiz özeti yaz.`,
     })
     summary = summaryObj.summary
   } catch {
-    // Özet oluşturulamazsa default değerle devam et
+    // Özet oluşturulamazsa devam et
   }
 
-  // 9. ModelVote dizisini oluştur
+  // 9. ModelVote dizisi
   const modelVotes: ModelVote[] = successfulVotes.map((v) => ({
-    model:      v.modelId,
+    model:      v.label,
     winner:     v.vote.winner,
     homeScore:  v.vote.homeScore,
     awayScore:  v.vote.awayScore,
@@ -247,7 +237,7 @@ Türkçe olarak tahmin yap. Kesin ve net cevap ver, genel ifadelerden kaçın.
     keyFactors: v.vote.keyFactors,
   }))
 
-  // 10. Nihai tahmini oluştur ve cache'e yaz
+  // 10. Nihai tahmin — cache'e yaz
   const prediction: MatchPrediction = {
     fixtureId,
     homeScore:   ensemble.homeScore,
@@ -260,6 +250,8 @@ Türkçe olarak tahmin yap. Kesin ve net cevap ver, genel ifadelerden kaçın.
     overUnder:   ensemble.overUnder,
     modelVotes,
     cachedAt:    Date.now(),
+    homeName,
+    awayName,
   }
 
   await setCachedPrediction(fixtureId, prediction)
