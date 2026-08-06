@@ -15,16 +15,16 @@ const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
 // Her modelin ağırlığı oylama hesaplamasında kullanılır
 // ---------------------------------------------------------------------------
 const ENSEMBLE_MODELS = [
-  { id: "openai/gpt-5",                     weight: 3.0 },
-  { id: "openai/gpt-5-pro",                 weight: 2.5 },
-  { id: "anthropic/claude-opus-5",          weight: 2.5 },
-  { id: "anthropic/claude-sonnet-5",        weight: 2.0 },
-  { id: "google/gemini-2.5-pro",            weight: 2.0 },
-  { id: "deepseek/deepseek-v3.2-thinking",  weight: 1.5 },
-  { id: "openai/gpt-4o",                    weight: 1.5 },
-  { id: "anthropic/claude-opus-4.8",        weight: 1.5 },
-  { id: "google/gemini-2.5-flash",          weight: 1.0 },
-  { id: "deepseek/deepseek-v3.2",           weight: 1.0 },
+  { id: "openai/gpt-4o",                       weight: 2.0 }, // OpenAI    — güçlü, dengeli f/p
+  { id: "anthropic/claude-sonnet-5",           weight: 2.0 }, // Anthropic — güçlü akıl yürütme, makul fiyat
+  { id: "google/gemini-2.5-pro",               weight: 2.0 }, // Google    — en güçlü Gemini, iyi f/p
+  { id: "deepseek/deepseek-v3.2-thinking",     weight: 2.0 }, // DeepSeek  — reasoning modeli, çok ucuz
+  { id: "meta/llama-4-maverick",               weight: 1.5 }, // Meta      — açık kaynak, düşük maliyet
+  { id: "alibaba/qwen3-235b-a22b-thinking",    weight: 1.5 }, // Alibaba   — büyük MoE, ucuz
+  { id: "mistral/mistral-large-3",             weight: 1.5 }, // Mistral   — Avrupa tabanlı, dengeli
+  { id: "cohere/command-a",                    weight: 1.5 }, // Cohere    — faktüel görevlerde güçlü
+  { id: "amazon/nova-pro",                     weight: 1.0 }, // Amazon    — AWS native, iyi f/p
+  { id: "minimax/minimax-m2.5",                weight: 1.0 }, // MiniMax   — yeni, ucuz, güçlü
 ] as const
 
 const PredictionSchema = z.object({
