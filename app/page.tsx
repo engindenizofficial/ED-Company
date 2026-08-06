@@ -160,30 +160,6 @@ export default function Page() {
     }
   }, [fixturesLoading, fixturesData, autoCheckFinished])
 
-  // Arka plan polling: canlı maç varsa 60sn, yoksa 5dk'da bir fikstürleri sessizce güncelle
-  useEffect(() => {
-    const getInterval = () => {
-      const fixtures = fixturesData?.fixtures ?? []
-      const hasLive = fixtures.some((f) => ["1H", "HT", "2H", "ET", "P", "BT", "LIVE"].includes(f.statusShort))
-      return hasLive ? 60_000 : 5 * 60_000
-    }
-
-    const poll = async () => {
-      try {
-        const url = `/api/fixtures?date=${date}`
-        const res = await fetch(url, { cache: "no-store" })
-        const data = await res.json() as FixturesResponse
-        setFixturesData(data)
-        autoCheckFinished(data.fixtures ?? [])
-      } catch {
-        // sessizce geç
-      }
-    }
-
-    const id = setInterval(poll, getInterval())
-    return () => clearInterval(id)
-  }, [date, fixturesData, autoCheckFinished])
-
   // Maç paneli açılınca her seferinde API'den taze veri çek
   const loadAnalysis = useCallback(async (id: number) => {
     setAnalysisLoading(true)
