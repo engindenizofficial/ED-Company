@@ -19,7 +19,7 @@ const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
 const ENSEMBLE_MODELS = [
   { provider: "openai",  model: openai("gpt-5.6-terra"),         label: "GPT-5.6 Terra"  },
   { provider: "google",  model: google("gemini-3.5-flash"),      label: "Gemini 3.5 Flash" },
-  { provider: "xai",     model: xai("grok-3-mini"),              label: "Grok 3 Mini"    },
+  { provider: "xai",     model: xai("grok-4.5"),                 label: "Grok 4.5"       },
 ] as const
 
 const WEIGHTS: Record<string, number> = {
@@ -297,7 +297,7 @@ Türkçe olarak kesin ve net tahmin yap.
 `.trim()
 
   // ---------------------------------------------------------------------------
-  // Grok 3 Mini — Bağlam & Motivasyon Analisti
+  // Grok 4.5 — Bağlam & Motivasyon Analisti
   // Sakatlıklar, maçın önemi, sürpriz faktörü odaklı
   // ---------------------------------------------------------------------------
   const promptGrok = `
