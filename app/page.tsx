@@ -1,13 +1,14 @@
 "use client"
 
 import { LoaderCircle, RefreshCw } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { FixtureList } from "@/components/fixture-list"
+import { SuccessPanel } from "@/components/success-panel"
 import { TeamSearchBar } from "@/components/team-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
-import type { AnalysisResponse, Fixture, FixturesResponse, MatchPrediction } from "@/lib/types"
+import type { AnalysisResponse, Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
 
 function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
@@ -21,6 +22,16 @@ function formatDateLabel(iso: string): string {
   })
 }
 
+// Statü grupları
+const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
+const LIVE_OR_FINISHED = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "FT", "AET", "PEN", "AWD", "WO"])
+const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "AWD", "WO"])
+
+function actualWinner(homeGoals: number, awayGoals: number): "home" | "away" | "draw" {
+  if (homeGoals > awayGoals) return "home"
+  if (awayGoals > homeGoals) return "away"
+  return "draw"
+}
 
 export default function Page() {
   const date = todayTR()
@@ -36,7 +47,12 @@ export default function Page() {
   const [prediction, setPrediction] = useState<MatchPrediction | null>(null)
   const [predictionLoading, setPredictionLoading] = useState(false)
 
+  const [predictionResults, setPredictionResults] = useState<PredictionResult[]>([])
+
   const [refreshing, setRefreshing] = useState(false)
+
+  // Hangi fixtureId'ler için sonuç zaten kaydedildi (çift kayıt önlemi)
+  const savedResultIds = useRef<Set<number>>(new Set())
 
   // İlk yüklemede cache'den fikstürleri çek (refresh=0)
   const loadFixtures = useCallback(async (forceRefresh = false) => {
@@ -53,12 +69,28 @@ export default function Page() {
     }
   }, [date])
 
-  // İlk yükleme — cache'den gelir, API çağrısı yapılmaz
+  // Günün tahmin sonuçlarını çek
+  const loadPredictionResults = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/prediction-results?date=${date}`, { cache: "no-store" })
+      const data = await res.json() as { date: string; results: PredictionResult[] }
+      if (data.results) {
+        setPredictionResults(data.results)
+        // Zaten kaydedilmiş ID'leri işaretle
+        data.results.forEach((r) => savedResultIds.current.add(r.fixtureId))
+      }
+    } catch {
+      // sessizce geç
+    }
+  }, [date])
+
+  // İlk yükleme
   useEffect(() => {
     loadFixtures(false)
-  }, [loadFixtures])
+    loadPredictionResults()
+  }, [loadFixtures, loadPredictionResults])
 
-  // Maç paneli açılınca her seferinde API'den taze veri çek — kaydedilmez, cache kullanılmaz
+  // Maç paneli açılınca her seferinde API'den taze veri çek
   const loadAnalysis = useCallback(async (id: number) => {
     setAnalysisLoading(true)
     setAnalysisError(undefined)
@@ -73,31 +105,109 @@ export default function Page() {
     }
   }, [])
 
-  // Başlamamış maçlar için AI tahmini — Redis cache'den gelir (gün sonu TTL)
-  const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
+  // Tahmin yükleme — başlamamış: yeni tahmin yap ve kaydet
+  // Canlı veya bitmiş: sadece cache'den getir, yoksa null döndür
   const loadPrediction = useCallback(async (fixture: Fixture) => {
-    if (!PREDICTABLE_STATUSES.has(fixture.statusShort)) {
+    const isLiveOrFinished = LIVE_OR_FINISHED.has(fixture.statusShort)
+
+    if (PREDICTABLE_STATUSES.has(fixture.statusShort)) {
+      // Başlamamış maç — normal tahmin akışı (cache veya yeni oluştur)
+      setPredictionLoading(true)
       setPrediction(null)
-      return
+      try {
+        const res = await fetch("/api/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fixtureId: fixture.id }),
+          cache: "no-store",
+        })
+        if (!res.ok) throw new Error("Tahmin alınamadı")
+        const data = await res.json() as MatchPrediction
+        setPrediction(data)
+      } catch {
+        setPrediction(null)
+      } finally {
+        setPredictionLoading(false)
+      }
+    } else if (isLiveOrFinished) {
+      // Canlı veya bitmiş maç — sadece cache'den oku, yeni tahmin yapma
+      setPredictionLoading(true)
+      setPrediction(null)
+      try {
+        // Predict route zaten cache'e bakıyor. NS olmayan maçlar için 422 döner.
+        // Onun yerine Redis'e doğrudan erişen özel bir endpoint kullanıyoruz.
+        const res = await fetch(`/api/predict/cached?fixtureId=${fixture.id}`, { cache: "no-store" })
+        if (res.ok) {
+          const data = await res.json() as MatchPrediction
+          setPrediction(data)
+        } else {
+          setPrediction(null)
+        }
+      } catch {
+        setPrediction(null)
+      } finally {
+        setPredictionLoading(false)
+      }
+    } else {
+      setPrediction(null)
     }
-    setPredictionLoading(true)
-    setPrediction(null)
+  }, [])
+
+  // Analiz verisi ve tahmin hazır olduğunda, bitmiş maçlar için otomatik sonuç kaydet
+  const saveResultIfNeeded = useCallback(async (
+    fixture: Fixture,
+    pred: MatchPrediction | null,
+    analysisData: AnalysisResponse | undefined,
+  ) => {
+    if (!pred) return
+    if (!FINISHED_STATUSES.has(fixture.statusShort)) return
+    if (savedResultIds.current.has(fixture.id)) return
+
+    // Skoru analiz verisinden veya fikstür verisinden al
+    const homeGoals = analysisData?.live?.fixture?.goalsHome ?? fixture.goalsHome
+    const awayGoals = analysisData?.live?.fixture?.goalsAway ?? fixture.goalsAway
+
+    if (homeGoals == null || awayGoals == null) return
+
+    const winner = actualWinner(homeGoals, awayGoals)
+
     try {
-      const res = await fetch("/api/predict", {
+      const res = await fetch("/api/prediction-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fixtureId: fixture.id }),
+        body: JSON.stringify({
+          fixtureId: fixture.id,
+          homeName: fixture.home.name,
+          awayName: fixture.away.name,
+          predictedHome: pred.homeScore,
+          predictedAway: pred.awayScore,
+          predictedWinner: pred.winner,
+          actualHome: homeGoals,
+          actualAway: awayGoals,
+          actualWinner: winner,
+          confidence: pred.confidence,
+        }),
         cache: "no-store",
       })
-      if (!res.ok) throw new Error("Tahmin alınamadı")
-      const data = await res.json() as MatchPrediction
-      setPrediction(data)
+      if (res.ok) {
+        savedResultIds.current.add(fixture.id)
+        // Başarı panelini güncelle
+        const data = await res.json() as { ok: boolean; result: PredictionResult }
+        if (data.ok) {
+          setPredictionResults((prev) => {
+            const idx = prev.findIndex((r) => r.fixtureId === fixture.id)
+            if (idx >= 0) {
+              const next = [...prev]
+              next[idx] = data.result
+              return next
+            }
+            return [...prev, data.result]
+          })
+        }
+      }
     } catch {
-      setPrediction(null)
-    } finally {
-      setPredictionLoading(false)
+      // sessizce geç
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -107,22 +217,26 @@ export default function Page() {
       setPrediction(null)
       return
     }
-    // Panel her açıldığında analiz verisini taze çek
     loadAnalysis(selected.id)
-    // Başlamamış maçlar için AI tahminini de çek (Redis cache'den olabilir)
     loadPrediction(selected)
   }, [selected, loadAnalysis, loadPrediction])
 
-  // Yenile butonu: sadece fikstür listesini günceller, açık analiz paneline dokunmaz
+  // Analiz + tahmin her ikisi de hazır olduğunda bitmiş maçlar için sonuç kaydet
+  useEffect(() => {
+    if (!selected) return
+    if (analysisLoading || predictionLoading) return
+    saveResultIfNeeded(selected, prediction, analysis)
+  }, [selected, prediction, analysis, analysisLoading, predictionLoading, saveResultIfNeeded])
+
   const handleRefresh = useCallback(async () => {
     if (refreshing) return
     setRefreshing(true)
     try {
-      await loadFixtures(true)
+      await Promise.all([loadFixtures(true), loadPredictionResults()])
     } finally {
       setRefreshing(false)
     }
-  }, [refreshing, loadFixtures])
+  }, [refreshing, loadFixtures, loadPredictionResults])
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
@@ -174,7 +288,12 @@ export default function Page() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-4xl flex-col gap-0 px-5 py-5">
+      <main className="mx-auto flex max-w-4xl flex-col gap-4 px-5 py-5">
+        {/* Başarı paneli — sonuç varsa göster */}
+        {predictionResults.length > 0 && (
+          <SuccessPanel results={predictionResults} />
+        )}
+
         {fixturesLoading ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card py-16 text-sm text-muted-foreground">
             <LoaderCircle className="h-5 w-5 animate-spin text-primary" />

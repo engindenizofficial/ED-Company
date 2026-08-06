@@ -322,6 +322,35 @@ export interface MatchPrediction {
   modelVotes: ModelVote[]
   /** Gün sonuna kadar cache'de kalır (TR gece yarısı) */
   cachedAt: number
+  /** Ev sahibi takım adı (başarı paneli karşılaştırması için) */
+  homeName?: string
+  /** Deplasman takım adı (başarı paneli karşılaştırması için) */
+  awayName?: string
+}
+
+/** Bitmiş maç için tahmin-gerçek sonuç karşılaştırması */
+export interface PredictionResult {
+  fixtureId: number
+  homeName: string
+  awayName: string
+  /** Tahmin edilen skor */
+  predictedHome: number
+  predictedAway: number
+  /** Tahmin edilen kazanan */
+  predictedWinner: "home" | "away" | "draw"
+  /** Gerçek skor */
+  actualHome: number
+  actualAway: number
+  /** Gerçek kazanan */
+  actualWinner: "home" | "away" | "draw"
+  /** Skor tahmini tam tuttu mu */
+  scoreCorrect: boolean
+  /** Taraf tahmini (ev/deplasman/beraberlik) tuttu mu */
+  sideCorrect: boolean
+  /** Güven skoru */
+  confidence: number
+  /** Kaydedilme zamanı */
+  savedAt: number
 }
 
 export interface AnalysisResponse {

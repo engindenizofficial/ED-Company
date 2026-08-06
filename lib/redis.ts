@@ -1,5 +1,5 @@
 import { Redis } from "@upstash/redis"
-import type { FixturesResponse, MatchPrediction } from "./types"
+import type { FixturesResponse, MatchPrediction, PredictionResult } from "./types"
 import type { TeamSearchResult } from "@/app/api/teams/search/route"
 
 // Shared server-side store.
@@ -36,6 +36,7 @@ const K = {
   fixtures: (date: string) => `ed:fixtures:${date}`,
   allTeams: (season: number) => `ed:allteams:${season}`,
   prediction: (fixtureId: number) => `ed:prediction:${fixtureId}`,
+  predictionResults: (date: string) => `ed:prediction-results:${date}`,
 }
 
 // Fixtures: 6 saat
@@ -118,6 +119,37 @@ export async function setCachedPrediction(fixtureId: number, data: MatchPredicti
     await redis.set(K.prediction(fixtureId), data, { ex: secondsUntilMidnightTR() })
   } catch (err) {
     console.log("[v0] redis setCachedPrediction failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Prediction Results (başarı paneli)
+// ---------------------------------------------------------------------------
+
+export async function getPredictionResults(date: string): Promise<PredictionResult[]> {
+  if (!redis) return []
+  try {
+    return (await redis.get<PredictionResult[]>(K.predictionResults(date))) ?? []
+  } catch (err) {
+    console.log("[v0] redis getPredictionResults failed:", err instanceof Error ? err.message : err)
+    return []
+  }
+}
+
+export async function savePredictionResult(date: string, result: PredictionResult): Promise<void> {
+  if (!redis) return
+  try {
+    const existing = await getPredictionResults(date)
+    // Aynı fixtureId varsa üstüne yaz, yoksa ekle
+    const idx = existing.findIndex((r) => r.fixtureId === result.fixtureId)
+    if (idx >= 0) {
+      existing[idx] = result
+    } else {
+      existing.push(result)
+    }
+    await redis.set(K.predictionResults(date), existing, { ex: secondsUntilMidnightTR() + 60 * 60 * 24 })
+  } catch (err) {
+    console.log("[v0] redis savePredictionResult failed:", err instanceof Error ? err.message : err)
   }
 }
 
