@@ -18,7 +18,7 @@ const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
 // ---------------------------------------------------------------------------
 const ENSEMBLE_MODELS = [
   { provider: "openai",  model: openai("gpt-4o"),                label: "GPT-4o"         },
-  { provider: "google",  model: google("gemini-2.5-flash"),      label: "Gemini 2.5 Flash" },
+  { provider: "google",  model: google("gemini-3.5-flash"),      label: "Gemini 3.5 Flash" },
   { provider: "xai",     model: xai("grok-3-mini"),              label: "Grok 3 Mini"    },
 ] as const
 
