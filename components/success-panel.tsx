@@ -8,7 +8,7 @@ import type { PredictionResult } from "@/lib/types"
 // Model etiket haritası — model string'inden okunabilir isim üret
 function modelLabel(model: string): string {
   if (model.includes("gpt")) return "GPT-5.6 Terra"
-  if (model.includes("gemini")) return "Gemini 3.5 Flash"
+  if (model.includes("gemini")) return "Gemini 3.6 Flash"
   if (model.includes("grok")) return "Grok 4.5"
   return model
 }

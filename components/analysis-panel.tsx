@@ -1185,7 +1185,7 @@ function PredictionCard({
         <div>
           <p className="text-xs font-semibold text-foreground">AI tahminleri hazırlanıyor...</p>
           <p className="text-[11px] text-muted-foreground">
-            GPT-5.6 Terra, Gemini 3.5 Flash ve Grok 4.5 paralel olarak analiz yapıyor
+            GPT-5.6 Terra, Gemini 3.6 Flash ve Grok 4.5 paralel olarak analiz yapıyor
           </p>
         </div>
       </div>
@@ -1201,7 +1201,7 @@ function PredictionCard({
           </span>
           <div>
             <p className="text-xs font-semibold text-foreground">AI Ensemble Tahmini</p>
-            <p className="text-[11px] text-muted-foreground">GPT-5.6 Terra · Gemini 3.5 Flash · Grok 4.5</p>
+            <p className="text-[11px] text-muted-foreground">GPT-5.6 Terra · Gemini 3.6 Flash · Grok 4.5</p>
           </div>
         </div>
         {onPredict && (
