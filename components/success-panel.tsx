@@ -57,9 +57,10 @@ export function SuccessPanel({ results }: { results: PredictionResult[] }) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-secondary/30 transition-colors"
+        className="w-full flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-left hover:bg-secondary/30 transition-colors"
         aria-expanded={expanded}
       >
+        {/* Sol: ikon + başlık + maç sayısı */}
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
           <TrendingUp className="h-3.5 w-3.5" />
         </span>
@@ -70,12 +71,12 @@ export function SuccessPanel({ results }: { results: PredictionResult[] }) {
           {total} maç
         </span>
 
-        {/* Özet istatistikler */}
-        <div className="ml-auto flex items-center gap-4">
+        {/* Sağ: istatistikler + chevron */}
+        <div className="ml-auto flex items-center gap-3 flex-wrap justify-end">
           <StatChip label="Taraf" hits={sideHits} total={total} rate={sideRate} />
           <StatChip label="Skor" hits={scoreHits} total={total} rate={scoreRate} />
           <ChevronDown
-            className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", expanded && "rotate-180")}
+            className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 shrink-0", expanded && "rotate-180")}
           />
         </div>
       </button>
@@ -87,10 +88,10 @@ export function SuccessPanel({ results }: { results: PredictionResult[] }) {
             const mSideRate = m.total > 0 ? Math.round((m.sideHits / m.total) * 100) : 0
             const mScoreRate = m.total > 0 ? Math.round((m.scoreHits / m.total) * 100) : 0
             return (
-              <div key={m.label} className="flex items-center gap-4 px-4 py-3">
-                <span className="w-36 text-xs font-semibold text-foreground shrink-0">{m.label}</span>
+              <div key={m.label} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+                <span className="text-xs font-semibold text-foreground shrink-0 min-w-0 truncate max-w-[140px]">{m.label}</span>
                 <span className="text-[10px] text-muted-foreground shrink-0">{m.total} maç</span>
-                <div className="ml-auto flex items-center gap-4">
+                <div className="ml-auto flex items-center gap-3 flex-wrap justify-end">
                   <StatChip label="Taraf" hits={m.sideHits} total={m.total} rate={mSideRate} />
                   <StatChip label="Skor" hits={m.scoreHits} total={m.total} rate={mScoreRate} />
                 </div>
