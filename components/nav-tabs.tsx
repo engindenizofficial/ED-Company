@@ -5,7 +5,6 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useSession, signOut } from "@/lib/auth-client"
-import { openLoginModal } from "@/components/login-prompt-modal"
 
 const tabs = [
   { href: "/", label: "Maçlar", icon: CalendarDays },
@@ -78,13 +77,13 @@ export function NavTabs() {
               </>
             ) : (
               <>
-                <button
-                  onClick={openLoginModal}
+                <Link
+                  href="/sign-in"
                   className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
                 >
                   <KeyRound className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Giriş</span>
-                </button>
+                </Link>
                 <Link
                   href="/sign-up"
                   className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
