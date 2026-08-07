@@ -150,7 +150,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           <button
             type="button"
             onClick={() => {
-              document.cookie = "guest_mode=1; path=/; max-age=86400; SameSite=Lax"
+              document.cookie = "guest_mode=1; path=/; SameSite=Lax"
               window.location.href = "/"
             }}
             className="text-xs text-muted-foreground hover:text-foreground transition"
