@@ -9,6 +9,7 @@ import { LeagueProvider } from '@/contexts/league-context'
 import { LeaguePanel } from '@/components/league-panel'
 import { PlayerProvider } from '@/contexts/player-context'
 import { PlayerPanel } from '@/components/player-panel'
+import { FavoritesProvider } from '@/contexts/favorites-context'
 import './globals.css'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
@@ -91,12 +92,14 @@ export default function RootLayout({
         <LeagueProvider>
           <TeamProvider>
             <PlayerProvider>
-              <NavTabs />
-              <LoginPromptModal />
-              {children}
-              <TeamPanel />
-              <LeaguePanel />
-              <PlayerPanel />
+              <FavoritesProvider>
+                <NavTabs />
+                <LoginPromptModal />
+                {children}
+                <TeamPanel />
+                <LeaguePanel />
+                <PlayerPanel />
+              </FavoritesProvider>
             </PlayerProvider>
           </TeamProvider>
         </LeagueProvider>

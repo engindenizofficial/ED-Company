@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -48,4 +48,25 @@ export const verification = pgTable('verification', {
   expiresAt: timestamp('expiresAt').notNull(),
   createdAt: timestamp('createdAt').defaultNow(),
   updatedAt: timestamp('updatedAt').defaultNow(),
+})
+
+// ---------------------------------------------------------------------------
+// App tables
+// ---------------------------------------------------------------------------
+
+/** Kullanıcının favori takım/lig listesi. Sıralama `position` alanı ile korunur. */
+export const favorite = pgTable('favorite', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** "team" | "league" */
+  type: text('type').notNull(),
+  /** API-Football takım/lig id'si */
+  itemId: integer('itemId').notNull(),
+  name: text('name').notNull(),
+  logo: text('logo'),
+  country: text('country'),
+  flagUrl: text('flagUrl'),
+  /** 0 tabanlı sıra — 1 numara en üstte gösterilir */
+  position: integer('position').notNull().default(0),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
 })

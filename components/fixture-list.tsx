@@ -1,11 +1,12 @@
 "use client"
 
-import { Clock } from "lucide-react"
+import { Clock, Star } from "lucide-react"
 import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
 import { cn } from "@/lib/utils"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import type { Fixture } from "@/lib/types"
+import type { FavoriteItem } from "@/contexts/favorites-context"
 
 function kickoff(iso: string): string {
   return new Date(iso).toLocaleTimeString("tr-TR", {
@@ -94,25 +95,70 @@ function groupByLeague(fixtures: Fixture[]) {
   return Array.from(groups.values())
 }
 
+/**
+ * Favori takım/lig içeren gruplar en üste, favori sıra numarasına (1, 2, 3...)
+ * göre çıkarılır. Favorisi olmayan gruplar orijinal sırasında en altta kalır.
+ */
+function sortGroupsByFavorites<T extends { id: number; items: Fixture[] }>(
+  groups: T[],
+  favorites: FavoriteItem[],
+): T[] {
+  if (favorites.length === 0) return groups
+
+  const leaguePosition = new Map<number, number>()
+  const teamPosition = new Map<number, number>()
+  for (const fav of favorites) {
+    if (fav.type === "league") leaguePosition.set(fav.itemId, fav.position)
+    else teamPosition.set(fav.itemId, fav.position)
+  }
+
+  const rankOf = (group: T): number => {
+    let best = Number.POSITIVE_INFINITY
+    const leagueRank = leaguePosition.get(group.id)
+    if (leagueRank !== undefined) best = Math.min(best, leagueRank)
+    for (const f of group.items) {
+      const homeRank = teamPosition.get(f.home.id)
+      if (homeRank !== undefined) best = Math.min(best, homeRank)
+      const awayRank = teamPosition.get(f.away.id)
+      if (awayRank !== undefined) best = Math.min(best, awayRank)
+    }
+    return best
+  }
+
+  return groups
+    .map((group, index) => ({ group, rank: rankOf(group), index }))
+    .sort((a, b) => (a.rank !== b.rank ? a.rank - b.rank : a.index - b.index))
+    .map((entry) => entry.group)
+}
+
 export function FixtureList({
   fixtures,
   selectedId,
   onSelect,
   renderExpanded,
+  favorites = [],
 }: {
   fixtures: Fixture[]
   selectedId: number | null
   onSelect: (f: Fixture) => void
   renderExpanded: (f: Fixture) => React.ReactNode
+  favorites?: FavoriteItem[]
 }) {
-  const groups = groupByLeague(fixtures)
+  const groups = sortGroupsByFavorites(groupByLeague(fixtures), favorites)
+
+  const leagueFavoriteIds = new Set(favorites.filter((f) => f.type === "league").map((f) => f.itemId))
+  const teamFavoriteIds = new Set(favorites.filter((f) => f.type === "team").map((f) => f.itemId))
 
   return (
     <div className="flex flex-col gap-6">
-      {groups.map((group) => (
+      {groups.map((group) => {
+        const isFavoriteGroup =
+          leagueFavoriteIds.has(group.id) || group.items.some((f) => teamFavoriteIds.has(f.home.id) || teamFavoriteIds.has(f.away.id))
+        return (
         <div key={group.id} className="flex flex-col gap-1.5">
           {/* League header */}
           <div className="flex items-center gap-2.5 px-1 pb-1">
+            {isFavoriteGroup ? <Star className="h-3 w-3 shrink-0 fill-primary text-primary" /> : null}
             {group.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={group.logo || "/placeholder.svg"} alt="" className="h-[18px] w-[18px] object-contain opacity-90" />
