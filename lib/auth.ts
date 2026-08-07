@@ -26,7 +26,7 @@ export const auth = betterAuth({
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }: { user: { email: string; name?: string }, url: string }) => {
       await resend.emails.send({
-        from: 'ED Analytics <onboarding@resend.dev>',
+        from: 'ED Analytics <no-reply@edcompanyofficial.com>',
         to: user.email,
         subject: 'E-posta adresinizi doğrulayın',
         html: `
@@ -47,7 +47,7 @@ export const auth = betterAuth({
       expiresIn: 300, // 5 dakika
       sendVerificationOTP: async ({ email, otp }: { email: string; otp: string }) => {
         await resend.emails.send({
-          from: 'ED Analytics <onboarding@resend.dev>',
+          from: 'ED Analytics <no-reply@edcompanyofficial.com>',
           to: email,
           subject: 'Giriş doğrulama kodunuz',
           html: `
