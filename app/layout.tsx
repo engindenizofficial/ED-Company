@@ -57,15 +57,13 @@ export default function RootLayout({
       className={`bg-background ${geistSans.variable} ${geistMono.variable}`}
       suppressHydrationWarning
     >
-      <head>
+      <body className="font-sans antialiased">
         <script
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();`,
           }}
         />
-      </head>
-      <body className="font-sans antialiased">
         <LeagueProvider>
           <TeamProvider>
             <PlayerProvider>
