@@ -31,6 +31,7 @@ export const auth = betterAuth({
         subject: 'E-posta adresinizi doğrulayın',
         html: `
           <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0f172a;border-radius:12px;">
+            <img src="${baseURL}/icon-512.png" alt="ED Analytics" width="40" height="40" style="border-radius:8px;margin-bottom:16px;display:block;" />
             <h2 style="color:#f8fafc;font-size:20px;margin-bottom:8px;">ED Analytics</h2>
             <p style="color:#94a3b8;font-size:14px;margin-bottom:24px;">Merhaba ${user.name ?? user.email},</p>
             <p style="color:#cbd5e1;font-size:14px;margin-bottom:24px;">Hesabınızı doğrulamak için aşağıdaki butona tıklayın. Bu link 24 saat geçerlidir.</p>
@@ -52,6 +53,7 @@ export const auth = betterAuth({
           subject: 'Giriş doğrulama kodunuz',
           html: `
             <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0f172a;border-radius:12px;">
+              <img src="${baseURL}/icon-512.png" alt="ED Analytics" width="40" height="40" style="border-radius:8px;margin-bottom:16px;display:block;" />
               <h2 style="color:#f8fafc;font-size:20px;margin-bottom:8px;">ED Analytics</h2>
               <p style="color:#94a3b8;font-size:14px;margin-bottom:24px;">Giriş doğrulama kodunuz:</p>
               <div style="background:#1e293b;border-radius:8px;padding:20px;text-align:center;margin-bottom:24px;">
