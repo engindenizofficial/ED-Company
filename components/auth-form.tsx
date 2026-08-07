@@ -16,6 +16,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [verificationSent, setVerificationSent] = useState(false)
 
   const isSignUp = mode === 'sign-up'
 
@@ -31,6 +32,8 @@ export function AuthForm({ mode }: AuthFormProps) {
           setError(res.error.message ?? 'Kayıt sırasında bir hata oluştu.')
           return
         }
+        setVerificationSent(true)
+        return
       } else {
         const res = await signIn.email({ email, password })
         if (res.error) {
@@ -45,6 +48,35 @@ export function AuthForm({ mode }: AuthFormProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (verificationSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="w-full max-w-sm text-center">
+          <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-bold text-foreground mb-2">E-postanı Doğrula</h2>
+            <p className="text-sm text-muted-foreground mb-1">
+              <span className="font-semibold text-foreground">{email}</span> adresine doğrulama linki gönderdik.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Spam klasörünü de kontrol etmeyi unutma.
+            </p>
+          </div>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Zaten doğruladın mı?{' '}
+            <Link href="/sign-in" className="font-semibold text-primary hover:underline">
+              Giriş Yap
+            </Link>
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
