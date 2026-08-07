@@ -1,5 +1,5 @@
 import { betterAuth } from 'better-auth'
-import { emailOtp } from 'better-auth/plugins'
+import { emailOTP } from 'better-auth/plugins'
 import { pool } from '@/lib/db'
 import { Resend } from 'resend'
 
@@ -42,7 +42,7 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    emailOtp({
+    emailOTP({
       otpLength: 6,
       expiresIn: 300, // 5 dakika
       sendVerificationOTP: async ({ email, otp }: { email: string; otp: string }) => {
