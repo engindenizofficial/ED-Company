@@ -2,7 +2,6 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { NavTabs } from '@/components/nav-tabs'
-import { LoginPromptModal } from '@/components/login-prompt-modal'
 import { TeamProvider } from '@/contexts/team-context'
 import { TeamPanel } from '@/components/team-panel'
 import { LeagueProvider } from '@/contexts/league-context'
@@ -69,7 +68,6 @@ export default function RootLayout({
           <TeamProvider>
             <PlayerProvider>
               <NavTabs />
-              <LoginPromptModal />
               {children}
               <TeamPanel />
               <LeaguePanel />
