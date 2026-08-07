@@ -305,6 +305,9 @@ export function AuthForm({ mode }: AuthFormProps) {
             type="button"
             onClick={() => {
               document.cookie = "guest_mode=1; path=/; SameSite=Lax"
+              try {
+                sessionStorage.setItem("guest_mode", "1")
+              } catch {}
               window.location.href = "/"
             }}
             className="text-xs text-muted-foreground hover:text-foreground transition"
