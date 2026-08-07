@@ -1,9 +1,10 @@
 "use client"
 
-import { CalendarDays } from "lucide-react"
+import { CalendarDays, LogIn, LogOut, UserPlus } from "lucide-react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { useSession, signOut } from "@/lib/auth-client"
 
 const tabs = [
   { href: "/", label: "Maçlar", icon: CalendarDays },
@@ -11,6 +12,14 @@ const tabs = [
 
 export function NavTabs() {
   const pathname = usePathname()
+  const router = useRouter()
+  const { data: session } = useSession()
+
+  async function handleSignOut() {
+    await signOut()
+    router.push('/')
+    router.refresh()
+  }
 
   return (
     <nav
@@ -25,8 +34,8 @@ export function NavTabs() {
           <span className="text-foreground/60 font-semibold tracking-widest text-[11px]">ANALYTICS</span>
         </span>
 
-        {/* Tabs */}
-        <div className="flex gap-0">
+        {/* Sağ: Tabs + Auth */}
+        <div className="flex items-center gap-0">
           {tabs.map(({ href, label, icon: Icon }) => {
             const active = pathname === "/" || (!pathname.startsWith("/player") && !pathname.startsWith("/league") && !pathname.startsWith("/team"))
             return (
@@ -49,6 +58,42 @@ export function NavTabs() {
               </Link>
             )
           })}
+
+          {/* Auth butonları */}
+          <div className="ml-2 flex items-center gap-1.5 pl-2 border-l border-border/60">
+            {session?.user ? (
+              <>
+                <span className="hidden sm:block text-[11px] text-muted-foreground font-medium max-w-[100px] truncate">
+                  {session.user.name}
+                </span>
+                <button
+                  onClick={handleSignOut}
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                  aria-label="Çıkış yap"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Çıkış</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/sign-in"
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                >
+                  <LogIn className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Giriş</span>
+                </Link>
+                <Link
+                  href="/sign-up"
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Kayıt Ol</span>
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </nav>
