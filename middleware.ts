@@ -17,6 +17,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Kullanıcı "Giriş yapmadan devam et" seçtiyse geç
+  const guest = request.cookies.get("guest_mode")?.value
+  if (guest === "1") return NextResponse.next()
+
   const sessionToken =
     request.cookies.get("better-auth.session_token")?.value ??
     request.cookies.get("__Secure-better-auth.session_token")?.value

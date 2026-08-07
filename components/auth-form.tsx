@@ -147,9 +147,16 @@ export function AuthForm({ mode }: AuthFormProps) {
         </p>
 
         <p className="mt-2 text-center">
-          <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition">
+          <button
+            type="button"
+            onClick={() => {
+              document.cookie = "guest_mode=1; path=/; max-age=86400; SameSite=Lax"
+              window.location.href = "/"
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground transition"
+          >
             Giriş yapmadan devam et
-          </Link>
+          </button>
         </p>
       </div>
     </div>
