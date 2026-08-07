@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { signIn, signUp } from '@/lib/auth-client'
+import { authClient, signIn, signUp } from '@/lib/auth-client'
 
 interface AuthFormProps {
   mode: 'sign-in' | 'sign-up'
@@ -17,6 +17,10 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [verificationSent, setVerificationSent] = useState(false)
+  // OTP akışı
+  const [otpStep, setOtpStep] = useState(false)
+  const [otp, setOtp] = useState(['', '', '', '', '', ''])
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const isSignUp = mode === 'sign-up'
 
@@ -35,11 +39,42 @@ export function AuthForm({ mode }: AuthFormProps) {
         setVerificationSent(true)
         return
       } else {
-        const res = await signIn.email({ email, password })
+        // Şifre doğru mu önce kontrol et, ardından OTP gönder
+        const res = await signIn.email({ email, password, dontRememberMe: true })
         if (res.error) {
-          setError(res.error.message ?? 'Giriş sırasında bir hata oluştu.')
+          setError(res.error.message ?? 'E-posta veya şifre hatalı.')
           return
         }
+        // Şifre doğru — OTP gönder ve oturumu kapat (OTP onaylanınca tekrar açılacak)
+        await authClient.signOut()
+        const otpRes = await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' })
+        if (otpRes.error) {
+          setError('Doğrulama kodu gönderilemedi. Tekrar deneyin.')
+          return
+        }
+        setOtpStep(true)
+      }
+    } catch {
+      setError('Beklenmedik bir hata oluştu.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleOtpSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const code = otp.join('')
+    if (code.length < 6) {
+      setError('Lütfen 6 haneli kodu eksiksiz girin.')
+      return
+    }
+    setError('')
+    setLoading(true)
+    try {
+      const res = await authClient.signIn.emailOtp({ email, otp: code })
+      if (res.error) {
+        setError('Kod hatalı veya süresi dolmuş.')
+        return
       }
       router.push('/')
       router.refresh()
@@ -48,6 +83,93 @@ export function AuthForm({ mode }: AuthFormProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleOtpChange(index: number, value: string) {
+    const val = value.replace(/\D/g, '').slice(-1)
+    const next = [...otp]
+    next[index] = val
+    setOtp(next)
+    if (val && index < 5) {
+      otpRefs.current[index + 1]?.focus()
+    }
+  }
+
+  function handleOtpKeyDown(index: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus()
+    }
+  }
+
+  if (otpStep) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 text-center">
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">ED Analytics</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Doğrulama kodu girin</p>
+          </div>
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+            <p className="text-sm text-muted-foreground text-center mb-6">
+              <span className="font-semibold text-foreground">{email}</span> adresine 6 haneli kod gönderdik.
+            </p>
+            <form onSubmit={handleOtpSubmit} className="flex flex-col gap-5">
+              <div className="flex justify-center gap-2">
+                {otp.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => { otpRefs.current[i] = el }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(i, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                    className="h-12 w-10 rounded-lg border border-input bg-background text-center text-lg font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition"
+                  />
+                ))}
+              </div>
+
+              {error && (
+                <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive font-medium text-center">
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="h-10 w-full rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 active:opacity-80 transition disabled:opacity-50"
+              >
+                {loading ? 'Doğrulanıyor...' : 'Doğrula ve Giriş Yap'}
+              </button>
+            </form>
+          </div>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Kod gelmedi mi?{' '}
+            <button
+              type="button"
+              className="font-semibold text-primary hover:underline"
+              onClick={async () => {
+                setError('')
+                await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' })
+              }}
+            >
+              Tekrar gönder
+            </button>
+          </p>
+          <p className="mt-2 text-center text-sm text-muted-foreground">
+            <button
+              type="button"
+              className="hover:underline"
+              onClick={() => { setOtpStep(false); setOtp(['', '', '', '', '', '']); setError('') }}
+            >
+              Geri dön
+            </button>
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (verificationSent) {

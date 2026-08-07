@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth'
+import { emailOtp } from 'better-auth/plugins'
 import { pool } from '@/lib/db'
 import { Resend } from 'resend'
 
@@ -40,6 +41,30 @@ export const auth = betterAuth({
       })
     },
   },
+  plugins: [
+    emailOtp({
+      otpLength: 6,
+      expiresIn: 300, // 5 dakika
+      sendVerificationOTP: async ({ email, otp }: { email: string; otp: string }) => {
+        await resend.emails.send({
+          from: 'ED Analytics <onboarding@resend.dev>',
+          to: email,
+          subject: 'Giriş doğrulama kodunuz',
+          html: `
+            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0f172a;border-radius:12px;">
+              <h2 style="color:#f8fafc;font-size:20px;margin-bottom:8px;">ED Analytics</h2>
+              <p style="color:#94a3b8;font-size:14px;margin-bottom:24px;">Giriş doğrulama kodunuz:</p>
+              <div style="background:#1e293b;border-radius:8px;padding:20px;text-align:center;margin-bottom:24px;">
+                <span style="color:#f8fafc;font-size:36px;font-weight:700;letter-spacing:12px;">${otp}</span>
+              </div>
+              <p style="color:#cbd5e1;font-size:13px;margin-bottom:8px;">Bu kod <strong>5 dakika</strong> geçerlidir.</p>
+              <p style="color:#475569;font-size:12px;">Bu işlemi siz başlatmadıysanız dikkate almayın.</p>
+            </div>
+          `,
+        })
+      },
+    }),
+  ],
   trustedOrigins: [
     ...(process.env.V0_RUNTIME_URL ? [process.env.V0_RUNTIME_URL] : []),
     ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
