@@ -2,8 +2,7 @@
 
 import { KeyRound, UserPlus, X } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useState } from "react"
-import { useSession } from "@/lib/auth-client"
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 
 // Global açma fonksiyonu — NavTabs'tan çağrılabilir
@@ -13,20 +12,10 @@ export function openLoginModal() {
 }
 
 export function LoginPromptModal() {
-  const { data: session, isPending } = useSession()
   const [visible, setVisible] = useState(false)
 
   // Global fonksiyonu bağla
   _openLoginModal = () => setVisible(true)
-
-  // Giriş yapılmamışsa sayfa açılışında otomatik göster
-  useEffect(() => {
-    if (isPending) return
-    if (!session?.user) {
-      const t = setTimeout(() => setVisible(true), 600)
-      return () => clearTimeout(t)
-    }
-  }, [session, isPending])
 
   function handleDismiss() {
     setVisible(false)
