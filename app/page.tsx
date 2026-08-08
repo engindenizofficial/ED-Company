@@ -1,6 +1,6 @@
 "use client"
 
-import { LoaderCircle, RefreshCw } from "lucide-react"
+import { LoaderCircle } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { AnalysisPanel } from "@/components/analysis-panel"
@@ -321,6 +321,50 @@ export default function Page() {
     }
   }, [refreshing, loadFixtures, loadPredictionResults])
 
+  // Otomatik yenileme: yalnızca sekme görünürken (kullanıcı siteyi açık tutarken)
+  // düzenli aralıklarla veriyi tazele. Sekme arka plandaysa interval'ı durdur,
+  // kullanıcı sekmeye geri döndüğünde hemen bir kez daha yenile.
+  useEffect(() => {
+    const AUTO_REFRESH_MS = 30_000
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
+    const runRefresh = () => {
+      if (document.visibilityState === "visible") {
+        handleRefresh()
+      }
+    }
+
+    const startInterval = () => {
+      if (intervalId) return
+      intervalId = setInterval(runRefresh, AUTO_REFRESH_MS)
+    }
+
+    const stopInterval = () => {
+      if (!intervalId) return
+      clearInterval(intervalId)
+      intervalId = null
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        runRefresh()
+        startInterval()
+      } else {
+        stopInterval()
+      }
+    }
+
+    if (document.visibilityState === "visible") {
+      startInterval()
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      stopInterval()
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [handleRefresh])
+
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
   const handleSelect = useCallback((f: Fixture) => {
@@ -351,15 +395,6 @@ export default function Page() {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                aria-label="Verileri yenile"
-                className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-all hover:border-primary/50 hover:text-primary disabled:opacity-40"
-              >
-                <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
-                Yenile
-              </button>
               <ThemeToggle />
             </div>
           </div>
