@@ -56,9 +56,15 @@ export default function Page() {
   // Hangi fixtureId'ler için sonuç zaten kaydedildi (çift kayıt önlemi)
   const savedResultIds = useRef<Set<number>>(new Set())
 
-  // İlk yüklemede cache'den fikstürleri çek (refresh=0)
+  // İlk yüklemede cache'den fikstürleri çek (refresh=0).
+  // "Maçlar yükleniyor" animasyonu sadece ilk yüklemede gösterilir —
+  // arka planda otomatik yenilenirken (fixturesData zaten varsa) liste
+  // sessizce güncellenir, kullanıcı bir yükleniyor ekranı görmez.
   const loadFixtures = useCallback(async (forceRefresh = false) => {
-    setFixturesLoading(true)
+    setFixturesData((current) => {
+      if (current === null) setFixturesLoading(true)
+      return current
+    })
     try {
       const url = `/api/fixtures?date=${date}${forceRefresh ? "&refresh=1" : ""}`
       const res = await fetch(url, { cache: "no-store" })
