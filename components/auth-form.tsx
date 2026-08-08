@@ -29,12 +29,55 @@ export function AuthForm({ mode }: AuthFormProps) {
     setError('')
     setGoogleLoading(true)
     try {
-      const res = await authClient.signIn.social({ provider: 'google', callbackURL: '/' })
-      if (res.error) {
-        setError(res.error.message ?? 'Google ile bağlantı kurulamadı.')
-        setGoogleLoading(false)
+      // v0 önizlemesi bir iframe içinde çalışır ve Google, accounts.google.com'un
+      // iframe içinde açılmasına izin vermez (X-Frame-Options / CSP). Bu yüzden
+      // aynı sekmede window.location ile yönlendirme yerine, Google girişini
+      // ayrı bir sekmede/pencerede açıp o pencerenin kapanmasını bekliyoruz.
+      const isEmbedded = typeof window !== 'undefined' && window.self !== window.top
+
+      if (!isEmbedded) {
+        // Normal (embed olmayan) ortamda mevcut davranışı koru: aynı sekmede yönlendir.
+        const res = await authClient.signIn.social({ provider: 'google', callbackURL: '/' })
+        if (res.error) {
+          setError(res.error.message ?? 'Google ile bağlantı kurulamadı.')
+          setGoogleLoading(false)
+        }
+        return
       }
-      // Başarılıysa tarayıcı Google'a yönlendirilir, loading state korunur.
+
+      // Embed edilmiş ortam (v0 önizlemesi vb.): redirect'i tetiklemeden auth URL'sini al.
+      const res = await authClient.signIn.social({
+        provider: 'google',
+        callbackURL: '/',
+        disableRedirect: true,
+      })
+      const authUrl = res.data?.url
+      if (res.error || !authUrl) {
+        setError(res.error?.message ?? 'Google ile bağlantı kurulamadı.')
+        setGoogleLoading(false)
+        return
+      }
+
+      const popup = window.open(authUrl, 'google-oauth', 'width=480,height=640')
+      if (!popup) {
+        setError('Google penceresi açılamadı. Tarayıcınızın pop-up engelleyicisini kontrol edin.')
+        setGoogleLoading(false)
+        return
+      }
+
+      // Popup kapanana kadar bekle, sonra oturumu kontrol et.
+      const checkClosed = window.setInterval(async () => {
+        if (popup.closed) {
+          window.clearInterval(checkClosed)
+          const session = await authClient.getSession()
+          if (session.data) {
+            router.push('/')
+            router.refresh()
+          } else {
+            setGoogleLoading(false)
+          }
+        }
+      }, 500)
     } catch {
       setError('Beklenmedik bir hata oluştu.')
       setGoogleLoading(false)
