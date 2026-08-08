@@ -248,8 +248,42 @@ export function FixtureList({
                     <div className="flex items-center gap-4">
                       {/* Teams column */}
                       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                        <TeamRow id={f.home.id} name={f.home.name} logo={f.home.logo} goals={f.goalsHome} played={played} />
-                        <TeamRow id={f.away.id} name={f.away.name} logo={f.away.logo} goals={f.goalsAway} played={played} />
+                        <TeamRow
+                          id={f.home.id}
+                          name={f.home.name}
+                          logo={f.home.logo}
+                          goals={f.goalsHome}
+                          played={played}
+                          isFavorite={teamFavoriteIds.has(f.home.id)}
+                          onToggleFavorite={() =>
+                            toggleFavorite({
+                              type: "team",
+                              itemId: f.home.id,
+                              name: f.home.name,
+                              logo: f.home.logo,
+                              country: null,
+                              flagUrl: null,
+                            })
+                          }
+                        />
+                        <TeamRow
+                          id={f.away.id}
+                          name={f.away.name}
+                          logo={f.away.logo}
+                          goals={f.goalsAway}
+                          played={played}
+                          isFavorite={teamFavoriteIds.has(f.away.id)}
+                          onToggleFavorite={() =>
+                            toggleFavorite({
+                              type: "team",
+                              itemId: f.away.id,
+                              name: f.away.name,
+                              logo: f.away.logo,
+                              country: null,
+                              flagUrl: null,
+                            })
+                          }
+                        />
                       </div>
 
                       {/* Divider */}
@@ -304,12 +338,16 @@ function TeamRow({
   logo,
   goals,
   played,
+  isFavorite,
+  onToggleFavorite,
 }: {
   id: number
   name: string
   logo: string
   goals: number | null
   played: boolean
+  isFavorite: boolean
+  onToggleFavorite: () => void
 }) {
   return (
     <div className="flex items-center gap-2.5">
@@ -321,10 +359,11 @@ function TeamRow({
       )}
       <TeamButton
         team={{ id, name, logo }}
-        className="min-w-0 truncate text-sm font-semibold text-foreground hover:text-primary transition-colors"
+        className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground hover:text-primary transition-colors"
       >
         {name}
       </TeamButton>
+      <FavoriteStarButton active={isFavorite} label={name} size="xs" onToggle={onToggleFavorite} />
       {played ? (
         <span className="ml-auto text-base font-black tabular-nums text-foreground">{goals ?? 0}</span>
       ) : null}
