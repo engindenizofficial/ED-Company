@@ -65,30 +65,6 @@ export default function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();`,
           }}
         />
-        <script
-          suppressHydrationWarning
-          dangerouslySetInnerHTML={{
-            __html: `(function(){
-              try {
-                var path = window.location.pathname;
-                var publicPaths = ["/sign-in", "/sign-up", "/verify-email"];
-                for (var i = 0; i < publicPaths.length; i++) {
-                  if (path.indexOf(publicPaths[i]) === 0) return;
-                }
-                var hasSession =
-                  document.cookie.indexOf('better-auth.session_token=') !== -1 ||
-                  document.cookie.indexOf('__Secure-better-auth.session_token=') !== -1;
-                if (hasSession) return;
-                var hasGuestCookie = document.cookie.indexOf('guest_mode=1') !== -1;
-                var guestFlag = sessionStorage.getItem('guest_mode') === '1';
-                if (hasGuestCookie && !guestFlag) {
-                  document.cookie = 'guest_mode=; path=/; Max-Age=0; SameSite=Lax';
-                  window.location.replace('/sign-in');
-                }
-              } catch (e) {}
-            })();`,
-          }}
-        />
         <LeagueProvider>
           <TeamProvider>
             <PlayerProvider>
