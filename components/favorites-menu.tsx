@@ -14,7 +14,20 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ChevronLeft, ChevronRight, GripVertical, KeyRound, LogOut, Menu, Star, Trash2, User, X } from "lucide-react"
+import {
+  ChevronLeft,
+  ChevronRight,
+  GripVertical,
+  KeyRound,
+  LogOut,
+  Mail,
+  Menu,
+  Star,
+  Trash2,
+  TriangleAlert,
+  User,
+  X,
+} from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
@@ -24,9 +37,10 @@ import { useFavorites, type FavoriteItem } from "@/contexts/favorites-context"
 import { useTeamPanel } from "@/contexts/team-context"
 import { useLeaguePanel } from "@/contexts/league-context"
 import { FavoriteSearchBar } from "@/components/favorite-search-bar"
+import { requestAccountDeletion } from "@/app/actions/account"
 import { cn } from "@/lib/utils"
 
-type PanelView = "menu" | "favorites"
+type PanelView = "menu" | "favorites" | "account"
 
 export function FavoritesMenu() {
   const { data: session } = useSession()
@@ -39,6 +53,9 @@ export function FavoritesMenu() {
   const [view, setView] = useState<PanelView>("menu")
   const [signingOut, setSigningOut] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [sendingDelete, setSendingDelete] = useState(false)
+  const [deleteSentTo, setDeleteSentTo] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -51,7 +68,23 @@ export function FavoritesMenu() {
   const close = useCallback(() => {
     setOpen(false)
     setView("menu")
+    setDeleteSentTo(null)
+    setDeleteError(null)
   }, [])
+
+  const handleRequestAccountDeletion = useCallback(async () => {
+    if (sendingDelete) return
+    setSendingDelete(true)
+    setDeleteError(null)
+    try {
+      const { email } = await requestAccountDeletion()
+      setDeleteSentTo(email)
+    } catch {
+      setDeleteError("Bir şeyler ters gitti. Lütfen daha sonra tekrar deneyin.")
+    } finally {
+      setSendingDelete(false)
+    }
+  }, [sendingDelete])
 
   const handleSignOut = useCallback(async () => {
     if (signingOut) return
@@ -130,7 +163,7 @@ export function FavoritesMenu() {
           >
             {/* Header */}
             <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3.5">
-              {view === "favorites" ? (
+              {view !== "menu" ? (
                 <button
                   type="button"
                   onClick={() => setView("menu")}
@@ -141,7 +174,7 @@ export function FavoritesMenu() {
                 </button>
               ) : null}
               <span className="flex-1 text-sm font-bold text-foreground">
-                {view === "favorites" ? "Favorilerim" : "Menü"}
+                {view === "favorites" ? "Favorilerim" : view === "account" ? "Hesabım" : "Menü"}
               </span>
               <button
                 type="button"
@@ -156,17 +189,22 @@ export function FavoritesMenu() {
             {/* Content */}
             {view === "menu" ? (
               <div className="flex flex-1 flex-col overflow-y-auto p-2">
-                {/* Hesabım — sadece giriş yapmış kullanıcılarda gösterilir, en üstte, tıklanamaz */}
+                {/* Hesabım — sadece giriş yapmış kullanıcılarda gösterilir, en üstte */}
                 {session?.user ? (
-                  <div className="flex cursor-default items-center gap-3 rounded-xl px-3 py-3 opacity-70">
+                  <button
+                    type="button"
+                    onClick={() => setView("account")}
+                    className="flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+                  >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
                       <User className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    <div className="flex min-w-0 flex-col">
+                    <div className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate text-sm font-semibold text-foreground">Hesabım</span>
                       <span className="truncate text-[11px] text-muted-foreground">{session.user.name}</span>
                     </div>
-                  </div>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  </button>
                 ) : null}
 
                 {/* Favorilerim — giriş yapmışsa Hesabım'ın altında, misafirse en üstte */}
@@ -212,6 +250,47 @@ export function FavoritesMenu() {
                     <span className="text-sm font-semibold text-foreground">Giriş Yap</span>
                   </Link>
                 )}
+              </div>
+            ) : view === "account" ? (
+              <div className="flex flex-1 flex-col overflow-y-auto p-4">
+                <div className="flex flex-col gap-4 rounded-2xl border border-destructive/30 bg-card p-5">
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <TriangleAlert className="h-4 w-4 shrink-0 text-destructive" />
+                      <span className="text-sm font-bold text-foreground">Hesabımı Sil</span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Hesabınızı sildiğinizde profil bilgileriniz, favori takım/liglerinizi ve tüm tahmin
+                      geçmişiniz kalıcı olarak silinir.
+                    </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Bu işlem geri alınamaz. Devam etmek için e-posta adresinize bir onay linki göndereceğiz.
+                    </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      E-postadaki linke tıkladığınız anda hesabınız kalıcı olarak silinir.
+                    </p>
+                  </div>
+
+                  {deleteSentTo ? (
+                    <div className="flex items-center gap-2.5 rounded-xl bg-secondary px-3 py-2.5">
+                      <Mail className="h-4 w-4 shrink-0 text-primary" />
+                      <p className="text-xs leading-relaxed text-foreground">
+                        <span className="font-semibold">{deleteSentTo}</span> adresine silme linki gönderildi.
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleRequestAccountDeletion}
+                      disabled={sendingDelete}
+                      className="flex items-center justify-center rounded-xl bg-destructive px-4 py-2.5 text-sm font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50"
+                    >
+                      {sendingDelete ? "Gönderiliyor..." : "Hesabımı Sil"}
+                    </button>
+                  )}
+
+                  {deleteError ? <p className="text-xs font-medium text-destructive">{deleteError}</p> : null}
+                </div>
               </div>
             ) : (
               <div className="flex flex-1 flex-col overflow-y-auto p-4">
