@@ -5,8 +5,43 @@ import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
 import { cn } from "@/lib/utils"
 import { toTurkishCountry } from "@/lib/tr-aliases"
+import { useFavorites } from "@/contexts/favorites-context"
 import type { Fixture } from "@/lib/types"
 import type { FavoriteItem } from "@/contexts/favorites-context"
+
+/** Ana ekranda takım/lig satırlarında kullanılan içi boş/dolu yıldız butonu. */
+function FavoriteStarButton({
+  active,
+  label,
+  onToggle,
+  size = "sm",
+}: {
+  active: boolean
+  label: string
+  onToggle: () => void
+  size?: "sm" | "xs"
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onToggle()
+      }}
+      aria-pressed={active}
+      aria-label={active ? `${label} favorilerden kaldır` : `${label} favorilere ekle`}
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-lg text-muted-foreground/40 transition-colors hover:text-primary",
+        size === "sm" ? "h-6 w-6" : "h-5 w-5",
+      )}
+    >
+      <Star
+        className={cn(size === "sm" ? "h-4 w-4" : "h-3.5 w-3.5", active && "fill-primary text-primary")}
+      />
+    </button>
+  )
+}
 
 function kickoff(iso: string): string {
   return new Date(iso).toLocaleTimeString("tr-TR", {
@@ -144,6 +179,7 @@ export function FixtureList({
   renderExpanded: (f: Fixture) => React.ReactNode
   favorites?: FavoriteItem[]
 }) {
+  const { isFavorite, toggleFavorite } = useFavorites()
   const groups = sortGroupsByFavorites(groupByLeague(fixtures), favorites)
 
   const leagueFavoriteIds = new Set(favorites.filter((f) => f.type === "league").map((f) => f.itemId))
@@ -152,12 +188,13 @@ export function FixtureList({
   return (
     <div className="flex flex-col gap-6">
       {groups.map((group) => {
+        const leagueIsFavorite = leagueFavoriteIds.has(group.id)
         const isFavoriteGroup =
-          leagueFavoriteIds.has(group.id) || group.items.some((f) => teamFavoriteIds.has(f.home.id) || teamFavoriteIds.has(f.away.id))
+          leagueIsFavorite || group.items.some((f) => teamFavoriteIds.has(f.home.id) || teamFavoriteIds.has(f.away.id))
         return (
         <div key={group.id} className="flex flex-col gap-1.5">
           {/* League header */}
-          <div className="flex items-center gap-2.5 px-1 pb-1">
+          <div className="flex items-center gap-2 px-1 pb-1">
             {isFavoriteGroup ? <Star className="h-3 w-3 shrink-0 fill-primary text-primary" /> : null}
             {group.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -170,6 +207,21 @@ export function FixtureList({
               {group.name}
               <span className="ml-1.5 font-normal opacity-60">{toTurkishCountry(group.country)}</span>
             </LeagueButton>
+            <FavoriteStarButton
+              active={leagueIsFavorite}
+              label={group.name}
+              size="xs"
+              onToggle={() =>
+                toggleFavorite({
+                  type: "league",
+                  itemId: group.id,
+                  name: group.name,
+                  logo: group.logo,
+                  country: group.country,
+                  flagUrl: null,
+                })
+              }
+            />
             <div className="ml-auto h-px flex-1 bg-border/60" />
             <span className="text-[10px] tabular-nums text-muted-foreground/50">{group.items.length}</span>
           </div>

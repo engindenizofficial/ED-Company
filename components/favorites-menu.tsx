@@ -14,7 +14,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ChevronLeft, ChevronRight, GripVertical, LogOut, Menu, Star, Trash2, User, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, GripVertical, KeyRound, LogOut, Menu, Star, Trash2, User, X } from "lucide-react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 import { createPortal } from "react-dom"
@@ -96,8 +97,8 @@ export function FavoritesMenu() {
     [favorites, reorderFavorites],
   )
 
-  // Sadece giriş yapmış kullanıcılar için gösterilir.
-  if (!session?.user) return null
+  // Menü hem giriş yapmış hem misafir kullanıcılar için gösterilir —
+  // favorilere erişmek için hesap açmak zorunlu değildir.
 
   return (
     <>
@@ -155,16 +156,32 @@ export function FavoritesMenu() {
             {/* Content */}
             {view === "menu" ? (
               <div className="flex flex-1 flex-col overflow-y-auto p-2">
-                {/* Hesabım — tıklanamaz */}
-                <div className="flex cursor-default items-center gap-3 rounded-xl px-3 py-3 opacity-70">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
-                    <User className="h-4 w-4 text-muted-foreground" />
+                {/* Hesabım — tıklanamaz (giriş yapmışsa), misafirse giriş/kayıt daveti */}
+                {session?.user ? (
+                  <div className="flex cursor-default items-center gap-3 rounded-xl px-3 py-3 opacity-70">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-sm font-semibold text-foreground">Hesabım</span>
+                      <span className="truncate text-[11px] text-muted-foreground">{session.user.name}</span>
+                    </div>
                   </div>
-                  <div className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm font-semibold text-foreground">Hesabım</span>
-                    <span className="truncate text-[11px] text-muted-foreground">{session.user.name}</span>
-                  </div>
-                </div>
+                ) : (
+                  <Link
+                    href="/sign-in"
+                    onClick={close}
+                    className="flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-sm font-semibold text-foreground">Misafir</span>
+                      <span className="truncate text-[11px] text-muted-foreground">Giriş yap veya hesap oluştur</span>
+                    </div>
+                  </Link>
+                )}
 
                 {/* Favorilerim */}
                 <button
@@ -184,18 +201,31 @@ export function FavoritesMenu() {
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
                 </button>
 
-                {/* Çıkış Yap — en altta */}
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  disabled={signingOut}
-                  className="mt-auto flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-destructive/10 disabled:opacity-50"
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
-                    <LogOut className="h-4 w-4 text-destructive" />
-                  </div>
-                  <span className="text-sm font-semibold text-destructive">Çıkış Yap</span>
-                </button>
+                {/* Çıkış Yap (giriş yapmışsa) / Giriş Yap daveti (misafirse) — en altta */}
+                {session?.user ? (
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    disabled={signingOut}
+                    className="mt-auto flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                      <LogOut className="h-4 w-4 text-destructive" />
+                    </div>
+                    <span className="text-sm font-semibold text-destructive">Çıkış Yap</span>
+                  </button>
+                ) : (
+                  <Link
+                    href="/sign-in"
+                    onClick={close}
+                    className="mt-auto flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                      <KeyRound className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">Giriş Yap</span>
+                  </Link>
+                )}
               </div>
             ) : (
               <div className="flex flex-1 flex-col overflow-y-auto p-4">
