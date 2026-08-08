@@ -16,7 +16,8 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { ChevronLeft, ChevronRight, GripVertical, LogOut, Menu, Star, Trash2, User, X } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { signOut, useSession } from "@/lib/auth-client"
 import { useFavorites, type FavoriteItem } from "@/contexts/favorites-context"
 import { useTeamPanel } from "@/contexts/team-context"
@@ -36,6 +37,11 @@ export function FavoritesMenu() {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<PanelView>("menu")
   const [signingOut, setSigningOut] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -104,8 +110,9 @@ export function FavoritesMenu() {
         <Menu className="h-5 w-5" />
       </button>
 
-      {open ? (
-        <div className="fixed inset-0 z-[100]">
+      {open && mounted
+        ? createPortal(
+          <div className="fixed inset-0 z-[100]">
           {/* Overlay */}
           <div
             className="absolute inset-0 animate-in fade-in bg-black/50 duration-200"
@@ -224,8 +231,10 @@ export function FavoritesMenu() {
               </div>
             )}
           </div>
-        </div>
-      ) : null}
+          </div>,
+          document.body,
+        )
+        : null}
     </>
   )
 }

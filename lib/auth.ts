@@ -73,6 +73,15 @@ export const auth = betterAuth({
     ...(process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? [`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`]
       : []),
+    ...(process.env.NODE_ENV === 'development'
+      ? [
+          'http://localhost:3000',
+          'http://127.0.0.1:3000',
+          // v0's sandbox dev-preview tunnel uses a random subdomain per session
+          // (e.g. https://sb-xxxx.vercel.run), so it must be trusted via wildcard.
+          'https://*.vercel.run',
+        ]
+      : []),
   ],
   session: {
     expiresIn: 60 * 60 * 24 * 7,
