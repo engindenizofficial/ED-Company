@@ -13,6 +13,16 @@ const baseURL =
       ? `https://${process.env.VERCEL_URL}`
       : process.env.V0_RUNTIME_URL) as string
 
+if (!baseURL) {
+  // Bu durumda Google OAuth ve e-posta linkleri bozuk URL üretir.
+  // En sık sebep: Vercel projesinde "Enable access to System Environment
+  // Variables" ayarının kapalı olması (Settings > Environment Variables).
+  console.error(
+    '[auth] baseURL çözümlenemedi: BETTER_AUTH_URL, VERCEL_PROJECT_PRODUCTION_URL, VERCEL_URL ve V0_RUNTIME_URL değişkenlerinin hepsi boş. ' +
+      'Vercel projesinde "Enable access to System Environment Variables" ayarını ve domain\'in Production olarak işaretli olduğunu kontrol edin.',
+  )
+}
+
 export const auth = betterAuth({
   database: pool,
   baseURL,
