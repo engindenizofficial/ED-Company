@@ -357,13 +357,15 @@ function TeamRow({
       ) : (
         <div className="h-5 w-5 shrink-0 rounded-full bg-secondary" />
       )}
-      <TeamButton
-        team={{ id, name, logo }}
-        className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground hover:text-primary transition-colors"
-      >
-        {name}
-      </TeamButton>
-      <FavoriteStarButton active={isFavorite} label={name} size="xs" onToggle={onToggleFavorite} />
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        <TeamButton
+          team={{ id, name, logo }}
+          className="min-w-0 shrink truncate text-sm font-semibold text-foreground hover:text-primary transition-colors"
+        >
+          {name}
+        </TeamButton>
+        <FavoriteStarButton active={isFavorite} label={name} size="xs" onToggle={onToggleFavorite} />
+      </div>
       {played ? (
         <span className="ml-auto text-base font-black tabular-nums text-foreground">{goals ?? 0}</span>
       ) : null}
