@@ -33,7 +33,7 @@ export const auth = betterAuth({
   },
   socialProviders: {
     google: {
-      clientId: '899292286474-i2micmgp4j9h6ot8m4hochadkqlv2nrn.apps.googleusercontent.com',
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
     },
   },
