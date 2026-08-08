@@ -21,8 +21,25 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [otpStep, setOtpStep] = useState(false)
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
+  const [googleLoading, setGoogleLoading] = useState(false)
 
   const isSignUp = mode === 'sign-up'
+
+  async function handleGoogleAuth() {
+    setError('')
+    setGoogleLoading(true)
+    try {
+      const res = await authClient.signIn.social({ provider: 'google', callbackURL: '/' })
+      if (res.error) {
+        setError(res.error.message ?? 'Google ile bağlantı kurulamadı.')
+        setGoogleLoading(false)
+      }
+      // Başarılıysa tarayıcı Google'a yönlendirilir, loading state korunur.
+    } catch {
+      setError('Beklenmedik bir hata oluştu.')
+      setGoogleLoading(false)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -214,6 +231,27 @@ export function AuthForm({ mode }: AuthFormProps) {
 
         {/* Kart */}
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+          <button
+            type="button"
+            onClick={handleGoogleAuth}
+            disabled={googleLoading}
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-input bg-background text-sm font-semibold text-foreground hover:bg-muted active:bg-muted/80 transition disabled:opacity-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-4 w-4" aria-hidden="true">
+              <path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v9.02h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.68z" />
+              <path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.32l-7.11-5.52c-1.97 1.32-4.49 2.11-7.45 2.11-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z" />
+              <path fill="#FBBC05" d="M11.69 28.2c-.43-1.28-.68-2.65-.68-4.2s.25-2.92.68-4.2v-5.7H4.34C2.85 17.1 2 20.44 2 24s.85 6.9 2.34 9.9l7.35-5.7z" />
+              <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.1l7.35 5.7c1.73-5.2 6.58-9.05 12.31-9.05z" />
+            </svg>
+            {googleLoading ? 'Yönlendiriliyor...' : isSignUp ? "Google ile Kayıt Ol" : 'Google ile Giriş Yap'}
+          </button>
+
+          <div className="my-4 flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-xs font-medium text-muted-foreground">veya</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {isSignUp && (
               <div className="flex flex-col gap-1.5">
