@@ -156,38 +156,11 @@ export function FavoritesMenu() {
             {/* Content */}
             {view === "menu" ? (
               <div className="flex flex-1 flex-col overflow-y-auto p-2">
-                {/* Hesabım — tıklanamaz (giriş yapmışsa), misafirse giriş/kayıt daveti */}
-                {session?.user ? (
-                  <div className="flex cursor-default items-center gap-3 rounded-xl px-3 py-3 opacity-70">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex min-w-0 flex-col">
-                      <span className="truncate text-sm font-semibold text-foreground">Hesabım</span>
-                      <span className="truncate text-[11px] text-muted-foreground">{session.user.name}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <Link
-                    href="/sign-in"
-                    onClick={close}
-                    className="flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex min-w-0 flex-col">
-                      <span className="truncate text-sm font-semibold text-foreground">Misafir</span>
-                      <span className="truncate text-[11px] text-muted-foreground">Giriş yap veya hesap oluştur</span>
-                    </div>
-                  </Link>
-                )}
-
-                {/* Favorilerim */}
+                {/* Favorilerim — en üstte, giriş yapmış/misafir tüm kullanıcılar için */}
                 <button
                   type="button"
                   onClick={() => setView("favorites")}
-                  className="mt-1 flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
                     <Star className="h-4 w-4 text-primary" />
@@ -200,6 +173,19 @@ export function FavoritesMenu() {
                   ) : null}
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
                 </button>
+
+                {/* Hesabım — sadece giriş yapmış kullanıcılarda gösterilir, tıklanamaz */}
+                {session?.user ? (
+                  <div className="mt-1 flex cursor-default items-center gap-3 rounded-xl px-3 py-3 opacity-70">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-sm font-semibold text-foreground">Hesabım</span>
+                      <span className="truncate text-[11px] text-muted-foreground">{session.user.name}</span>
+                    </div>
+                  </div>
+                ) : null}
 
                 {/* Çıkış Yap (giriş yapmışsa) / Giriş Yap daveti (misafirse) — en altta */}
                 {session?.user ? (
