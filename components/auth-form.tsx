@@ -29,23 +29,8 @@ export function AuthForm({ mode }: AuthFormProps) {
     setError('')
     setGoogleLoading(true)
     try {
-      // v0 önizlemesi bir iframe içinde çalışır ve Google, accounts.google.com'un
-      // iframe içinde açılmasına izin vermez (X-Frame-Options / CSP). Bu yüzden
-      // aynı sekmede window.location ile yönlendirme yerine, Google girişini
-      // ayrı bir sekmede/pencerede açıp o pencerenin kapanmasını bekliyoruz.
-      const isEmbedded = typeof window !== 'undefined' && window.self !== window.top
-
-      if (!isEmbedded) {
-        // Normal (embed olmayan) ortamda mevcut davranışı koru: aynı sekmede yönlendir.
-        const res = await authClient.signIn.social({ provider: 'google', callbackURL: '/' })
-        if (res.error) {
-          setError(res.error.message ?? 'Google ile bağlantı kurulamadı.')
-          setGoogleLoading(false)
-        }
-        return
-      }
-
-      // Embed edilmiş ortam (v0 önizlemesi vb.): redirect'i tetiklemeden auth URL'sini al.
+      // Google girişi her ortamda (v0 önizlemesi, custom domain, production)
+      // ayrı bir popup pencerede açılır; davranış tüm ortamlarda aynıdır.
       const res = await authClient.signIn.social({
         provider: 'google',
         callbackURL: '/',
