@@ -28,9 +28,19 @@ export function AuthForm({ mode }: AuthFormProps) {
   async function handleGoogleAuth() {
     setError('')
     setGoogleLoading(true)
+
+    // Popup'ı tıklama anında senkron olarak aç (about:blank). Bu, tarayıcının
+    // popup engelleyicisinin "kullanıcı eylemi" saymas için gereklidir — aradaki
+    // await'ten sonra window.open çağrılırsa bazı tarayıcılar bunu engelleyip
+    // (veya farklı davranıp) her ortamda tutarsız bir sonuca yol açar.
+    const popup = window.open('', 'google-oauth', 'width=480,height=640')
+    if (!popup) {
+      setError('Google penceresi açılamadı. Tarayıcınızın pop-up engelleyicisini kontrol edin.')
+      setGoogleLoading(false)
+      return
+    }
+
     try {
-      // Google girişi her ortamda (v0 önizlemesi, custom domain, production)
-      // ayrı bir popup pencerede açılır; davranış tüm ortamlarda aynıdır.
       const res = await authClient.signIn.social({
         provider: 'google',
         callbackURL: '/',
@@ -38,17 +48,13 @@ export function AuthForm({ mode }: AuthFormProps) {
       })
       const authUrl = res.data?.url
       if (res.error || !authUrl) {
+        popup.close()
         setError(res.error?.message ?? 'Google ile bağlantı kurulamadı.')
         setGoogleLoading(false)
         return
       }
 
-      const popup = window.open(authUrl, 'google-oauth', 'width=480,height=640')
-      if (!popup) {
-        setError('Google penceresi açılamadı. Tarayıcınızın pop-up engelleyicisini kontrol edin.')
-        setGoogleLoading(false)
-        return
-      }
+      popup.location.href = authUrl
 
       // Popup kapanana kadar bekle, sonra oturumu kontrol et.
       const checkClosed = window.setInterval(async () => {
@@ -64,6 +70,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         }
       }, 500)
     } catch {
+      popup.close()
       setError('Beklenmedik bir hata oluştu.')
       setGoogleLoading(false)
     }
