@@ -84,7 +84,8 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     // yanlış (bir önceki duruma ait) liste kısa süreliğine görünebilir.
     if (sessionPending) return
 
-    if (!session?.user) {
+    const userId = session?.user?.id ?? null
+    if (!userId) {
       setFavorites(readGuestFavorites())
       setLoading(false)
       return
@@ -95,8 +96,8 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
 
     async function loadAndMerge() {
       const guestItems = readGuestFavorites()
-      if (guestItems.length > 0 && mergedForUserRef.current !== session.user.id) {
-        mergedForUserRef.current = session.user.id
+      if (guestItems.length > 0 && mergedForUserRef.current !== userId) {
+        mergedForUserRef.current = userId
         for (const item of guestItems) {
           try {
             await addFavoriteAction({

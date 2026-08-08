@@ -109,7 +109,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         return
       } else {
         // Şifre doğru mu önce kontrol et, ardından OTP gönder
-        const res = await signIn.email({ email, password, dontRememberMe: true })
+        const res = await signIn.email({ email, password, rememberMe: false })
         if (res.error) {
           setError(res.error.message ?? 'E-posta veya şifre hatalı.')
           return
