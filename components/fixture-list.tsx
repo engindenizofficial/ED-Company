@@ -240,7 +240,8 @@ export function FixtureList({
             })}
           </ul>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
