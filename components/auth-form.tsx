@@ -43,7 +43,11 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
       const res = await authClient.signIn.social({
         provider: 'google',
-        callbackURL: '/',
+        // Popup, OAuth tamamlandığında ana siteyi değil bu küçük sayfayı
+        // yükler; o sayfa kendini kapatır. Böylece popup içinde tüm site
+        // açılmaz — kullanıcı hesabı seçtikten sonra popup kapanır ve
+        // aşağıdaki `checkClosed` mantığı ana sekmeyi yönlendirir.
+        callbackURL: '/auth/popup-callback',
         disableRedirect: true,
       })
       const authUrl = res.data?.url
