@@ -189,13 +189,10 @@ export function FixtureList({
     <div className="flex flex-col gap-6">
       {groups.map((group) => {
         const leagueIsFavorite = leagueFavoriteIds.has(group.id)
-        const isFavoriteGroup =
-          leagueIsFavorite || group.items.some((f) => teamFavoriteIds.has(f.home.id) || teamFavoriteIds.has(f.away.id))
         return (
         <div key={group.id} className="flex flex-col gap-1.5">
           {/* League header */}
           <div className="flex items-center gap-2 px-1 pb-1">
-            {isFavoriteGroup ? <Star className="h-3 w-3 shrink-0 fill-primary text-primary" /> : null}
             {group.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={group.logo || "/placeholder.svg"} alt="" className="h-[18px] w-[18px] object-contain opacity-90" />
