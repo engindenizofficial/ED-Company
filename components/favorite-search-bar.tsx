@@ -81,6 +81,13 @@ export function FavoriteSearchBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
+  const closeSearch = useCallback(() => {
+    setQuery("")
+    setTeamResults([])
+    setLeagueResults([])
+    setOpen(false)
+  }, [])
+
   const handleSelectTeam = useCallback(
     (result: TeamSearchResult) => {
       addFavorite({
@@ -91,8 +98,9 @@ export function FavoriteSearchBar() {
         country: result.country,
         flagUrl: null,
       })
+      closeSearch()
     },
-    [addFavorite],
+    [addFavorite, closeSearch],
   )
 
   const handleSelectLeague = useCallback(
@@ -105,8 +113,9 @@ export function FavoriteSearchBar() {
         country: result.country,
         flagUrl: result.flagUrl,
       })
+      closeSearch()
     },
-    [addFavorite],
+    [addFavorite, closeSearch],
   )
 
   const handleClear = useCallback(() => {

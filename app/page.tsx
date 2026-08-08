@@ -8,6 +8,7 @@ import { FixtureList } from "@/components/fixture-list"
 import { SuccessPanel } from "@/components/success-panel"
 import { TeamSearchBar } from "@/components/team-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useFavorites } from "@/contexts/favorites-context"
 import type { AnalysisResponse, Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
 
 function todayTR(): string {
@@ -35,6 +36,7 @@ function actualWinner(homeGoals: number, awayGoals: number): "home" | "away" | "
 
 export default function Page() {
   const date = todayTR()
+  const { favorites } = useFavorites()
   const [selected, setSelected] = useState<Fixture | null>(null)
 
   const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(null)
@@ -416,6 +418,7 @@ export default function Page() {
             fixtures={fixtures}
             selectedId={selected?.id ?? null}
             onSelect={handleSelect}
+            favorites={favorites}
             renderExpanded={() => (
               <AnalysisPanel
                 data={analysis}

@@ -1,10 +1,10 @@
 "use client"
 
-import { CalendarDays, KeyRound, LogOut, UserPlus } from "lucide-react"
+import { CalendarDays, KeyRound, UserPlus } from "lucide-react"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { useSession, signOut } from "@/lib/auth-client"
+import { useSession } from "@/lib/auth-client"
 import { FavoritesMenu } from "@/components/favorites-menu"
 
 const tabs = [
@@ -13,14 +13,7 @@ const tabs = [
 
 export function NavTabs() {
   const pathname = usePathname()
-  const router = useRouter()
   const { data: session } = useSession()
-
-  async function handleSignOut() {
-    await signOut()
-    router.push('/')
-    router.refresh()
-  }
 
   return (
     <nav
@@ -66,19 +59,9 @@ export function NavTabs() {
           {/* Auth butonları */}
           <div className="ml-2 flex items-center gap-1.5 pl-2 border-l border-border/60">
             {session?.user ? (
-              <>
-                <span className="hidden sm:block text-[11px] text-muted-foreground font-medium max-w-[100px] truncate">
-                  {session.user.name}
-                </span>
-                <button
-                  onClick={handleSignOut}
-                  className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                  aria-label="Çıkış yap"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Çıkış</span>
-                </button>
-              </>
+              <span className="hidden sm:block text-[11px] text-muted-foreground font-medium max-w-[100px] truncate">
+                {session.user.name}
+              </span>
             ) : (
               <>
                 <Link
