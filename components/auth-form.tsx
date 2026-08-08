@@ -60,16 +60,29 @@ export function AuthForm({ mode }: AuthFormProps) {
 
       popup.location.href = authUrl
 
-      // Popup kapanana kadar bekle, sonra oturumu kontrol et.
+      // Popup kapanana kadar bekle, sonra oturumu kontrol et. Cookie'nin
+      // popup'ta set edilip ana sekmede okunabilir olması bir tık gecikebilir
+      // (redirect zinciri + tarayıcı cookie senkronizasyonu), bu yüzden tek
+      // seferlik kontrol yerine kısa aralıklarla birkaç kez deniyoruz.
       const checkClosed = window.setInterval(async () => {
         if (popup.closed) {
           window.clearInterval(checkClosed)
-          const session = await authClient.getSession()
+
+          let session = await authClient.getSession()
+          for (let attempt = 0; attempt < 5 && !session.data; attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, 400))
+            session = await authClient.getSession()
+          }
+
           if (session.data) {
-            router.push('/')
-            router.refresh()
+            // router.push yerine tam sayfa navigasyonu: middleware'in güncel
+            // session cookie'sini görmesini garantiler.
+            window.location.href = '/'
           } else {
             setGoogleLoading(false)
+            setError(
+              'Google girişi tamamlandı ama oturum bu sekmede algılanamadı. Lütfen sayfayı yenileyip tekrar deneyin.',
+            )
           }
         }
       }, 500)
