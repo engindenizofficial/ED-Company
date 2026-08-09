@@ -1,11 +1,14 @@
 "use client"
 
 import { createContext, useCallback, useContext, useState } from "react"
-import type { TeamInfo, TeamPageData } from "@/lib/types"
+import type { TeamBasicInfo, TeamInfo } from "@/lib/types"
 
 interface TeamPanelState {
   team: TeamInfo
-  data: TeamPageData | null
+  // Panel header'ı için hafif özet (isim/logo/stadyum/sezon). Diğer tüm veriler
+  // (istatistik, kadro, transferler vb.) sekmelere tıklandığında ayrı ayrı
+  // çekilir — bkz. components/team-panel.tsx içindeki useTeamSection hook'u.
+  basic: TeamBasicInfo | null
   loading: boolean
   error: string | null
 }
@@ -23,16 +26,16 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
 
   const openTeam = useCallback(async (team: TeamInfo) => {
     // Start loading immediately
-    setPanel({ team, data: null, loading: true, error: null })
+    setPanel({ team, basic: null, loading: true, error: null })
 
     try {
-      const res = await fetch(`/api/team?teamId=${team.id}&t=${Date.now()}`, { cache: "no-store" })
+      const res = await fetch(`/api/team?teamId=${team.id}`, { cache: "no-store" })
       if (!res.ok) throw new Error(`Sunucu hatası: ${res.status}`)
-      const data: TeamPageData = await res.json()
-      setPanel((prev) => (prev?.team.id === team.id ? { team, data, loading: false, error: null } : prev))
+      const basic: TeamBasicInfo = await res.json()
+      setPanel((prev) => (prev?.team.id === team.id ? { team, basic, loading: false, error: null } : prev))
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Bir hata oluştu"
-      setPanel((prev) => (prev?.team.id === team.id ? { team, data: null, loading: false, error: msg } : prev))
+      setPanel((prev) => (prev?.team.id === team.id ? { team, basic: null, loading: false, error: msg } : prev))
     }
   }, [])
 

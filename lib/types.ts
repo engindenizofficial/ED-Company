@@ -487,3 +487,19 @@ export interface TeamPageData {
   topScorers: TeamTopScorer[]
   fetchedAt: number
 }
+
+/** Takım panelinin header'ı için hafif, tek istekle gelen özet bilgi. */
+export interface TeamBasicInfo {
+  team: TeamInfo
+  venue: { name: string | null; city: string | null; capacity: number | null; image: string | null }
+  currentSeason: number
+}
+
+/** Sadece "Sezon İstatistikleri" sekmesi için (form/maç listesi hariç). */
+export type TeamStatsSummary = Omit<TeamSeasonStats, "recent">
+
+/** "Son Form" sekmesi için — maç listesi ve fallback form string'i ayrı çekilir. */
+export interface TeamFormData {
+  recent: FormGame[]
+  formString: string
+}
