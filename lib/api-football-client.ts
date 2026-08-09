@@ -5,9 +5,31 @@ const BASE_URL = "https://v3.football.api-sports.io"
 // bunlardan bazıları rastgele 429 alıp sessizce boş dizi döndüğü için
 // aynı takım/oyuncu/lig için her açılışta farklı sayıda bölüm görünüyordu.
 // Bunu önlemek için: (1) eş zamanlı istek sayısını sınırlıyoruz, (2) 429/5xx
-// yanıtlarında üstel geri çekilme ile otomatik yeniden deniyoruz.
+// yanıtlarında üstel geri çekilme ile otomatik yeniden deniyoruz, (3) aynı
+// endpoint+parametre kombinasyonunu kısa bir süre için bellekte cache'leyip
+// aynı paneli art arda aç/kapatmanın gereksiz yeniden istek atmasını (ve bu
+// yüzden rastgele 429'a çarpmasını) önlüyoruz. Devam eden aynı istek için de
+// tekilleştirme (in-flight dedupe) yapıyoruz.
 const MAX_CONCURRENT = 4
-const MAX_RETRIES = 3
+const MAX_RETRIES = 5
+
+// Aynı endpoint+parametre için kısa süreli response cache.
+// Panel verileri (kadro, istatistik, transferler vb.) saniyeler içinde
+// değişmez; bu TTL sadece art arda aç/kapatmalarda tutarlılık sağlamak ve
+// istek hacmini azaltmak için var.
+const CACHE_TTL_MS = 90_000
+const responseCache = new Map<string, { data: unknown; expiresAt: number }>()
+// Aynı anahtar için devam eden isteği paylaş (aynı anda tetiklenen tekrar
+// istekler tek bir ağ çağrısına düşsün).
+const inFlight = new Map<string, Promise<unknown>>()
+
+function cacheKey(path: string, params: Record<string, string | number>): string {
+  const sortedParams = Object.keys(params)
+    .sort()
+    .map((k) => `${k}=${params[k]}`)
+    .join("&")
+  return `${path}?${sortedParams}`
+}
 
 let activeRequests = 0
 const queue: Array<() => void> = []
@@ -61,8 +83,41 @@ export async function apiFootballFetch<T>(
   params: Record<string, string | number>,
   options: FetchOptions = {},
 ): Promise<T[]> {
-  const key = process.env.API_FOOTBALL_KEY
-  if (!key) {
+  const key = cacheKey(path, params)
+
+  // 1. Taze bir cache girdisi varsa ağa hiç gitmeden onu döndür.
+  const cached = responseCache.get(key)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.data as T[]
+  }
+
+  // 2. Aynı anahtar için zaten devam eden bir istek varsa ona binelim
+  // (aynı panelin aynı anda iki kez tetiklediği aynı çağrı tek ağ isteğine düşer).
+  const existing = inFlight.get(key)
+  if (existing) {
+    return existing as Promise<T[]>
+  }
+
+  const promise = doFetch<T>(path, params, options).then((data) => {
+    responseCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS })
+    inFlight.delete(key)
+    return data
+  }).catch((err) => {
+    inFlight.delete(key)
+    throw err
+  })
+
+  inFlight.set(key, promise)
+  return promise
+}
+
+async function doFetch<T>(
+  path: string,
+  params: Record<string, string | number>,
+  options: FetchOptions = {},
+): Promise<T[]> {
+  const apiKey = process.env.API_FOOTBALL_KEY
+  if (!apiKey) {
     throw new ApiFootballError("API_FOOTBALL_KEY tanımlı değil.", 500)
   }
 
@@ -72,8 +127,8 @@ export async function apiFootballFetch<T>(
 
   const fetchInit: RequestInit & { next?: { revalidate: number } } =
     options.cache === "no-store"
-      ? { headers: { "x-apisports-key": key }, cache: "no-store" }
-      : { headers: { "x-apisports-key": key }, next: { revalidate: options.revalidate ?? 60 } }
+      ? { headers: { "x-apisports-key": apiKey }, cache: "no-store" }
+      : { headers: { "x-apisports-key": apiKey }, next: { revalidate: options.revalidate ?? 60 } }
 
   let lastError: unknown = null
 
