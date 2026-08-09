@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { useLeaguePanel } from "@/contexts/league-context"
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { PlayerButton } from "@/components/player-panel"
 import { TeamButton } from "@/components/team-panel"
 import { cn } from "@/lib/utils"
@@ -604,6 +605,7 @@ function UpcomingFixturesSection({ fixtures }: { fixtures: Fixture[] }) {
 
 export function LeaguePanel() {
   const { panel, closeLeague } = useLeaguePanel()
+  useBodyScrollLock(!!panel)
   if (!panel) return null
   const { league, data, loading, error } = panel
 

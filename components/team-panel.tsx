@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { useTeamPanel } from "@/contexts/team-context"
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { PlayerButton } from "@/components/player-panel"
 import { cn } from "@/lib/utils"
 import type {
@@ -813,6 +814,7 @@ function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direc
 
 export function TeamPanel() {
   const { panel, closeTeam } = useTeamPanel()
+  useBodyScrollLock(!!panel)
   if (!panel) return null
   return <TeamPanelInner key={panel.team.id} closeTeam={closeTeam} panel={panel} />
 }

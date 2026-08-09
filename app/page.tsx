@@ -9,6 +9,7 @@ import { SuccessPanel } from "@/components/success-panel"
 import { TeamSearchBar } from "@/components/team-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useFavorites } from "@/contexts/favorites-context"
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import type { AnalysisResponse, Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
 
 function todayTR(): string {
@@ -381,6 +382,8 @@ export default function Page() {
       document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
   }, [handleRefresh])
+
+  useBodyScrollLock(!!selected)
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 

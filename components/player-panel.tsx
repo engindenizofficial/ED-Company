@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { usePlayerPanel } from "@/contexts/player-context"
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { cn } from "@/lib/utils"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import type {
@@ -665,6 +666,7 @@ function SidelinedSection({ sidelined }: { sidelined: SidelinedEntry[] }) {
 
 export function PlayerPanel() {
   const { panel, closePlayer } = usePlayerPanel()
+  useBodyScrollLock(!!panel)
   if (!panel) return null
   const { player, data, loading, error } = panel
 
