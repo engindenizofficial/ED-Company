@@ -609,18 +609,12 @@ export function LeaguePanel() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+      className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-label={`${league.name} lig bilgileri`}
     >
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={closeLeague}
-        aria-hidden="true"
-      />
-
-      <div className="relative z-10 flex w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl max-h-[90dvh] sm:mx-4 sm:rounded-2xl sm:max-h-[90vh]">
+      <div className="flex h-full w-full flex-col overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-4 shrink-0">

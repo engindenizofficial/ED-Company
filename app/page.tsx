@@ -1,6 +1,6 @@
 "use client"
 
-import { LoaderCircle } from "lucide-react"
+import { LoaderCircle, X } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { AnalysisPanel } from "@/components/analysis-panel"
@@ -444,19 +444,49 @@ export default function Page() {
             selectedId={selected?.id ?? null}
             onSelect={handleSelect}
             favorites={favorites}
-            renderExpanded={() => (
-              <AnalysisPanel
-                data={analysis}
-                isLoading={analysisLoading}
-                error={analysisError as Error | undefined}
-                prediction={prediction}
-                predictionLoading={predictionLoading}
-                onPredict={triggerPrediction}
-              />
-            )}
           />
         )}
       </main>
+
+      {/* Match panel — full screen */}
+      {selected && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${selected.home.name} - ${selected.away.name} maç analizi`}
+        >
+          {/* Top bar */}
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-foreground">
+                {selected.home.name} – {selected.away.name}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">{selected.league.name}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              aria-label="Kapat"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            <AnalysisPanel
+              data={analysis}
+              isLoading={analysisLoading}
+              error={analysisError as Error | undefined}
+              prediction={prediction}
+              predictionLoading={predictionLoading}
+              onPredict={triggerPrediction}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -672,18 +672,12 @@ export function PlayerPanel() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+      className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-label={`${player.name} oyuncu bilgileri`}
     >
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={closePlayer}
-        aria-hidden="true"
-      />
-
-      <div className="relative z-10 flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl sm:mx-4 sm:max-h-[90vh] sm:rounded-2xl">
+      <div className="flex h-full w-full flex-col overflow-hidden">
 
         {/* Header */}
         <div className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-4">

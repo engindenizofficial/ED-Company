@@ -170,13 +170,11 @@ export function FixtureList({
   fixtures,
   selectedId,
   onSelect,
-  renderExpanded,
   favorites = [],
 }: {
   fixtures: Fixture[]
   selectedId: number | null
   onSelect: (f: Fixture) => void
-  renderExpanded: (f: Fixture) => React.ReactNode
   favorites?: FavoriteItem[]
 }) {
   const { isFavorite, toggleFavorite } = useFavorites()
@@ -313,11 +311,6 @@ export function FixtureList({
                       </div>
                     </div>
                   </button>
-                  {active ? (
-                    <div className="animate-in fade-in slide-in-from-top-1 duration-200 mt-1 rounded-xl border border-primary/30 bg-card/80 p-4 backdrop-blur-sm">
-                      {renderExpanded(f)}
-                    </div>
-                  ) : null}
                 </li>
               )
             })}
