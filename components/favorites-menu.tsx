@@ -369,7 +369,7 @@ function SortableFavoriteRow({
         {...attributes}
         {...listeners}
         aria-label="Sürükleyerek sıralamayı değiştir"
-        className="flex h-8 w-6 shrink-0 cursor-grab items-center justify-center text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
+        className="flex h-8 w-6 shrink-0 cursor-grab touch-none select-none items-center justify-center text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
       >
         <GripVertical className="h-4 w-4" />
       </button>
