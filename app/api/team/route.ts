@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import type {
   Fixture,
@@ -15,24 +16,8 @@ import type {
 
 export const dynamic = "force-dynamic"
 
-const BASE_URL = "https://v3.football.api-sports.io"
-
-async function apiFetch<T>(path: string, params: Record<string, string | number>): Promise<T[]> {
-  const key = process.env.API_FOOTBALL_KEY
-  if (!key) return []
-  const search = new URLSearchParams()
-  for (const [k, v] of Object.entries(params)) search.set(k, String(v))
-  try {
-    const res = await fetch(`${BASE_URL}${path}?${search}`, {
-      headers: { "x-apisports-key": key },
-      cache: "no-store",
-    })
-    if (!res.ok) return []
-    const json = await res.json()
-    return (json.response as T[]) ?? []
-  } catch {
-    return []
-  }
+function apiFetch<T>(path: string, params: Record<string, string | number>): Promise<T[]> {
+  return safeApiFootballFetch<T>(path, params, { cache: "no-store" })
 }
 
 function currentSeason(): number {

@@ -19,8 +19,7 @@ import type {
   Trophy,
 } from "./types"
 import { toTurkishCountry } from "./tr-aliases"
-
-const BASE_URL = "https://v3.football.api-sports.io"
+import { apiFootballFetch, safeApiFootballFetch } from "./api-football-client"
 
 // ---------------------------------------------------------------------------
 // Featured leagues — same order as the search bar (TOP_LEAGUES in leagues/search/route.ts)
@@ -59,42 +58,12 @@ function featuredRank(leagueId: number): number {
   return idx === -1 ? Infinity : idx
 }
 
-class ApiFootballError extends Error {
-  status: number
-  constructor(message: string, status: number) {
-    super(message)
-    this.status = status
-  }
-}
-
 async function apiFetch<T>(
   path: string,
   params: Record<string, string | number>,
   revalidate = 60,
 ): Promise<T[]> {
-  const key = process.env.API_FOOTBALL_KEY
-  if (!key) {
-    throw new ApiFootballError("API_FOOTBALL_KEY tanımlı değil.", 500)
-  }
-
-  const search = new URLSearchParams()
-  for (const [k, v] of Object.entries(params)) search.set(k, String(v))
-
-  const res = await fetch(`${BASE_URL}${path}?${search.toString()}`, {
-    headers: { "x-apisports-key": key },
-    next: { revalidate },
-  })
-
-  if (!res.ok) {
-    throw new ApiFootballError(`API-Football isteği başarısız (${res.status})`, res.status)
-  }
-
-  const json = await res.json()
-  if (json.errors && !Array.isArray(json.errors) && Object.keys(json.errors).length > 0) {
-    const msg = Object.values(json.errors).join(" ")
-    throw new ApiFootballError(String(msg || "API-Football hatası"), 502)
-  }
-  return (json.response as T[]) ?? []
+  return apiFootballFetch<T>(path, params, { revalidate })
 }
 
 /** Best-effort fetch: returns [] instead of throwing so one dead endpoint
@@ -104,11 +73,7 @@ async function safeFetch<T>(
   params: Record<string, string | number>,
   revalidate = 60,
 ): Promise<T[]> {
-  try {
-    return await apiFetch<T>(path, params, revalidate)
-  } catch {
-    return []
-  }
+  return safeApiFootballFetch<T>(path, params, { revalidate })
 }
 
 // ---------------------------------------------------------------------------
