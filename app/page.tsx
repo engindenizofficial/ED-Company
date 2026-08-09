@@ -369,6 +369,9 @@ export default function Page() {
     }
 
     if (document.visibilityState === "visible") {
+      // Sayfa ilk açıldığında 30 saniye beklemeden hemen bir kez güncelle,
+      // sonrasında normal 30 saniyelik döngüye geç.
+      runRefresh()
       startInterval()
     }
     document.addEventListener("visibilitychange", handleVisibilityChange)
