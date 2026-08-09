@@ -52,6 +52,12 @@ export default function Page() {
   const [predictionResults, setPredictionResults] = useState<PredictionResult[]>([])
 
   const [refreshing, setRefreshing] = useState(false)
+  // handleRefresh'in kimliğini (referansını) refreshing state'inden bağımsız tutmak için ref
+  // kullanıyoruz. Aksi halde her yenilemede refreshing true/false arasında değiştiği için
+  // handleRefresh yeniden oluşuyor, bu da aşağıdaki 30 saniyelik interval'in her seferinde
+  // temizlenip yeniden kurulmasına ve sayacın sıfırdan başlamasına yol açıyordu — bu yüzden
+  // gerçek yenileme aralığı 30 saniyeden, o anki fetch süresi kadar daha uzun sürüyordu.
+  const isRefreshingRef = useRef(false)
 
   // Hangi fixtureId'ler için sonuç zaten kaydedildi (çift kayıt önlemi)
   const savedResultIds = useRef<Set<number>>(new Set())
@@ -302,7 +308,8 @@ export default function Page() {
 
 
   const handleRefresh = useCallback(async () => {
-    if (refreshing) return
+    if (isRefreshingRef.current) return
+    isRefreshingRef.current = true
     setRefreshing(true)
     try {
       // Bekleyen tahminleri kontrol et (geçmiş tarihlerdekiler dahil)
@@ -323,9 +330,10 @@ export default function Page() {
       }
       await Promise.all([loadFixtures(true), loadPredictionResults()])
     } finally {
+      isRefreshingRef.current = false
       setRefreshing(false)
     }
-  }, [refreshing, loadFixtures, loadPredictionResults])
+  }, [loadFixtures, loadPredictionResults])
 
   // Otomatik yenileme: yalnızca sekme görünürken (kullanıcı siteyi açık tutarken)
   // düzenli aralıklarla veriyi tazele. Sekme arka plandaysa interval'ı durdur,
