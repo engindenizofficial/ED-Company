@@ -130,40 +130,21 @@ function groupByLeague(fixtures: Fixture[]) {
   return Array.from(groups.values())
 }
 
-/**
- * Ligler sadece kendi favori sıra numarasına (1, 2, 3...) göre en üste çıkar.
- * Bir takımın favori olması, o takımın maçının bulunduğu ligin diğer tüm
- * maçlarını yukarı çekmemeli — bu yüzden grup sıralaması SADECE lig
- * favorilerine bakar, takım favorilerine bakmaz.
- */
-function sortGroupsByFavorites<T extends { id: number; items: Fixture[] }>(
-  groups: T[],
-  favorites: FavoriteItem[],
-): T[] {
-  const leaguePosition = new Map<number, number>()
-  for (const fav of favorites) {
-    if (fav.type === "league") leaguePosition.set(fav.itemId, fav.position)
-  }
-
-  if (leaguePosition.size === 0) return groups
-
-  const rankOf = (group: T): number => leaguePosition.get(group.id) ?? Number.POSITIVE_INFINITY
-
-  return groups
-    .map((group, index) => ({ group, rank: rankOf(group), index }))
-    .sort((a, b) => (a.rank !== b.rank ? a.rank - b.rank : a.index - b.index))
-    .map((entry) => entry.group)
+/** Ekranda gösterilecek tek bir blok (lig grubu ya da favori takım için ayrılmış mini blok). */
+interface RenderGroup {
+  key: string
+  id: number
+  name: string
+  country: string
+  logo: string
+  items: Fixture[]
+  /** 0 = favori lig (en üstte), 1 = favori takım için ayrılan blok, 2 = normal sıradaki lig. */
+  tier: 0 | 1 | 2
+  rank: number
+  order: number
 }
 
-/**
- * Bir lig grubu içinde, favori bir takımın maçı varsa SADECE o maç grubun
- * en üstüne çıkar; grubun diğer maçları kendi orijinal sırasında kalır.
- */
-function sortFixturesByFavoriteTeam(fixtures: Fixture[], favorites: FavoriteItem[]): Fixture[] {
-  const teamPosition = new Map<number, number>()
-  for (const fav of favorites) {
-    if (fav.type === "team") teamPosition.set(fav.itemId, fav.position)
-  }
+function sortFixturesByFavoriteTeam(fixtures: Fixture[], teamPosition: Map<number, number>): Fixture[] {
   if (teamPosition.size === 0) return fixtures
 
   const rankOf = (f: Fixture): number => {
@@ -181,6 +162,99 @@ function sortFixturesByFavoriteTeam(fixtures: Fixture[], favorites: FavoriteItem
     .map((entry) => entry.f)
 }
 
+/**
+ * Görüntülenecek blokları oluşturur:
+ * - Favori bir lig ise: tüm lig bloğu en üste çıkar (içindeki favori takımın
+ *   maçı da o blok içinde en üstte gösterilir).
+ * - Favori olmayan bir ligde favori bir takımın maçı varsa: SADECE o maç(lar)
+ *   ayrı, "{lig adı}" başlıklı yeni bir blok olarak en üste (favori liglerin
+ *   altına) taşınır. Aynı ligin diğer maçları kendi orijinal konumunda,
+ *   ayrı bir blok olarak kalır.
+ * - Favorisi olmayan ligler kendi orijinal sırasında değişmeden kalır.
+ */
+function buildRenderGroups(
+  fixtures: Fixture[],
+  favorites: FavoriteItem[],
+): RenderGroup[] {
+  const leaguePosition = new Map<number, number>()
+  const teamPosition = new Map<number, number>()
+  for (const fav of favorites) {
+    if (fav.type === "league") leaguePosition.set(fav.itemId, fav.position)
+    else teamPosition.set(fav.itemId, fav.position)
+  }
+
+  const baseGroups = groupByLeague(fixtures)
+  const renderGroups: RenderGroup[] = []
+
+  baseGroups.forEach((group, order) => {
+    const leagueRank = leaguePosition.get(group.id)
+
+    if (leagueRank !== undefined) {
+      // Lig favorilendi: tüm blok en üste çıkar, içindeki favori takım en üstte gösterilir.
+      renderGroups.push({
+        key: `league-${group.id}`,
+        id: group.id,
+        name: group.name,
+        country: group.country,
+        logo: group.logo,
+        items: sortFixturesByFavoriteTeam(group.items, teamPosition),
+        tier: 0,
+        rank: leagueRank,
+        order,
+      })
+      return
+    }
+
+    // Lig favori değil: favori takımın maçlarını ayrı bir bloğa çıkar.
+    const pinned: Fixture[] = []
+    const rest: Fixture[] = []
+    for (const f of group.items) {
+      const isFavoriteTeamMatch = teamPosition.has(f.home.id) || teamPosition.has(f.away.id)
+      if (isFavoriteTeamMatch) pinned.push(f)
+      else rest.push(f)
+    }
+
+    if (pinned.length > 0) {
+      const pinnedRank = Math.min(
+        ...pinned.map((f) =>
+          Math.min(teamPosition.get(f.home.id) ?? Number.POSITIVE_INFINITY, teamPosition.get(f.away.id) ?? Number.POSITIVE_INFINITY),
+        ),
+      )
+      renderGroups.push({
+        key: `team-pin-${group.id}`,
+        id: group.id,
+        name: group.name,
+        country: group.country,
+        logo: group.logo,
+        items: sortFixturesByFavoriteTeam(pinned, teamPosition),
+        tier: 1,
+        rank: pinnedRank,
+        order,
+      })
+    }
+
+    if (rest.length > 0) {
+      renderGroups.push({
+        key: `league-${group.id}`,
+        id: group.id,
+        name: group.name,
+        country: group.country,
+        logo: group.logo,
+        items: rest,
+        tier: 2,
+        rank: Number.POSITIVE_INFINITY,
+        order,
+      })
+    }
+  })
+
+  return renderGroups.sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier - b.tier
+    if (a.tier === 2) return a.order - b.order
+    return a.rank !== b.rank ? a.rank - b.rank : a.order - b.order
+  })
+}
+
 export function FixtureList({
   fixtures,
   selectedId,
@@ -193,7 +267,7 @@ export function FixtureList({
   favorites?: FavoriteItem[]
 }) {
   const { isFavorite, toggleFavorite } = useFavorites()
-  const groups = sortGroupsByFavorites(groupByLeague(fixtures), favorites)
+  const groups = buildRenderGroups(fixtures, favorites)
 
   const leagueFavoriteIds = new Set(favorites.filter((f) => f.type === "league").map((f) => f.itemId))
   const teamFavoriteIds = new Set(favorites.filter((f) => f.type === "team").map((f) => f.itemId))
@@ -202,8 +276,9 @@ export function FixtureList({
     <div className="flex flex-col gap-6">
       {groups.map((group) => {
         const leagueIsFavorite = leagueFavoriteIds.has(group.id)
+        const isPinnedTeamBlock = group.tier === 1
         return (
-        <div key={group.id} className="flex flex-col gap-1.5">
+        <div key={group.key} className="flex flex-col gap-1.5">
           {/* League header */}
           <div className="flex items-center gap-2 px-1 pb-1">
             {group.logo ? (
@@ -212,33 +287,42 @@ export function FixtureList({
             ) : null}
             <LeagueButton
               league={{ id: group.id, name: group.name, logo: group.logo, country: group.country, flagUrl: null }}
-              className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground hover:text-primary transition-colors"
+              className={cn(
+                "text-[11px] font-bold uppercase tracking-[0.12em] transition-colors hover:text-primary",
+                isPinnedTeamBlock ? "text-primary" : "text-muted-foreground",
+              )}
             >
               {group.name}
               <span className="ml-1.5 font-normal opacity-60">{toTurkishCountry(group.country)}</span>
             </LeagueButton>
-            <FavoriteStarButton
-              active={leagueIsFavorite}
-              label={group.name}
-              size="xs"
-              onToggle={() =>
-                toggleFavorite({
-                  type: "league",
-                  itemId: group.id,
-                  name: group.name,
-                  logo: group.logo,
-                  country: group.country,
-                  flagUrl: null,
-                })
-              }
-            />
+            {isPinnedTeamBlock ? (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                Favori Takım
+              </span>
+            ) : (
+              <FavoriteStarButton
+                active={leagueIsFavorite}
+                label={group.name}
+                size="xs"
+                onToggle={() =>
+                  toggleFavorite({
+                    type: "league",
+                    itemId: group.id,
+                    name: group.name,
+                    logo: group.logo,
+                    country: group.country,
+                    flagUrl: null,
+                  })
+                }
+              />
+            )}
             <div className="ml-auto h-px flex-1 bg-border/60" />
             <span className="text-[10px] tabular-nums text-muted-foreground/50">{group.items.length}</span>
           </div>
 
           {/* Fixture cards */}
           <ul className="flex flex-col gap-1">
-            {sortFixturesByFavoriteTeam(group.items, favorites).map((f) => {
+            {group.items.map((f) => {
               const active = f.id === selectedId
               const live = isLive(f.statusShort)
               const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
