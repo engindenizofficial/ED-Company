@@ -1,6 +1,6 @@
 "use client"
 
-import { Users } from "lucide-react"
+import { Check, Users } from "lucide-react"
 import { useEffect, useState } from "react"
 import useSWR from "swr"
 import { cn } from "@/lib/utils"
@@ -122,37 +122,49 @@ export function MatchVoteBar({
             />
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2.5">
             {/* Segmented percentage bar */}
             <div className="flex h-8 w-full overflow-hidden rounded-lg bg-secondary/60">
               <VoteSegment
                 pctValue={revealed ? homePct : 0}
                 color="bg-primary"
                 textColor="text-primary-foreground"
-                active={state.myVote === "home"}
                 label={homePct > 8 ? `%${homePct}` : ""}
               />
               <VoteSegment
                 pctValue={revealed ? drawPct : 0}
                 color="bg-muted-foreground/70"
                 textColor="text-secondary"
-                active={state.myVote === "draw"}
                 label={drawPct > 8 ? `%${drawPct}` : ""}
               />
               <VoteSegment
                 pctValue={revealed ? awayPct : 0}
                 color="bg-accent"
                 textColor="text-accent-foreground"
-                active={state.myVote === "away"}
                 label={awayPct > 8 ? `%${awayPct}` : ""}
               />
             </div>
 
-            {/* Labels */}
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <VoteLabel label={homeName} active={state.myVote === "home"} dotClassName="bg-primary" />
-              <VoteLabel label="Berabere" active={state.myVote === "draw"} dotClassName="bg-muted-foreground/70" />
-              <VoteLabel label={awayName} active={state.myVote === "away"} dotClassName="bg-accent" />
+            {/* Labels — seçilen taraf dolgulu bir rozetle ve onay ikonuyla belirtilir */}
+            <div className="grid grid-cols-3 gap-2">
+              <VoteLabel
+                label={homeName}
+                active={state.myVote === "home"}
+                tone="text-primary"
+                activeClassName="border-primary/50 bg-primary/12"
+              />
+              <VoteLabel
+                label="Berabere"
+                active={state.myVote === "draw"}
+                tone="text-foreground"
+                activeClassName="border-foreground/30 bg-foreground/8"
+              />
+              <VoteLabel
+                label={awayName}
+                active={state.myVote === "away"}
+                tone="text-accent"
+                activeClassName="border-accent/50 bg-accent/12"
+              />
             </div>
           </div>
         )}
@@ -191,23 +203,17 @@ function VoteSegment({
   pctValue,
   color,
   textColor,
-  active,
   label,
 }: {
   pctValue: number
   color: string
   textColor: string
-  active: boolean
   label: string
 }) {
   return (
     <div
       style={{ width: `${pctValue}%` }}
-      className={cn(
-        "flex items-center justify-center transition-[width] duration-700 ease-out",
-        color,
-        active && "ring-2 ring-inset ring-foreground/25",
-      )}
+      className={cn("flex items-center justify-center transition-[width] duration-700 ease-out", color)}
     >
       {label && <span className={cn("text-[11px] font-bold tabular-nums", textColor)}>{label}</span>}
     </div>
@@ -217,23 +223,28 @@ function VoteSegment({
 function VoteLabel({
   label,
   active,
-  dotClassName,
+  tone,
+  activeClassName,
 }: {
   label: string
   active: boolean
-  dotClassName: string
+  tone: string
+  activeClassName: string
 }) {
   return (
-    <div className="flex items-center justify-center gap-1.5 truncate">
-      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClassName)} aria-hidden="true" />
+    <div
+      className={cn(
+        "flex items-center justify-center gap-1 truncate rounded-lg border border-transparent px-1.5 py-1 transition-colors",
+        active && activeClassName,
+      )}
+    >
+      {active && <Check className={cn("h-3 w-3 shrink-0", tone)} aria-hidden="true" />}
       <span
-        className={cn(
-          "truncate text-[11px] font-medium",
-          active ? "font-bold text-foreground" : "text-muted-foreground",
-        )}
+        className={cn("truncate text-[11px] font-medium", active ? cn("font-bold", tone) : "text-muted-foreground")}
       >
         {label}
       </span>
+      {active && <span className="sr-only">(senin oyun)</span>}
     </div>
   )
 }
