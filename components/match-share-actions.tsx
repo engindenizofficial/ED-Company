@@ -43,7 +43,7 @@ export function MatchShareActions({
     const { toBlob } = await import("html-to-image")
     const blob = await toBlob(posterRef.current, {
       pixelRatio: 2,
-      backgroundColor: "#080b12",
+      backgroundColor: "#f4f5f7",
     })
     if (!blob) throw new Error("Görsel oluşturulamadı")
     return blob

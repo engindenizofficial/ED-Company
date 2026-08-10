@@ -8,27 +8,32 @@ import type { Fixture, MatchPrediction } from "@/lib/types"
 // MatchSharePoster — sosyal medyada paylaşılabilir, afiş kalitesinde PNG
 // kartı. Bu bileşen her zaman AÇIK (light) temayla ve sitenin marka
 // renkleriyle render edilir — kullanıcının aktif site temasından bağımsız
-// olarak, sitenin ":root" (light) design token değerleri burada sabit olarak
-// kopyalanmıştır (app/globals.css ile senkron tutulmalıdır).
+// olarak, sitenin ":root" (light) design token değerlerine denk gelen sabit
+// hex/rgba değerleri kullanır (app/globals.css ile görsel olarak senkron).
+//
+// Not: Burada BİLİNÇLİ olarak oklch()/color-mix() KULLANILMAZ — PNG'ye
+// dönüştürme sırasında (html-to-image) bu modern renk fonksiyonları düzgün
+// serileştirilemeyebilir ve arka planın siyah, yazıların görünmez çıkmasına
+// sebep olabilir. Bu yüzden tüm renkler sabit hex/rgba olarak tanımlanır.
 // ---------------------------------------------------------------------------
 
 const PALETTE = {
-  bg: "oklch(0.97 0.005 240)",
-  card: "oklch(1 0 0)",
-  surface1: "oklch(0.96 0.006 240)",
-  surface2: "oklch(0.92 0.008 240)",
-  border: "oklch(0.88 0.01 240)",
-  borderStrong: "oklch(0.82 0.012 240)",
-  foreground: "oklch(0.14 0.02 250)",
-  muted: "oklch(0.48 0.015 245)",
-  mutedSoft: "oklch(0.6 0.012 245)",
-  brandFrom: "oklch(0.58 0.2 152)",
-  brandTo: "oklch(0.52 0.18 255)",
-  primary: "oklch(0.52 0.18 152)",
-  primaryForeground: "oklch(0.99 0.005 150)",
-  primarySoft: "color-mix(in oklch, oklch(0.52 0.18 152) 10%, white)",
-  primaryBorder: "color-mix(in oklch, oklch(0.52 0.18 152) 38%, white)",
-  accent: "oklch(0.55 0.18 255)",
+  bg: "#f5f6f7",
+  card: "#ffffff",
+  surface1: "#eef0f1",
+  surface2: "#e4e7e9",
+  border: "#d9dbde",
+  borderStrong: "#c9ccd0",
+  foreground: "#1a1c22",
+  muted: "#6a6f79",
+  mutedSoft: "#8a8f98",
+  brandFrom: "#1fae63",
+  brandTo: "#3b5fe0",
+  primary: "#1f9d5c",
+  primaryForeground: "#f6fdf9",
+  primarySoft: "rgba(31,157,92,0.12)",
+  primaryBorder: "rgba(31,157,92,0.4)",
+  accent: "#3b5fe0",
 }
 
 function winnerLabel(prediction: MatchPrediction, homeName: string, awayName: string): string {
@@ -51,6 +56,15 @@ export const MatchSharePoster = forwardRef<
     year: "numeric",
   })
   const generatedTime = generatedAt.toLocaleTimeString("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+  const kickoffAt = new Date(fixture.date)
+  const kickoffDate = kickoffAt.toLocaleDateString("tr-TR", {
+    day: "2-digit",
+    month: "long",
+  })
+  const kickoffTime = kickoffAt.toLocaleTimeString("tr-TR", {
     hour: "2-digit",
     minute: "2-digit",
   })
@@ -91,8 +105,7 @@ export const MatchSharePoster = forwardRef<
           width: 520,
           height: 520,
           borderRadius: "50%",
-          background:
-            "radial-gradient(circle, color-mix(in oklch, oklch(0.52 0.18 152) 14%, transparent) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(31,174,99,0.14) 0%, rgba(31,174,99,0) 70%)",
           pointerEvents: "none",
         }}
       />
@@ -105,8 +118,7 @@ export const MatchSharePoster = forwardRef<
           width: 480,
           height: 480,
           borderRadius: "50%",
-          background:
-            "radial-gradient(circle, color-mix(in oklch, oklch(0.55 0.18 255) 10%, transparent) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(59,95,224,0.1) 0%, rgba(59,95,224,0) 70%)",
           pointerEvents: "none",
         }}
       />
@@ -182,6 +194,10 @@ export const MatchSharePoster = forwardRef<
             <span style={{ fontSize: 15, fontWeight: 600, color: PALETTE.muted }}>
               {league.name}
               {league.round ? ` · ${league.round}` : ""}
+            </span>
+            <span style={{ width: 1, height: 16, background: PALETTE.border }} />
+            <span style={{ fontSize: 15, fontWeight: 700, color: PALETTE.foreground }}>
+              {kickoffDate} · {kickoffTime}
             </span>
           </div>
         </div>
