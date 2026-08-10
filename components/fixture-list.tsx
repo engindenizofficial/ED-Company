@@ -276,7 +276,6 @@ export function FixtureList({
     <div className="flex flex-col gap-6">
       {groups.map((group) => {
         const leagueIsFavorite = leagueFavoriteIds.has(group.id)
-        const isPinnedTeamBlock = group.tier === 1
         return (
         <div key={group.key} className="flex flex-col gap-1.5">
           {/* League header */}
@@ -287,35 +286,26 @@ export function FixtureList({
             ) : null}
             <LeagueButton
               league={{ id: group.id, name: group.name, logo: group.logo, country: group.country, flagUrl: null }}
-              className={cn(
-                "text-[11px] font-bold uppercase tracking-[0.12em] transition-colors hover:text-primary",
-                isPinnedTeamBlock ? "text-primary" : "text-muted-foreground",
-              )}
+              className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-primary"
             >
               {group.name}
               <span className="ml-1.5 font-normal opacity-60">{toTurkishCountry(group.country)}</span>
             </LeagueButton>
-            {isPinnedTeamBlock ? (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-                Favori Takım
-              </span>
-            ) : (
-              <FavoriteStarButton
-                active={leagueIsFavorite}
-                label={group.name}
-                size="xs"
-                onToggle={() =>
-                  toggleFavorite({
-                    type: "league",
-                    itemId: group.id,
-                    name: group.name,
-                    logo: group.logo,
-                    country: group.country,
-                    flagUrl: null,
-                  })
-                }
-              />
-            )}
+            <FavoriteStarButton
+              active={leagueIsFavorite}
+              label={group.name}
+              size="xs"
+              onToggle={() =>
+                toggleFavorite({
+                  type: "league",
+                  itemId: group.id,
+                  name: group.name,
+                  logo: group.logo,
+                  country: group.country,
+                  flagUrl: null,
+                })
+              }
+            />
             <div className="ml-auto h-px flex-1 bg-border/60" />
             <span className="text-[10px] tabular-nums text-muted-foreground/50">{group.items.length}</span>
           </div>
