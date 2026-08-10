@@ -11,7 +11,6 @@ import type {
   TeamStatsSummary,
   TeamTopScorer,
   TeamTransfer,
-  TeamTrophy,
 } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -29,7 +28,6 @@ const VALID_SECTIONS = [
   "squad",
   "topScorers",
   "standings",
-  "trophies",
   "transfers",
 ] as const
 type Section = (typeof VALID_SECTIONS)[number]
@@ -99,23 +97,6 @@ async function fetchFinishedFixtures(teamId: number): Promise<RawFixture[]> {
 async function fetchCurrentLeagueId(teamId: number, season: number): Promise<number | null> {
   const standingsRaw = await apiFetch<any>("/standings", { team: teamId, season })
   return standingsRaw?.[0]?.league?.id ?? null
-}
-
-// API-Football'un /trophies endpoint'i takım id'si kabul etmiyor
-// ("The Team field do not exist."), yalnızca player/coach id'si alıyor.
-// Bu yüzden takımın güncel teknik direktörünü bulup onun kupa geçmişini
-// gösteriyoruz; bu, API'nin desteklediği en yakın "takım kupaları" karşılığı.
-async function fetchCurrentCoachId(teamId: number): Promise<number | null> {
-  const coachRaw = await apiFetch<any>("/coachs", { team: teamId })
-  const activeForTeam = (coachRaw ?? []).filter((c: any) =>
-    (c.career ?? []).some((j: any) => j.team?.id === teamId && !j.end)
-  )
-  const currentCoachRaw = activeForTeam.sort((a: any, b: any) => {
-    const aStart = (a.career ?? []).find((j: any) => j.team?.id === teamId && !j.end)?.start ?? ""
-    const bStart = (b.career ?? []).find((j: any) => j.team?.id === teamId && !j.end)?.start ?? ""
-    return bStart.localeCompare(aStart)
-  })[0] ?? null
-  return currentCoachRaw?.id ?? null
 }
 
 export async function GET(request: Request) {
@@ -251,24 +232,6 @@ export async function GET(request: Request) {
         }
         if (standings.length === 0) return NextResponse.json({ data: null })
         return NextResponse.json({ data: standings })
-      }
-
-      case "trophies": {
-        // API-Football'un /trophies endpoint'i "team" parametresi kabul etmiyor
-        // ("The Team field do not exist."), sadece player/coach id'si alıyor.
-        // Bu yüzden takımın güncel teknik direktörünü bulup onun kupa
-        // geçmişini gösteriyoruz.
-        const coachId = await fetchCurrentCoachId(teamId)
-        if (!coachId) return NextResponse.json({ data: null })
-        const trophiesRaw = await apiFetch<any>("/trophies", { coach: coachId })
-        const trophies: TeamTrophy[] = (trophiesRaw ?? []).map((t: any) => ({
-          league: t.league ?? "",
-          country: toTurkishCountry(t.country ?? ""),
-          season: t.season ?? "",
-          place: t.place ?? "",
-        }))
-        if (trophies.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data: trophies })
       }
 
       case "transfers": {
