@@ -774,6 +774,9 @@ function TrophiesSection({ teamId, teamName }: { teamId: number; teamName: strin
           {status === "empty" && <SectionEmptyState teamName={teamName} label="kupa/şampiyonluk verisi" />}
           {status === "success" && data && (
             <div className="flex flex-col gap-4">
+              <p className="text-[10px] leading-relaxed text-muted-foreground/70">
+                Takım kupaları API&apos;de ayrı takip edilmediği için güncel teknik direktörün kariyer boyunca kazandığı kupalar gösteriliyor.
+              </p>
               {won.length > 0 && (
                 <div className="flex flex-col gap-1.5">
                   <p className="flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">

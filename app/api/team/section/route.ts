@@ -38,6 +38,15 @@ function apiFetch<T>(path: string, params: Record<string, string | number>): Pro
   return safeApiFootballFetch<T>(path, params, { cache: "no-store" })
 }
 
+// safeApiFootballFetch her zaman T[] tipinde döner, ancak API-Football'da
+// bazı endpoint'ler ("/teams/statistics" gibi) "response" alanında dizi değil
+// tek bir obje döndürür. Bu yardımcı, o durumda [0] ile yanlış indeksleme
+// yapmadan objeyi doğrudan kullanmamızı sağlıyor.
+async function apiFetchObject<T>(path: string, params: Record<string, string | number>): Promise<T | null> {
+  const raw = await safeApiFootballFetch<T>(path, params, { cache: "no-store" })
+  return (raw as unknown as T) ?? null
+}
+
 function currentSeason(): number {
   const now = new Date()
   return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
@@ -83,6 +92,32 @@ async function fetchFinishedFixtures(teamId: number): Promise<RawFixture[]> {
     .sort((a, b) => b.fixture.timestamp - a.fixture.timestamp)
 }
 
+// API-Football'un /teams/statistics endpoint'i "league" parametresini zorunlu
+// tutuyor (team + season yeterli değil, "The League field is required." hatası
+// döner). Bu yüzden önce takımın bu sezon oynadığı ligi standings üzerinden
+// buluyoruz (topScorers sekmesindeki mantıkla aynı).
+async function fetchCurrentLeagueId(teamId: number, season: number): Promise<number | null> {
+  const standingsRaw = await apiFetch<any>("/standings", { team: teamId, season })
+  return standingsRaw?.[0]?.league?.id ?? null
+}
+
+// API-Football'un /trophies endpoint'i takım id'si kabul etmiyor
+// ("The Team field do not exist."), yalnızca player/coach id'si alıyor.
+// Bu yüzden takımın güncel teknik direktörünü bulup onun kupa geçmişini
+// gösteriyoruz; bu, API'nin desteklediği en yakın "takım kupaları" karşılığı.
+async function fetchCurrentCoachId(teamId: number): Promise<number | null> {
+  const coachRaw = await apiFetch<any>("/coachs", { team: teamId })
+  const activeForTeam = (coachRaw ?? []).filter((c: any) =>
+    (c.career ?? []).some((j: any) => j.team?.id === teamId && !j.end)
+  )
+  const currentCoachRaw = activeForTeam.sort((a: any, b: any) => {
+    const aStart = (a.career ?? []).find((j: any) => j.team?.id === teamId && !j.end)?.start ?? ""
+    const bStart = (b.career ?? []).find((j: any) => j.team?.id === teamId && !j.end)?.start ?? ""
+    return bStart.localeCompare(aStart)
+  })[0] ?? null
+  return currentCoachRaw?.id ?? null
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const teamId = Number(searchParams.get("teamId"))
@@ -100,8 +135,11 @@ export async function GET(request: Request) {
   try {
     switch (section) {
       case "stats": {
-        const statsRaw = await apiFetch<any>("/teams/statistics", { team: teamId, season })
-        const s = statsRaw?.[0] as any
+        const leagueId = await fetchCurrentLeagueId(teamId, season)
+        if (!leagueId) return NextResponse.json({ data: null })
+        // NOT: /teams/statistics tek bir obje döner (dizi değil), bu yüzden
+        // diğer endpoint'lerdeki gibi [0] ile indekslemiyoruz.
+        const s = (await apiFetchObject<any>("/teams/statistics", { team: teamId, season, league: leagueId })) as any
         if (!s?.fixtures) return NextResponse.json({ data: null })
         const data: TeamStatsSummary = {
           team: { id: teamId, name: "", logo: "" },
@@ -119,11 +157,13 @@ export async function GET(request: Request) {
       }
 
       case "form": {
-        const [statsRaw, finished] = await Promise.all([
-          apiFetch<any>("/teams/statistics", { team: teamId, season }),
+        const leagueId = await fetchCurrentLeagueId(teamId, season)
+        const [s, finished] = await Promise.all([
+          leagueId
+            ? (apiFetchObject<any>("/teams/statistics", { team: teamId, season, league: leagueId }) as Promise<any>)
+            : Promise.resolve(null),
           fetchFinishedFixtures(teamId),
         ])
-        const s = statsRaw?.[0] as any
         const recent: FormGame[] = finished.slice(0, 6).map(r => {
           const isHome = r.teams.home.id === teamId
           const scored = (isHome ? r.goals.home : r.goals.away) ?? 0
@@ -214,7 +254,13 @@ export async function GET(request: Request) {
       }
 
       case "trophies": {
-        const trophiesRaw = await apiFetch<any>("/trophies", { team: teamId })
+        // API-Football'un /trophies endpoint'i "team" parametresi kabul etmiyor
+        // ("The Team field do not exist."), sadece player/coach id'si alıyor.
+        // Bu yüzden takımın güncel teknik direktörünü bulup onun kupa
+        // geçmişini gösteriyoruz.
+        const coachId = await fetchCurrentCoachId(teamId)
+        if (!coachId) return NextResponse.json({ data: null })
+        const trophiesRaw = await apiFetch<any>("/trophies", { coach: coachId })
         const trophies: TeamTrophy[] = (trophiesRaw ?? []).map((t: any) => ({
           league: t.league ?? "",
           country: toTurkishCountry(t.country ?? ""),
