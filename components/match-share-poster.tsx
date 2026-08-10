@@ -6,24 +6,29 @@ import type { Fixture, MatchPrediction } from "@/lib/types"
 
 // ---------------------------------------------------------------------------
 // MatchSharePoster — sosyal medyada paylaşılabilir, afiş kalitesinde PNG
-// kartı. Bu bileşen her zaman AYNI (marka) renklerle render edilir; kullanıcının
-// açık/koyu tema tercihinden bağımsızdır — tıpkı bir logonun sabit renklerle
-// basılması gibi. Bu yüzden burada bilinçli olarak sabit hex/renk değerleri
-// kullanılır (uygulamanın genel tema token sistemi yerine).
+// kartı. Bu bileşen her zaman AÇIK (light) temayla ve sitenin marka
+// renkleriyle render edilir — kullanıcının aktif site temasından bağımsız
+// olarak, sitenin ":root" (light) design token değerleri burada sabit olarak
+// kopyalanmıştır (app/globals.css ile senkron tutulmalıdır).
 // ---------------------------------------------------------------------------
 
 const PALETTE = {
-  bg: "#080b12",
-  bgSoft: "#0d121c",
-  panel: "#11172400",
-  border: "rgba(255,255,255,0.09)",
-  borderStrong: "rgba(255,255,255,0.16)",
-  foreground: "#f7f9fb",
-  muted: "rgba(247,249,251,0.56)",
-  mutedSoft: "rgba(247,249,251,0.38)",
-  accent: "#3ee08a",
-  accentSoft: "rgba(62,224,138,0.12)",
-  accentBorder: "rgba(62,224,138,0.35)",
+  bg: "oklch(0.97 0.005 240)",
+  card: "oklch(1 0 0)",
+  surface1: "oklch(0.96 0.006 240)",
+  surface2: "oklch(0.92 0.008 240)",
+  border: "oklch(0.88 0.01 240)",
+  borderStrong: "oklch(0.82 0.012 240)",
+  foreground: "oklch(0.14 0.02 250)",
+  muted: "oklch(0.48 0.015 245)",
+  mutedSoft: "oklch(0.6 0.012 245)",
+  brandFrom: "oklch(0.58 0.2 152)",
+  brandTo: "oklch(0.52 0.18 255)",
+  primary: "oklch(0.52 0.18 152)",
+  primaryForeground: "oklch(0.99 0.005 150)",
+  primarySoft: "color-mix(in oklch, oklch(0.52 0.18 152) 10%, white)",
+  primaryBorder: "color-mix(in oklch, oklch(0.52 0.18 152) 38%, white)",
+  accent: "oklch(0.55 0.18 255)",
 }
 
 function winnerLabel(prediction: MatchPrediction, homeName: string, awayName: string): string {
@@ -39,10 +44,15 @@ export const MatchSharePoster = forwardRef<
   const { home, away, league } = fixture
   const winner = winnerLabel(prediction, home.name, away.name)
   const factors = prediction.keyFactors.slice(0, 2)
-  const matchDate = new Date(fixture.date).toLocaleDateString("tr-TR", {
+  const generatedAt = new Date(prediction.cachedAt || fixture.date)
+  const generatedDate = generatedAt.toLocaleDateString("tr-TR", {
     day: "2-digit",
     month: "long",
     year: "numeric",
+  })
+  const generatedTime = generatedAt.toLocaleTimeString("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
   })
 
   return (
@@ -68,7 +78,7 @@ export const MatchSharePoster = forwardRef<
           position: "absolute",
           inset: 0,
           backgroundImage:
-            "repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 64px)",
+            "repeating-linear-gradient(0deg, rgba(20,22,31,0.035) 0px, rgba(20,22,31,0.035) 1px, transparent 1px, transparent 64px)",
           pointerEvents: "none",
         }}
       />
@@ -82,19 +92,47 @@ export const MatchSharePoster = forwardRef<
           height: 520,
           borderRadius: "50%",
           background:
-            "radial-gradient(circle, rgba(62,224,138,0.16) 0%, rgba(62,224,138,0) 70%)",
+            "radial-gradient(circle, color-mix(in oklch, oklch(0.52 0.18 152) 14%, transparent) 0%, transparent 70%)",
+          pointerEvents: "none",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          bottom: -220,
+          left: -160,
+          width: 480,
+          height: 480,
+          borderRadius: "50%",
+          background:
+            "radial-gradient(circle, color-mix(in oklch, oklch(0.55 0.18 255) 10%, transparent) 0%, transparent 70%)",
           pointerEvents: "none",
         }}
       />
 
       {/* Top accent bar */}
-      <div style={{ height: 6, background: PALETTE.accent, flexShrink: 0 }} />
+      <div
+        style={{
+          height: 6,
+          background: `linear-gradient(90deg, ${PALETTE.brandFrom}, ${PALETTE.brandTo})`,
+          flexShrink: 0,
+        }}
+      />
 
       <div style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, padding: "56px 64px 48px" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: PALETTE.accent, display: "inline-block" }} />
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                background: `linear-gradient(135deg, ${PALETTE.brandFrom}, ${PALETTE.brandTo})`,
+                display: "inline-block",
+              }}
+            />
             <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em", color: PALETTE.foreground }}>
               edcompanyofficial.com
             </span>
@@ -104,14 +142,14 @@ export const MatchSharePoster = forwardRef<
               display: "flex",
               alignItems: "center",
               gap: 8,
-              border: `1.5px solid ${PALETTE.accentBorder}`,
-              background: PALETTE.accentSoft,
+              border: `1.5px solid ${PALETTE.primaryBorder}`,
+              background: PALETTE.primarySoft,
               borderRadius: 999,
               padding: "9px 20px",
             }}
           >
-            <Sparkles width={16} height={16} color={PALETTE.accent} />
-            <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.08em", color: PALETTE.accent }}>
+            <Sparkles width={16} height={16} color={PALETTE.primary} />
+            <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.08em", color: PALETTE.primary }}>
               ED ANALYTICS
             </span>
           </div>
@@ -127,7 +165,7 @@ export const MatchSharePoster = forwardRef<
               border: `1px solid ${PALETTE.border}`,
               borderRadius: 999,
               padding: "8px 20px",
-              background: "rgba(255,255,255,0.03)",
+              background: PALETTE.card,
             }}
           >
             {league.logo && (
@@ -191,9 +229,9 @@ export const MatchSharePoster = forwardRef<
             style={{
               marginTop: 20,
               borderRadius: 999,
-              border: `1.5px solid ${PALETTE.accentBorder}`,
-              background: PALETTE.accentSoft,
-              color: PALETTE.accent,
+              border: `1.5px solid ${PALETTE.primaryBorder}`,
+              background: PALETTE.primarySoft,
+              color: PALETTE.primary,
               fontSize: 26,
               fontWeight: 800,
               padding: "12px 32px",
@@ -211,7 +249,8 @@ export const MatchSharePoster = forwardRef<
               gap: 18,
               borderRadius: 20,
               border: `1px solid ${PALETTE.borderStrong}`,
-              background: "rgba(255,255,255,0.04)",
+              background: PALETTE.card,
+              boxShadow: "0 1px 2px rgba(20,22,31,0.04)",
               padding: "18px 32px",
             }}
           >
@@ -221,7 +260,7 @@ export const MatchSharePoster = forwardRef<
                 fontFamily: "var(--font-mono), 'Geist Mono', ui-monospace, monospace",
                 fontSize: 40,
                 fontWeight: 800,
-                color: PALETTE.accent,
+                color: PALETTE.primary,
               }}
             >
               %{prediction.confidence}
@@ -252,7 +291,7 @@ export const MatchSharePoster = forwardRef<
                   gap: 14,
                   borderRadius: 16,
                   border: `1px solid ${PALETTE.border}`,
-                  background: "rgba(255,255,255,0.03)",
+                  background: PALETTE.card,
                   padding: "18px 22px",
                 }}
               >
@@ -262,7 +301,7 @@ export const MatchSharePoster = forwardRef<
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
-                    background: PALETTE.accent,
+                    background: PALETTE.primary,
                     flexShrink: 0,
                   }}
                 />
@@ -276,7 +315,7 @@ export const MatchSharePoster = forwardRef<
               style={{
                 borderRadius: 16,
                 border: `1px solid ${PALETTE.border}`,
-                background: "rgba(255,255,255,0.03)",
+                background: PALETTE.card,
                 padding: "18px 22px",
                 fontSize: 20,
                 lineHeight: 1.45,
@@ -300,7 +339,12 @@ export const MatchSharePoster = forwardRef<
           }}
         >
           <span style={{ fontSize: 15, fontWeight: 600, color: PALETTE.mutedSoft }}>edcompanyofficial.com</span>
-          <span style={{ fontSize: 15, fontWeight: 600, color: PALETTE.mutedSoft }}>{matchDate}</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+            <span style={{ fontSize: 15, fontWeight: 600, color: PALETTE.mutedSoft }}>{generatedDate}</span>
+            <span style={{ fontSize: 13, fontWeight: 500, color: PALETTE.mutedSoft }}>
+              Tahmin oluşturuldu · {generatedTime}
+            </span>
+          </div>
         </div>
       </div>
     </div>
