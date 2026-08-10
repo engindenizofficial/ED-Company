@@ -4,8 +4,6 @@ import {
   Activity,
   AlertTriangle,
   Calendar,
-  ChevronDown,
-  ChevronUp,
   Inbox,
   LoaderCircle,
   RotateCw,
@@ -18,10 +16,11 @@ import {
   Zap,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useLeaguePanel } from "@/contexts/league-context"
+import { useLeaguePanel, type LeaguePanelState } from "@/contexts/league-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { PlayerButton } from "@/components/player-panel"
 import { TeamButton } from "@/components/team-panel"
+import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import type {
@@ -66,45 +65,6 @@ function matchTime(iso: string): string {
 // ---------------------------------------------------------------------------
 // Shared sub-components
 // ---------------------------------------------------------------------------
-
-function SectionHeader({
-  icon,
-  title,
-  open,
-  onToggle,
-  badge,
-}: {
-  icon: React.ReactNode
-  title: string
-  open: boolean
-  onToggle: () => void
-  badge?: string | number
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-secondary/60"
-    >
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          {icon}
-        </span>
-        <span className="text-sm font-bold text-foreground">{title}</span>
-        {badge !== undefined && (
-          <span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
-            {badge}
-          </span>
-        )}
-      </div>
-      {open ? (
-        <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-      ) : (
-        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-      )}
-    </button>
-  )
-}
 
 function PlayerAvatar({ photo, name }: { photo: string | null; name: string }) {
   return photo ? (
@@ -225,18 +185,11 @@ function SectionEmptyState({ leagueName, label }: { leagueName: string; label: s
 // Season Overview
 // ---------------------------------------------------------------------------
 
-function SeasonOverviewSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useLeagueSection<LeagueSeasonStats>(leagueId, "seasonStats", open)
+function SeasonOverviewSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { status, data, error, retry } = useLeagueSection<LeagueSeasonStats>(leagueId, "seasonStats", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Activity className="h-3.5 w-3.5" />}
-        title="Sezon Özeti"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Sezon özeti" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -268,9 +221,8 @@ function SeasonOverviewSection({ leagueId, leagueName }: { leagueId: number; lea
 // Standings
 // ---------------------------------------------------------------------------
 
-function StandingsSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useLeagueSection<StandingRow[]>(leagueId, "standings", open)
+function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { status, data, error, retry } = useLeagueSection<StandingRow[]>(leagueId, "standings", active)
 
   const groups = (data ?? []).reduce<Record<string, StandingRow[]>>((acc, r) => {
     if (!acc[r.group]) acc[r.group] = []
@@ -280,14 +232,7 @@ function StandingsSection({ leagueId, leagueName }: { leagueId: number; leagueNa
 
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Shield className="h-3.5 w-3.5" />}
-        title="Puan Durumu"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-        badge={status === "success" ? data?.length : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Puan durumu" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -367,19 +312,11 @@ function StandingsSection({ leagueId, leagueName }: { leagueId: number; leagueNa
 // Top Scorers
 // ---------------------------------------------------------------------------
 
-function TopScorersSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useLeagueSection<LeagueTopScorer[]>(leagueId, "topScorers", open)
+function TopScorersSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { status, data, error, retry } = useLeagueSection<LeagueTopScorer[]>(leagueId, "topScorers", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Star className="h-3.5 w-3.5" />}
-        title="Gol Krallığı"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-        badge={status === "success" && data ? `Top ${data.length}` : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Gol krallığı" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -436,19 +373,11 @@ function TopScorersSection({ leagueId, leagueName }: { leagueId: number; leagueN
 // Top Assists
 // ---------------------------------------------------------------------------
 
-function TopAssistsSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useLeagueSection<LeagueTopAssist[]>(leagueId, "topAssists", open)
+function TopAssistsSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { status, data, error, retry } = useLeagueSection<LeagueTopAssist[]>(leagueId, "topAssists", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Zap className="h-3.5 w-3.5" />}
-        title="Asist Krallığı"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-        badge={status === "success" && data ? `Top ${data.length}` : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Asist krallığı" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -505,19 +434,11 @@ function TopAssistsSection({ leagueId, leagueName }: { leagueId: number; leagueN
 // Top Yellow Cards
 // ---------------------------------------------------------------------------
 
-function TopYellowCardsSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useLeagueSection<LeagueTopCard[]>(leagueId, "topYellowCards", open)
+function TopYellowCardsSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { status, data, error, retry } = useLeagueSection<LeagueTopCard[]>(leagueId, "topYellowCards", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Square className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />}
-        title="Sarı Kart Krallığı"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-        badge={status === "success" && data ? `Top ${data.length}` : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Sarı kart krallığı" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -570,19 +491,11 @@ function TopYellowCardsSection({ leagueId, leagueName }: { leagueId: number; lea
 // Top Red Cards
 // ---------------------------------------------------------------------------
 
-function TopRedCardsSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useLeagueSection<LeagueTopCard[]>(leagueId, "topRedCards", open)
+function TopRedCardsSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { status, data, error, retry } = useLeagueSection<LeagueTopCard[]>(leagueId, "topRedCards", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Square className="h-3.5 w-3.5 fill-destructive text-destructive" />}
-        title="Kırmızı Kart Krallığı"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-        badge={status === "success" && data ? `Top ${data.length}` : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Kırmızı kart krallığı" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -635,19 +548,11 @@ function TopRedCardsSection({ leagueId, leagueName }: { leagueId: number; league
 // Recent Fixtures
 // ---------------------------------------------------------------------------
 
-function RecentFixturesSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useLeagueSection<Fixture[]>(leagueId, "recentFixtures", open)
+function RecentFixturesSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { status, data, error, retry } = useLeagueSection<Fixture[]>(leagueId, "recentFixtures", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Calendar className="h-3.5 w-3.5" />}
-        title="Son Maçlar"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-        badge={status === "success" ? data?.length : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Son maçlar" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -689,19 +594,11 @@ function RecentFixturesSection({ leagueId, leagueName }: { leagueId: number; lea
 // Upcoming Fixtures
 // ---------------------------------------------------------------------------
 
-function UpcomingFixturesSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useLeagueSection<Fixture[]>(leagueId, "upcomingFixtures", open)
+function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { status, data, error, retry } = useLeagueSection<Fixture[]>(leagueId, "upcomingFixtures", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Calendar className="h-3.5 w-3.5" />}
-        title="Yaklaşan Maçlar"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-        badge={status === "success" ? data?.length : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Yaklaşan maçlar" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -747,7 +644,29 @@ export function LeaguePanel() {
   const { panel, closeLeague } = useLeaguePanel()
   useBodyScrollLock(!!panel)
   if (!panel) return null
+  return <LeaguePanelInner key={panel.league.id} closeLeague={closeLeague} panel={panel} />
+}
+
+function LeaguePanelInner({
+  panel,
+  closeLeague,
+}: {
+  panel: LeaguePanelState
+  closeLeague: () => void
+}) {
   const { league, basic, loading, error } = panel
+
+  const tabs: PanelTabItem[] = [
+    { key: "seasonStats", label: "Sezon Özeti", icon: <Activity className="h-3.5 w-3.5" /> },
+    { key: "standings", label: "Puan Durumu", icon: <Shield className="h-3.5 w-3.5" /> },
+    { key: "topScorers", label: "Gol Krallığı", icon: <Star className="h-3.5 w-3.5" /> },
+    { key: "topAssists", label: "Asist Krallığı", icon: <Zap className="h-3.5 w-3.5" /> },
+    { key: "topYellowCards", label: "Sarı Kart Krallığı", icon: <Square className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" /> },
+    { key: "topRedCards", label: "Kırmızı Kart Krallığı", icon: <Square className="h-3.5 w-3.5 fill-destructive text-destructive" /> },
+    { key: "recentFixtures", label: "Son Maçlar", icon: <Calendar className="h-3.5 w-3.5" /> },
+    { key: "upcomingFixtures", label: "Yaklaşan Maçlar", icon: <Calendar className="h-3.5 w-3.5" /> },
+  ]
+  const [activeTab, setActiveTab] = useState(tabs[0].key)
 
   return (
     <div
@@ -821,15 +740,16 @@ export function LeaguePanel() {
 
           {!loading && !error && basic && (
             <div className="flex flex-col gap-2">
-              {/* Sabit sekmeler — her sekme sadece kendisine tıklanınca kendi verisini çeker */}
-              <SeasonOverviewSection leagueId={league.id} leagueName={league.name} />
-              <StandingsSection leagueId={league.id} leagueName={league.name} />
-              <TopScorersSection leagueId={league.id} leagueName={league.name} />
-              <TopAssistsSection leagueId={league.id} leagueName={league.name} />
-              <TopYellowCardsSection leagueId={league.id} leagueName={league.name} />
-              <TopRedCardsSection leagueId={league.id} leagueName={league.name} />
-              <RecentFixturesSection leagueId={league.id} leagueName={league.name} />
-              <UpcomingFixturesSection leagueId={league.id} leagueName={league.name} />
+              {/* Yan yana sekmeler — her sekme sadece aktifken kendi verisini çeker */}
+              <PanelTabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
+              <SeasonOverviewSection leagueId={league.id} leagueName={league.name} active={activeTab === "seasonStats"} />
+              <StandingsSection leagueId={league.id} leagueName={league.name} active={activeTab === "standings"} />
+              <TopScorersSection leagueId={league.id} leagueName={league.name} active={activeTab === "topScorers"} />
+              <TopAssistsSection leagueId={league.id} leagueName={league.name} active={activeTab === "topAssists"} />
+              <TopYellowCardsSection leagueId={league.id} leagueName={league.name} active={activeTab === "topYellowCards"} />
+              <TopRedCardsSection leagueId={league.id} leagueName={league.name} active={activeTab === "topRedCards"} />
+              <RecentFixturesSection leagueId={league.id} leagueName={league.name} active={activeTab === "recentFixtures"} />
+              <UpcomingFixturesSection leagueId={league.id} leagueName={league.name} active={activeTab === "upcomingFixtures"} />
             </div>
           )}
         </div>

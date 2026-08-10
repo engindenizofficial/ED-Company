@@ -7,8 +7,6 @@ import {
   ArrowLeftRight,
   ArrowUpRight,
   Calendar,
-  ChevronDown,
-  ChevronUp,
   Inbox,
   LoaderCircle,
   MapPin,
@@ -24,6 +22,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTeamPanel } from "@/contexts/team-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { PlayerButton } from "@/components/player-panel"
+import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 import type {
   Fixture,
@@ -59,33 +58,6 @@ function FormDot({ result }: { result: "W" | "D" | "L" }) {
     >
       {result}
     </span>
-  )
-}
-
-function SectionHeader({ icon, title, open, onToggle, badge }: {
-  icon: React.ReactNode; title: string; open: boolean; onToggle: () => void; badge?: string | number
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-secondary/60"
-    >
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-          {icon}
-        </span>
-        <span className="text-sm font-bold text-foreground">{title}</span>
-        {badge !== undefined && (
-          <span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
-            {badge}
-          </span>
-        )}
-      </div>
-      {open
-        ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-        : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
-    </button>
   )
 }
 
@@ -208,18 +180,11 @@ function SectionEmptyState({ teamName, label }: { teamName: string; label: strin
 // Season Stats
 // ---------------------------------------------------------------------------
 
-function SeasonStatsSection({ teamId, teamName }: { teamId: number; teamName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useTeamSection<TeamStatsSummary>(teamId, "stats", open)
+function SeasonStatsSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { status, data, error, retry } = useTeamSection<TeamStatsSummary>(teamId, "stats", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Activity className="h-3.5 w-3.5" />}
-        title="Sezon İstatistikleri"
-        open={open}
-        onToggle={() => setOpen(p => !p)}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Sezon istatistikleri" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -260,18 +225,11 @@ function SeasonStatsSection({ teamId, teamName }: { teamId: number; teamName: st
 // Form
 // ---------------------------------------------------------------------------
 
-function FormSection({ teamId, teamName }: { teamId: number; teamName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useTeamSection<TeamFormData>(teamId, "form", open)
+function FormSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { status, data, error, retry } = useTeamSection<TeamFormData>(teamId, "form", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Activity className="h-3.5 w-3.5" />}
-        title="Son Form"
-        open={open}
-        onToggle={() => setOpen(p => !p)}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Form bilgisi" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -324,19 +282,11 @@ function FormSection({ teamId, teamName }: { teamId: number; teamName: string })
 // Recent Fixtures
 // ---------------------------------------------------------------------------
 
-function RecentFixturesSection({ teamId, teamName }: { teamId: number; teamName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useTeamSection<Fixture[]>(teamId, "fixtures", open)
+function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { status, data, error, retry } = useTeamSection<Fixture[]>(teamId, "fixtures", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Calendar className="h-3.5 w-3.5" />}
-        title="Son Maçlar"
-        open={open}
-        onToggle={() => setOpen(p => !p)}
-        badge={status === "success" ? data?.length : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Son maçlar" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -385,18 +335,11 @@ function RecentFixturesSection({ teamId, teamName }: { teamId: number; teamName:
 // Coach
 // ---------------------------------------------------------------------------
 
-function CoachSection({ teamId, teamName }: { teamId: number; teamName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useTeamSection<TeamCoach>(teamId, "coach", open)
+function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { status, data, error, retry } = useTeamSection<TeamCoach>(teamId, "coach", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<UserCheck className="h-3.5 w-3.5" />}
-        title="Teknik Direktör"
-        open={open}
-        onToggle={() => setOpen(p => !p)}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Teknik direktör bilgisi" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -474,9 +417,8 @@ const POS_LABEL: Record<string, string> = {
   Goalkeeper: "Kaleci", Defender: "Defans", Midfielder: "Orta Saha", Attacker: "Forvet",
 }
 
-function SquadSection({ teamId, teamName }: { teamId: number; teamName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useTeamSection<SquadPlayer[]>(teamId, "squad", open)
+function SquadSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { status, data, error, retry } = useTeamSection<SquadPlayer[]>(teamId, "squad", active)
 
   const grouped = (data ?? []).reduce<Record<string, SquadPlayer[]>>((acc, p) => {
     const pos = p.pos ?? "Diğer"
@@ -488,14 +430,7 @@ function SquadSection({ teamId, teamName }: { teamId: number; teamName: string }
 
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Users className="h-3.5 w-3.5" />}
-        title="Kadro"
-        open={open}
-        onToggle={() => setOpen(p => !p)}
-        badge={status === "success" ? data?.length : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Kadro" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -555,19 +490,11 @@ function SquadSection({ teamId, teamName }: { teamId: number; teamName: string }
 // Top Scorers — shows ALL fetched columns: goals, assists, appearances, rating, yellow/red cards, pos
 // ---------------------------------------------------------------------------
 
-function TopScorersSection({ teamId, teamName }: { teamId: number; teamName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useTeamSection<TeamTopScorer[]>(teamId, "topScorers", open)
+function TopScorersSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { status, data, error, retry } = useTeamSection<TeamTopScorer[]>(teamId, "topScorers", active)
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Star className="h-3.5 w-3.5" />}
-        title="Lig Gol Krallığı"
-        open={open}
-        onToggle={() => setOpen(p => !p)}
-        badge={status === "success" && data ? `Top ${data.length}` : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Lig gol krallığı" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -638,9 +565,8 @@ function TopScorersSection({ teamId, teamName }: { teamId: number; teamName: str
 // Standings — includes goalsFor, goalsAgainst and form dots
 // ---------------------------------------------------------------------------
 
-function StandingsSection({ teamId, teamName }: { teamId: number; teamName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useTeamSection<StandingRow[]>(teamId, "standings", open)
+function StandingsSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { status, data, error, retry } = useTeamSection<StandingRow[]>(teamId, "standings", active)
 
   const groups = (data ?? []).reduce<Record<string, StandingRow[]>>((acc, r) => {
     if (!acc[r.group]) acc[r.group] = []
@@ -650,13 +576,7 @@ function StandingsSection({ teamId, teamName }: { teamId: number; teamName: stri
 
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Shield className="h-3.5 w-3.5" />}
-        title="Puan Durumu"
-        open={open}
-        onToggle={() => setOpen(p => !p)}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Puan durumu" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -746,23 +666,15 @@ function StandingsSection({ teamId, teamName }: { teamId: number; teamName: stri
 // Transfers — incoming/outgoing with player photo, team logos, type badge, date
 // ---------------------------------------------------------------------------
 
-function TransfersSection({ teamId, teamName }: { teamId: number; teamName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data, error, retry } = useTeamSection<TeamTransfer[]>(teamId, "transfers", open)
+function TransfersSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { status, data, error, retry } = useTeamSection<TeamTransfer[]>(teamId, "transfers", active)
 
   const incoming = (data ?? []).filter(t => t.teamTo.id === teamId)
   const outgoing = (data ?? []).filter(t => t.teamFrom.id === teamId)
 
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
-        title="Transferler"
-        open={open}
-        onToggle={() => setOpen(p => !p)}
-        badge={status === "success" ? data?.length : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Transferler" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -889,6 +801,18 @@ function TeamPanelInner({
 }) {
   const { team, basic, loading, error } = panel
 
+  const tabs: PanelTabItem[] = [
+    { key: "stats", label: "Sezon İstatistikleri", icon: <Activity className="h-3.5 w-3.5" /> },
+    { key: "form", label: "Son Form", icon: <Activity className="h-3.5 w-3.5" /> },
+    { key: "fixtures", label: "Son Maçlar", icon: <Calendar className="h-3.5 w-3.5" /> },
+    { key: "coach", label: "Teknik Direktör", icon: <UserCheck className="h-3.5 w-3.5" /> },
+    { key: "squad", label: "Kadro", icon: <Users className="h-3.5 w-3.5" /> },
+    { key: "topScorers", label: "Lig Gol Krallığı", icon: <Star className="h-3.5 w-3.5" /> },
+    { key: "standings", label: "Puan Durumu", icon: <Shield className="h-3.5 w-3.5" /> },
+    { key: "transfers", label: "Transferler", icon: <ArrowLeftRight className="h-3.5 w-3.5" /> },
+  ]
+  const [activeTab, setActiveTab] = useState(tabs[0].key)
+
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
@@ -1004,15 +928,16 @@ function TeamPanelInner({
                 </div>
               )}
 
-              {/* Sabit sekmeler — her sekme sadece kendisine tıklanınca kendi verisini çeker */}
-              <SeasonStatsSection teamId={team.id} teamName={team.name} />
-              <FormSection teamId={team.id} teamName={team.name} />
-              <CoachSection teamId={team.id} teamName={team.name} />
-              <RecentFixturesSection teamId={team.id} teamName={team.name} />
-              <SquadSection teamId={team.id} teamName={team.name} />
-              <TopScorersSection teamId={team.id} teamName={team.name} />
-              <StandingsSection teamId={team.id} teamName={team.name} />
-              <TransfersSection teamId={team.id} teamName={team.name} />
+              {/* Yan yana sekmeler — her sekme sadece aktifken kendi verisini çeker */}
+              <PanelTabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
+              <SeasonStatsSection teamId={team.id} teamName={team.name} active={activeTab === "stats"} />
+              <FormSection teamId={team.id} teamName={team.name} active={activeTab === "form"} />
+              <RecentFixturesSection teamId={team.id} teamName={team.name} active={activeTab === "fixtures"} />
+              <CoachSection teamId={team.id} teamName={team.name} active={activeTab === "coach"} />
+              <SquadSection teamId={team.id} teamName={team.name} active={activeTab === "squad"} />
+              <TopScorersSection teamId={team.id} teamName={team.name} active={activeTab === "topScorers"} />
+              <StandingsSection teamId={team.id} teamName={team.name} active={activeTab === "standings"} />
+              <TransfersSection teamId={team.id} teamName={team.name} active={activeTab === "transfers"} />
             </div>
           )}
         </div>

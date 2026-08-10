@@ -6,8 +6,6 @@ import {
   ArrowLeftRight,
   Award,
   Calendar,
-  ChevronDown,
-  ChevronUp,
   Flag,
   Inbox,
   LoaderCircle,
@@ -26,6 +24,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react"
 import { usePlayerPanel } from "@/contexts/player-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
+import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import type {
@@ -45,45 +44,6 @@ const POS_LABEL: Record<string, string> = {
   Defender: "Defans",
   Midfielder: "Orta Saha",
   Attacker: "Forvet",
-}
-
-function SectionHeader({
-  icon,
-  title,
-  open,
-  onToggle,
-  badge,
-}: {
-  icon: React.ReactNode
-  title: string
-  open: boolean
-  onToggle: () => void
-  badge?: string | number
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-secondary/60"
-    >
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          {icon}
-        </span>
-        <span className="text-sm font-bold text-foreground">{title}</span>
-        {badge !== undefined && (
-          <span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
-            {badge}
-          </span>
-        )}
-      </div>
-      {open ? (
-        <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-      ) : (
-        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-      )}
-    </button>
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -197,10 +157,9 @@ function StatRow({ label, value, sub }: { label: string; value: string; sub?: st
 // Season Stats Section
 // ---------------------------------------------------------------------------
 
-function SeasonStatsSection({ playerId, playerName }: { playerId: number; playerName: string }) {
-  const [open, setOpen] = useState(false)
+function SeasonStatsSection({ playerId, playerName, active }: { playerId: number; playerName: string; active: boolean }) {
   const [selectedIdx, setSelectedIdx] = useState(0)
-  const { status, data: stats, error, retry } = usePlayerSection<PlayerSeasonStats[]>(playerId, "stats", open)
+  const { status, data: stats, error, retry } = usePlayerSection<PlayerSeasonStats[]>(playerId, "stats", active)
 
   const s = stats && stats.length > 0 ? stats[Math.min(selectedIdx, stats.length - 1)] : null
 
@@ -235,13 +194,7 @@ function SeasonStatsSection({ playerId, playerName }: { playerId: number; player
 
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Activity className="h-3.5 w-3.5" />}
-        title="Sezon İstatistikleri"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Sezon istatistikleri" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -418,9 +371,8 @@ function SeasonStatsSection({ playerId, playerName }: { playerId: number; player
 // Career Summary Section
 // ---------------------------------------------------------------------------
 
-function CareerSummarySection({ playerId, playerName }: { playerId: number; playerName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data: stats, error, retry } = usePlayerSection<PlayerSeasonStats[]>(playerId, "stats", open)
+function CareerSummarySection({ playerId, playerName, active }: { playerId: number; playerName: string; active: boolean }) {
+  const { status, data: stats, error, retry } = usePlayerSection<PlayerSeasonStats[]>(playerId, "stats", active)
 
   const totals = (stats ?? []).reduce(
     (acc, s) => ({
@@ -438,14 +390,7 @@ function CareerSummarySection({ playerId, playerName }: { playerId: number; play
 
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Star className="h-3.5 w-3.5" />}
-        title="Kariyer Özeti"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-        badge={status === "success" && stats ? `${stats.length} sezon` : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Kariyer özeti" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -553,9 +498,8 @@ function CareerSummarySection({ playerId, playerName }: { playerId: number; play
 // Trophies Section
 // ---------------------------------------------------------------------------
 
-function TrophiesSection({ playerId, playerName }: { playerId: number; playerName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data: trophies, error, retry } = usePlayerSection<TrophyType[]>(playerId, "trophies", open)
+function TrophiesSection({ playerId, playerName, active }: { playerId: number; playerName: string; active: boolean }) {
+  const { status, data: trophies, error, retry } = usePlayerSection<TrophyType[]>(playerId, "trophies", active)
 
   const won = (trophies ?? []).filter((t) => t.place === "Winner")
   const runnerUp = (trophies ?? []).filter((t) => t.place === "Runner-up" || t.place === "2nd Place")
@@ -565,14 +509,7 @@ function TrophiesSection({ playerId, playerName }: { playerId: number; playerNam
 
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Trophy className="h-3.5 w-3.5" />}
-        title="Kupa ve Şampiyonluklar"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-        badge={status === "success" && trophies ? (won.length > 0 ? `${won.length} şampiyonluk` : trophies.length) : undefined}
-      />
-      {open && (
+      {active && (
         <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card p-4">
           {status === "loading" && <SectionLoading label="Kupa ve şampiyonluklar" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -651,20 +588,12 @@ function TrophiesSection({ playerId, playerName }: { playerId: number; playerNam
 // Transfers Section
 // ---------------------------------------------------------------------------
 
-function TransfersSection({ playerId, playerName }: { playerId: number; playerName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data: transfers, error, retry } = usePlayerSection<Transfer[]>(playerId, "transfers", open)
+function TransfersSection({ playerId, playerName, active }: { playerId: number; playerName: string; active: boolean }) {
+  const { status, data: transfers, error, retry } = usePlayerSection<Transfer[]>(playerId, "transfers", active)
 
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
-        title="Transfer Geçmişi"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-        badge={status === "success" ? transfers?.length : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card">
           {status === "loading" && <SectionLoading label="Transfer geçmişi" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -722,20 +651,12 @@ function sidelinedDurationDays(start: string | null, end: string | null): string
   return `${diff} gün`
 }
 
-function SidelinedSection({ playerId, playerName }: { playerId: number; playerName: string }) {
-  const [open, setOpen] = useState(false)
-  const { status, data: sidelined, error, retry } = usePlayerSection<SidelinedEntry[]>(playerId, "sidelined", open)
+function SidelinedSection({ playerId, playerName, active }: { playerId: number; playerName: string; active: boolean }) {
+  const { status, data: sidelined, error, retry } = usePlayerSection<SidelinedEntry[]>(playerId, "sidelined", active)
 
   return (
     <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<ShieldAlert className="h-3.5 w-3.5" />}
-        title="Sakatlık / Ceza Geçmişi"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-        badge={status === "success" ? sidelined?.length : undefined}
-      />
-      {open && (
+      {active && (
         <div className="rounded-2xl border border-border/70 bg-card">
           {status === "loading" && <SectionLoading label="Sakatlık / ceza geçmişi" />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
@@ -788,6 +709,15 @@ function PlayerPanelInner({
   closePlayer: () => void
 }) {
   const { player, profile, loading, error } = panel
+
+  const tabs: PanelTabItem[] = [
+    { key: "stats", label: "Sezon İstatistikleri", icon: <Activity className="h-3.5 w-3.5" /> },
+    { key: "career", label: "Kariyer Özeti", icon: <Star className="h-3.5 w-3.5" /> },
+    { key: "trophies", label: "Kupa ve Şampiyonluklar", icon: <Trophy className="h-3.5 w-3.5" /> },
+    { key: "transfers", label: "Transfer Geçmişi", icon: <ArrowLeftRight className="h-3.5 w-3.5" /> },
+    { key: "sidelined", label: "Sakatlık / Ceza Geçmişi", icon: <ShieldAlert className="h-3.5 w-3.5" /> },
+  ]
+  const [activeTab, setActiveTab] = useState(tabs[0].key)
 
   return (
     <div
@@ -945,12 +875,13 @@ function PlayerPanelInner({
 
           {!loading && !error && profile && (
             <div className="flex flex-col gap-2">
-              {/* Sabit sekmeler — her sekme sadece kendisine tıklanınca kendi verisini çeker */}
-              <SeasonStatsSection playerId={player.id} playerName={player.name} />
-              <CareerSummarySection playerId={player.id} playerName={player.name} />
-              <TrophiesSection playerId={player.id} playerName={player.name} />
-              <TransfersSection playerId={player.id} playerName={player.name} />
-              <SidelinedSection playerId={player.id} playerName={player.name} />
+              {/* Yan yana sekmeler — her sekme sadece aktifken kendi verisini çeker */}
+              <PanelTabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
+              <SeasonStatsSection playerId={player.id} playerName={player.name} active={activeTab === "stats"} />
+              <CareerSummarySection playerId={player.id} playerName={player.name} active={activeTab === "career"} />
+              <TrophiesSection playerId={player.id} playerName={player.name} active={activeTab === "trophies"} />
+              <TransfersSection playerId={player.id} playerName={player.name} active={activeTab === "transfers"} />
+              <SidelinedSection playerId={player.id} playerName={player.name} active={activeTab === "sidelined"} />
             </div>
           )}
         </div>

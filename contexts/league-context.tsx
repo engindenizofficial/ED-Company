@@ -11,7 +11,7 @@ export interface LeagueInfo {
   flagUrl: string | null
 }
 
-interface LeaguePanelState {
+export interface LeaguePanelState {
   league: LeagueInfo
   // Panel header'ı için hafif özet (isim/logo/ülke/sezon). Diğer tüm veriler
   // (puan durumu, gol krallığı, maçlar vb.) sekmelere tıklandığında ayrı ayrı
