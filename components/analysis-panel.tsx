@@ -36,6 +36,7 @@ import type {
 import { FormBadge } from "./form-badge"
 import { TeamButton } from "./team-panel"
 import { PlayerButton } from "./player-panel"
+import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
@@ -99,6 +100,20 @@ export function AnalysisPanel({
 
   const { home, away, league } = fixture
 
+  // Sekmeler yan yana sıralanır; panel açıldığında ilk sekme (Maç Olayları)
+  // otomatik olarak kendi verisini çeker, diğerleri sadece tıklandığında.
+  const tabs: PanelTabItem[] = [
+    { key: "events", label: "Maç Olayları", icon: <Activity className="h-3.5 w-3.5" /> },
+    { key: "playerStats", label: "Oyuncu Performansları", icon: <Star className="h-3.5 w-3.5" /> },
+    { key: "statistics", label: "Maç İstatistikleri", icon: <BarChart3 className="h-3.5 w-3.5" /> },
+    { key: "lineups", label: "Kadrolar", icon: <Users className="h-3.5 w-3.5" /> },
+    { key: "standings", label: "Puan Durumu", icon: <Shield className="h-3.5 w-3.5" /> },
+    { key: "teamStats", label: "Sezon İstatistikleri", icon: <TrendingUp className="h-3.5 w-3.5" /> },
+    { key: "h2h", label: "Karşılıklı Maçlar", icon: <Swords className="h-3.5 w-3.5" /> },
+    { key: "injuries", label: "Sakatlık / Ceza", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+  ]
+  const [activeTab, setActiveTab] = useState(tabs[0].key)
+
   return (
     <div className="flex flex-col gap-2">
       {/* 1. Match header — panel açıldığında ekstra bir istek yapmadan anında gösterilir */}
@@ -115,17 +130,24 @@ export function AnalysisPanel({
         />
       )}
 
-      {/* Sabit sekmeler — her sekme sadece kendisine tıklanınca kendi verisini çeker */}
-      <EventsSection fixtureId={fixture.id} homeName={home.name} />
-      <PlayerStatsSection fixtureId={fixture.id} home={home} away={away} />
-      <StatisticsSection fixtureId={fixture.id} homeName={home.name} awayName={away.name} />
-      <LineupsSection fixtureId={fixture.id} />
+      {/* Yan yana sekmeler — ilk sekme otomatik açılır, diğerleri sadece seçilince veri çeker */}
+      <PanelTabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
+      <EventsSection fixtureId={fixture.id} homeName={home.name} active={activeTab === "events"} />
+      <PlayerStatsSection fixtureId={fixture.id} home={home} away={away} active={activeTab === "playerStats"} />
+      <StatisticsSection
+        fixtureId={fixture.id}
+        homeName={home.name}
+        awayName={away.name}
+        active={activeTab === "statistics"}
+      />
+      <LineupsSection fixtureId={fixture.id} active={activeTab === "lineups"} />
       <StandingsSection
         fixtureId={fixture.id}
         leagueId={league.id}
         season={league.season}
         homeId={home.id}
         awayId={away.id}
+        active={activeTab === "standings"}
       />
       <TeamStatsSection
         fixtureId={fixture.id}
@@ -133,9 +155,17 @@ export function AnalysisPanel({
         away={away}
         leagueId={league.id}
         season={league.season}
+        active={activeTab === "teamStats"}
       />
-      <H2HSection fixtureId={fixture.id} homeId={home.id} awayId={away.id} homeName={home.name} awayName={away.name} />
-      <InjuriesSection fixtureId={fixture.id} />
+      <H2HSection
+        fixtureId={fixture.id}
+        homeId={home.id}
+        awayId={away.id}
+        homeName={home.name}
+        awayName={away.name}
+        active={activeTab === "h2h"}
+      />
+      <InjuriesSection fixtureId={fixture.id} active={activeTab === "injuries"} />
     </div>
   )
 }
@@ -318,53 +348,14 @@ function useLazySection<T>(url: string, open: boolean) {
   return { ...state, retry }
 }
 
-function SectionHeader({ icon, title, open, onToggle, badge }: {
-  icon: React.ReactNode; title: string; open: boolean; onToggle: () => void; badge?: string
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-secondary/40"
-      aria-expanded={open}
-    >
-      <div className="flex flex-1 min-w-0 items-center gap-2.5">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-          {icon}
-        </span>
-        <span className="text-sm font-semibold text-foreground">{title}</span>
-        {badge && (
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-[10px] font-semibold text-muted-foreground">
-            {badge}
-          </span>
-        )}
-      </div>
-      <div className="shrink-0 rounded-full border border-border/60 p-0.5">
-        {open ? (
-          <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        )}
-      </div>
-    </button>
-  )
-}
-
-function SectionShell({ open, onToggle, icon, title, children }: {
-  open: boolean
-  onToggle: () => void
-  icon: React.ReactNode
-  title: string
+function SectionShell({ active, children }: {
+  active: boolean
   children: React.ReactNode
 }) {
+  if (!active) return null
   return (
-    <section className="rounded-2xl border border-border/70 bg-card overflow-hidden">
-      <SectionHeader icon={icon} title={title} open={open} onToggle={onToggle} />
-      {open && (
-        <div className="border-t border-border/60 px-4 pb-4 pt-3.5">
-          {children}
-        </div>
-      )}
+    <section className="rounded-2xl border border-border/70 bg-card p-4">
+      {children}
     </section>
   )
 }
@@ -409,14 +400,13 @@ function SectionEmptyState({ label }: { label: string }) {
 // Events
 // ---------------------------------------------------------------------------
 
-function EventsSection({ fixtureId, homeName }: { fixtureId: number; homeName: string }) {
-  const [open, setOpen] = useState(false)
+function EventsSection({ fixtureId, homeName, active }: { fixtureId: number; homeName: string; active: boolean }) {
   const { status, data, error, retry } = useLazySection<MatchEvent[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=events`,
-    open,
+    active,
   )
   return (
-    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<Activity className="h-3.5 w-3.5" />} title="Maç Olayları">
+    <SectionShell active={active}>
       {status === "loading" && <SectionLoading label="Maç olayları" />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
       {status === "empty" && <SectionEmptyState label="maç olayı" />}
@@ -557,18 +547,19 @@ function PlayerStatsSection({
   fixtureId,
   home,
   away,
+  active,
 }: {
   fixtureId: number
   home: { id: number; name: string; logo: string }
   away: { id: number; name: string; logo: string }
+  active: boolean
 }) {
-  const [open, setOpen] = useState(false)
   const { status, data, error, retry } = useLazySection<FixturePlayerStat[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=playerStats`,
-    open,
+    active,
   )
   return (
-    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<Star className="h-3.5 w-3.5" />} title="Oyuncu Performansları">
+    <SectionShell active={active}>
       {status === "loading" && <SectionLoading label="Oyuncu performansları" />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
       {status === "empty" && <SectionEmptyState label="oyuncu performans verisi" />}
@@ -733,14 +724,23 @@ function translateStat(type: string): string {
   return STAT_TYPE_TR[type] ?? type
 }
 
-function StatisticsSection({ fixtureId, homeName, awayName }: { fixtureId: number; homeName: string; awayName: string }) {
-  const [open, setOpen] = useState(false)
+function StatisticsSection({
+  fixtureId,
+  homeName,
+  awayName,
+  active,
+}: {
+  fixtureId: number
+  homeName: string
+  awayName: string
+  active: boolean
+}) {
   const { status, data, error, retry } = useLazySection<StatItem[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=statistics`,
-    open,
+    active,
   )
   return (
-    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<BarChart3 className="h-3.5 w-3.5" />} title="Maç İstatistikleri">
+    <SectionShell active={active}>
       {status === "loading" && <SectionLoading label="Maç istatistikleri" />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
       {status === "empty" && <SectionEmptyState label="maç istatistiği" />}
@@ -794,14 +794,13 @@ function StatsList({ stats, homeName, awayName }: { stats: StatItem[]; homeName:
 // Lineups — formation grid görselleştirmesi + oyuncu listesi
 // ---------------------------------------------------------------------------
 
-function LineupsSection({ fixtureId }: { fixtureId: number }) {
-  const [open, setOpen] = useState(false)
+function LineupsSection({ fixtureId, active }: { fixtureId: number; active: boolean }) {
   const { status, data, error, retry } = useLazySection<TeamLineup[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=lineups`,
-    open,
+    active,
   )
   return (
-    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<Users className="h-3.5 w-3.5" />} title="Kadrolar">
+    <SectionShell active={active}>
       {status === "loading" && <SectionLoading label="Kadrolar" />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
       {status === "empty" && <SectionEmptyState label="kadro" />}
@@ -894,20 +893,21 @@ function StandingsSection({
   season,
   homeId,
   awayId,
+  active,
 }: {
   fixtureId: number
   leagueId: number
   season: number
   homeId: number
   awayId: number
+  active: boolean
 }) {
-  const [open, setOpen] = useState(false)
   const { status, data, error, retry } = useLazySection<StandingRow[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=standings&leagueId=${leagueId}&season=${season}&homeId=${homeId}&awayId=${awayId}`,
-    open,
+    active,
   )
   return (
-    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<Shield className="h-3.5 w-3.5" />} title="Puan Durumu">
+    <SectionShell active={active}>
       {status === "loading" && <SectionLoading label="Puan durumu" />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
       {status === "empty" && <SectionEmptyState label="puan durumu" />}
@@ -976,21 +976,22 @@ function TeamStatsSection({
   away,
   leagueId,
   season,
+  active,
 }: {
   fixtureId: number
   home: { id: number; name: string; logo: string }
   away: { id: number; name: string; logo: string }
   leagueId: number
   season: number
+  active: boolean
 }) {
-  const [open, setOpen] = useState(false)
   const url =
     `/api/analyze/section?fixtureId=${fixtureId}&section=teamStats&leagueId=${leagueId}&season=${season}` +
     `&homeId=${home.id}&homeName=${encodeURIComponent(home.name)}&homeLogo=${encodeURIComponent(home.logo)}` +
     `&awayId=${away.id}&awayName=${encodeURIComponent(away.name)}&awayLogo=${encodeURIComponent(away.logo)}`
-  const { status, data, error, retry } = useLazySection<{ homeStats: TeamSeasonStats | null; awayStats: TeamSeasonStats | null }>(url, open)
+  const { status, data, error, retry } = useLazySection<{ homeStats: TeamSeasonStats | null; awayStats: TeamSeasonStats | null }>(url, active)
   return (
-    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<TrendingUp className="h-3.5 w-3.5" />} title="Sezon İstatistikleri">
+    <SectionShell active={active}>
       {status === "loading" && <SectionLoading label="Sezon istatistikleri" />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
       {status === "empty" && <SectionEmptyState label="sezon istatistiği" />}
@@ -1084,20 +1085,21 @@ function H2HSection({
   awayId,
   homeName,
   awayName,
+  active,
 }: {
   fixtureId: number
   homeId: number
   awayId: number
   homeName: string
   awayName: string
+  active: boolean
 }) {
-  const [open, setOpen] = useState(false)
   const { status, data, error, retry } = useLazySection<FormGame[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=h2h&homeId=${homeId}&awayId=${awayId}`,
-    open,
+    active,
   )
   return (
-    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<Swords className="h-3.5 w-3.5" />} title="Karşılıklı Maçlar">
+    <SectionShell active={active}>
       {status === "loading" && <SectionLoading label="Karşılıklı maçlar" />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
       {status === "empty" && <SectionEmptyState label="karşılıklı maç" />}
@@ -1188,14 +1190,13 @@ const INJURY_TYPE_TR: Record<string, string> = {
   "Out": "Dışarıda",
 }
 
-function InjuriesSection({ fixtureId }: { fixtureId: number }) {
-  const [open, setOpen] = useState(false)
+function InjuriesSection({ fixtureId, active }: { fixtureId: number; active: boolean }) {
   const { status, data, error, retry } = useLazySection<InjuryItem[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=injuries`,
-    open,
+    active,
   )
   return (
-    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<AlertTriangle className="h-3.5 w-3.5" />} title="Sakatlık / Ceza">
+    <SectionShell active={active}>
       {status === "loading" && <SectionLoading label="Sakatlık / ceza bilgisi" />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
       {status === "empty" && <SectionEmptyState label="sakatlık / ceza kaydı" />}
