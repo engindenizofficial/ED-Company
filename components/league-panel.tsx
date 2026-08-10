@@ -2,10 +2,13 @@
 
 import {
   Activity,
+  AlertTriangle,
   Calendar,
   ChevronDown,
   ChevronUp,
+  Inbox,
   LoaderCircle,
+  RotateCw,
   Shield,
   ShieldOff,
   Square,
@@ -14,7 +17,7 @@ import {
   X,
   Zap,
 } from "lucide-react"
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useLeaguePanel } from "@/contexts/league-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { PlayerButton } from "@/components/player-panel"
@@ -128,16 +131,103 @@ function TeamLogo({ logo, name }: { logo: string; name: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Sekme verisi çekimi — her sekme yalnızca kendisi açıldığında (open=true)
+// kendi endpoint'ini çağırır. Panel açılırken hiçbir sekme verisi çekilmez.
+// ---------------------------------------------------------------------------
+
+type SectionStatus = "idle" | "loading" | "success" | "empty" | "error"
+
+interface SectionState<T> {
+  status: SectionStatus
+  data: T | null
+  error: string | null
+}
+
+function useLeagueSection<T>(leagueId: number, section: string, open: boolean) {
+  const [state, setState] = useState<SectionState<T>>({ status: "idle", data: null, error: null })
+  // Effect'in kendi setState çağrısıyla (idle -> loading) yeniden tetiklenip
+  // az önce başlattığı isteği "cancelled" yapmasını önlemek için durumu state
+  // yerine ref'te takip ediyoruz.
+  const startedRef = useRef(false)
+
+  useEffect(() => {
+    if (!open || startedRef.current) return
+    startedRef.current = true
+    let cancelled = false
+    setState({ status: "loading", data: null, error: null })
+    fetch(`/api/league/section?leagueId=${leagueId}&section=${section}`, { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          throw new Error(body?.error ?? `Sunucu hatası: ${res.status}`)
+        }
+        return res.json() as Promise<{ data: T | null }>
+      })
+      .then((json) => {
+        if (cancelled) return
+        setState({ status: json.data === null ? "empty" : "success", data: json.data, error: null })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setState({ status: "error", data: null, error: err instanceof Error ? err.message : "Bir hata oluştu" })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, leagueId, section])
+
+  const retry = useCallback(() => {
+    startedRef.current = false
+    setState({ status: "idle", data: null, error: null })
+  }, [])
+  return { ...state, retry }
+}
+
+function SectionLoading({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+      <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+      <p className="text-xs font-medium text-muted-foreground">{label} yükleniyor...</p>
+    </div>
+  )
+}
+
+function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+      <AlertTriangle className="h-5 w-5 text-destructive/70" />
+      <p className="text-xs font-bold text-destructive">Veri alınamadı</p>
+      {error && <p className="text-[11px] text-muted-foreground">{error}</p>}
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-1 flex items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-secondary/70"
+      >
+        <RotateCw className="h-3 w-3" />
+        Tekrar dene
+      </button>
+    </div>
+  )
+}
+
+function SectionEmptyState({ leagueName, label }: { leagueName: string; label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+      <Inbox className="h-5 w-5 text-muted-foreground/50" />
+      <p className="text-xs text-muted-foreground">
+        {leagueName} için {label} bulunamadı.
+      </p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Season Overview
 // ---------------------------------------------------------------------------
 
-function SeasonOverviewSection({ stats }: { stats: LeagueSeasonStats }) {
+function SeasonOverviewSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
   const [open, setOpen] = useState(false)
-  const items = [
-    { label: "Oynanan Maç", value: stats.totalMatches.toLocaleString("tr-TR") },
-    { label: "Toplam Gol", value: stats.totalGoals.toLocaleString("tr-TR") },
-    { label: "Maç Başı Gol", value: stats.avgGoalsPerMatch.toFixed(2) },
-  ]
+  const { status, data, error, retry } = useLeagueSection<LeagueSeasonStats>(leagueId, "seasonStats", open)
   return (
     <section className="flex flex-col gap-1">
       <SectionHeader
@@ -148,17 +238,26 @@ function SeasonOverviewSection({ stats }: { stats: LeagueSeasonStats }) {
       />
       {open && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          <div className="grid grid-cols-3 gap-2">
-            {items.map(({ label, value }) => (
-              <div
-                key={label}
-                className="flex flex-col items-center gap-0.5 rounded-xl border border-border/60 bg-secondary/30 px-2 py-3"
-              >
-                <span className="text-xl font-black tabular-nums leading-none text-foreground">{value}</span>
-                <span className="mt-1 text-center text-[10px] leading-tight text-muted-foreground">{label}</span>
-              </div>
-            ))}
-          </div>
+          {status === "loading" && <SectionLoading label="Sezon özeti" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="sezon özeti verisi" />}
+          {status === "success" && data && (
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: "Oynanan Maç", value: data.totalMatches.toLocaleString("tr-TR") },
+                { label: "Toplam Gol", value: data.totalGoals.toLocaleString("tr-TR") },
+                { label: "Maç Başı Gol", value: data.avgGoalsPerMatch.toFixed(2) },
+              ].map(({ label, value }) => (
+                <div
+                  key={label}
+                  className="flex flex-col items-center gap-0.5 rounded-xl border border-border/60 bg-secondary/30 px-2 py-3"
+                >
+                  <span className="text-xl font-black tabular-nums leading-none text-foreground">{value}</span>
+                  <span className="mt-1 text-center text-[10px] leading-tight text-muted-foreground">{label}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -169,11 +268,11 @@ function SeasonOverviewSection({ stats }: { stats: LeagueSeasonStats }) {
 // Standings
 // ---------------------------------------------------------------------------
 
-function StandingsSection({ standings }: { standings: StandingRow[] }) {
+function StandingsSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
   const [open, setOpen] = useState(false)
-  if (standings.length === 0) return null
+  const { status, data, error, retry } = useLeagueSection<StandingRow[]>(leagueId, "standings", open)
 
-  const groups = standings.reduce<Record<string, StandingRow[]>>((acc, r) => {
+  const groups = (data ?? []).reduce<Record<string, StandingRow[]>>((acc, r) => {
     if (!acc[r.group]) acc[r.group] = []
     acc[r.group].push(r)
     return acc
@@ -186,71 +285,78 @@ function StandingsSection({ standings }: { standings: StandingRow[] }) {
         title="Puan Durumu"
         open={open}
         onToggle={() => setOpen((p) => !p)}
-        badge={standings.length}
+        badge={status === "success" ? data?.length : undefined}
       />
       {open && (
-        <div className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-card p-4">
-          {Object.entries(groups).map(([group, rows]) => (
-            <div key={group}>
-              {Object.keys(groups).length > 1 && (
-                <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">
-                  {group}
-                </p>
-              )}
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
-                      <th className="w-6 pb-2 pr-2 font-semibold">#</th>
-                      <th className="pb-2 pr-2 font-semibold">Takım</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold" title="Oynanan">O</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold" title="Galibiyet">G</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold" title="Beraberlik">B</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold" title="Mağlubiyet">M</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold" title="Atılan Gol">A</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold" title="Yenilen Gol">Y</th>
-                      <th className="px-1.5 pb-2 text-center font-semibold" title="Averaj">AV</th>
-                      <th className="pl-1.5 pb-2 text-center font-semibold" title="Puan">P</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {rows.map((r) => (
-                      <tr key={r.rank} className="transition-colors hover:bg-secondary/40">
-                        <td className="py-2 pr-2 tabular-nums text-muted-foreground">{r.rank}</td>
-                        <td className="py-2 pr-2">
-                          <TeamButton
-                            team={{ id: r.teamId, name: r.team, logo: r.teamLogo }}
-                            className="flex items-center gap-1.5"
-                          >
-                            {r.teamLogo ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={r.teamLogo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                            ) : null}
-                            <span className="max-w-[90px] truncate font-semibold text-foreground hover:text-primary">
-                              {r.team}
-                            </span>
-                          </TeamButton>
-                        </td>
-                        <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.played}</td>
-                        <td className="px-1.5 py-2 text-center tabular-nums font-semibold text-primary">{r.win}</td>
-                        <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.draw}</td>
-                        <td className="px-1.5 py-2 text-center tabular-nums text-destructive">{r.lose}</td>
-                        <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.goalsFor}</td>
-                        <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.goalsAgainst}</td>
-                        <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">
-                          {r.goalsFor - r.goalsAgainst > 0 ? "+" : ""}
-                          {r.goalsFor - r.goalsAgainst}
-                        </td>
-                        <td className="pl-1.5 py-2 text-center tabular-nums font-black text-foreground">
-                          {r.points}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+        <div className="rounded-2xl border border-border/70 bg-card p-4">
+          {status === "loading" && <SectionLoading label="Puan durumu" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="puan durumu verisi" />}
+          {status === "success" && data && (
+            <div className="flex flex-col gap-4">
+              {Object.entries(groups).map(([group, rows]) => (
+                <div key={group}>
+                  {Object.keys(groups).length > 1 && (
+                    <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">
+                      {group}
+                    </p>
+                  )}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
+                          <th className="w-6 pb-2 pr-2 font-semibold">#</th>
+                          <th className="pb-2 pr-2 font-semibold">Takım</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title="Oynanan">O</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title="Galibiyet">G</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title="Beraberlik">B</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title="Mağlubiyet">M</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title="Atılan Gol">A</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title="Yenilen Gol">Y</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title="Averaj">AV</th>
+                          <th className="pl-1.5 pb-2 text-center font-semibold" title="Puan">P</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {rows.map((r) => (
+                          <tr key={r.rank} className="transition-colors hover:bg-secondary/40">
+                            <td className="py-2 pr-2 tabular-nums text-muted-foreground">{r.rank}</td>
+                            <td className="py-2 pr-2">
+                              <TeamButton
+                                team={{ id: r.teamId, name: r.team, logo: r.teamLogo }}
+                                className="flex items-center gap-1.5"
+                              >
+                                {r.teamLogo ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={r.teamLogo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                                ) : null}
+                                <span className="max-w-[90px] truncate font-semibold text-foreground hover:text-primary">
+                                  {r.team}
+                                </span>
+                              </TeamButton>
+                            </td>
+                            <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.played}</td>
+                            <td className="px-1.5 py-2 text-center tabular-nums font-semibold text-primary">{r.win}</td>
+                            <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.draw}</td>
+                            <td className="px-1.5 py-2 text-center tabular-nums text-destructive">{r.lose}</td>
+                            <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.goalsFor}</td>
+                            <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{r.goalsAgainst}</td>
+                            <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">
+                              {r.goalsFor - r.goalsAgainst > 0 ? "+" : ""}
+                              {r.goalsFor - r.goalsAgainst}
+                            </td>
+                            <td className="pl-1.5 py-2 text-center tabular-nums font-black text-foreground">
+                              {r.points}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </section>
@@ -261,9 +367,9 @@ function StandingsSection({ standings }: { standings: StandingRow[] }) {
 // Top Scorers
 // ---------------------------------------------------------------------------
 
-function TopScorersSection({ scorers }: { scorers: LeagueTopScorer[] }) {
+function TopScorersSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
   const [open, setOpen] = useState(false)
-  if (scorers.length === 0) return null
+  const { status, data, error, retry } = useLeagueSection<LeagueTopScorer[]>(leagueId, "topScorers", open)
   return (
     <section className="flex flex-col gap-1">
       <SectionHeader
@@ -271,50 +377,55 @@ function TopScorersSection({ scorers }: { scorers: LeagueTopScorer[] }) {
         title="Gol Krallığı"
         open={open}
         onToggle={() => setOpen((p) => !p)}
-        badge={`Top ${scorers.length}`}
+        badge={status === "success" && data ? `Top ${data.length}` : undefined}
       />
       {open && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
-                  <th className="w-6 pb-2 pr-2 font-semibold">#</th>
-                  <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Gol">G</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Asist">A</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
-                  <th className="pl-1.5 pb-2 text-center font-semibold" title="Ort.">Ort.</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {scorers.map((s, i) => (
-                  <tr key={s.player.id} className="transition-colors hover:bg-secondary/40">
-                    <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
-                    <td className="py-2 pr-3">
-                      <PlayerButton
-                        player={{ id: s.player.id, name: s.player.name, photo: s.player.photo ?? null }}
-                        className="flex items-center gap-2"
-                      >
-                        <PlayerAvatar photo={s.player.photo ?? null} name={s.player.name} />
-                        <span className="font-semibold text-foreground hover:text-primary">{s.player.name}</span>
-                      </PlayerButton>
-                    </td>
-                    <td className="px-1.5 py-2 text-center">
-                      <TeamLogo logo={s.team.logo} name={s.team.name} />
-                    </td>
-                    <td className="px-1.5 py-2 text-center tabular-nums font-black text-primary">{s.goals}</td>
-                    <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{s.assists}</td>
-                    <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{s.appearances}</td>
-                    <td className="pl-1.5 py-2 text-center tabular-nums text-muted-foreground">
-                      {s.rating ? parseFloat(s.rating).toFixed(1) : "–"}
-                    </td>
+          {status === "loading" && <SectionLoading label="Gol krallığı" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="gol krallığı verisi" />}
+          {status === "success" && data && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
+                    <th className="w-6 pb-2 pr-2 font-semibold">#</th>
+                    <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Gol">G</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Asist">A</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
+                    <th className="pl-1.5 pb-2 text-center font-semibold" title="Ort.">Ort.</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {data.map((s, i) => (
+                    <tr key={s.player.id} className="transition-colors hover:bg-secondary/40">
+                      <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
+                      <td className="py-2 pr-3">
+                        <PlayerButton
+                          player={{ id: s.player.id, name: s.player.name, photo: s.player.photo ?? null }}
+                          className="flex items-center gap-2"
+                        >
+                          <PlayerAvatar photo={s.player.photo ?? null} name={s.player.name} />
+                          <span className="font-semibold text-foreground hover:text-primary">{s.player.name}</span>
+                        </PlayerButton>
+                      </td>
+                      <td className="px-1.5 py-2 text-center">
+                        <TeamLogo logo={s.team.logo} name={s.team.name} />
+                      </td>
+                      <td className="px-1.5 py-2 text-center tabular-nums font-black text-primary">{s.goals}</td>
+                      <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{s.assists}</td>
+                      <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{s.appearances}</td>
+                      <td className="pl-1.5 py-2 text-center tabular-nums text-muted-foreground">
+                        {s.rating ? parseFloat(s.rating).toFixed(1) : "–"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -325,9 +436,9 @@ function TopScorersSection({ scorers }: { scorers: LeagueTopScorer[] }) {
 // Top Assists
 // ---------------------------------------------------------------------------
 
-function TopAssistsSection({ assists }: { assists: LeagueTopAssist[] }) {
+function TopAssistsSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
   const [open, setOpen] = useState(false)
-  if (assists.length === 0) return null
+  const { status, data, error, retry } = useLeagueSection<LeagueTopAssist[]>(leagueId, "topAssists", open)
   return (
     <section className="flex flex-col gap-1">
       <SectionHeader
@@ -335,50 +446,55 @@ function TopAssistsSection({ assists }: { assists: LeagueTopAssist[] }) {
         title="Asist Krallığı"
         open={open}
         onToggle={() => setOpen((p) => !p)}
-        badge={`Top ${assists.length}`}
+        badge={status === "success" && data ? `Top ${data.length}` : undefined}
       />
       {open && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
-                  <th className="w-6 pb-2 pr-2 font-semibold">#</th>
-                  <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Asist">A</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Gol">G</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
-                  <th className="pl-1.5 pb-2 text-center font-semibold" title="Ort.">Ort.</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {assists.map((s, i) => (
-                  <tr key={s.player.id} className="transition-colors hover:bg-secondary/40">
-                    <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
-                    <td className="py-2 pr-3">
-                      <PlayerButton
-                        player={{ id: s.player.id, name: s.player.name, photo: s.player.photo ?? null }}
-                        className="flex items-center gap-2"
-                      >
-                        <PlayerAvatar photo={s.player.photo ?? null} name={s.player.name} />
-                        <span className="font-semibold text-foreground hover:text-primary">{s.player.name}</span>
-                      </PlayerButton>
-                    </td>
-                    <td className="px-1.5 py-2 text-center">
-                      <TeamLogo logo={s.team.logo} name={s.team.name} />
-                    </td>
-                    <td className="px-1.5 py-2 text-center tabular-nums font-black text-primary">{s.assists}</td>
-                    <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{s.goals}</td>
-                    <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{s.appearances}</td>
-                    <td className="pl-1.5 py-2 text-center tabular-nums text-muted-foreground">
-                      {s.rating ? parseFloat(s.rating).toFixed(1) : "–"}
-                    </td>
+          {status === "loading" && <SectionLoading label="Asist krallığı" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="asist krallığı verisi" />}
+          {status === "success" && data && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
+                    <th className="w-6 pb-2 pr-2 font-semibold">#</th>
+                    <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Asist">A</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Gol">G</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
+                    <th className="pl-1.5 pb-2 text-center font-semibold" title="Ort.">Ort.</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {data.map((s, i) => (
+                    <tr key={s.player.id} className="transition-colors hover:bg-secondary/40">
+                      <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
+                      <td className="py-2 pr-3">
+                        <PlayerButton
+                          player={{ id: s.player.id, name: s.player.name, photo: s.player.photo ?? null }}
+                          className="flex items-center gap-2"
+                        >
+                          <PlayerAvatar photo={s.player.photo ?? null} name={s.player.name} />
+                          <span className="font-semibold text-foreground hover:text-primary">{s.player.name}</span>
+                        </PlayerButton>
+                      </td>
+                      <td className="px-1.5 py-2 text-center">
+                        <TeamLogo logo={s.team.logo} name={s.team.name} />
+                      </td>
+                      <td className="px-1.5 py-2 text-center tabular-nums font-black text-primary">{s.assists}</td>
+                      <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{s.goals}</td>
+                      <td className="px-1.5 py-2 text-center tabular-nums text-muted-foreground">{s.appearances}</td>
+                      <td className="pl-1.5 py-2 text-center tabular-nums text-muted-foreground">
+                        {s.rating ? parseFloat(s.rating).toFixed(1) : "–"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -389,9 +505,9 @@ function TopAssistsSection({ assists }: { assists: LeagueTopAssist[] }) {
 // Top Yellow Cards
 // ---------------------------------------------------------------------------
 
-function TopYellowCardsSection({ cards }: { cards: LeagueTopCard[] }) {
+function TopYellowCardsSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
   const [open, setOpen] = useState(false)
-  if (cards.length === 0) return null
+  const { status, data, error, retry } = useLeagueSection<LeagueTopCard[]>(leagueId, "topYellowCards", open)
   return (
     <section className="flex flex-col gap-1">
       <SectionHeader
@@ -399,46 +515,51 @@ function TopYellowCardsSection({ cards }: { cards: LeagueTopCard[] }) {
         title="Sarı Kart Krallığı"
         open={open}
         onToggle={() => setOpen((p) => !p)}
-        badge={`Top ${cards.length}`}
+        badge={status === "success" && data ? `Top ${data.length}` : undefined}
       />
       {open && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
-                  <th className="w-6 pb-2 pr-2 font-semibold">#</th>
-                  <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Sarı Kart">SK</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Kırmızı Kart">KK</th>
-                  <th className="pl-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {cards.map((c, i) => (
-                  <tr key={c.player.id} className="transition-colors hover:bg-secondary/40">
-                    <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
-                    <td className="py-2 pr-3">
-                      <PlayerButton
-                        player={{ id: c.player.id, name: c.player.name, photo: c.player.photo ?? null }}
-                        className="flex items-center gap-2"
-                      >
-                        <PlayerAvatar photo={c.player.photo ?? null} name={c.player.name} />
-                        <span className="font-semibold text-foreground hover:text-primary">{c.player.name}</span>
-                      </PlayerButton>
-                    </td>
-                    <td className="px-1.5 py-2 text-center">
-                      <TeamLogo logo={c.team.logo} name={c.team.name} />
-                    </td>
-                    <td className="px-1.5 py-2 text-center tabular-nums font-black text-yellow-500">{c.yellow}</td>
-                    <td className="px-1.5 py-2 text-center tabular-nums text-destructive">{c.red}</td>
-                    <td className="pl-1.5 py-2 text-center tabular-nums text-muted-foreground">{c.appearances}</td>
+          {status === "loading" && <SectionLoading label="Sarı kart krallığı" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="sarı kart krallığı verisi" />}
+          {status === "success" && data && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
+                    <th className="w-6 pb-2 pr-2 font-semibold">#</th>
+                    <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Sarı Kart">SK</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Kırmızı Kart">KK</th>
+                    <th className="pl-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {data.map((c, i) => (
+                    <tr key={c.player.id} className="transition-colors hover:bg-secondary/40">
+                      <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
+                      <td className="py-2 pr-3">
+                        <PlayerButton
+                          player={{ id: c.player.id, name: c.player.name, photo: c.player.photo ?? null }}
+                          className="flex items-center gap-2"
+                        >
+                          <PlayerAvatar photo={c.player.photo ?? null} name={c.player.name} />
+                          <span className="font-semibold text-foreground hover:text-primary">{c.player.name}</span>
+                        </PlayerButton>
+                      </td>
+                      <td className="px-1.5 py-2 text-center">
+                        <TeamLogo logo={c.team.logo} name={c.team.name} />
+                      </td>
+                      <td className="px-1.5 py-2 text-center tabular-nums font-black text-yellow-500">{c.yellow}</td>
+                      <td className="px-1.5 py-2 text-center tabular-nums text-destructive">{c.red}</td>
+                      <td className="pl-1.5 py-2 text-center tabular-nums text-muted-foreground">{c.appearances}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -449,9 +570,9 @@ function TopYellowCardsSection({ cards }: { cards: LeagueTopCard[] }) {
 // Top Red Cards
 // ---------------------------------------------------------------------------
 
-function TopRedCardsSection({ cards }: { cards: LeagueTopCard[] }) {
+function TopRedCardsSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
   const [open, setOpen] = useState(false)
-  if (cards.length === 0) return null
+  const { status, data, error, retry } = useLeagueSection<LeagueTopCard[]>(leagueId, "topRedCards", open)
   return (
     <section className="flex flex-col gap-1">
       <SectionHeader
@@ -459,46 +580,51 @@ function TopRedCardsSection({ cards }: { cards: LeagueTopCard[] }) {
         title="Kırmızı Kart Krallığı"
         open={open}
         onToggle={() => setOpen((p) => !p)}
-        badge={`Top ${cards.length}`}
+        badge={status === "success" && data ? `Top ${data.length}` : undefined}
       />
       {open && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
-                  <th className="w-6 pb-2 pr-2 font-semibold">#</th>
-                  <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Kırmızı Kart">KK</th>
-                  <th className="px-1.5 pb-2 text-center font-semibold" title="Sarı Kart">SK</th>
-                  <th className="pl-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {cards.map((c, i) => (
-                  <tr key={c.player.id} className="transition-colors hover:bg-secondary/40">
-                    <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
-                    <td className="py-2 pr-3">
-                      <PlayerButton
-                        player={{ id: c.player.id, name: c.player.name, photo: c.player.photo ?? null }}
-                        className="flex items-center gap-2"
-                      >
-                        <PlayerAvatar photo={c.player.photo ?? null} name={c.player.name} />
-                        <span className="font-semibold text-foreground hover:text-primary">{c.player.name}</span>
-                      </PlayerButton>
-                    </td>
-                    <td className="px-1.5 py-2 text-center">
-                      <TeamLogo logo={c.team.logo} name={c.team.name} />
-                    </td>
-                    <td className="px-1.5 py-2 text-center tabular-nums font-black text-destructive">{c.red}</td>
-                    <td className="px-1.5 py-2 text-center tabular-nums text-yellow-500">{c.yellow}</td>
-                    <td className="pl-1.5 py-2 text-center tabular-nums text-muted-foreground">{c.appearances}</td>
+          {status === "loading" && <SectionLoading label="Kırmızı kart krallığı" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="kırmızı kart krallığı verisi" />}
+          {status === "success" && data && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
+                    <th className="w-6 pb-2 pr-2 font-semibold">#</th>
+                    <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Kırmızı Kart">KK</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title="Sarı Kart">SK</th>
+                    <th className="pl-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {data.map((c, i) => (
+                    <tr key={c.player.id} className="transition-colors hover:bg-secondary/40">
+                      <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
+                      <td className="py-2 pr-3">
+                        <PlayerButton
+                          player={{ id: c.player.id, name: c.player.name, photo: c.player.photo ?? null }}
+                          className="flex items-center gap-2"
+                        >
+                          <PlayerAvatar photo={c.player.photo ?? null} name={c.player.name} />
+                          <span className="font-semibold text-foreground hover:text-primary">{c.player.name}</span>
+                        </PlayerButton>
+                      </td>
+                      <td className="px-1.5 py-2 text-center">
+                        <TeamLogo logo={c.team.logo} name={c.team.name} />
+                      </td>
+                      <td className="px-1.5 py-2 text-center tabular-nums font-black text-destructive">{c.red}</td>
+                      <td className="px-1.5 py-2 text-center tabular-nums text-yellow-500">{c.yellow}</td>
+                      <td className="pl-1.5 py-2 text-center tabular-nums text-muted-foreground">{c.appearances}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -509,9 +635,9 @@ function TopRedCardsSection({ cards }: { cards: LeagueTopCard[] }) {
 // Recent Fixtures
 // ---------------------------------------------------------------------------
 
-function RecentFixturesSection({ fixtures }: { fixtures: Fixture[] }) {
+function RecentFixturesSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
   const [open, setOpen] = useState(false)
-  if (fixtures.length === 0) return null
+  const { status, data, error, retry } = useLeagueSection<Fixture[]>(leagueId, "recentFixtures", open)
   return (
     <section className="flex flex-col gap-1">
       <SectionHeader
@@ -519,33 +645,40 @@ function RecentFixturesSection({ fixtures }: { fixtures: Fixture[] }) {
         title="Son Maçlar"
         open={open}
         onToggle={() => setOpen((p) => !p)}
-        badge={fixtures.length}
+        badge={status === "success" ? data?.length : undefined}
       />
       {open && (
-        <div className="flex flex-col gap-1.5 rounded-2xl border border-border/70 bg-card p-4">
-          {fixtures.map((f) => (
-            <div
-              key={f.id}
-              className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-3 py-2.5"
-            >
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-[10px] text-muted-foreground">
-                  {f.league.round} · {kickoff(f.date)}
-                </span>
-                <div className="flex items-center gap-1.5 truncate">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                  <span className="truncate text-xs font-semibold text-foreground">{f.home.name}</span>
-                  <span className="shrink-0 font-black tabular-nums text-foreground">
-                    {f.goalsHome} – {f.goalsAway}
-                  </span>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                  <span className="truncate text-xs font-semibold text-foreground">{f.away.name}</span>
+        <div className="rounded-2xl border border-border/70 bg-card p-4">
+          {status === "loading" && <SectionLoading label="Son maçlar" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="son maç verisi" />}
+          {status === "success" && data && (
+            <div className="flex flex-col gap-1.5">
+              {data.map((f) => (
+                <div
+                  key={f.id}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-3 py-2.5"
+                >
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="text-[10px] text-muted-foreground">
+                      {f.league.round} · {kickoff(f.date)}
+                    </span>
+                    <div className="flex items-center gap-1.5 truncate">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      <span className="truncate text-xs font-semibold text-foreground">{f.home.name}</span>
+                      <span className="shrink-0 font-black tabular-nums text-foreground">
+                        {f.goalsHome} – {f.goalsAway}
+                      </span>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      <span className="truncate text-xs font-semibold text-foreground">{f.away.name}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </section>
@@ -556,9 +689,9 @@ function RecentFixturesSection({ fixtures }: { fixtures: Fixture[] }) {
 // Upcoming Fixtures
 // ---------------------------------------------------------------------------
 
-function UpcomingFixturesSection({ fixtures }: { fixtures: Fixture[] }) {
+function UpcomingFixturesSection({ leagueId, leagueName }: { leagueId: number; leagueName: string }) {
   const [open, setOpen] = useState(false)
-  if (fixtures.length === 0) return null
+  const { status, data, error, retry } = useLeagueSection<Fixture[]>(leagueId, "upcomingFixtures", open)
   return (
     <section className="flex flex-col gap-1">
       <SectionHeader
@@ -566,33 +699,40 @@ function UpcomingFixturesSection({ fixtures }: { fixtures: Fixture[] }) {
         title="Yaklaşan Maçlar"
         open={open}
         onToggle={() => setOpen((p) => !p)}
-        badge={fixtures.length}
+        badge={status === "success" ? data?.length : undefined}
       />
       {open && (
-        <div className="flex flex-col gap-1.5 rounded-2xl border border-border/70 bg-card p-4">
-          {fixtures.map((f) => (
-            <div
-              key={f.id}
-              className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-3 py-2.5"
-            >
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-[10px] text-muted-foreground">{f.league.round}</span>
-                <div className="flex items-center gap-1.5 truncate">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                  <span className="truncate text-xs font-semibold text-foreground">{f.home.name}</span>
-                  <span className="shrink-0 text-muted-foreground">–</span>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                  <span className="truncate text-xs font-semibold text-foreground">{f.away.name}</span>
+        <div className="rounded-2xl border border-border/70 bg-card p-4">
+          {status === "loading" && <SectionLoading label="Yaklaşan maçlar" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="yaklaşan maç verisi" />}
+          {status === "success" && data && (
+            <div className="flex flex-col gap-1.5">
+              {data.map((f) => (
+                <div
+                  key={f.id}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-3 py-2.5"
+                >
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="text-[10px] text-muted-foreground">{f.league.round}</span>
+                    <div className="flex items-center gap-1.5 truncate">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      <span className="truncate text-xs font-semibold text-foreground">{f.home.name}</span>
+                      <span className="shrink-0 text-muted-foreground">–</span>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      <span className="truncate text-xs font-semibold text-foreground">{f.away.name}</span>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-0.5">
+                    <span className="font-black tabular-nums text-foreground">{matchTime(f.date)}</span>
+                    <span className="text-[10px] text-muted-foreground">{kickoffFull(f.date)}</span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-0.5">
-                <span className="font-black tabular-nums text-foreground">{matchTime(f.date)}</span>
-                <span className="text-[10px] text-muted-foreground">{kickoffFull(f.date)}</span>
-              </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </section>
@@ -607,7 +747,7 @@ export function LeaguePanel() {
   const { panel, closeLeague } = useLeaguePanel()
   useBodyScrollLock(!!panel)
   if (!panel) return null
-  const { league, data, loading, error } = panel
+  const { league, basic, loading, error } = panel
 
   return (
     <div
@@ -653,24 +793,12 @@ export function LeaguePanel() {
         </div>
 
         {/* Season badge */}
-        {data && (
+        {basic && (
           <div className="flex items-center gap-2 border-b border-border bg-secondary/50 px-4 py-2 shrink-0">
             <span className="text-xs text-muted-foreground">Sezon</span>
             <span className="rounded-lg bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary">
-              {data.league.season}/{String(data.league.season + 1).slice(2)}
+              {basic.season}/{String(basic.season + 1).slice(2)}
             </span>
-            {data.seasonStats && (
-              <>
-                <span className="text-border">·</span>
-                <span className="text-xs text-muted-foreground">
-                  {data.seasonStats.totalMatches} maç
-                </span>
-                <span className="text-border">·</span>
-                <span className="text-xs text-muted-foreground">
-                  {data.seasonStats.totalGoals} gol
-                </span>
-              </>
-            )}
           </div>
         )}
 
@@ -691,16 +819,17 @@ export function LeaguePanel() {
             </div>
           )}
 
-          {!loading && !error && data && (
-            <div className="flex flex-col gap-3">
-              {data.seasonStats && <SeasonOverviewSection stats={data.seasonStats} />}
-              <StandingsSection standings={data.standings} />
-              <TopScorersSection scorers={data.topScorers} />
-              <TopAssistsSection assists={data.topAssists} />
-              <TopYellowCardsSection cards={data.topYellowCards ?? []} />
-              <TopRedCardsSection cards={data.topRedCards ?? []} />
-              <RecentFixturesSection fixtures={data.recentFixtures} />
-              <UpcomingFixturesSection fixtures={data.upcomingFixtures} />
+          {!loading && !error && basic && (
+            <div className="flex flex-col gap-2">
+              {/* Sabit sekmeler — her sekme sadece kendisine tıklanınca kendi verisini çeker */}
+              <SeasonOverviewSection leagueId={league.id} leagueName={league.name} />
+              <StandingsSection leagueId={league.id} leagueName={league.name} />
+              <TopScorersSection leagueId={league.id} leagueName={league.name} />
+              <TopAssistsSection leagueId={league.id} leagueName={league.name} />
+              <TopYellowCardsSection leagueId={league.id} leagueName={league.name} />
+              <TopRedCardsSection leagueId={league.id} leagueName={league.name} />
+              <RecentFixturesSection leagueId={league.id} leagueName={league.name} />
+              <UpcomingFixturesSection leagueId={league.id} leagueName={league.name} />
             </div>
           )}
         </div>
