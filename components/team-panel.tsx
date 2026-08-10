@@ -23,7 +23,7 @@ import {
   Users,
   X,
 } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTeamPanel } from "@/contexts/team-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { PlayerButton } from "@/components/player-panel"
@@ -129,9 +129,17 @@ interface SectionState<T> {
 
 function useTeamSection<T>(teamId: number, section: string, open: boolean) {
   const [state, setState] = useState<SectionState<T>>({ status: "idle", data: null, error: null })
+  // Effect'in kendi setState çağrısıyla (idle -> loading) yeniden tetiklenip
+  // az önce başlattığı isteği "cancelled" yapmasını önlemek için durumu state
+  // yerine ref'te takip ediyoruz. state.status dependency array'de olsaydı,
+  // idle->loading geçişi effect'i tekrar çalıştırır, cleanup devreye girer ve
+  // henüz sonuçlanmamış fetch'i cancelled=true yaparak sonsuza kadar
+  // "yükleniyor" durumunda bırakırdı.
+  const startedRef = useRef(false)
 
   useEffect(() => {
-    if (!open || state.status !== "idle") return
+    if (!open || startedRef.current) return
+    startedRef.current = true
     let cancelled = false
     setState({ status: "loading", data: null, error: null })
     fetch(`/api/team/section?teamId=${teamId}&section=${section}`, { cache: "no-store" })
@@ -153,9 +161,12 @@ function useTeamSection<T>(teamId: number, section: string, open: boolean) {
     return () => {
       cancelled = true
     }
-  }, [open, teamId, section, state.status])
+  }, [open, teamId, section])
 
-  const retry = useCallback(() => setState({ status: "idle", data: null, error: null }), [])
+  const retry = useCallback(() => {
+    startedRef.current = false
+    setState({ status: "idle", data: null, error: null })
+  }, [])
   return { ...state, retry }
 }
 
