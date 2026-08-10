@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useState } from "react"
-import type { LeaguePageData } from "@/lib/types"
+import type { LeagueBasicInfo } from "@/lib/types"
 
 export interface LeagueInfo {
   id: number
@@ -13,7 +13,10 @@ export interface LeagueInfo {
 
 interface LeaguePanelState {
   league: LeagueInfo
-  data: LeaguePageData | null
+  // Panel header'ı için hafif özet (isim/logo/ülke/sezon). Diğer tüm veriler
+  // (puan durumu, gol krallığı, maçlar vb.) sekmelere tıklandığında ayrı ayrı
+  // çekilir — bkz. components/league-panel.tsx içindeki useLeagueSection hook'u.
+  basic: LeagueBasicInfo | null
   loading: boolean
   error: string | null
 }
@@ -30,24 +33,17 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
   const [panel, setPanel] = useState<LeaguePanelState | null>(null)
 
   const openLeague = useCallback(async (league: LeagueInfo) => {
-    setPanel({ league, data: null, loading: true, error: null })
+    // Start loading immediately
+    setPanel({ league, basic: null, loading: true, error: null })
 
     try {
-      const res = await fetch(`/api/league?leagueId=${league.id}&t=${Date.now()}`, {
-        cache: "no-store",
-      })
+      const res = await fetch(`/api/league?leagueId=${league.id}`, { cache: "no-store" })
       if (!res.ok) throw new Error(`Sunucu hatası: ${res.status}`)
-      const data: LeaguePageData = await res.json()
-      setPanel((prev) =>
-        prev?.league.id === league.id ? { league, data, loading: false, error: null } : prev,
-      )
+      const basic: LeagueBasicInfo = await res.json()
+      setPanel((prev) => (prev?.league.id === league.id ? { league, basic, loading: false, error: null } : prev))
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Bir hata oluştu"
-      setPanel((prev) =>
-        prev?.league.id === league.id
-          ? { league, data: null, loading: false, error: msg }
-          : prev,
-      )
+      setPanel((prev) => (prev?.league.id === league.id ? { league, basic: null, loading: false, error: msg } : prev))
     }
   }, [])
 

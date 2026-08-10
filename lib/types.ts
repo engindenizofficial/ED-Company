@@ -416,17 +416,12 @@ export interface LeagueTopCard {
   appearances: number
 }
 
-export interface LeaguePageData {
-  league: { id: number; name: string; country: string; logo: string; season: number; flagUrl: string | null }
-  standings: StandingRow[]
-  topScorers: LeagueTopScorer[]
-  topAssists: LeagueTopAssist[]
-  topYellowCards: LeagueTopCard[]
-  topRedCards: LeagueTopCard[]
-  recentFixtures: Fixture[]
-  upcomingFixtures: Fixture[]
-  seasonStats: LeagueSeasonStats | null
-  cachedAt: number
+// Lig paneli açıldığında sadece bu hafif özet çekilir (header için isim/logo/
+// ülke/sezon). Puan durumu, gol krallığı, maçlar vb. tüm diğer veriler
+// sekmelere tıklandığında ayrı ayrı çekilir — bkz. /api/league/section.
+export interface LeagueBasicInfo {
+  league: { id: number; name: string; country: string; logo: string; flagUrl: string | null }
+  season: number
 }
 
 export interface SquadPlayer {
