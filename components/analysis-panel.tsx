@@ -30,6 +30,7 @@ import type {
   MatchEvent,
   StatItem,
   StandingRow,
+  TeamInfo,
   TeamLineup,
   TeamSeasonStats,
 } from "@/lib/types"
@@ -144,7 +145,7 @@ export function AnalysisPanel({
         awayName={away.name}
         active={activeTab === "statistics"}
       />
-      <LineupsSection fixtureId={fixture.id} active={activeTab === "lineups"} />
+      <LineupsSection fixtureId={fixture.id} home={home} away={away} active={activeTab === "lineups"} />
       <StandingsSection
         fixtureId={fixture.id}
         leagueId={league.id}
@@ -804,7 +805,17 @@ function StatsList({ stats, homeName, awayName }: { stats: StatItem[]; homeName:
 // Lineups — formation grid görselleştirmesi + oyuncu listesi
 // ---------------------------------------------------------------------------
 
-function LineupsSection({ fixtureId, active }: { fixtureId: number; active: boolean }) {
+function LineupsSection({
+  fixtureId,
+  home,
+  away,
+  active,
+}: {
+  fixtureId: number
+  home: TeamInfo
+  away: TeamInfo
+  active: boolean
+}) {
   const { status, data, error, retry } = useLazySection<TeamLineup[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=lineups`,
     active,
@@ -814,56 +825,128 @@ function LineupsSection({ fixtureId, active }: { fixtureId: number; active: bool
       {status === "loading" && <SectionLoading label="Kadrolar" />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
       {status === "empty" && <SectionEmptyState label="kadro" />}
-      {status === "success" && data && <LineupsView lineups={data} />}
+      {status === "success" && data && <LineupsView lineups={data} home={home} away={away} />}
     </SectionShell>
   )
 }
 
-function LineupsView({ lineups }: { lineups: TeamLineup[] }) {
+/** API-Football grid formatı "satır:sütun" — geçerli mi diye kontrol eder. */
+function parseGrid(grid: string | null): { row: number; col: number } | null {
+  if (!grid) return null
+  const [rowStr, colStr] = grid.split(":")
+  const row = Number(rowStr)
+  const col = Number(colStr)
+  if (!Number.isFinite(row) || !Number.isFinite(col)) return null
+  return { row, col }
+}
+
+/** Bir takımın ilk 11'ini, dizilişine göre sahadaki (x%, y%) konumlarına dağıtır. */
+function computePitchSlots(
+  startXI: LineupPlayer[],
+  half: "bottom" | "top",
+): { player: LineupPlayer; leftPct: number; topPct: number }[] {
+  const rows = new Map<number, LineupPlayer[]>()
+  for (const p of startXI) {
+    const g = parseGrid(p.grid)
+    if (!g) continue
+    if (!rows.has(g.row)) rows.set(g.row, [])
+    rows.get(g.row)!.push(p)
+  }
+
+  const rowNumbers = [...rows.keys()].sort((a, b) => a - b)
+  const maxRowIdx = Math.max(rowNumbers.length - 1, 1)
+
+  const X_MIN = 8
+  const X_MAX = 92
+  // GK'nin sahaya en yakın kenar; en ileri hattın orta çizgiye yakın konumu
+  const [gkY, attackY] = half === "bottom" ? [95, 56] : [5, 44]
+
+  const slots: { player: LineupPlayer; leftPct: number; topPct: number }[] = []
+  rowNumbers.forEach((rowNum, rowIdx) => {
+    const players = [...rows.get(rowNum)!].sort((a, b) => {
+      const ga = parseGrid(a.grid)!
+      const gb = parseGrid(b.grid)!
+      return ga.col - gb.col
+    })
+    const t = rowNumbers.length <= 1 ? 0 : rowIdx / maxRowIdx
+    const topPct = gkY + (attackY - gkY) * t
+    players.forEach((p, i) => {
+      const leftPct = X_MIN + ((i + 1) / (players.length + 1)) * (X_MAX - X_MIN)
+      slots.push({ player: p, leftPct, topPct })
+    })
+  })
+
+  return slots
+}
+
+function LineupsView({ lineups, home, away }: { lineups: TeamLineup[]; home: TeamInfo; away: TeamInfo }) {
+  const homeLineup = lineups.find((l) => l.team === home.name) ?? lineups[0] ?? null
+  const awayLineup = lineups.find((l) => l.team === away.name) ?? lineups.find((l) => l !== homeLineup) ?? null
+
+  const hasValidGrid = (l: TeamLineup | null) => !!l && l.startXI.length > 0 && l.startXI.every((p) => !!parseGrid(p.grid))
+  const canRenderPitch = hasValidGrid(homeLineup) && hasValidGrid(awayLineup)
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {lineups.map((l) => (
-        <div key={l.team} className="flex flex-col gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3">
-          {/* Team + formation + coach */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm font-bold text-foreground">{l.team}</span>
-              {l.coach && (
-                <span className="text-[11px] text-muted-foreground">TD: {l.coach}</span>
-              )}
-            </div>
-            {l.formation && (
-              <span className="rounded-lg border border-border bg-card px-2 py-0.5 text-[11px] font-mono font-bold text-muted-foreground">
-                {l.formation}
-              </span>
-            )}
-          </div>
-
-          {/* Starting XI */}
-          {l.startXI.length > 0 && (
-            <div>
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-primary">İlk 11</p>
-              <ol className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                {l.startXI.map((p, idx) => (
-                  <PlayerLineupRow key={idx} player={p} isStarter />
-                ))}
-              </ol>
-            </div>
-          )}
-
-          {/* Substitutes */}
-          {l.substitutes.length > 0 && (
-            <div>
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">Yedekler</p>
-              <ol className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                {l.substitutes.map((p, idx) => (
-                  <PlayerLineupRow key={idx} player={p} isStarter={false} />
-                ))}
-              </ol>
-            </div>
-          )}
+    <div className="flex flex-col gap-4">
+      {canRenderPitch && homeLineup && awayLineup ? (
+        <FormationPitch home={home} homeLineup={homeLineup} away={away} awayLineup={awayLineup} />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {lineups.map((l) => (
+            <LegacyLineupCard key={l.team} lineup={l} />
+          ))}
         </div>
-      ))}
+      )}
+
+      {canRenderPitch && (homeLineup?.substitutes.length || awayLineup?.substitutes.length) ? (
+        <BenchRow
+          home={home}
+          homeSubs={homeLineup?.substitutes ?? []}
+          away={away}
+          awaySubs={awayLineup?.substitutes ?? []}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+/** Geçerli grid verisi olmayan istisnai durumlar için eski, basit liste görünümü. */
+function LegacyLineupCard({ lineup: l }: { lineup: TeamLineup }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-bold text-foreground">{l.team}</span>
+          {l.coach && <span className="text-[11px] text-muted-foreground">TD: {l.coach}</span>}
+        </div>
+        {l.formation && (
+          <span className="rounded-lg border border-border bg-card px-2 py-0.5 text-[11px] font-mono font-bold text-muted-foreground">
+            {l.formation}
+          </span>
+        )}
+      </div>
+
+      {l.startXI.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-primary">İlk 11</p>
+          <ol className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+            {l.startXI.map((p, idx) => (
+              <PlayerLineupRow key={idx} player={p} isStarter />
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {l.substitutes.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">Yedekler</p>
+          <ol className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+            {l.substitutes.map((p, idx) => (
+              <PlayerLineupRow key={idx} player={p} isStarter={false} />
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   )
 }
@@ -890,6 +973,243 @@ function PlayerLineupRow({ player, isStarter }: { player: LineupPlayer; isStarte
         </span>
       )}
     </li>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Formation pitch — dikey, çim çizgili premium saha görselleştirmesi
+// ---------------------------------------------------------------------------
+
+function FormationPitch({
+  home,
+  homeLineup,
+  away,
+  awayLineup,
+}: {
+  home: TeamInfo
+  homeLineup: TeamLineup
+  away: TeamInfo
+  awayLineup: TeamLineup
+}) {
+  const homeSlots = computePitchSlots(homeLineup.startXI, "bottom")
+  const awaySlots = computePitchSlots(awayLineup.startXI, "top")
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-card p-2.5 shadow-sm">
+      {/* Away team header (üstte, sahanın üst yarısıyla eşleşir) */}
+      <TeamFormationHeader team={away} lineup={awayLineup} align="left" />
+
+      <div
+        className="relative w-full overflow-hidden rounded-xl shadow-inner ring-1 ring-black/10"
+        style={{
+          aspectRatio: "68 / 100",
+          backgroundColor: "var(--pitch)",
+          backgroundImage:
+            "repeating-linear-gradient(to bottom, var(--pitch-soft) 0, var(--pitch-soft) 9%, var(--pitch) 9%, var(--pitch) 18%)",
+        }}
+      >
+        <PitchMarkings />
+
+        {homeSlots.map((slot, idx) => (
+          <PlayerPitchIcon key={`home-${idx}`} player={slot.player} side="home" leftPct={slot.leftPct} topPct={slot.topPct} />
+        ))}
+        {awaySlots.map((slot, idx) => (
+          <PlayerPitchIcon key={`away-${idx}`} player={slot.player} side="away" leftPct={slot.leftPct} topPct={slot.topPct} />
+        ))}
+      </div>
+
+      {/* Home team header (altta, sahanın alt yarısıyla eşleşir) */}
+      <TeamFormationHeader team={home} lineup={homeLineup} align="left" />
+    </div>
+  )
+}
+
+function TeamFormationHeader({
+  team,
+  lineup,
+  align,
+}: {
+  team: TeamInfo
+  lineup: TeamLineup
+  align: "left"
+}) {
+  return (
+    <div className={cn("flex items-center gap-2 px-1", align === "left" && "justify-between")}>
+      <div className="flex items-center gap-2">
+        {team.logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={team.logo || "/placeholder.svg"} alt="" className="h-5 w-5 object-contain" />
+        ) : null}
+        <div className="flex flex-col leading-tight">
+          <span className="text-xs font-bold text-foreground">{team.name}</span>
+          {lineup.coach && <span className="text-[10px] text-muted-foreground">TD: {lineup.coach}</span>}
+        </div>
+      </div>
+      {lineup.formation && (
+        <span className="rounded-md border border-border bg-secondary/60 px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted-foreground">
+          {lineup.formation}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** SVG çim çizgileri: orta çizgi, orta yuvarlak, ceza sahaları, kale sahaları, korner çeyrekleri. */
+function PitchMarkings() {
+  const line = { stroke: "var(--pitch-line)", strokeWidth: 0.4, fill: "none" } as const
+  return (
+    <svg
+      viewBox="0 0 68 105"
+      preserveAspectRatio="none"
+      className="absolute inset-0 h-full w-full"
+      aria-hidden="true"
+    >
+      {/* Dış çizgiler */}
+      <rect x={0.3} y={0.3} width={67.4} height={104.4} {...line} />
+      {/* Orta çizgi */}
+      <line x1={0} y1={52.5} x2={68} y2={52.5} {...line} />
+      {/* Orta yuvarlak + nokta */}
+      <circle cx={34} cy={52.5} r={9.15} {...line} />
+      <circle cx={34} cy={52.5} r={0.5} fill="var(--pitch-line)" stroke="none" />
+      {/* Üst ceza sahası */}
+      <rect x={13.84} y={0.3} width={40.32} height={16.5} {...line} />
+      <rect x={24.84} y={0.3} width={18.32} height={5.5} {...line} />
+      <circle cx={34} cy={11} r={0.5} fill="var(--pitch-line)" stroke="none" />
+      <path d="M 26.69 16.5 A 9.15 9.15 0 0 0 41.31 16.5" {...line} />
+      {/* Alt ceza sahası */}
+      <rect x={13.84} y={88.2} width={40.32} height={16.5} {...line} />
+      <rect x={24.84} y={99.2} width={18.32} height={5.5} {...line} />
+      <circle cx={34} cy={94} r={0.5} fill="var(--pitch-line)" stroke="none" />
+      <path d="M 26.69 88.5 A 9.15 9.15 0 0 1 41.31 88.5" {...line} />
+      {/* Korner çeyrekleri */}
+      <path d="M 0 3 A 3 3 0 0 0 3 0" {...line} />
+      <path d="M 65 0 A 3 3 0 0 0 68 3" {...line} />
+      <path d="M 68 102 A 3 3 0 0 0 65 105" {...line} />
+      <path d="M 3 105 A 3 3 0 0 0 0 102" {...line} />
+    </svg>
+  )
+}
+
+function PlayerPitchIcon({
+  player,
+  side,
+  leftPct,
+  topPct,
+}: {
+  player: LineupPlayer
+  side: "home" | "away"
+  leftPct: number
+  topPct: number
+}) {
+  const [imgError, setImgError] = useState(false)
+  const photoUrl = player.id ? `https://media.api-sports.io/football/players/${player.id}.png` : null
+  const showPhoto = !!photoUrl && !imgError
+
+  const avatar = (
+    <div
+      className={cn(
+        "relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full shadow-md ring-2",
+        side === "home" ? "ring-card" : "ring-accent",
+      )}
+    >
+      {showPhoto ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photoUrl!}
+          alt=""
+          className="h-full w-full bg-card object-cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <span
+          className={cn(
+            "flex h-full w-full items-center justify-center text-[11px] font-bold tabular-nums",
+            side === "home" ? "bg-card text-foreground" : "bg-accent text-accent-foreground",
+          )}
+        >
+          {player.number ?? "–"}
+        </span>
+      )}
+    </div>
+  )
+
+  return (
+    <div
+      className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
+      style={{ left: `${leftPct}%`, top: `${topPct}%` }}
+    >
+      {player.id ? (
+        <PlayerButton player={{ id: player.id, name: player.name, photo: null }} className="flex flex-col items-center">
+          {avatar}
+        </PlayerButton>
+      ) : (
+        avatar
+      )}
+      <span className="max-w-[68px] truncate rounded-full bg-card/90 px-1.5 py-0.5 text-[9px] font-semibold text-foreground shadow-sm backdrop-blur-sm">
+        {player.name.split(" ").pop()}
+      </span>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Bench — sahanın altında iki takımın yedekleri yan yana
+// ---------------------------------------------------------------------------
+
+function BenchRow({
+  home,
+  homeSubs,
+  away,
+  awaySubs,
+}: {
+  home: TeamInfo
+  homeSubs: LineupPlayer[]
+  away: TeamInfo
+  awaySubs: LineupPlayer[]
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/60 bg-secondary/20 p-3">
+      <BenchColumn team={home} subs={homeSubs} side="home" />
+      <BenchColumn team={away} subs={awaySubs} side="away" />
+    </div>
+  )
+}
+
+function BenchColumn({ team, subs, side }: { team: TeamInfo; subs: LineupPlayer[]; side: "home" | "away" }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="mb-0.5 flex items-center gap-1.5 border-b border-border/60 pb-1.5">
+        {team.logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={team.logo || "/placeholder.svg"} alt="" className="h-4 w-4 object-contain" />
+        ) : null}
+        <span className="truncate text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+          Yedekler
+        </span>
+      </div>
+      <ol className="flex flex-col gap-1">
+        {subs.map((p, idx) => (
+          <li key={idx} className="flex items-center gap-1.5 text-xs">
+            <span
+              className={cn(
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums",
+                side === "home" ? "bg-secondary text-foreground" : "bg-accent/15 text-accent",
+              )}
+            >
+              {p.number ?? "—"}
+            </span>
+            {p.id ? (
+              <PlayerButton player={{ id: p.id, name: p.name, photo: null }} className="truncate text-foreground hover:text-primary">
+                {p.name}
+              </PlayerButton>
+            ) : (
+              <span className="truncate text-foreground">{p.name}</span>
+            )}
+            {p.pos && <span className="ml-auto shrink-0 text-[9px] font-semibold text-muted-foreground/60">{p.pos}</span>}
+          </li>
+        ))}
+      </ol>
+    </div>
   )
 }
 
