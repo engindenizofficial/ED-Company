@@ -67,10 +67,13 @@ export async function POST(request: Request) {
 
   const response = NextResponse.json(state)
   if (isNewVoter) {
+    // v0 önizlemesi uygulamayı farklı bir origin'den iframe içinde gösteriyor,
+    // bu yüzden çerez "SameSite=None; Secure" olmadan tarayıcıya hiç kaydedilmiyor
+    // (lib/auth.ts'deki development cookie ayarlarıyla aynı sebep).
     response.cookies.set(VOTER_COOKIE, voterId, {
       httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      sameSite: "none",
+      secure: true,
       path: "/",
       maxAge: VOTER_COOKIE_MAX_AGE,
     })
