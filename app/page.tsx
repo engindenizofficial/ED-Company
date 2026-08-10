@@ -10,7 +10,7 @@ import { TeamSearchBar } from "@/components/team-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useFavorites } from "@/contexts/favorites-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
-import type { AnalysisResponse, Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
+import type { Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
 
 function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
@@ -42,10 +42,6 @@ export default function Page() {
 
   const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(null)
   const [fixturesLoading, setFixturesLoading] = useState(true)
-
-  const [analysis, setAnalysis] = useState<AnalysisResponse | undefined>(undefined)
-  const [analysisLoading, setAnalysisLoading] = useState(false)
-  const [analysisError, setAnalysisError] = useState<Error | undefined>(undefined)
 
   const [prediction, setPrediction] = useState<MatchPrediction | null>(null)
   const [predictionLoading, setPredictionLoading] = useState(false)
@@ -175,21 +171,6 @@ export default function Page() {
     }
   }, [fixturesLoading, fixturesData, autoCheckFinished])
 
-  // Maç paneli açılınca her seferinde API'den taze veri çek
-  const loadAnalysis = useCallback(async (id: number) => {
-    setAnalysisLoading(true)
-    setAnalysisError(undefined)
-    try {
-      const res = await fetch(`/api/analyze?fixtureId=${id}&t=${Date.now()}`, { cache: "no-store" })
-      const data = await res.json() as AnalysisResponse
-      setAnalysis(data)
-    } catch (e) {
-      setAnalysisError(e instanceof Error ? e : new Error("Bir hata oluştu"))
-    } finally {
-      setAnalysisLoading(false)
-    }
-  }, [])
-
   // Tahmin yükleme — her durumda sadece cache'den okur, yeni tahmin oluşturmaz
   const loadPrediction = useCallback(async (fixture: Fixture) => {
     setPredictionLoading(true)
@@ -231,19 +212,17 @@ export default function Page() {
     }
   }, [selected])
 
-  // Analiz verisi ve tahmin hazır olduğunda, bitmiş maçlar için otomatik sonuç kaydet
+  // Tahmin hazır olduğunda, bitmiş maçlar için otomatik sonuç kaydet
   const saveResultIfNeeded = useCallback(async (
     fixture: Fixture,
     pred: MatchPrediction | null,
-    analysisData: AnalysisResponse | undefined,
   ) => {
     if (!pred) return
     if (!FINISHED_STATUSES.has(fixture.statusShort)) return
     if (savedResultIds.current.has(fixture.id)) return
 
-    // Skoru analiz verisinden veya fikstür verisinden al
-    const homeGoals = analysisData?.live?.fixture?.goalsHome ?? fixture.goalsHome
-    const awayGoals = analysisData?.live?.fixture?.goalsAway ?? fixture.goalsAway
+    const homeGoals = fixture.goalsHome
+    const awayGoals = fixture.goalsAway
 
     if (homeGoals == null || awayGoals == null) return
 
@@ -291,21 +270,18 @@ export default function Page() {
 
   useEffect(() => {
     if (!selected) {
-      setAnalysis(undefined)
-      setAnalysisError(undefined)
       setPrediction(null)
       return
     }
-    loadAnalysis(selected.id)
     loadPrediction(selected)
-  }, [selected, loadAnalysis, loadPrediction])
+  }, [selected, loadPrediction])
 
-  // Analiz + tahmin her ikisi de hazır olduğunda bitmiş maçlar için sonuç kaydet
+  // Tahmin hazır olduğunda bitmiş maçlar için sonuç kaydet
   useEffect(() => {
     if (!selected) return
-    if (analysisLoading || predictionLoading) return
-    saveResultIfNeeded(selected, prediction, analysis)
-  }, [selected, prediction, analysis, analysisLoading, predictionLoading, saveResultIfNeeded])
+    if (predictionLoading) return
+    saveResultIfNeeded(selected, prediction)
+  }, [selected, prediction, predictionLoading, saveResultIfNeeded])
 
 
   const handleRefresh = useCallback(async () => {
@@ -480,9 +456,7 @@ export default function Page() {
           {/* Scrollable content */}
           <div className="flex-1 overflow-y-auto px-4 py-4">
             <AnalysisPanel
-              data={analysis}
-              isLoading={analysisLoading}
-              error={analysisError as Error | undefined}
+              fixture={selected}
               prediction={prediction}
               predictionLoading={predictionLoading}
               onPredict={triggerPrediction}

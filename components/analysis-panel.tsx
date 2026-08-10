@@ -2,25 +2,25 @@
 
 import {
   Activity,
-  AlertCircle,
   AlertTriangle,
   BarChart3,
   ChevronDown,
   ChevronUp,
   Flag,
+  Inbox,
   LoaderCircle,
   MapPin,
+  RotateCw,
   Shield,
   Sparkles,
   Star,
   Swords,
-  Target,
   TrendingUp,
   Users,
 } from "lucide-react"
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type {
-  AnalysisResponse,
+  Fixture,
   FixturePlayerStat,
   FormGame,
   InjuryItem,
@@ -81,170 +81,61 @@ function countryFlag(country: string): string {
 // ---------------------------------------------------------------------------
 
 export function AnalysisPanel({
-  data,
-  isLoading,
-  error,
+  fixture,
   prediction,
   predictionLoading,
   onPredict,
 }: {
-  data: AnalysisResponse | undefined
-  isLoading: boolean
-  error: Error | undefined
+  fixture: Fixture
   prediction?: MatchPrediction | null
   predictionLoading?: boolean
   onPredict?: () => void
 }) {
-  if (isLoading) return <AnalyzingState />
-
-  if (error) {
-    return (
-      <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 px-6 text-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-        </div>
-        <div>
-          <p className="font-semibold text-foreground">Analiz yapılamadı</p>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">{error.message}</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!data) {
-    return (
-      <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
-          <Target className="h-5 w-5 text-primary" />
-        </div>
-        <p className="max-w-xs text-balance text-sm">Bu maç için detaylı analiz verisi hazırlanıyor.</p>
-      </div>
-    )
-  }
-
-  const { live, playerStats } = data
-  const { fixture } = live
-
   const LIVE_OR_FINISHED = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "FT", "AET", "PEN", "AWD", "WO"])
   const isPredictable = !LIVE_OR_FINISHED.has(fixture.statusShort)
   // Tahmin yapılmışsa maç başlamış/bitmişse de göster
   const hasPrediction = !!(prediction)
   const showPrediction = isPredictable || hasPrediction
 
-  // Oyuncu istatistiklerini ev sahibi / deplasman olarak böl
-  const homePlayerStats = playerStats.filter((p) => p.teamId === fixture.home.id)
-  const awayPlayerStats = playerStats.filter((p) => p.teamId === fixture.away.id)
-  const hasPlayerStats = playerStats.length > 0
+  const { home, away, league } = fixture
 
   return (
     <div className="flex flex-col gap-2">
-      {/* 1. Match header */}
+      {/* 1. Match header — panel açıldığında ekstra bir istek yapmadan anında gösterilir */}
       <MatchHeader fixture={fixture} />
 
-      {/* 2. AI Prediction — tahmin yapılmışsa her zaman göster, yapılmamışsa sadece oynanmamış maçlarda */}
+      {/* 2. AI Prediction */}
       {showPrediction && (
         <PredictionCard
           prediction={prediction ?? null}
           isLoading={predictionLoading ?? false}
-          homeName={fixture.home.name}
-          awayName={fixture.away.name}
+          homeName={home.name}
+          awayName={away.name}
           onPredict={isPredictable ? onPredict : undefined}
         />
       )}
 
-      {/* 3. Live events */}
-      {live.events.length > 0 && (
-        <Collapsible
-          defaultOpen
-          header={<SectionHeader icon={<Activity className="h-3.5 w-3.5" />} title="Maç Olayları" badge={String(live.events.length)} />}
-        >
-          <EventsList events={live.events} homeName={fixture.home.name} />
-        </Collapsible>
-      )}
-
-      {/* 3. Player stats (per-match ratings) */}
-      {hasPlayerStats && (
-        <Collapsible
-          defaultOpen
-          header={<SectionHeader icon={<Star className="h-3.5 w-3.5" />} title="Oyuncu Performansları" badge={String(playerStats.length)} />}
-        >
-          <PlayerStatsSection
-            home={{ team: fixture.home, players: homePlayerStats }}
-            away={{ team: fixture.away, players: awayPlayerStats }}
-          />
-        </Collapsible>
-      )}
-
-      {/* 4. Match statistics */}
-      {live.statistics.length > 0 && (
-        <Collapsible
-          defaultOpen
-          header={<SectionHeader icon={<BarChart3 className="h-3.5 w-3.5" />} title="Maç İstatistikleri" />}
-        >
-          <StatsList stats={live.statistics} homeName={fixture.home.name} awayName={fixture.away.name} />
-        </Collapsible>
-      )}
-
-      {/* 5. Lineups */}
-      {live.lineups.length > 0 && (
-        <Collapsible
-          header={<SectionHeader icon={<Users className="h-3.5 w-3.5" />} title="Kadrolar" />}
-        >
-          <LineupsView lineups={live.lineups} />
-        </Collapsible>
-      )}
-
-      {/* 6. Standings */}
-      {live.standings.length > 0 && (
-        <Collapsible
-          header={<SectionHeader icon={<Shield className="h-3.5 w-3.5" />} title="Puan Durumu" />}
-        >
-          <StandingsTable standings={live.standings} homeId={fixture.home.id} awayId={fixture.away.id} />
-        </Collapsible>
-      )}
-
-      {/* 7. Team season stats */}
-      {(live.homeStats || live.awayStats) && (
-        <Collapsible
-          header={<SectionHeader icon={<TrendingUp className="h-3.5 w-3.5" />} title="Sezon İstatistikleri" />}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            {live.homeStats && <TeamStatsCard stats={live.homeStats} label="Ev Sahibi" />}
-            {live.awayStats && <TeamStatsCard stats={live.awayStats} label="Deplasman" />}
-          </div>
-        </Collapsible>
-      )}
-
-      {/* 8. H2H */}
-      {live.h2h.length > 0 && (
-        <Collapsible
-          header={<SectionHeader icon={<Swords className="h-3.5 w-3.5" />} title="Karşılıklı Maçlar" badge={String(live.h2h.length)} />}
-        >
-          <H2HList h2h={live.h2h} homeId={fixture.home.id} awayId={fixture.away.id} homeName={fixture.home.name} awayName={fixture.away.name} />
-        </Collapsible>
-      )}
-
-      {/* 9. Injuries */}
-      {live.injuries.length > 0 && (
-        <Collapsible
-          header={<SectionHeader icon={<AlertTriangle className="h-3.5 w-3.5" />} title="Sakatlık / Ceza" badge={String(live.injuries.length)} />}
-        >
-          <InjuryList injuries={live.injuries} />
-        </Collapsible>
-      )}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Loading state
-// ---------------------------------------------------------------------------
-
-function AnalyzingState() {
-  return (
-    <div className="flex min-h-[120px] flex-col items-center justify-center gap-3">
-      <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
-      <p className="text-xs font-medium tracking-wide text-muted-foreground">Veriler yükleniyor...</p>
+      {/* Sabit sekmeler — her sekme sadece kendisine tıklanınca kendi verisini çeker */}
+      <EventsSection fixtureId={fixture.id} homeName={home.name} />
+      <PlayerStatsSection fixtureId={fixture.id} home={home} away={away} />
+      <StatisticsSection fixtureId={fixture.id} homeName={home.name} awayName={away.name} />
+      <LineupsSection fixtureId={fixture.id} />
+      <StandingsSection
+        fixtureId={fixture.id}
+        leagueId={league.id}
+        season={league.season}
+        homeId={home.id}
+        awayId={away.id}
+      />
+      <TeamStatsSection
+        fixtureId={fixture.id}
+        home={home}
+        away={away}
+        leagueId={league.id}
+        season={league.season}
+      />
+      <H2HSection fixtureId={fixture.id} homeId={home.id} awayId={away.id} homeName={home.name} awayName={away.name} />
+      <InjuriesSection fixtureId={fixture.id} />
     </div>
   )
 }
@@ -253,7 +144,7 @@ function AnalyzingState() {
 // Match header
 // ---------------------------------------------------------------------------
 
-function MatchHeader({ fixture }: { fixture: AnalysisResponse["live"]["fixture"] }) {
+function MatchHeader({ fixture }: { fixture: Fixture }) {
   const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
   const isLive = LIVE_STATUSES.has(fixture.statusShort)
   const homeGoals = fixture.goalsHome
@@ -344,66 +235,6 @@ function MatchHeader({ fixture }: { fixture: AnalysisResponse["live"]["fixture"]
 }
 
 // ---------------------------------------------------------------------------
-// Collapsible wrapper
-// ---------------------------------------------------------------------------
-
-function Collapsible({
-  header,
-  children,
-  defaultOpen = false,
-}: {
-  header: React.ReactNode
-  children: React.ReactNode
-  defaultOpen?: boolean
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-  return (
-    <section className="rounded-2xl border border-border/70 bg-card overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-secondary/40"
-        aria-expanded={open}
-      >
-        <div className="flex-1 min-w-0">{header}</div>
-        <div className="shrink-0 rounded-full border border-border/60 p-0.5">
-          {open ? (
-            <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          )}
-        </div>
-      </button>
-      {open && (
-        <div className="border-t border-border/60 px-4 pb-4 pt-3.5">
-          {children}
-        </div>
-      )}
-    </section>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Section header
-// ---------------------------------------------------------------------------
-
-function SectionHeader({ icon, title, badge }: { icon: React.ReactNode; title: string; badge?: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-        {icon}
-      </span>
-      <span className="text-sm font-semibold text-foreground">{title}</span>
-      {badge && (
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-[10px] font-semibold text-muted-foreground">
-          {badge}
-        </span>
-      )}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Status label — Türkçe çeviri + canlı maçlarda dakika
 // ---------------------------------------------------------------------------
 
@@ -436,8 +267,163 @@ function translateStatus(short: string, elapsed: number | null, elapsedExtra?: n
 }
 
 // ---------------------------------------------------------------------------
+// Sekme verisi çekimi — her sekme yalnızca kendisi açıldığında (open=true)
+// kendi endpoint'ini çağırır. Panel açılırken hiçbir sekme verisi çekilmez.
+// ---------------------------------------------------------------------------
+
+type SectionStatus = "idle" | "loading" | "success" | "empty" | "error"
+
+interface SectionState<T> {
+  status: SectionStatus
+  data: T | null
+  error: string | null
+}
+
+function useLazySection<T>(url: string, open: boolean) {
+  const [state, setState] = useState<SectionState<T>>({ status: "idle", data: null, error: null })
+  // Bkz. team-panel.tsx'teki useTeamSection — aynı "startedRef" deseni,
+  // idle->loading geçişinin effect'i tekrar tetikleyip isteği iptal etmesini önler.
+  const startedRef = useRef(false)
+
+  useEffect(() => {
+    if (!open || startedRef.current) return
+    startedRef.current = true
+    let cancelled = false
+    setState({ status: "loading", data: null, error: null })
+    fetch(url, { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          throw new Error(body?.error ?? `Sunucu hatası: ${res.status}`)
+        }
+        return res.json() as Promise<{ data: T | null }>
+      })
+      .then((json) => {
+        if (cancelled) return
+        setState({ status: json.data === null ? "empty" : "success", data: json.data, error: null })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setState({ status: "error", data: null, error: err instanceof Error ? err.message : "Bir hata oluştu" })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, url])
+
+  const retry = useCallback(() => {
+    startedRef.current = false
+    setState({ status: "idle", data: null, error: null })
+  }, [])
+  return { ...state, retry }
+}
+
+function SectionHeader({ icon, title, open, onToggle, badge }: {
+  icon: React.ReactNode; title: string; open: boolean; onToggle: () => void; badge?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-secondary/40"
+      aria-expanded={open}
+    >
+      <div className="flex flex-1 min-w-0 items-center gap-2.5">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          {icon}
+        </span>
+        <span className="text-sm font-semibold text-foreground">{title}</span>
+        {badge && (
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-secondary px-1.5 text-[10px] font-semibold text-muted-foreground">
+            {badge}
+          </span>
+        )}
+      </div>
+      <div className="shrink-0 rounded-full border border-border/60 p-0.5">
+        {open ? (
+          <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
+      </div>
+    </button>
+  )
+}
+
+function SectionShell({ open, onToggle, icon, title, children }: {
+  open: boolean
+  onToggle: () => void
+  icon: React.ReactNode
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="rounded-2xl border border-border/70 bg-card overflow-hidden">
+      <SectionHeader icon={icon} title={title} open={open} onToggle={onToggle} />
+      {open && (
+        <div className="border-t border-border/60 px-4 pb-4 pt-3.5">
+          {children}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function SectionLoading({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+      <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+      <p className="text-xs font-medium text-muted-foreground">{label} yükleniyor...</p>
+    </div>
+  )
+}
+
+function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+      <AlertTriangle className="h-5 w-5 text-destructive/70" />
+      <p className="text-xs font-bold text-destructive">Veri alınamadı</p>
+      {error && <p className="text-[11px] text-muted-foreground">{error}</p>}
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-1 flex items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-secondary/70"
+      >
+        <RotateCw className="h-3 w-3" />
+        Tekrar dene
+      </button>
+    </div>
+  )
+}
+
+function SectionEmptyState({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+      <Inbox className="h-5 w-5 text-muted-foreground/50" />
+      <p className="text-xs text-muted-foreground">Bu maç için {label} bulunamadı.</p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
+
+function EventsSection({ fixtureId, homeName }: { fixtureId: number; homeName: string }) {
+  const [open, setOpen] = useState(false)
+  const { status, data, error, retry } = useLazySection<MatchEvent[]>(
+    `/api/analyze/section?fixtureId=${fixtureId}&section=events`,
+    open,
+  )
+  return (
+    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<Activity className="h-3.5 w-3.5" />} title="Maç Olayları">
+      {status === "loading" && <SectionLoading label="Maç olayları" />}
+      {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+      {status === "empty" && <SectionEmptyState label="maç olayı" />}
+      {status === "success" && data && <EventsList events={data} homeName={homeName} />}
+    </SectionShell>
+  )
+}
 
 const EVENT_DETAIL_TR: Record<string, string> = {
   "Normal Goal": "Normal Gol",
@@ -564,10 +550,39 @@ function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: stri
 }
 
 // ---------------------------------------------------------------------------
-// Player Stats — per-match performance table (NEW)
+// Player Stats — per-match performance table
 // ---------------------------------------------------------------------------
 
 function PlayerStatsSection({
+  fixtureId,
+  home,
+  away,
+}: {
+  fixtureId: number
+  home: { id: number; name: string; logo: string }
+  away: { id: number; name: string; logo: string }
+}) {
+  const [open, setOpen] = useState(false)
+  const { status, data, error, retry } = useLazySection<FixturePlayerStat[]>(
+    `/api/analyze/section?fixtureId=${fixtureId}&section=playerStats`,
+    open,
+  )
+  return (
+    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<Star className="h-3.5 w-3.5" />} title="Oyuncu Performansları">
+      {status === "loading" && <SectionLoading label="Oyuncu performansları" />}
+      {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+      {status === "empty" && <SectionEmptyState label="oyuncu performans verisi" />}
+      {status === "success" && data && (
+        <PlayerStatsTable
+          home={{ team: home, players: data.filter((p) => p.teamId === home.id) }}
+          away={{ team: away, players: data.filter((p) => p.teamId === away.id) }}
+        />
+      )}
+    </SectionShell>
+  )
+}
+
+function PlayerStatsTable({
   home,
   away,
 }: {
@@ -612,7 +627,7 @@ function PlayerStatsSection({
               <th className="pb-2 text-center font-semibold text-amber-500 w-9" title="Puan">Pn</th>
               <th className="pb-2 text-center font-semibold text-primary w-9" title="Gol">G</th>
               <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Asist">A</th>
-              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="��ut">Şt</th>
+              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Şut">Şt</th>
               <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="İsabetli Şut">İŞ</th>
               <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Pas">Ps</th>
               <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Dripling">Dr</th>
@@ -718,6 +733,22 @@ function translateStat(type: string): string {
   return STAT_TYPE_TR[type] ?? type
 }
 
+function StatisticsSection({ fixtureId, homeName, awayName }: { fixtureId: number; homeName: string; awayName: string }) {
+  const [open, setOpen] = useState(false)
+  const { status, data, error, retry } = useLazySection<StatItem[]>(
+    `/api/analyze/section?fixtureId=${fixtureId}&section=statistics`,
+    open,
+  )
+  return (
+    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<BarChart3 className="h-3.5 w-3.5" />} title="Maç İstatistikleri">
+      {status === "loading" && <SectionLoading label="Maç istatistikleri" />}
+      {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+      {status === "empty" && <SectionEmptyState label="maç istatistiği" />}
+      {status === "success" && data && <StatsList stats={data} homeName={homeName} awayName={awayName} />}
+    </SectionShell>
+  )
+}
+
 function StatsList({ stats, homeName, awayName }: { stats: StatItem[]; homeName: string; awayName: string }) {
   const toNum = (v: string | number | null) =>
     typeof v === "string" ? Number.parseFloat(v.replace("%", "")) : (v ?? 0)
@@ -762,6 +793,22 @@ function StatsList({ stats, homeName, awayName }: { stats: StatItem[]; homeName:
 // ---------------------------------------------------------------------------
 // Lineups — formation grid görselleştirmesi + oyuncu listesi
 // ---------------------------------------------------------------------------
+
+function LineupsSection({ fixtureId }: { fixtureId: number }) {
+  const [open, setOpen] = useState(false)
+  const { status, data, error, retry } = useLazySection<TeamLineup[]>(
+    `/api/analyze/section?fixtureId=${fixtureId}&section=lineups`,
+    open,
+  )
+  return (
+    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<Users className="h-3.5 w-3.5" />} title="Kadrolar">
+      {status === "loading" && <SectionLoading label="Kadrolar" />}
+      {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+      {status === "empty" && <SectionEmptyState label="kadro" />}
+      {status === "success" && data && <LineupsView lineups={data} />}
+    </SectionShell>
+  )
+}
 
 function LineupsView({ lineups }: { lineups: TeamLineup[] }) {
   return (
@@ -841,6 +888,34 @@ function PlayerLineupRow({ player, isStarter }: { player: LineupPlayer; isStarte
 // Standings
 // ---------------------------------------------------------------------------
 
+function StandingsSection({
+  fixtureId,
+  leagueId,
+  season,
+  homeId,
+  awayId,
+}: {
+  fixtureId: number
+  leagueId: number
+  season: number
+  homeId: number
+  awayId: number
+}) {
+  const [open, setOpen] = useState(false)
+  const { status, data, error, retry } = useLazySection<StandingRow[]>(
+    `/api/analyze/section?fixtureId=${fixtureId}&section=standings&leagueId=${leagueId}&season=${season}&homeId=${homeId}&awayId=${awayId}`,
+    open,
+  )
+  return (
+    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<Shield className="h-3.5 w-3.5" />} title="Puan Durumu">
+      {status === "loading" && <SectionLoading label="Puan durumu" />}
+      {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+      {status === "empty" && <SectionEmptyState label="puan durumu" />}
+      {status === "success" && data && <StandingsTable standings={data} homeId={homeId} awayId={awayId} />}
+    </SectionShell>
+  )
+}
+
 function StandingsTable({ standings, homeId, awayId }: { standings: StandingRow[]; homeId: number; awayId: number }) {
   return (
     <div className="overflow-x-auto -mx-1">
@@ -894,6 +969,40 @@ function StandingsTable({ standings, homeId, awayId }: { standings: StandingRow[
 // ---------------------------------------------------------------------------
 // Team season stats
 // ---------------------------------------------------------------------------
+
+function TeamStatsSection({
+  fixtureId,
+  home,
+  away,
+  leagueId,
+  season,
+}: {
+  fixtureId: number
+  home: { id: number; name: string; logo: string }
+  away: { id: number; name: string; logo: string }
+  leagueId: number
+  season: number
+}) {
+  const [open, setOpen] = useState(false)
+  const url =
+    `/api/analyze/section?fixtureId=${fixtureId}&section=teamStats&leagueId=${leagueId}&season=${season}` +
+    `&homeId=${home.id}&homeName=${encodeURIComponent(home.name)}&homeLogo=${encodeURIComponent(home.logo)}` +
+    `&awayId=${away.id}&awayName=${encodeURIComponent(away.name)}&awayLogo=${encodeURIComponent(away.logo)}`
+  const { status, data, error, retry } = useLazySection<{ homeStats: TeamSeasonStats | null; awayStats: TeamSeasonStats | null }>(url, open)
+  return (
+    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<TrendingUp className="h-3.5 w-3.5" />} title="Sezon İstatistikleri">
+      {status === "loading" && <SectionLoading label="Sezon istatistikleri" />}
+      {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+      {status === "empty" && <SectionEmptyState label="sezon istatistiği" />}
+      {status === "success" && data && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {data.homeStats && <TeamStatsCard stats={data.homeStats} label="Ev Sahibi" />}
+          {data.awayStats && <TeamStatsCard stats={data.awayStats} label="Deplasman" />}
+        </div>
+      )}
+    </SectionShell>
+  )
+}
 
 function TeamStatsCard({ stats, label }: { stats: TeamSeasonStats; label: string }) {
   return (
@@ -969,10 +1078,38 @@ function ResultBadge({ result }: { result: "W" | "D" | "L" }) {
 // H2H
 // ---------------------------------------------------------------------------
 
-function H2HList({
-  h2h,
+function H2HSection({
+  fixtureId,
   homeId,
   awayId,
+  homeName,
+  awayName,
+}: {
+  fixtureId: number
+  homeId: number
+  awayId: number
+  homeName: string
+  awayName: string
+}) {
+  const [open, setOpen] = useState(false)
+  const { status, data, error, retry } = useLazySection<FormGame[]>(
+    `/api/analyze/section?fixtureId=${fixtureId}&section=h2h&homeId=${homeId}&awayId=${awayId}`,
+    open,
+  )
+  return (
+    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<Swords className="h-3.5 w-3.5" />} title="Karşılıklı Maçlar">
+      {status === "loading" && <SectionLoading label="Karşılıklı maçlar" />}
+      {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+      {status === "empty" && <SectionEmptyState label="karşılıklı maç" />}
+      {status === "success" && data && (
+        <H2HList h2h={data} homeId={homeId} awayId={awayId} homeName={homeName} awayName={awayName} />
+      )}
+    </SectionShell>
+  )
+}
+
+function H2HList({
+  h2h,
   homeName,
   awayName,
 }: {
@@ -1049,6 +1186,22 @@ const INJURY_TYPE_TR: Record<string, string> = {
   "Missing Fixture": "Maçta Yok",
   "Questionable": "Şüpheli",
   "Out": "Dışarıda",
+}
+
+function InjuriesSection({ fixtureId }: { fixtureId: number }) {
+  const [open, setOpen] = useState(false)
+  const { status, data, error, retry } = useLazySection<InjuryItem[]>(
+    `/api/analyze/section?fixtureId=${fixtureId}&section=injuries`,
+    open,
+  )
+  return (
+    <SectionShell open={open} onToggle={() => setOpen((v) => !v)} icon={<AlertTriangle className="h-3.5 w-3.5" />} title="Sakatlık / Ceza">
+      {status === "loading" && <SectionLoading label="Sakatlık / ceza bilgisi" />}
+      {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+      {status === "empty" && <SectionEmptyState label="sakatlık / ceza kaydı" />}
+      {status === "success" && data && <InjuryList injuries={data} />}
+    </SectionShell>
+  )
 }
 
 function InjuryList({ injuries }: { injuries: InjuryItem[] }) {

@@ -239,7 +239,7 @@ function buildRecentForm(team: TeamInfo, raw: RawFixture[]): FormGame[] {
   return games
 }
 
-async function getTeamSeasonStats(
+export async function getTeamSeasonStats(
   team: TeamInfo,
   leagueId: number,
   season: number,
@@ -296,7 +296,7 @@ async function getTeamSeasonStats(
   }
 }
 
-async function getHeadToHead(homeId: number, awayId: number): Promise<FormGame[]> {
+export async function getHeadToHead(homeId: number, awayId: number): Promise<FormGame[]> {
   const raw = await safeFetch<RawFixture>("/fixtures/headtohead", { h2h: `${homeId}-${awayId}`, last: 8 }, 3600)
   raw.sort((a, b) => b.fixture.timestamp - a.fixture.timestamp)
   const games: FormGame[] = []
@@ -316,7 +316,7 @@ async function getHeadToHead(homeId: number, awayId: number): Promise<FormGame[]
   return games
 }
 
-async function getStandings(leagueId: number, season: number, teamIds: number[]): Promise<StandingRow[]> {
+export async function getStandings(leagueId: number, season: number, teamIds: number[]): Promise<StandingRow[]> {
   const raw = await safeFetch<any>("/standings", { league: leagueId, season }, 3600)
   if (raw.length === 0) return []
   const league = raw[0]?.league
@@ -388,7 +388,7 @@ async function getSquad(teamId: number): Promise<SquadPlayer[]> {
   }))
 }
 
-async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
+export async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
   const raw = await safeFetch<any>("/injuries", { fixture: fixtureId }, 1800)
   return raw.map((r) => ({
     team: r.team?.name ?? "",
@@ -399,7 +399,7 @@ async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
   }))
 }
 
-async function getEvents(fixtureId: number): Promise<MatchEvent[]> {
+export async function getEvents(fixtureId: number): Promise<MatchEvent[]> {
   const raw = await safeFetch<any>("/fixtures/events", { fixture: fixtureId }, 30)
   return raw.map((r) => ({
     minute: r.time?.elapsed ?? 0,
@@ -414,7 +414,7 @@ async function getEvents(fixtureId: number): Promise<MatchEvent[]> {
   }))
 }
 
-async function getStatistics(fixtureId: number): Promise<StatItem[]> {
+export async function getStatistics(fixtureId: number): Promise<StatItem[]> {
   const raw = await safeFetch<any>("/fixtures/statistics", { fixture: fixtureId }, 30)
   if (raw.length < 2) return []
   const home = raw[0]?.statistics ?? []
@@ -430,7 +430,7 @@ async function getStatistics(fixtureId: number): Promise<StatItem[]> {
   return items
 }
 
-async function getLineups(fixtureId: number): Promise<TeamLineup[]> {
+export async function getLineups(fixtureId: number): Promise<TeamLineup[]> {
   const raw = await safeFetch<any>("/fixtures/lineups", { fixture: fixtureId }, 300)
   const mapPlayers = (arr: any[]): LineupPlayer[] =>
     (arr ?? []).map((p) => ({
