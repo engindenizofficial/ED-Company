@@ -1,0 +1,346 @@
+"use client"
+
+import { forwardRef } from "react"
+import { Sparkles } from "lucide-react"
+import type { Fixture, MatchPrediction } from "@/lib/types"
+
+// ---------------------------------------------------------------------------
+// MatchSharePoster — sosyal medyada paylaşılabilir, afiş kalitesinde PNG
+// kartı. Bu bileşen her zaman AYNI (marka) renklerle render edilir; kullanıcının
+// açık/koyu tema tercihinden bağımsızdır — tıpkı bir logonun sabit renklerle
+// basılması gibi. Bu yüzden burada bilinçli olarak sabit hex/renk değerleri
+// kullanılır (uygulamanın genel tema token sistemi yerine).
+// ---------------------------------------------------------------------------
+
+const PALETTE = {
+  bg: "#080b12",
+  bgSoft: "#0d121c",
+  panel: "#11172400",
+  border: "rgba(255,255,255,0.09)",
+  borderStrong: "rgba(255,255,255,0.16)",
+  foreground: "#f7f9fb",
+  muted: "rgba(247,249,251,0.56)",
+  mutedSoft: "rgba(247,249,251,0.38)",
+  accent: "#3ee08a",
+  accentSoft: "rgba(62,224,138,0.12)",
+  accentBorder: "rgba(62,224,138,0.35)",
+}
+
+function winnerLabel(prediction: MatchPrediction, homeName: string, awayName: string): string {
+  if (prediction.winner === "home") return `${homeName} kazanır`
+  if (prediction.winner === "away") return `${awayName} kazanır`
+  return "Beraberlik"
+}
+
+export const MatchSharePoster = forwardRef<
+  HTMLDivElement,
+  { fixture: Fixture; prediction: MatchPrediction }
+>(function MatchSharePoster({ fixture, prediction }, ref) {
+  const { home, away, league } = fixture
+  const winner = winnerLabel(prediction, home.name, away.name)
+  const factors = prediction.keyFactors.slice(0, 2)
+  const matchDate = new Date(fixture.date).toLocaleDateString("tr-TR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  })
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        width: 1080,
+        height: 1350,
+        backgroundColor: PALETTE.bg,
+        color: PALETTE.foreground,
+        fontFamily:
+          "var(--font-sans), 'Geist', ui-sans-serif, system-ui, sans-serif",
+        position: "relative",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Faint scoreboard grid texture */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          backgroundImage:
+            "repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 64px)",
+          pointerEvents: "none",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: -180,
+          right: -180,
+          width: 520,
+          height: 520,
+          borderRadius: "50%",
+          background:
+            "radial-gradient(circle, rgba(62,224,138,0.16) 0%, rgba(62,224,138,0) 70%)",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Top accent bar */}
+      <div style={{ height: 6, background: PALETTE.accent, flexShrink: 0 }} />
+
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, padding: "56px 64px 48px" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: PALETTE.accent, display: "inline-block" }} />
+            <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em", color: PALETTE.foreground }}>
+              edcompanyofficial.com
+            </span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              border: `1.5px solid ${PALETTE.accentBorder}`,
+              background: PALETTE.accentSoft,
+              borderRadius: 999,
+              padding: "9px 20px",
+            }}
+          >
+            <Sparkles width={16} height={16} color={PALETTE.accent} />
+            <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "0.08em", color: PALETTE.accent }}>
+              ED ANALYTICS
+            </span>
+          </div>
+        </div>
+
+        {/* League strip */}
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 32 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              border: `1px solid ${PALETTE.border}`,
+              borderRadius: 999,
+              padding: "8px 20px",
+              background: "rgba(255,255,255,0.03)",
+            }}
+          >
+            {league.logo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={league.logo || "/placeholder.svg"}
+                alt=""
+                crossOrigin="anonymous"
+                width={22}
+                height={22}
+                style={{ objectFit: "contain" }}
+              />
+            )}
+            <span style={{ fontSize: 15, fontWeight: 600, color: PALETTE.muted }}>
+              {league.name}
+              {league.round ? ` · ${league.round}` : ""}
+            </span>
+          </div>
+        </div>
+
+        {/* Teams row */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: 44, gap: 16 }}>
+          <TeamBlock name={home.name} logo={home.logo} />
+          <div style={{ paddingTop: 44, fontSize: 24, fontWeight: 700, color: PALETTE.mutedSoft }}>VS</div>
+          <TeamBlock name={away.name} logo={away.logo} align="right" />
+        </div>
+
+        {/* Hero prediction */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 40 }}>
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 800,
+              letterSpacing: "0.16em",
+              color: PALETTE.muted,
+              textTransform: "uppercase",
+            }}
+          >
+            Yapay Zekanın Tahmini
+          </span>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              gap: 20,
+              marginTop: 14,
+              fontFamily: "var(--font-mono), 'Geist Mono', ui-monospace, monospace",
+            }}
+          >
+            <span style={{ fontSize: 172, fontWeight: 800, lineHeight: 1, color: PALETTE.foreground }}>
+              {prediction.homeScore}
+            </span>
+            <span style={{ fontSize: 84, fontWeight: 300, color: PALETTE.mutedSoft }}>:</span>
+            <span style={{ fontSize: 172, fontWeight: 800, lineHeight: 1, color: PALETTE.foreground }}>
+              {prediction.awayScore}
+            </span>
+          </div>
+
+          <span
+            style={{
+              marginTop: 20,
+              borderRadius: 999,
+              border: `1.5px solid ${PALETTE.accentBorder}`,
+              background: PALETTE.accentSoft,
+              color: PALETTE.accent,
+              fontSize: 26,
+              fontWeight: 800,
+              padding: "12px 32px",
+            }}
+          >
+            {winner}
+          </span>
+
+          {/* Confidence card */}
+          <div
+            style={{
+              marginTop: 28,
+              display: "flex",
+              alignItems: "center",
+              gap: 18,
+              borderRadius: 20,
+              border: `1px solid ${PALETTE.borderStrong}`,
+              background: "rgba(255,255,255,0.04)",
+              padding: "18px 32px",
+            }}
+          >
+            <span style={{ fontSize: 17, fontWeight: 600, color: PALETTE.muted }}>Doğruluk Oranı</span>
+            <span
+              style={{
+                fontFamily: "var(--font-mono), 'Geist Mono', ui-monospace, monospace",
+                fontSize: 40,
+                fontWeight: 800,
+                color: PALETTE.accent,
+              }}
+            >
+              %{prediction.confidence}
+            </span>
+          </div>
+        </div>
+
+        {/* Key factors */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: "auto", paddingTop: 40 }}>
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: PALETTE.mutedSoft,
+            }}
+          >
+            AI Analiz Gerekçesi
+          </span>
+          {factors.length > 0 ? (
+            factors.map((factor, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 14,
+                  borderRadius: 16,
+                  border: `1px solid ${PALETTE.border}`,
+                  background: "rgba(255,255,255,0.03)",
+                  padding: "18px 22px",
+                }}
+              >
+                <span
+                  style={{
+                    marginTop: 4,
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: PALETTE.accent,
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ fontSize: 20, lineHeight: 1.45, fontWeight: 500, color: PALETTE.foreground }}>
+                  {factor}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div
+              style={{
+                borderRadius: 16,
+                border: `1px solid ${PALETTE.border}`,
+                background: "rgba(255,255,255,0.03)",
+                padding: "18px 22px",
+                fontSize: 20,
+                lineHeight: 1.45,
+                color: PALETTE.foreground,
+              }}
+            >
+              {prediction.summary}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: 36,
+            paddingTop: 24,
+            borderTop: `1px solid ${PALETTE.border}`,
+          }}
+        >
+          <span style={{ fontSize: 15, fontWeight: 600, color: PALETTE.mutedSoft }}>edcompanyofficial.com</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: PALETTE.mutedSoft }}>{matchDate}</span>
+        </div>
+      </div>
+    </div>
+  )
+})
+
+function TeamBlock({ name, logo, align = "left" }: { name: string; logo: string; align?: "left" | "right" }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 14,
+        width: 260,
+        textAlign: "center",
+      }}
+    >
+      {logo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logo || "/placeholder.svg"}
+          alt=""
+          crossOrigin="anonymous"
+          width={96}
+          height={96}
+          style={{ objectFit: "contain" }}
+        />
+      )}
+      <span
+        style={{
+          fontSize: 24,
+          fontWeight: 700,
+          lineHeight: 1.25,
+          color: PALETTE.foreground,
+          textAlign: align === "left" ? "center" : "center",
+        }}
+      >
+        {name}
+      </span>
+    </div>
+  )
+}

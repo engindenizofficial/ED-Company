@@ -39,6 +39,7 @@ import { TeamButton } from "./team-panel"
 import { PlayerButton } from "./player-panel"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { MatchVoteBar } from "@/components/match-vote-bar"
+import { MatchShareActions } from "@/components/match-share-actions"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
@@ -133,6 +134,11 @@ export function AnalysisPanel({
           awayName={away.name}
           onPredict={isPredictable ? onPredict : undefined}
         />
+      )}
+
+      {/* Tahmin varsa: sosyal medyada paylaşılabilir afiş kartı üret/indir */}
+      {hasPrediction && prediction && (
+        <MatchShareActions fixture={fixture} prediction={prediction} />
       )}
 
       {/* Yan yana sekmeler — ilk sekme otomatik açılır, diğerleri sadece seçilince veri çeker */}
@@ -682,7 +688,7 @@ function PlayerStatsTable({
                   <td className="py-2 text-center tabular-nums text-muted-foreground">{p.shotsOn ?? "—"}</td>
                   <td className="py-2 text-center tabular-nums text-muted-foreground">{p.passes ?? "—"}</td>
                   <td className="py-2 text-center tabular-nums text-muted-foreground">{p.dribbles ?? "—"}</td>
-                  <td className="py-2 text-center tabular-nums text-muted-foreground">{p.tackles ?? "—"}</td>
+                  <td className="py-2 text-center tabular-nums text-muted-foreground">{p.tackles ?? "���"}</td>
                   <td className="py-2 text-center">
                     {p.redCard ? (
                       <span className="inline-block h-3.5 w-2.5 rounded-sm bg-destructive" title="Kırmızı Kart" />
