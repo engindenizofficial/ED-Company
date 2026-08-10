@@ -1,6 +1,6 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { useRef, type ReactNode, type WheelEvent } from "react"
 import { cn } from "@/lib/utils"
 
 export interface PanelTabItem {
@@ -24,9 +24,33 @@ export function PanelTabBar({
   active: string
   onChange: (key: string) => void
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Çoğu fare/trackpad varsayılan olarak yalnızca dikey kaydırma üretir.
+  // Dikey tekerlek hareketini yatay kaydırmaya çeviriyoruz ki PC'de de
+  // gizli kalan sekmelere fare tekerleğiyle ulaşılabilsin.
+  const handleWheel = (e: WheelEvent<HTMLDivElement>) => {
+    const el = scrollRef.current
+    if (!el) return
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY
+      e.preventDefault()
+    }
+  }
+
   return (
     <div
-      className="flex gap-1 overflow-x-auto border-b border-border/60 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      ref={scrollRef}
+      onWheel={handleWheel}
+      className={cn(
+        "flex gap-1 overflow-x-auto border-b border-border/60 px-1 pb-1",
+        // Mobilde parmakla kaydırma her zaman çalışır. PC'de fare tekerleği/trackpad
+        // ile de kaydırılabilir; gizli scrollbar yerine ince, görünür bir scrollbar
+        // gösteriyoruz ki gizlenen sekmelere ulaşılabilsin.
+        "touch-pan-x [-webkit-overflow-scrolling:touch] [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]",
+        "[&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent",
+        "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border",
+      )}
       role="tablist"
     >
       {tabs.map((tab) => {

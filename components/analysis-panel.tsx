@@ -311,13 +311,17 @@ interface SectionState<T> {
 
 function useLazySection<T>(url: string, open: boolean) {
   const [state, setState] = useState<SectionState<T>>({ status: "idle", data: null, error: null })
-  // Bkz. team-panel.tsx'teki useTeamSection — aynı "startedRef" deseni,
-  // idle->loading geçişinin effect'i tekrar tetikleyip isteği iptal etmesini önler.
-  const startedRef = useRef(false)
+  // "hasLoadedRef" isteğin tamamlanıp tamamlanmadığını takip eder. React 18/19
+  // geliştirme modunda (Strict Mode) her effect mount->unmount->mount şeklinde
+  // iki kez çalışır: ilk çalıştırma başlattığı isteği cleanup'ta iptal eder,
+  // ikinci çalıştırma ise gerçek isteği başlatıp tamamlar. Bu yüzden "zaten
+  // başladı mı" kontrolünü sonuçlanmamış bir isteğin iptal edilmesine izin
+  // verecek şekilde yapıyoruz — aksi halde ikinci (gerçek) mount hiç istek
+  // başlatmaz ve arayüz sonsuza kadar "yükleniyor" durumunda kalır.
+  const hasLoadedRef = useRef(false)
 
   useEffect(() => {
-    if (!open || startedRef.current) return
-    startedRef.current = true
+    if (!open || hasLoadedRef.current) return
     let cancelled = false
     setState({ status: "loading", data: null, error: null })
     fetch(url, { cache: "no-store" })
@@ -330,10 +334,12 @@ function useLazySection<T>(url: string, open: boolean) {
       })
       .then((json) => {
         if (cancelled) return
+        hasLoadedRef.current = true
         setState({ status: json.data === null ? "empty" : "success", data: json.data, error: null })
       })
       .catch((err) => {
         if (cancelled) return
+        hasLoadedRef.current = true
         setState({ status: "error", data: null, error: err instanceof Error ? err.message : "Bir hata oluştu" })
       })
     return () => {
@@ -342,7 +348,7 @@ function useLazySection<T>(url: string, open: boolean) {
   }, [open, url])
 
   const retry = useCallback(() => {
-    startedRef.current = false
+    hasLoadedRef.current = false
     setState({ status: "idle", data: null, error: null })
   }, [])
   return { ...state, retry }
