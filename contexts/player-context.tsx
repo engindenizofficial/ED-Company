@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useState } from "react"
-import type { PlayerPageData } from "@/lib/types"
+import type { PlayerProfile } from "@/lib/types"
 
 export interface PlayerInfo {
   id: number
@@ -11,7 +11,11 @@ export interface PlayerInfo {
 
 interface PlayerPanelState {
   player: PlayerInfo
-  data: PlayerPageData | null
+  // Panel header'ı için hafif özet (isim/foto/yaş/pozisyon/mevcut takım).
+  // Diğer tüm veriler (sezon istatistikleri, kariyer özeti, kupalar,
+  // transferler, sakatlık geçmişi) sekmelere tıklandığında ayrı ayrı çekilir
+  // — bkz. components/player-panel.tsx içindeki usePlayerSection hook'u.
+  profile: PlayerProfile | null
   loading: boolean
   error: string | null
 }
@@ -28,23 +32,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [panel, setPanel] = useState<PlayerPanelState | null>(null)
 
   const openPlayer = useCallback(async (player: PlayerInfo) => {
-    setPanel({ player, data: null, loading: true, error: null })
+    // Start loading immediately
+    setPanel({ player, profile: null, loading: true, error: null })
 
     try {
-      const res = await fetch(`/api/player?playerId=${player.id}&t=${Date.now()}`, {
-        cache: "no-store",
-      })
+      const res = await fetch(`/api/player?playerId=${player.id}`, { cache: "no-store" })
       if (!res.ok) throw new Error(`Sunucu hatası: ${res.status}`)
-      const data: PlayerPageData = await res.json()
+      const profile: PlayerProfile = await res.json()
       setPanel((prev) =>
-        prev?.player.id === player.id ? { player, data, loading: false, error: null } : prev,
+        prev?.player.id === player.id ? { player, profile, loading: false, error: null } : prev,
       )
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Bir hata oluştu"
       setPanel((prev) =>
-        prev?.player.id === player.id
-          ? { player, data: null, loading: false, error: msg }
-          : prev,
+        prev?.player.id === player.id ? { player, profile: null, loading: false, error: msg } : prev,
       )
     }
   }, [])

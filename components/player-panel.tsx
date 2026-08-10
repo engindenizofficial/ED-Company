@@ -2,14 +2,17 @@
 
 import {
   Activity,
+  AlertTriangle,
   ArrowLeftRight,
   Award,
   Calendar,
   ChevronDown,
   ChevronUp,
   Flag,
+  Inbox,
   LoaderCircle,
   Medal,
+  RotateCw,
   Ruler,
   Shield,
   ShieldAlert,
@@ -20,12 +23,13 @@ import {
   Weight,
   X,
 } from "lucide-react"
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { usePlayerPanel } from "@/contexts/player-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { cn } from "@/lib/utils"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import type {
+  PlayerProfile,
   PlayerSeasonStats,
   SidelinedEntry,
   Transfer,
@@ -62,13 +66,13 @@ function SectionHeader({
       onClick={onToggle}
       className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-secondary/60"
     >
-      <div className="flex items-center gap-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           {icon}
         </span>
-        <span className="text-sm font-semibold text-foreground">{title}</span>
+        <span className="text-sm font-bold text-foreground">{title}</span>
         {badge !== undefined && (
-          <span className="rounded-full border border-border bg-card px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
+          <span className="rounded-full border border-border bg-secondary px-2 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
             {badge}
           </span>
         )}
@@ -83,221 +87,93 @@ function SectionHeader({
 }
 
 // ---------------------------------------------------------------------------
-// Season Stats Section
+// Sekme verisi çekimi — her sekme yalnızca kendisi açıldığında (open=true)
+// kendi endpoint'ini çağırır. Panel açılırken hiçbir sekme verisi çekilmez.
 // ---------------------------------------------------------------------------
 
-function SeasonStatsSection({ stats }: { stats: PlayerSeasonStats[] }) {
-  const [open, setOpen] = useState(false)
-  const [selectedIdx, setSelectedIdx] = useState(0)
+type SectionStatus = "idle" | "loading" | "success" | "empty" | "error"
 
-  if (stats.length === 0) return null
-  const s = stats[selectedIdx]
+interface SectionState<T> {
+  status: SectionStatus
+  data: T | null
+  error: string | null
+}
 
-  const goals = s.goals ?? 0
-  const assists = s.assists ?? 0
-  const appearances = s.appearances ?? 0
-  const lineups = s.lineups ?? 0
-  const minutes = s.minutes ?? 0
-  const yellow = s.yellowCards ?? 0
-  const yellowRed = s.yellowRedCards ?? 0
-  const red = s.redCards ?? 0
-  const rating = s.rating ? parseFloat(s.rating) : null
-  const shotsTotal = s.shotsTotal ?? 0
-  const shotsOn = s.shotsOn ?? 0
-  const passesTotal = s.passesTotal ?? 0
-  const passesKey = s.passesKey ?? 0
-  const passAccuracy = s.passesAccuracy ? parseFloat(s.passesAccuracy) : null
-  const tacklesTotal = s.tacklesTotal ?? 0
-  const interceptions = s.interceptions ?? 0
-  const blockedShots = s.blockedShots ?? 0
-  const duelsTotal = s.duelsTotal ?? 0
-  const duelsWon = s.duelsWon ?? 0
-  const dribblesAttempted = s.dribblesAttempted ?? 0
-  const dribblesSuccess = s.dribblesSuccess ?? 0
-  const foulsDrawn = s.foulsDrawn ?? 0
-  const foulsCommitted = s.foulsCommitted ?? 0
-  const offsides = s.offsides ?? 0
-  const penaltyWon = s.penaltyWon ?? 0
-  const penaltyScored = s.penaltyScored ?? 0
-  const penaltyMissed = s.penaltyMissed ?? 0
-  const penaltySaved = s.penaltySaved ?? 0
+function usePlayerSection<T>(playerId: number, section: string, open: boolean) {
+  const [state, setState] = useState<SectionState<T>>({ status: "idle", data: null, error: null })
+  // Effect'in kendi setState çağrısıyla (idle -> loading) yeniden tetiklenip
+  // az önce başlattığı isteği "cancelled" yapmasını önlemek için durumu state
+  // yerine ref'te takip ediyoruz.
+  const startedRef = useRef(false)
 
+  useEffect(() => {
+    if (!open || startedRef.current) return
+    startedRef.current = true
+    let cancelled = false
+    setState({ status: "loading", data: null, error: null })
+    fetch(`/api/player/section?playerId=${playerId}&section=${section}`, { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          throw new Error(body?.error ?? `Sunucu hatası: ${res.status}`)
+        }
+        return res.json() as Promise<{ data: T | null }>
+      })
+      .then((json) => {
+        if (cancelled) return
+        setState({ status: json.data === null ? "empty" : "success", data: json.data, error: null })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setState({ status: "error", data: null, error: err instanceof Error ? err.message : "Bir hata oluştu" })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, playerId, section])
+
+  const retry = useCallback(() => {
+    startedRef.current = false
+    setState({ status: "idle", data: null, error: null })
+  }, [])
+  return { ...state, retry }
+}
+
+function SectionLoading({ label }: { label: string }) {
   return (
-    <section className="flex flex-col gap-1">
-      <SectionHeader
-        icon={<Activity className="h-3.5 w-3.5" />}
-        title="Sezon İstatistikleri"
-        open={open}
-        onToggle={() => setOpen((p) => !p)}
-      />
-      {open && (
-        <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {/* Season selector */}
-          {stats.length > 1 && (
-            <div className="mb-4 flex flex-wrap gap-1.5">
-              {stats.map((st, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setSelectedIdx(i)}
-                  className={cn(
-                    "rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors",
-                    i === selectedIdx
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-muted-foreground hover:bg-secondary/80",
-                  )}
-                >
-                  {st.season}/{String(st.season + 1).slice(2)}
-                  {st.league.name ? ` · ${st.league.name}` : ""}
-                </button>
-              ))}
-            </div>
-          )}
+    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+      <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+      <p className="text-xs font-medium text-muted-foreground">{label} yükleniyor...</p>
+    </div>
+  )
+}
 
-          {/* Team & League */}
-          <div className="mb-4 flex items-center gap-3">
-            {s.team.logo && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={s.team.logo} alt="" className="h-8 w-8 object-contain" />
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold text-foreground">{s.team.name}</p>
-              <div className="flex items-center gap-1.5">
-                {s.league.logo && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={s.league.logo} alt="" className="h-3.5 w-3.5 object-contain" />
-                )}
-                <p className="truncate text-[11px] text-muted-foreground">{s.league.name}</p>
-              </div>
-            </div>
-            {rating != null && (
-              <div className="flex flex-col items-center rounded-xl border border-border/60 bg-secondary/30 px-3 py-2">
-                <span className="text-lg font-black tabular-nums text-primary">{rating.toFixed(1)}</span>
-                <span className="text-[9px] text-muted-foreground">Rating</span>
-              </div>
-            )}
-          </div>
+function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+      <AlertTriangle className="h-5 w-5 text-destructive/70" />
+      <p className="text-xs font-bold text-destructive">Veri alınamadı</p>
+      {error && <p className="text-[11px] text-muted-foreground">{error}</p>}
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-1 flex items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-secondary/70"
+      >
+        <RotateCw className="h-3 w-3" />
+        Tekrar dene
+      </button>
+    </div>
+  )
+}
 
-          {/* Key stats grid */}
-          <div className="mb-4 grid grid-cols-4 gap-2">
-            {[
-              { label: "Gol", value: goals, color: "text-primary" },
-              { label: "Asist", value: assists, color: "text-foreground" },
-              { label: "Maç", value: appearances, color: "text-foreground" },
-              { label: "İlk 11", value: lineups, color: "text-muted-foreground" },
-            ].map(({ label, value, color }) => (
-              <div
-                key={label}
-                className="flex flex-col items-center gap-0.5 rounded-xl border border-border/60 bg-secondary/30 px-2 py-3"
-              >
-                <span className={cn("text-xl font-black tabular-nums leading-none", color)}>{value}</span>
-                <span className="mt-1 text-center text-[10px] leading-tight text-muted-foreground">{label}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Detailed stats rows */}
-          <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
-            <StatRow label="Oynanan dakika" value={`${minutes.toLocaleString("tr-TR")} dk`} />
-            {shotsTotal > 0 && (
-              <StatRow
-                label="Şut / İsabetli"
-                value={`${shotsTotal} / ${shotsOn}`}
-                sub={shotsTotal > 0 ? `${Math.round((shotsOn / shotsTotal) * 100)}% isabet` : undefined}
-              />
-            )}
-            {passesTotal > 0 && (
-              <StatRow
-                label="Pas"
-                value={passesTotal.toLocaleString("tr-TR")}
-                sub={[
-                  passAccuracy != null ? `${passAccuracy.toFixed(0)}% isabet` : null,
-                  passesKey > 0 ? `${passesKey} kilit pas` : null,
-                ].filter(Boolean).join(" · ") || undefined}
-              />
-            )}
-            {tacklesTotal > 0 && (
-              <StatRow
-                label="Top kapma"
-                value={tacklesTotal.toString()}
-                sub={[
-                  interceptions > 0 ? `${interceptions} müdahale` : null,
-                  blockedShots > 0 ? `${blockedShots} blok` : null,
-                ].filter(Boolean).join(" · ") || undefined}
-              />
-            )}
-            {duelsTotal > 0 && (
-              <StatRow
-                label="İkili mücadele"
-                value={`${duelsWon} / ${duelsTotal}`}
-                sub={duelsTotal > 0 ? `${Math.round((duelsWon / duelsTotal) * 100)}% kazanıldı` : undefined}
-              />
-            )}
-            {dribblesAttempted > 0 && (
-              <StatRow
-                label="Dribling"
-                value={`${dribblesSuccess} / ${dribblesAttempted}`}
-                sub={dribblesAttempted > 0 ? `${Math.round((dribblesSuccess / dribblesAttempted) * 100)}% başarı` : undefined}
-              />
-            )}
-            {(foulsDrawn > 0 || foulsCommitted > 0) && (
-              <StatRow
-                label="Faul kazanıldı / yapıldı"
-                value={`${foulsDrawn} / ${foulsCommitted}`}
-              />
-            )}
-            {offsides > 0 && (
-              <StatRow label="Ofsayt" value={offsides.toString()} />
-            )}
-          </div>
-
-          {/* Cards */}
-          {(yellow > 0 || yellowRed > 0 || red > 0) && (
-            <div className="mt-3 flex items-center gap-2">
-              {yellow > 0 && (
-                <div className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-secondary/30 px-2.5 py-1.5">
-                  <span className="inline-block h-3.5 w-2.5 rounded-[2px] bg-yellow-400" />
-                  <span className="text-xs font-black tabular-nums text-foreground">{yellow}</span>
-                  <span className="text-[10px] text-muted-foreground">Sarı</span>
-                </div>
-              )}
-              {yellowRed > 0 && (
-                <div className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-secondary/30 px-2.5 py-1.5">
-                  <span className="inline-flex h-3.5 w-3 shrink-0">
-                    <span className="-mr-0.5 inline-block h-3.5 w-2 rounded-[2px] bg-yellow-400" />
-                    <span className="inline-block h-3.5 w-2 rounded-[2px] bg-red-500" />
-                  </span>
-                  <span className="text-xs font-black tabular-nums text-foreground">{yellowRed}</span>
-                  <span className="text-[10px] text-muted-foreground">Sarı-kırmızı</span>
-                </div>
-              )}
-              {red > 0 && (
-                <div className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-secondary/30 px-2.5 py-1.5">
-                  <span className="inline-block h-3.5 w-2.5 rounded-[2px] bg-red-500" />
-                  <span className="text-xs font-black tabular-nums text-foreground">{red}</span>
-                  <span className="text-[10px] text-muted-foreground">Kırmızı</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Penalty */}
-          {(penaltyScored > 0 || penaltyMissed > 0 || penaltyWon > 0 || penaltySaved > 0) && (
-            <div className="mt-3 rounded-xl border border-border/60 bg-secondary/20">
-              <p className="border-b border-border/60 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                Penaltı
-              </p>
-              <div className="flex flex-col divide-y divide-border/60">
-                {penaltyScored > 0 && <StatRow label="Gol" value={penaltyScored.toString()} />}
-                {penaltyMissed > 0 && <StatRow label="Kaçırılan" value={penaltyMissed.toString()} />}
-                {penaltyWon > 0 && <StatRow label="Kazanılan" value={penaltyWon.toString()} />}
-                {penaltySaved > 0 && <StatRow label="Kurtarılan" value={penaltySaved.toString()} />}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </section>
+function SectionEmptyState({ playerName, label }: { playerName: string; label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+      <Inbox className="h-5 w-5 text-muted-foreground/50" />
+      <p className="text-xs text-muted-foreground">
+        {playerName} için {label} bulunamadı.
+      </p>
+    </div>
   )
 }
 
@@ -318,14 +194,235 @@ function StatRow({ label, value, sub }: { label: string; value: string; sub?: st
 }
 
 // ---------------------------------------------------------------------------
+// Season Stats Section
+// ---------------------------------------------------------------------------
+
+function SeasonStatsSection({ playerId, playerName }: { playerId: number; playerName: string }) {
+  const [open, setOpen] = useState(false)
+  const [selectedIdx, setSelectedIdx] = useState(0)
+  const { status, data: stats, error, retry } = usePlayerSection<PlayerSeasonStats[]>(playerId, "stats", open)
+
+  const s = stats && stats.length > 0 ? stats[Math.min(selectedIdx, stats.length - 1)] : null
+
+  const goals = s?.goals ?? 0
+  const assists = s?.assists ?? 0
+  const appearances = s?.appearances ?? 0
+  const lineups = s?.lineups ?? 0
+  const minutes = s?.minutes ?? 0
+  const yellow = s?.yellowCards ?? 0
+  const yellowRed = s?.yellowRedCards ?? 0
+  const red = s?.redCards ?? 0
+  const rating = s?.rating ? parseFloat(s.rating) : null
+  const shotsTotal = s?.shotsTotal ?? 0
+  const shotsOn = s?.shotsOn ?? 0
+  const passesTotal = s?.passesTotal ?? 0
+  const passesKey = s?.passesKey ?? 0
+  const passAccuracy = s?.passesAccuracy ? parseFloat(s.passesAccuracy) : null
+  const tacklesTotal = s?.tacklesTotal ?? 0
+  const interceptions = s?.interceptions ?? 0
+  const blockedShots = s?.blockedShots ?? 0
+  const duelsTotal = s?.duelsTotal ?? 0
+  const duelsWon = s?.duelsWon ?? 0
+  const dribblesAttempted = s?.dribblesAttempted ?? 0
+  const dribblesSuccess = s?.dribblesSuccess ?? 0
+  const foulsDrawn = s?.foulsDrawn ?? 0
+  const foulsCommitted = s?.foulsCommitted ?? 0
+  const offsides = s?.offsides ?? 0
+  const penaltyWon = s?.penaltyWon ?? 0
+  const penaltyScored = s?.penaltyScored ?? 0
+  const penaltyMissed = s?.penaltyMissed ?? 0
+  const penaltySaved = s?.penaltySaved ?? 0
+
+  return (
+    <section className="flex flex-col gap-1">
+      <SectionHeader
+        icon={<Activity className="h-3.5 w-3.5" />}
+        title="Sezon İstatistikleri"
+        open={open}
+        onToggle={() => setOpen((p) => !p)}
+      />
+      {open && (
+        <div className="rounded-2xl border border-border/70 bg-card p-4">
+          {status === "loading" && <SectionLoading label="Sezon istatistikleri" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState playerName={playerName} label="sezon istatistiği verisi" />}
+          {status === "success" && s && (
+            <>
+              {/* Season selector */}
+              {stats && stats.length > 1 && (
+                <div className="mb-4 flex flex-wrap gap-1.5">
+                  {stats.map((st, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setSelectedIdx(i)}
+                      className={cn(
+                        "rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                        i === selectedIdx
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary text-muted-foreground hover:bg-secondary/80",
+                      )}
+                    >
+                      {st.season}/{String(st.season + 1).slice(2)}
+                      {st.league.name ? ` · ${st.league.name}` : ""}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Team & League */}
+              <div className="mb-4 flex items-center gap-3">
+                {s.team.logo && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={s.team.logo} alt="" className="h-8 w-8 object-contain" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-foreground">{s.team.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    {s.league.logo && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.league.logo} alt="" className="h-3.5 w-3.5 object-contain" />
+                    )}
+                    <p className="truncate text-[11px] text-muted-foreground">{s.league.name}</p>
+                  </div>
+                </div>
+                {rating != null && (
+                  <div className="flex flex-col items-center rounded-xl border border-border/60 bg-secondary/30 px-3 py-2">
+                    <span className="text-lg font-black tabular-nums text-primary">{rating.toFixed(1)}</span>
+                    <span className="text-[9px] text-muted-foreground">Rating</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Key stats grid */}
+              <div className="mb-4 grid grid-cols-4 gap-2">
+                {[
+                  { label: "Gol", value: goals, color: "text-primary" },
+                  { label: "Asist", value: assists, color: "text-foreground" },
+                  { label: "Maç", value: appearances, color: "text-foreground" },
+                  { label: "İlk 11", value: lineups, color: "text-muted-foreground" },
+                ].map(({ label, value, color }) => (
+                  <div
+                    key={label}
+                    className="flex flex-col items-center gap-0.5 rounded-xl border border-border/60 bg-secondary/30 px-2 py-3"
+                  >
+                    <span className={cn("text-xl font-black tabular-nums leading-none", color)}>{value}</span>
+                    <span className="mt-1 text-center text-[10px] leading-tight text-muted-foreground">{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Detailed stats rows */}
+              <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
+                <StatRow label="Oynanan dakika" value={`${minutes.toLocaleString("tr-TR")} dk`} />
+                {shotsTotal > 0 && (
+                  <StatRow
+                    label="Şut / İsabetli"
+                    value={`${shotsTotal} / ${shotsOn}`}
+                    sub={shotsTotal > 0 ? `${Math.round((shotsOn / shotsTotal) * 100)}% isabet` : undefined}
+                  />
+                )}
+                {passesTotal > 0 && (
+                  <StatRow
+                    label="Pas"
+                    value={passesTotal.toLocaleString("tr-TR")}
+                    sub={[
+                      passAccuracy != null ? `${passAccuracy.toFixed(0)}% isabet` : null,
+                      passesKey > 0 ? `${passesKey} kilit pas` : null,
+                    ].filter(Boolean).join(" · ") || undefined}
+                  />
+                )}
+                {tacklesTotal > 0 && (
+                  <StatRow
+                    label="Top kapma"
+                    value={tacklesTotal.toString()}
+                    sub={[
+                      interceptions > 0 ? `${interceptions} müdahale` : null,
+                      blockedShots > 0 ? `${blockedShots} blok` : null,
+                    ].filter(Boolean).join(" · ") || undefined}
+                  />
+                )}
+                {duelsTotal > 0 && (
+                  <StatRow
+                    label="İkili mücadele"
+                    value={`${duelsWon} / ${duelsTotal}`}
+                    sub={duelsTotal > 0 ? `${Math.round((duelsWon / duelsTotal) * 100)}% kazanıldı` : undefined}
+                  />
+                )}
+                {dribblesAttempted > 0 && (
+                  <StatRow
+                    label="Dribling"
+                    value={`${dribblesSuccess} / ${dribblesAttempted}`}
+                    sub={dribblesAttempted > 0 ? `${Math.round((dribblesSuccess / dribblesAttempted) * 100)}% başarı` : undefined}
+                  />
+                )}
+                {(foulsDrawn > 0 || foulsCommitted > 0) && (
+                  <StatRow label="Faul kazanıldı / yapıldı" value={`${foulsDrawn} / ${foulsCommitted}`} />
+                )}
+                {offsides > 0 && <StatRow label="Ofsayt" value={offsides.toString()} />}
+              </div>
+
+              {/* Cards */}
+              {(yellow > 0 || yellowRed > 0 || red > 0) && (
+                <div className="mt-3 flex items-center gap-2">
+                  {yellow > 0 && (
+                    <div className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-secondary/30 px-2.5 py-1.5">
+                      <span className="inline-block h-3.5 w-2.5 rounded-[2px] bg-yellow-400" />
+                      <span className="text-xs font-black tabular-nums text-foreground">{yellow}</span>
+                      <span className="text-[10px] text-muted-foreground">Sarı</span>
+                    </div>
+                  )}
+                  {yellowRed > 0 && (
+                    <div className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-secondary/30 px-2.5 py-1.5">
+                      <span className="inline-flex h-3.5 w-3 shrink-0">
+                        <span className="-mr-0.5 inline-block h-3.5 w-2 rounded-[2px] bg-yellow-400" />
+                        <span className="inline-block h-3.5 w-2 rounded-[2px] bg-red-500" />
+                      </span>
+                      <span className="text-xs font-black tabular-nums text-foreground">{yellowRed}</span>
+                      <span className="text-[10px] text-muted-foreground">Sarı-kırmızı</span>
+                    </div>
+                  )}
+                  {red > 0 && (
+                    <div className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-secondary/30 px-2.5 py-1.5">
+                      <span className="inline-block h-3.5 w-2.5 rounded-[2px] bg-red-500" />
+                      <span className="text-xs font-black tabular-nums text-foreground">{red}</span>
+                      <span className="text-[10px] text-muted-foreground">Kırmızı</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Penalty */}
+              {(penaltyScored > 0 || penaltyMissed > 0 || penaltyWon > 0 || penaltySaved > 0) && (
+                <div className="mt-3 rounded-xl border border-border/60 bg-secondary/20">
+                  <p className="border-b border-border/60 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Penaltı
+                  </p>
+                  <div className="flex flex-col divide-y divide-border/60">
+                    {penaltyScored > 0 && <StatRow label="Gol" value={penaltyScored.toString()} />}
+                    {penaltyMissed > 0 && <StatRow label="Kaçırılan" value={penaltyMissed.toString()} />}
+                    {penaltyWon > 0 && <StatRow label="Kazanılan" value={penaltyWon.toString()} />}
+                    {penaltySaved > 0 && <StatRow label="Kurtarılan" value={penaltySaved.toString()} />}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Career Summary Section
 // ---------------------------------------------------------------------------
 
-function CareerSummarySection({ stats }: { stats: PlayerSeasonStats[] }) {
+function CareerSummarySection({ playerId, playerName }: { playerId: number; playerName: string }) {
   const [open, setOpen] = useState(false)
-  if (stats.length < 2) return null
+  const { status, data: stats, error, retry } = usePlayerSection<PlayerSeasonStats[]>(playerId, "stats", open)
 
-  const totals = stats.reduce(
+  const totals = (stats ?? []).reduce(
     (acc, s) => ({
       goals: acc.goals + (s.goals ?? 0),
       assists: acc.assists + (s.assists ?? 0),
@@ -337,6 +434,8 @@ function CareerSummarySection({ stats }: { stats: PlayerSeasonStats[] }) {
     { goals: 0, assists: 0, appearances: 0, minutes: 0, yellow: 0, red: 0 },
   )
 
+  const hasEnoughSeasons = (stats?.length ?? 0) >= 2
+
   return (
     <section className="flex flex-col gap-1">
       <SectionHeader
@@ -344,97 +443,106 @@ function CareerSummarySection({ stats }: { stats: PlayerSeasonStats[] }) {
         title="Kariyer Özeti"
         open={open}
         onToggle={() => setOpen((p) => !p)}
-        badge={`${stats.length} sezon`}
+        badge={status === "success" && stats ? `${stats.length} sezon` : undefined}
       />
       {open && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {/* Totals */}
-          <div className="mb-4 grid grid-cols-3 gap-2">
-            {[
-              { label: "Toplam Gol", value: totals.goals, color: "text-primary" },
-              { label: "Toplam Asist", value: totals.assists, color: "text-foreground" },
-              { label: "Toplam Maç", value: totals.appearances, color: "text-foreground" },
-            ].map(({ label, value, color }) => (
-              <div
-                key={label}
-                className="flex flex-col items-center gap-0.5 rounded-xl border border-border/60 bg-secondary/30 px-2 py-3"
-              >
-                <span className={cn("text-xl font-black tabular-nums leading-none", color)}>{value}</span>
-                <span className="mt-1 text-center text-[10px] leading-tight text-muted-foreground">{label}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
-            <StatRow label="Toplam dakika" value={`${totals.minutes.toLocaleString("tr-TR")} dk`} />
-            <StatRow
-              label="Maç başı gol"
-              value={totals.appearances > 0 ? (totals.goals / totals.appearances).toFixed(2) : "–"}
-            />
-            {(totals.yellow > 0 || totals.red > 0) && (
-              <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
-                <span className="text-muted-foreground">Kartlar</span>
-                <div className="flex items-center gap-2">
-                  {totals.yellow > 0 && (
-                    <div className="flex items-center gap-1">
-                      <span className="inline-block h-3 w-2 rounded-[2px] bg-yellow-400" />
-                      <span className="font-black tabular-nums text-foreground">{totals.yellow}</span>
-                    </div>
-                  )}
-                  {totals.red > 0 && (
-                    <div className="flex items-center gap-1">
-                      <span className="inline-block h-3 w-2 rounded-[2px] bg-red-500" />
-                      <span className="font-black tabular-nums text-foreground">{totals.red}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Per-season table */}
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
-                  <th className="pb-1.5 pr-2 font-semibold">Sezon</th>
-                  <th className="pb-1.5 pr-2 font-semibold">Takım</th>
-                  <th className="pb-1.5 px-2 text-center font-semibold" title="Maç">M</th>
-                  <th className="pb-1.5 px-2 text-center font-semibold" title="Gol">G</th>
-                  <th className="pb-1.5 pl-2 text-center font-semibold" title="Asist">A</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {stats.map((s, i) => (
-                  <tr key={i} className="transition-colors hover:bg-secondary/40">
-                    <td className="py-2 pr-2 tabular-nums text-muted-foreground">
-                      {s.season}/{String(s.season + 1).slice(2)}
-                    </td>
-                    <td className="py-2 pr-2">
-                      <div className="flex items-center gap-1.5">
-                        {s.team.logo && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={s.team.logo} alt="" className="h-4 w-4 object-contain" />
-                        )}
-                        <span className="max-w-[80px] truncate font-semibold text-foreground">
-                          {s.team.name}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-2 px-2 text-center tabular-nums text-muted-foreground">
-                      {s.appearances ?? "–"}
-                    </td>
-                    <td className="py-2 px-2 text-center tabular-nums font-black text-primary">
-                      {s.goals ?? "–"}
-                    </td>
-                    <td className="py-2 pl-2 text-center tabular-nums font-semibold text-foreground">
-                      {s.assists ?? "–"}
-                    </td>
-                  </tr>
+          {status === "loading" && <SectionLoading label="Kariyer özeti" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {(status === "empty" || (status === "success" && !hasEnoughSeasons)) && (
+            <SectionEmptyState playerName={playerName} label="yeterli kariyer verisi" />
+          )}
+          {status === "success" && stats && hasEnoughSeasons && (
+            <>
+              {/* Totals */}
+              <div className="mb-4 grid grid-cols-3 gap-2">
+                {[
+                  { label: "Toplam Gol", value: totals.goals, color: "text-primary" },
+                  { label: "Toplam Asist", value: totals.assists, color: "text-foreground" },
+                  { label: "Toplam Maç", value: totals.appearances, color: "text-foreground" },
+                ].map(({ label, value, color }) => (
+                  <div
+                    key={label}
+                    className="flex flex-col items-center gap-0.5 rounded-xl border border-border/60 bg-secondary/30 px-2 py-3"
+                  >
+                    <span className={cn("text-xl font-black tabular-nums leading-none", color)}>{value}</span>
+                    <span className="mt-1 text-center text-[10px] leading-tight text-muted-foreground">{label}</span>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+
+              <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
+                <StatRow label="Toplam dakika" value={`${totals.minutes.toLocaleString("tr-TR")} dk`} />
+                <StatRow
+                  label="Maç başı gol"
+                  value={totals.appearances > 0 ? (totals.goals / totals.appearances).toFixed(2) : "–"}
+                />
+                {(totals.yellow > 0 || totals.red > 0) && (
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+                    <span className="text-muted-foreground">Kartlar</span>
+                    <div className="flex items-center gap-2">
+                      {totals.yellow > 0 && (
+                        <div className="flex items-center gap-1">
+                          <span className="inline-block h-3 w-2 rounded-[2px] bg-yellow-400" />
+                          <span className="font-black tabular-nums text-foreground">{totals.yellow}</span>
+                        </div>
+                      )}
+                      {totals.red > 0 && (
+                        <div className="flex items-center gap-1">
+                          <span className="inline-block h-3 w-2 rounded-[2px] bg-red-500" />
+                          <span className="font-black tabular-nums text-foreground">{totals.red}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Per-season table */}
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
+                      <th className="pb-1.5 pr-2 font-semibold">Sezon</th>
+                      <th className="pb-1.5 pr-2 font-semibold">Takım</th>
+                      <th className="pb-1.5 px-2 text-center font-semibold" title="Maç">M</th>
+                      <th className="pb-1.5 px-2 text-center font-semibold" title="Gol">G</th>
+                      <th className="pb-1.5 pl-2 text-center font-semibold" title="Asist">A</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {stats.map((s, i) => (
+                      <tr key={i} className="transition-colors hover:bg-secondary/40">
+                        <td className="py-2 pr-2 tabular-nums text-muted-foreground">
+                          {s.season}/{String(s.season + 1).slice(2)}
+                        </td>
+                        <td className="py-2 pr-2">
+                          <div className="flex items-center gap-1.5">
+                            {s.team.logo && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={s.team.logo} alt="" className="h-4 w-4 object-contain" />
+                            )}
+                            <span className="max-w-[80px] truncate font-semibold text-foreground">
+                              {s.team.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2 px-2 text-center tabular-nums text-muted-foreground">
+                          {s.appearances ?? "–"}
+                        </td>
+                        <td className="py-2 px-2 text-center tabular-nums font-black text-primary">
+                          {s.goals ?? "–"}
+                        </td>
+                        <td className="py-2 pl-2 text-center tabular-nums font-semibold text-foreground">
+                          {s.assists ?? "–"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
     </section>
@@ -445,13 +553,13 @@ function CareerSummarySection({ stats }: { stats: PlayerSeasonStats[] }) {
 // Trophies Section
 // ---------------------------------------------------------------------------
 
-function TrophiesSection({ trophies }: { trophies: TrophyType[] }) {
+function TrophiesSection({ playerId, playerName }: { playerId: number; playerName: string }) {
   const [open, setOpen] = useState(false)
-  if (trophies.length === 0) return null
+  const { status, data: trophies, error, retry } = usePlayerSection<TrophyType[]>(playerId, "trophies", open)
 
-  const won = trophies.filter((t) => t.place === "Winner")
-  const runnerUp = trophies.filter((t) => t.place === "Runner-up" || t.place === "2nd Place")
-  const other = trophies.filter(
+  const won = (trophies ?? []).filter((t) => t.place === "Winner")
+  const runnerUp = (trophies ?? []).filter((t) => t.place === "Runner-up" || t.place === "2nd Place")
+  const other = (trophies ?? []).filter(
     (t) => t.place !== "Winner" && t.place !== "Runner-up" && t.place !== "2nd Place",
   )
 
@@ -462,78 +570,76 @@ function TrophiesSection({ trophies }: { trophies: TrophyType[] }) {
         title="Kupa ve Şampiyonluklar"
         open={open}
         onToggle={() => setOpen((p) => !p)}
-        badge={won.length > 0 ? `${won.length} şampiyonluk` : trophies.length}
+        badge={status === "success" && trophies ? (won.length > 0 ? `${won.length} şampiyonluk` : trophies.length) : undefined}
       />
       {open && (
         <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card p-4">
-          {won.length > 0 && (
-            <div>
-              <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                <Trophy className="h-3 w-3 text-primary" /> Şampiyonluklar ({won.length})
-              </p>
-              <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
-                {won.map((t, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between px-3 py-2 text-xs"
-                  >
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-semibold text-foreground">{t.league}</span>
-                      {t.country && (
-                        <span className="text-[10px] text-muted-foreground">{toTurkishCountry(t.country)}</span>
-                      )}
-                    </div>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">{t.season}</span>
+          {status === "loading" && <SectionLoading label="Kupa ve şampiyonluklar" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState playerName={playerName} label="kupa/şampiyonluk verisi" />}
+          {status === "success" && trophies && (
+            <>
+              {won.length > 0 && (
+                <div>
+                  <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    <Trophy className="h-3 w-3 text-primary" /> Şampiyonluklar ({won.length})
+                  </p>
+                  <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
+                    {won.map((t, i) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-semibold text-foreground">{t.league}</span>
+                          {t.country && (
+                            <span className="text-[10px] text-muted-foreground">{toTurkishCountry(t.country)}</span>
+                          )}
+                        </div>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">{t.season}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {runnerUp.length > 0 && (
-            <div>
-              <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                <Medal className="h-3 w-3" /> İkinciler ({runnerUp.length})
-              </p>
-              <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
-                {runnerUp.map((t, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between px-3 py-2 text-xs"
-                  >
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-semibold text-foreground">{t.league}</span>
-                      {t.country && (
-                        <span className="text-[10px] text-muted-foreground">{toTurkishCountry(t.country)}</span>
-                      )}
-                    </div>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">{t.season}</span>
+                </div>
+              )}
+              {runnerUp.length > 0 && (
+                <div>
+                  <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    <Medal className="h-3 w-3" /> İkinciler ({runnerUp.length})
+                  </p>
+                  <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
+                    {runnerUp.map((t, i) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-semibold text-foreground">{t.league}</span>
+                          {t.country && (
+                            <span className="text-[10px] text-muted-foreground">{toTurkishCountry(t.country)}</span>
+                          )}
+                        </div>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">{t.season}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {other.length > 0 && (
-            <div>
-              <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                <Award className="h-3 w-3" /> Diğer ({other.length})
-              </p>
-              <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
-                {other.map((t, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between px-3 py-2 text-xs"
-                  >
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-semibold text-foreground">{t.league}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {t.place}{t.country ? ` · ${toTurkishCountry(t.country)}` : ""}
-                      </span>
-                    </div>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">{t.season}</span>
+                </div>
+              )}
+              {other.length > 0 && (
+                <div>
+                  <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    <Award className="h-3 w-3" /> Diğer ({other.length})
+                  </p>
+                  <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
+                    {other.map((t, i) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-semibold text-foreground">{t.league}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {t.place}{t.country ? ` · ${toTurkishCountry(t.country)}` : ""}
+                          </span>
+                        </div>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">{t.season}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -545,9 +651,10 @@ function TrophiesSection({ trophies }: { trophies: TrophyType[] }) {
 // Transfers Section
 // ---------------------------------------------------------------------------
 
-function TransfersSection({ transfers }: { transfers: Transfer[] }) {
+function TransfersSection({ playerId, playerName }: { playerId: number; playerName: string }) {
   const [open, setOpen] = useState(false)
-  if (transfers.length === 0) return null
+  const { status, data: transfers, error, retry } = usePlayerSection<Transfer[]>(playerId, "transfers", open)
+
   return (
     <section className="flex flex-col gap-1">
       <SectionHeader
@@ -555,40 +662,44 @@ function TransfersSection({ transfers }: { transfers: Transfer[] }) {
         title="Transfer Geçmişi"
         open={open}
         onToggle={() => setOpen((p) => !p)}
-        badge={transfers.length}
+        badge={status === "success" ? transfers?.length : undefined}
       />
       {open && (
-        <div className="flex flex-col divide-y divide-border/60 rounded-2xl border border-border/70 bg-card">
-          {transfers.map((t, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between gap-2 px-4 py-3 text-xs"
-            >
-              <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                {t.teamFrom.logo && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={t.teamFrom.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                )}
-                <span className="max-w-[70px] truncate text-muted-foreground">{t.teamFrom.name}</span>
-                <ArrowLeftRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-                {t.teamTo.logo && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={t.teamTo.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
-                )}
-                <span className="max-w-[70px] truncate font-semibold text-foreground">{t.teamTo.name}</span>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-0.5">
-                {t.type && t.type !== "N/A" && (
-                  <span className="rounded-full border border-border bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                    {t.type}
-                  </span>
-                )}
-                {t.date && (
-                  <span className="text-[10px] text-muted-foreground">{t.date.slice(0, 7)}</span>
-                )}
-              </div>
+        <div className="rounded-2xl border border-border/70 bg-card">
+          {status === "loading" && <SectionLoading label="Transfer geçmişi" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState playerName={playerName} label="transfer geçmişi verisi" />}
+          {status === "success" && transfers && (
+            <div className="flex flex-col divide-y divide-border/60">
+              {transfers.map((t, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 px-4 py-3 text-xs">
+                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                    {t.teamFrom.logo && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={t.teamFrom.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                    )}
+                    <span className="max-w-[70px] truncate text-muted-foreground">{t.teamFrom.name}</span>
+                    <ArrowLeftRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    {t.teamTo.logo && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={t.teamTo.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                    )}
+                    <span className="max-w-[70px] truncate font-semibold text-foreground">{t.teamTo.name}</span>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-0.5">
+                    {t.type && t.type !== "N/A" && (
+                      <span className="rounded-full border border-border bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {t.type}
+                      </span>
+                    )}
+                    {t.date && (
+                      <span className="text-[10px] text-muted-foreground">{t.date.slice(0, 7)}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </section>
@@ -599,27 +710,21 @@ function TransfersSection({ transfers }: { transfers: Transfer[] }) {
 // Sidelined Section
 // ---------------------------------------------------------------------------
 
-function SidelinedSection({ sidelined }: { sidelined: SidelinedEntry[] }) {
+function formatSidelinedDate(d: string | null): string {
+  if (!d) return "?"
+  return new Date(d).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+function sidelinedDurationDays(start: string | null, end: string | null): string | null {
+  if (!start || !end) return null
+  const diff = Math.round((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24))
+  if (diff < 0) return null
+  return `${diff} gün`
+}
+
+function SidelinedSection({ playerId, playerName }: { playerId: number; playerName: string }) {
   const [open, setOpen] = useState(false)
-  if (sidelined.length === 0) return null
-
-  function formatDate(d: string | null): string {
-    if (!d) return "?"
-    return new Date(d).toLocaleDateString("tr-TR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    })
-  }
-
-  function durationDays(start: string | null, end: string | null): string | null {
-    if (!start || !end) return null
-    const diff = Math.round(
-      (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24),
-    )
-    if (diff < 0) return null
-    return `${diff} gün`
-  }
+  const { status, data: sidelined, error, retry } = usePlayerSection<SidelinedEntry[]>(playerId, "sidelined", open)
 
   return (
     <section className="flex flex-col gap-1">
@@ -628,32 +733,36 @@ function SidelinedSection({ sidelined }: { sidelined: SidelinedEntry[] }) {
         title="Sakatlık / Ceza Geçmişi"
         open={open}
         onToggle={() => setOpen((p) => !p)}
-        badge={sidelined.length}
+        badge={status === "success" ? sidelined?.length : undefined}
       />
       {open && (
-        <div className="flex flex-col divide-y divide-border/60 rounded-2xl border border-border/70 bg-card">
-          {sidelined.map((s, i) => {
-            const dur = durationDays(s.start, s.end)
-            return (
-              <div
-                key={i}
-                className="flex items-center justify-between gap-2 px-4 py-3 text-xs"
-              >
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="truncate font-semibold text-foreground">{s.type}</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {formatDate(s.start)}
-                    {s.end ? ` – ${formatDate(s.end)}` : " – devam"}
-                  </span>
-                </div>
-                {dur && (
-                  <span className="shrink-0 rounded-full border border-border bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                    {dur}
-                  </span>
-                )}
-              </div>
-            )
-          })}
+        <div className="rounded-2xl border border-border/70 bg-card">
+          {status === "loading" && <SectionLoading label="Sakatlık / ceza geçmişi" />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState playerName={playerName} label="sakatlık/ceza verisi" />}
+          {status === "success" && sidelined && (
+            <div className="flex flex-col divide-y divide-border/60">
+              {sidelined.map((s, i) => {
+                const dur = sidelinedDurationDays(s.start, s.end)
+                return (
+                  <div key={i} className="flex items-center justify-between gap-2 px-4 py-3 text-xs">
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="truncate font-semibold text-foreground">{s.type}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatSidelinedDate(s.start)}
+                        {s.end ? ` – ${formatSidelinedDate(s.end)}` : " – devam"}
+                      </span>
+                    </div>
+                    {dur && (
+                      <span className="shrink-0 rounded-full border border-border bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {dur}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -668,9 +777,17 @@ export function PlayerPanel() {
   const { panel, closePlayer } = usePlayerPanel()
   useBodyScrollLock(!!panel)
   if (!panel) return null
-  const { player, data, loading, error } = panel
+  return <PlayerPanelInner key={panel.player.id} closePlayer={closePlayer} panel={panel} />
+}
 
-  const profile = data?.profile
+function PlayerPanelInner({
+  panel,
+  closePlayer,
+}: {
+  panel: { player: { id: number; name: string; photo: string | null }; profile: PlayerProfile | null; loading: boolean; error: string | null }
+  closePlayer: () => void
+}) {
+  const { player, profile, loading, error } = panel
 
   return (
     <div
@@ -738,7 +855,7 @@ export function PlayerPanel() {
                 )}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">Yükleniyor...</p>
+              <p className="text-xs text-muted-foreground">{loading ? "Yükleniyor..." : ""}</p>
             )}
             {profile && (profile.height || profile.weight || profile.birthPlace) && (
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
@@ -814,7 +931,7 @@ export function PlayerPanel() {
           {loading && (
             <div className="flex flex-col items-center justify-center gap-3 py-16">
               <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Oyuncu verileri yükleniyor...</p>
+              <p className="text-sm text-muted-foreground">Oyuncu bilgileri yükleniyor...</p>
             </div>
           )}
 
@@ -826,13 +943,14 @@ export function PlayerPanel() {
             </div>
           )}
 
-          {!loading && !error && data && (
-            <div className="flex flex-col gap-3">
-              <SeasonStatsSection stats={data.stats} />
-              <CareerSummarySection stats={data.stats} />
-              {data.trophies.length > 0 && <TrophiesSection trophies={data.trophies} />}
-              {data.transfers.length > 0 && <TransfersSection transfers={data.transfers} />}
-              {data.sidelined.length > 0 && <SidelinedSection sidelined={data.sidelined} />}
+          {!loading && !error && profile && (
+            <div className="flex flex-col gap-2">
+              {/* Sabit sekmeler — her sekme sadece kendisine tıklanınca kendi verisini çeker */}
+              <SeasonStatsSection playerId={player.id} playerName={player.name} />
+              <CareerSummarySection playerId={player.id} playerName={player.name} />
+              <TrophiesSection playerId={player.id} playerName={player.name} />
+              <TransfersSection playerId={player.id} playerName={player.name} />
+              <SidelinedSection playerId={player.id} playerName={player.name} />
             </div>
           )}
         </div>

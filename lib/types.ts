@@ -265,15 +265,6 @@ export interface SidelinedEntry {
   end: string | null
 }
 
-export interface PlayerPageData {
-  profile: PlayerProfile
-  stats: PlayerSeasonStats[]
-  transfers: Transfer[]
-  trophies: Trophy[]
-  sidelined: SidelinedEntry[]
-  cachedAt: number
-}
-
 // ---------------------------------------------------------------------------
 // API responses
 // ---------------------------------------------------------------------------
