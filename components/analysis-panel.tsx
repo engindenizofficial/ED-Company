@@ -37,6 +37,7 @@ import { FormBadge } from "./form-badge"
 import { TeamButton } from "./team-panel"
 import { PlayerButton } from "./player-panel"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
+import { MatchVoteBar } from "@/components/match-vote-bar"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
@@ -118,6 +119,9 @@ export function AnalysisPanel({
     <div className="flex flex-col gap-2">
       {/* 1. Match header — panel açıldığında ekstra bir istek yapmadan anında gösterilir */}
       <MatchHeader fixture={fixture} />
+
+      {/* Taraftar oylaması — tek tıkla oy, sonuç anında animasyonlu yüzde çubuğu */}
+      <MatchVoteBar fixtureId={fixture.id} homeName={home.name} awayName={away.name} />
 
       {/* 2. AI Prediction */}
       {showPrediction && (

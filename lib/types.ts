@@ -357,6 +357,25 @@ export interface PredictionResult {
   }>
 }
 
+// ---------------------------------------------------------------------------
+// Taraftar oylaması — "kim kazanır" çubuğu
+// ---------------------------------------------------------------------------
+
+export type VoteChoice = "home" | "draw" | "away"
+
+export interface VoteCounts {
+  home: number
+  draw: number
+  away: number
+}
+
+export interface VoteState {
+  fixtureId: number
+  counts: VoteCounts
+  total: number
+  myVote: VoteChoice | null
+}
+
 export interface AnalysisResponse {
   live: LiveMatchData
   playerStats: FixturePlayerStat[]

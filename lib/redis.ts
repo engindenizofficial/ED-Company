@@ -1,5 +1,5 @@
 import { Redis } from "@upstash/redis"
-import type { FixturesResponse, MatchPrediction, PredictionResult } from "./types"
+import type { FixturesResponse, MatchPrediction, PredictionResult, VoteChoice, VoteCounts } from "./types"
 import type { TeamSearchResult } from "@/app/api/teams/search/route"
 
 // Shared server-side store.
@@ -39,6 +39,8 @@ const K = {
   predictionResults: (date: string) => `ed:prediction-results:${date}`,
   allTimePredictionResults: () => `ed:prediction-results:all`,
   pendingPredictions: () => `ed:pending-predictions`,
+  voteCounts: (fixtureId: number) => `ed:vote:counts:${fixtureId}`,
+  voteChoices: (fixtureId: number) => `ed:vote:choices:${fixtureId}`,
 }
 
 export interface PendingPrediction {
@@ -239,6 +241,74 @@ export async function removePendingPrediction(fixtureId: number): Promise<void> 
     await redis.set(K.pendingPredictions(), filtered, { ex: 60 * 60 * 24 * 30 })
   } catch (err) {
     console.log("[v0] redis removePendingPrediction failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Maç oylaması — üye olsun olmasın herkes tek tıkla taraf seçebilir.
+// Kim neye oy verdi: "ed:vote:choices:{fixtureId}" hash'i (voterId -> choice)
+// Toplam sayaçlar: "ed:vote:counts:{fixtureId}" hash'i (home/draw/away -> count)
+// ---------------------------------------------------------------------------
+
+// 10 gün — maç bittikten sonra da sonuçların görülebilmesi için yeterli süre
+const VOTE_TTL = 60 * 60 * 24 * 10
+
+const EMPTY_COUNTS: VoteCounts = { home: 0, draw: 0, away: 0 }
+
+export async function getVoteCounts(fixtureId: number): Promise<VoteCounts> {
+  if (!redis) return EMPTY_COUNTS
+  try {
+    const raw = await redis.hgetall<Record<string, string | number>>(K.voteCounts(fixtureId))
+    if (!raw) return EMPTY_COUNTS
+    return {
+      home: Number(raw.home ?? 0),
+      draw: Number(raw.draw ?? 0),
+      away: Number(raw.away ?? 0),
+    }
+  } catch (err) {
+    console.log("[v0] redis getVoteCounts failed:", err instanceof Error ? err.message : err)
+    return EMPTY_COUNTS
+  }
+}
+
+export async function getVoterChoice(fixtureId: number, voterId: string): Promise<VoteChoice | null> {
+  if (!redis || !voterId) return null
+  try {
+    const choice = await redis.hget<VoteChoice>(K.voteChoices(fixtureId), voterId)
+    return choice ?? null
+  } catch (err) {
+    console.log("[v0] redis getVoterChoice failed:", err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+/**
+ * Bir kullanıcının oyunu kaydeder. Kullanıcı bu maça daha önce oy verdiyse
+ * hiçbir şey değiştirmez ve mevcut oyunu döndürür (tek kişi tek oy).
+ */
+export async function castVote(
+  fixtureId: number,
+  voterId: string,
+  choice: VoteChoice,
+): Promise<{ counts: VoteCounts; myVote: VoteChoice }> {
+  if (!redis) return { counts: EMPTY_COUNTS, myVote: choice }
+  try {
+    const existing = await getVoterChoice(fixtureId, voterId)
+    if (existing) {
+      const counts = await getVoteCounts(fixtureId)
+      return { counts, myVote: existing }
+    }
+
+    await redis.hset(K.voteChoices(fixtureId), { [voterId]: choice })
+    await redis.expire(K.voteChoices(fixtureId), VOTE_TTL)
+    await redis.hincrby(K.voteCounts(fixtureId), choice, 1)
+    await redis.expire(K.voteCounts(fixtureId), VOTE_TTL)
+
+    const counts = await getVoteCounts(fixtureId)
+    return { counts, myVote: choice }
+  } catch (err) {
+    console.log("[v0] redis castVote failed:", err instanceof Error ? err.message : err)
+    return { counts: EMPTY_COUNTS, myVote: choice }
   }
 }
 
