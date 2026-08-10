@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 // API (dosya paylaşımı) veya klasik indirme akışını tetikler.
 // ---------------------------------------------------------------------------
 
-type Status = "idle" | "sharing" | "downloading" | "downloaded"
+type Status = "idle" | "sharing" | "downloading" | "downloaded" | "shared"
 
 function fileNameFor(fixture: Fixture): string {
   const raw = `ed-analytics-${fixture.home.name}-vs-${fixture.away.name}`
@@ -37,6 +37,7 @@ export function MatchShareActions({
   const [status, setStatus] = useState<Status>("idle")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const busy = status === "sharing" || status === "downloading"
+  const shareSucceeded = status === "shared"
 
   async function renderPoster(): Promise<Blob> {
     if (!posterRef.current) throw new Error("Kart hazırlanamadı")
@@ -77,39 +78,70 @@ export function MatchShareActions({
   async function handleShare() {
     setErrorMsg(null)
     setStatus("sharing")
-    try {
-      const blob = await renderPoster()
-      const shareText = `${fixture.home.name} - ${fixture.away.name} | AI Tahmini: ${prediction.homeScore}-${prediction.awayScore} · edcompanyofficial.com`
-      const file = new File([blob], fileNameFor(fixture), { type: "image/png" })
 
-      const canShareFiles =
-        typeof navigator !== "undefined" &&
-        typeof navigator.share === "function" &&
-        typeof navigator.canShare === "function" &&
-        navigator.canShare({ files: [file] })
+    const shareText = `${fixture.home.name} - ${fixture.away.name} | AI Tahmini: ${prediction.homeScore}-${prediction.awayScore} · edcompanyofficial.com`
+    const hasNavigatorShare = typeof navigator !== "undefined" && typeof navigator.share === "function"
+
+    let blob: Blob
+    try {
+      blob = await renderPoster()
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Kart hazırlanamadı")
+      setStatus("idle")
+      return
+    }
+
+    const file = new File([blob], fileNameFor(fixture), { type: "image/png" })
+
+    // 1) Dosya + metni birlikte paylaşabilen tarayıcılar (mobil Safari/Chrome vb.)
+    if (hasNavigatorShare) {
+      let canShareFiles = false
+      try {
+        canShareFiles = typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })
+      } catch {
+        canShareFiles = false
+      }
 
       if (canShareFiles) {
-        await navigator.share({
-          files: [file],
-          title: "ED Analytics — AI Maç Tahmini",
-          text: shareText,
-        })
-      } else if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        try {
+          await navigator.share({
+            files: [file],
+            title: "ED Analytics — AI Maç Tahmini",
+            text: shareText,
+          })
+          setStatus("shared")
+          setTimeout(() => setStatus("idle"), 1800)
+          return
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") {
+            setStatus("idle")
+            return
+          }
+          // Dosya paylaşımı başarısız oldu; aşağıdaki yedek akışlara devam et.
+        }
+      }
+
+      // 2) Dosya paylaşımı desteklenmiyor: en azından metin/link paylaşımını dene,
+      // görseli de kullanıcı cihazına indir ki manuel olarak eklenebilsin.
+      try {
         await navigator.share({ title: "ED Analytics — AI Maç Tahmini", text: shareText })
         triggerDownload(blob)
-      } else {
-        triggerDownload(blob)
-        setErrorMsg("Tarayıcınız doğrudan paylaşımı desteklemiyor, kart cihazınıza indirildi.")
-      }
-      setStatus("idle")
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
+        setErrorMsg("Görsel paylaşımı bu tarayıcıda desteklenmiyor, kart ayrıca cihazınıza indirildi.")
         setStatus("idle")
         return
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          setStatus("idle")
+          return
+        }
+        // navigator.share tamamen başarısız oldu (örn. izin politikası); indirmeye düş.
       }
-      setErrorMsg(err instanceof Error ? err.message : "Paylaşım başarısız oldu")
-      setStatus("idle")
     }
+
+    // 3) Web Share API hiç yok veya tüm denemeler başarısız oldu: kartı indir.
+    triggerDownload(blob)
+    setErrorMsg("Bu tarayıcı doğrudan paylaşımı desteklemiyor, kart cihazınıza indirildi. Sosyal medya uygulamasından manuel olarak ekleyebilirsiniz.")
+    setStatus("idle")
   }
 
   return (
@@ -123,10 +155,12 @@ export function MatchShareActions({
         >
           {status === "sharing" ? (
             <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+          ) : shareSucceeded ? (
+            <Check className="h-3.5 w-3.5" />
           ) : (
             <Share2 className="h-3.5 w-3.5" />
           )}
-          Paylaş
+          {shareSucceeded ? "Paylaşıldı" : "Paylaş"}
         </button>
         <button
           type="button"
@@ -150,7 +184,11 @@ export function MatchShareActions({
         </button>
       </div>
 
-      {errorMsg && <p className="text-[11px] text-muted-foreground">{errorMsg}</p>}
+      {errorMsg && (
+        <p className="rounded-lg border border-border bg-secondary px-2.5 py-1.5 text-[11px] font-medium leading-snug text-foreground">
+          {errorMsg}
+        </p>
+      )}
 
       {/* Ekran dışı afiş — sadece PNG üretimi için kullanılır, kullanıcıya gösterilmez */}
       <div
