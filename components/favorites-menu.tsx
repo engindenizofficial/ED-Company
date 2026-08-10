@@ -22,6 +22,7 @@ import {
   LogOut,
   Mail,
   Menu,
+  Palette,
   Star,
   Trash2,
   TriangleAlert,
@@ -36,11 +37,14 @@ import { signOut, useSession } from "@/lib/auth-client"
 import { useFavorites, type FavoriteItem } from "@/contexts/favorites-context"
 import { useTeamPanel } from "@/contexts/team-context"
 import { useLeaguePanel } from "@/contexts/league-context"
+import { useThemeColor } from "@/contexts/theme-color-context"
+import { ACCENT_COLORS } from "@/lib/accent-colors"
 import { FavoriteSearchBar } from "@/components/favorite-search-bar"
+import { ThemeColorPicker } from "@/components/theme-color-picker"
 import { requestAccountDeletion } from "@/app/actions/account"
 import { cn } from "@/lib/utils"
 
-type PanelView = "menu" | "favorites" | "account"
+type PanelView = "menu" | "favorites" | "theme" | "account"
 
 export function FavoritesMenu() {
   const { data: session } = useSession()
@@ -48,6 +52,8 @@ export function FavoritesMenu() {
   const { openTeam } = useTeamPanel()
   const { openLeague } = useLeaguePanel()
   const { favorites, removeFavorite, reorderFavorites } = useFavorites()
+  const { accentColor } = useThemeColor()
+  const activeAccent = ACCENT_COLORS.find((c) => c.id === accentColor) ?? ACCENT_COLORS[0]
 
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<PanelView>("menu")
@@ -174,7 +180,13 @@ export function FavoritesMenu() {
                 </button>
               ) : null}
               <span className="flex-1 text-sm font-bold text-foreground">
-                {view === "favorites" ? "Favorilerim" : view === "account" ? "Hesabım" : "Menü"}
+                {view === "favorites"
+                  ? "Favorilerim"
+                  : view === "theme"
+                    ? "Tema Rengi"
+                    : view === "account"
+                      ? "Hesabım"
+                      : "Menü"}
               </span>
               <button
                 type="button"
@@ -225,6 +237,24 @@ export function FavoritesMenu() {
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
                 </button>
 
+                {/* Tema Rengi — Favorilerim'in altında, hem misafir hem giriş yapmış kullanıcılarda */}
+                <button
+                  type="button"
+                  onClick={() => setView("theme")}
+                  className="mt-1 flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    <Palette className="h-4 w-4 text-primary" />
+                  </div>
+                  <span className="flex-1 text-sm font-semibold text-foreground">Tema Rengi</span>
+                  <span
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 rounded-full ring-1 ring-border"
+                    style={{ backgroundColor: activeAccent.swatch }}
+                  />
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+                </button>
+
                 {/* Çıkış Yap (giriş yapmışsa) / Giriş Yap daveti (misafirse) — en altta */}
                 {session?.user ? (
                   <button
@@ -251,6 +281,8 @@ export function FavoritesMenu() {
                   </Link>
                 )}
               </div>
+            ) : view === "theme" ? (
+              <ThemeColorPicker />
             ) : view === "account" ? (
               <div className="flex flex-1 flex-col overflow-y-auto p-4">
                 <div className="flex flex-col gap-4 rounded-2xl border border-destructive/30 bg-card p-5">

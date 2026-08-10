@@ -10,6 +10,7 @@ import { LeaguePanel } from '@/components/league-panel'
 import { PlayerProvider } from '@/contexts/player-context'
 import { PlayerPanel } from '@/components/player-panel'
 import { FavoritesProvider } from '@/contexts/favorites-context'
+import { ThemeColorProvider } from '@/contexts/theme-color-context'
 import './globals.css'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
@@ -62,23 +63,25 @@ export default function RootLayout({
         <script
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark');}var a=localStorage.getItem('ed-accent-color');if(a&&a!=='green'){document.documentElement.setAttribute('data-accent',a);}}catch(e){}})();`,
           }}
         />
-        <LeagueProvider>
-          <TeamProvider>
-            <PlayerProvider>
-              <FavoritesProvider>
-                <NavTabs />
-                <LoginPromptModal />
-                {children}
-                <TeamPanel />
-                <LeaguePanel />
-                <PlayerPanel />
-              </FavoritesProvider>
-            </PlayerProvider>
-          </TeamProvider>
-        </LeagueProvider>
+        <ThemeColorProvider>
+          <LeagueProvider>
+            <TeamProvider>
+              <PlayerProvider>
+                <FavoritesProvider>
+                  <NavTabs />
+                  <LoginPromptModal />
+                  {children}
+                  <TeamPanel />
+                  <LeaguePanel />
+                  <PlayerPanel />
+                </FavoritesProvider>
+              </PlayerProvider>
+            </TeamProvider>
+          </LeagueProvider>
+        </ThemeColorProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
