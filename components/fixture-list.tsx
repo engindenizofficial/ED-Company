@@ -131,39 +131,54 @@ function groupByLeague(fixtures: Fixture[]) {
 }
 
 /**
- * Favori takım/lig içeren gruplar en üste, favori sıra numarasına (1, 2, 3...)
- * göre çıkarılır. Favorisi olmayan gruplar orijinal sırasında en altta kalır.
+ * Ligler sadece kendi favori sıra numarasına (1, 2, 3...) göre en üste çıkar.
+ * Bir takımın favori olması, o takımın maçının bulunduğu ligin diğer tüm
+ * maçlarını yukarı çekmemeli — bu yüzden grup sıralaması SADECE lig
+ * favorilerine bakar, takım favorilerine bakmaz.
  */
 function sortGroupsByFavorites<T extends { id: number; items: Fixture[] }>(
   groups: T[],
   favorites: FavoriteItem[],
 ): T[] {
-  if (favorites.length === 0) return groups
-
   const leaguePosition = new Map<number, number>()
-  const teamPosition = new Map<number, number>()
   for (const fav of favorites) {
     if (fav.type === "league") leaguePosition.set(fav.itemId, fav.position)
-    else teamPosition.set(fav.itemId, fav.position)
   }
 
-  const rankOf = (group: T): number => {
-    let best = Number.POSITIVE_INFINITY
-    const leagueRank = leaguePosition.get(group.id)
-    if (leagueRank !== undefined) best = Math.min(best, leagueRank)
-    for (const f of group.items) {
-      const homeRank = teamPosition.get(f.home.id)
-      if (homeRank !== undefined) best = Math.min(best, homeRank)
-      const awayRank = teamPosition.get(f.away.id)
-      if (awayRank !== undefined) best = Math.min(best, awayRank)
-    }
-    return best
-  }
+  if (leaguePosition.size === 0) return groups
+
+  const rankOf = (group: T): number => leaguePosition.get(group.id) ?? Number.POSITIVE_INFINITY
 
   return groups
     .map((group, index) => ({ group, rank: rankOf(group), index }))
     .sort((a, b) => (a.rank !== b.rank ? a.rank - b.rank : a.index - b.index))
     .map((entry) => entry.group)
+}
+
+/**
+ * Bir lig grubu içinde, favori bir takımın maçı varsa SADECE o maç grubun
+ * en üstüne çıkar; grubun diğer maçları kendi orijinal sırasında kalır.
+ */
+function sortFixturesByFavoriteTeam(fixtures: Fixture[], favorites: FavoriteItem[]): Fixture[] {
+  const teamPosition = new Map<number, number>()
+  for (const fav of favorites) {
+    if (fav.type === "team") teamPosition.set(fav.itemId, fav.position)
+  }
+  if (teamPosition.size === 0) return fixtures
+
+  const rankOf = (f: Fixture): number => {
+    const homeRank = teamPosition.get(f.home.id)
+    const awayRank = teamPosition.get(f.away.id)
+    if (homeRank === undefined && awayRank === undefined) return Number.POSITIVE_INFINITY
+    if (homeRank === undefined) return awayRank!
+    if (awayRank === undefined) return homeRank
+    return Math.min(homeRank, awayRank)
+  }
+
+  return fixtures
+    .map((f, index) => ({ f, rank: rankOf(f), index }))
+    .sort((a, b) => (a.rank !== b.rank ? a.rank - b.rank : a.index - b.index))
+    .map((entry) => entry.f)
 }
 
 export function FixtureList({
@@ -223,7 +238,7 @@ export function FixtureList({
 
           {/* Fixture cards */}
           <ul className="flex flex-col gap-1">
-            {group.items.map((f) => {
+            {sortFixturesByFavoriteTeam(group.items, favorites).map((f) => {
               const active = f.id === selectedId
               const live = isLive(f.statusShort)
               const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
