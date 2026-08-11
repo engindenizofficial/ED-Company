@@ -62,7 +62,7 @@ export function NavTabs() {
           <div className="ml-2 flex items-center gap-1.5 pl-2 border-l border-border/60">
             {session?.user ? (
               <span className="hidden sm:flex items-center gap-1.5">
-                <span className="text-[11px] text-muted-foreground font-medium max-w-[100px] truncate">
+                <span className="text-[11px] text-muted-foreground font-medium whitespace-nowrap">
                   {session.user.name}
                 </span>
                 {isAdmin && (
