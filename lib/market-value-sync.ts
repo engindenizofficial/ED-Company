@@ -1,8 +1,9 @@
 import { db } from "./db"
 import { teamMarketValue, playerMarketValue, marketValueReviewQueue } from "./db/schema"
 import { eq } from "drizzle-orm"
-import { scrapeLeagueTeams, scrapeTeamSquad, SCRAPABLE_LEAGUE_IDS } from "./transfermarkt-scraper"
+import { scrapeLeagueTeams, scrapeTeamSquad, scrapeTeamCountry, scrapePlayerNationality, SCRAPABLE_LEAGUE_IDS } from "./transfermarkt-scraper"
 import { getLeagueTeamsForMatching, matchTeams, matchPlayersForTeam } from "./market-value-matcher"
+import { getTeamCountry, getPlayerNationality } from "./api-football"
 
 // ---------------------------------------------------------------------------
 // Cron job'ın çağırdığı yazma (write) katmanı. Scrape + eşleştirme sonuçlarını
@@ -55,12 +56,21 @@ export async function syncLeagueMarketValues(leagueId: number): Promise<{
     }
     if (tm.status === "review") {
       teamsReview++
+      // Belirsiz eşleşmede admin'e karşılaştırma imkanı vermek için her iki
+      // taraftan da menşei ülkesini çekiyoruz — sadece review'a düşen az
+      // sayıda kayıt için, otomatik eşleşenlerde bu ek isteklere gerek yok.
+      const [entityCountry, candidateCountry] = await Promise.all([
+        getTeamCountry(tm.apiFootballTeamId),
+        tm.transfermarktTeamId ? scrapeTeamCountry(tm.transfermarktTeamId) : Promise.resolve(null),
+      ])
       await upsertReviewQueueEntry({
         entityType: "team",
         entityId: tm.apiFootballTeamId,
         entityName: tm.apiFootballTeamName,
+        entityCountry,
         candidateName: tm.transfermarktTeamName,
         candidateTransfermarktId: tm.transfermarktTeamId,
+        candidateCountry,
         candidateValueEur: tm.totalValueEur,
         confidence: tm.confidence,
       })
@@ -95,12 +105,18 @@ export async function syncLeagueMarketValues(leagueId: number): Promise<{
       }
       if (pm.status === "review") {
         playersReview++
+        const [entityCountry, candidateCountry] = await Promise.all([
+          getPlayerNationality(pm.apiFootballPlayerId, season),
+          pm.transfermarktPlayerId ? scrapePlayerNationality(pm.transfermarktPlayerId) : Promise.resolve(null),
+        ])
         await upsertReviewQueueEntry({
           entityType: "player",
           entityId: pm.apiFootballPlayerId,
           entityName: pm.apiFootballPlayerName,
+          entityCountry,
           candidateName: pm.transfermarktPlayerName,
           candidateTransfermarktId: pm.transfermarktPlayerId,
+          candidateCountry,
           candidateValueEur: pm.valueEur,
           confidence: pm.confidence,
         })
@@ -191,8 +207,10 @@ interface ReviewEntryInput {
   entityType: "team" | "player"
   entityId: number
   entityName: string
+  entityCountry: string | null
   candidateName: string | null
   candidateTransfermarktId: string | null
+  candidateCountry: string | null
   candidateValueEur: number | null
   confidence: number
 }
@@ -225,8 +243,10 @@ async function upsertReviewQueueEntry(input: ReviewEntryInput): Promise<void> {
       entityType: input.entityType,
       entityId: input.entityId,
       entityName: input.entityName,
+      entityCountry: input.entityCountry,
       candidateName: input.candidateName,
       candidateTransfermarktId: input.candidateTransfermarktId,
+      candidateCountry: input.candidateCountry,
       candidateValueEur: input.candidateValueEur !== null ? String(input.candidateValueEur) : null,
       confidence: input.confidence,
       status: "pending",
@@ -236,8 +256,10 @@ async function upsertReviewQueueEntry(input: ReviewEntryInput): Promise<void> {
       target: marketValueReviewQueue.id,
       set: {
         entityName: input.entityName,
+        entityCountry: input.entityCountry,
         candidateName: input.candidateName,
         candidateTransfermarktId: input.candidateTransfermarktId,
+        candidateCountry: input.candidateCountry,
         candidateValueEur: input.candidateValueEur !== null ? String(input.candidateValueEur) : null,
         confidence: input.confidence,
         status: "pending",

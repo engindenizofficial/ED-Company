@@ -16,7 +16,9 @@ export interface ReviewQueueItem {
   entityType: "team" | "player"
   entityId: number
   entityName: string
+  entityCountry: string | null
   candidateName: string | null
+  candidateCountry: string | null
   candidateValueEur: number | null
   confidence: number
   status: "pending" | "approved" | "rejected"
@@ -137,9 +139,19 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
                               <TableCell>
                                 <Badge variant="outline">{item.entityType === "team" ? "Takım" : "Oyuncu"}</Badge>
                               </TableCell>
-                              <TableCell className="font-medium">{item.entityName}</TableCell>
+                              <TableCell className="font-medium">
+                                <div>{item.entityName}</div>
+                                {item.entityCountry && (
+                                  <div className="text-xs font-normal text-muted-foreground">
+                                    {item.entityCountry}
+                                  </div>
+                                )}
+                              </TableCell>
                               <TableCell className="text-muted-foreground">
-                                {item.candidateName ?? "—"}
+                                <div className="text-foreground">{item.candidateName ?? "—"}</div>
+                                {item.candidateCountry && (
+                                  <div className="text-xs text-muted-foreground">{item.candidateCountry}</div>
+                                )}
                               </TableCell>
                               <TableCell>{formattedValue ?? "—"}</TableCell>
                               <TableCell>
