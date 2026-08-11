@@ -23,6 +23,7 @@ import {
   Mail,
   Menu,
   Palette,
+  ShieldCheck,
   Star,
   Trash2,
   TriangleAlert,
@@ -42,6 +43,7 @@ import { ACCENT_COLORS } from "@/lib/accent-colors"
 import { FavoriteSearchBar } from "@/components/favorite-search-bar"
 import { ThemeColorPicker } from "@/components/theme-color-picker"
 import { requestAccountDeletion } from "@/app/actions/account"
+import { isAdminEmail } from "@/lib/admin"
 import { cn } from "@/lib/utils"
 
 type PanelView = "menu" | "favorites" | "theme" | "account"
@@ -54,6 +56,7 @@ export function FavoritesMenu() {
   const { favorites, removeFavorite, reorderFavorites } = useFavorites()
   const { accentColor } = useThemeColor()
   const activeAccent = ACCENT_COLORS.find((c) => c.id === accentColor) ?? ACCENT_COLORS[0]
+  const isAdmin = isAdminEmail(session?.user?.email)
 
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<PanelView>("menu")
@@ -217,6 +220,21 @@ export function FavoritesMenu() {
                     </div>
                     <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
                   </button>
+                ) : null}
+
+                {/* Yönetim Paneli — sadece admin e-postasıyla giriş yapılmışsa, Hesabım'ın altında */}
+                {isAdmin ? (
+                  <Link
+                    href="/admin/market-value-review"
+                    onClick={close}
+                    className="mt-1 flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                      <ShieldCheck className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="flex-1 text-sm font-semibold text-foreground">Yönetim Paneli</span>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  </Link>
                 ) : null}
 
                 {/* Favorilerim — giriş yapmışsa Hesabım'ın altında, misafirse en üstte */}
