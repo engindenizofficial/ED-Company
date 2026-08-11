@@ -197,5 +197,41 @@ export async function scrapeTeamSquad(transfermarktTeamId: string): Promise<Scra
   return players
 }
 
+/**
+ * Bir Transfermarkt takımının ülkesini (oynadığı lig ülkesi) döndürür.
+ * SADECE piyasa değeri manuel gözden geçirme kuyruğu (review queue) için
+ * kullanılır — belirsiz eşleşmelerde admin'e karşılaştırma imkanı verir.
+ * Otomatik eşleşen takımlar için çağrılmaz.
+ */
+export async function scrapeTeamCountry(transfermarktTeamId: string): Promise<string | null> {
+  const url = `${BASE_URL}/x/startseite/verein/${transfermarktTeamId}`
+  const html = await fetchHtml(url)
+  if (!html) return null
+
+  const $ = cheerio.load(html)
+  const flag = $(".data-header__club-info img.flaggenrahmen").first()
+  const country = flag.attr("title")?.trim()
+  return country || null
+}
+
+/**
+ * Bir Transfermarkt oyuncusunun uyruğunu (birden fazlaysa "/" ile ayrılmış)
+ * döndürür. SADECE piyasa değeri manuel gözden geçirme kuyruğu için
+ * kullanılır (bkz. scrapeTeamCountry).
+ */
+export async function scrapePlayerNationality(transfermarktPlayerId: string): Promise<string | null> {
+  const url = `${BASE_URL}/x/profil/spieler/${transfermarktPlayerId}`
+  const html = await fetchHtml(url)
+  if (!html) return null
+
+  const $ = cheerio.load(html)
+  const flags = $('span[itemprop="nationality"] img.flaggenrahmen')
+  const countries = flags
+    .map((_, el) => $(el).attr("title")?.trim())
+    .get()
+    .filter((c): c is string => Boolean(c))
+  return countries.length > 0 ? countries.join(" / ") : null
+}
+
 /** Cron job'ın sırayla çağıracağı, tüm desteklenen 23 ligin id listesi. */
 export const SCRAPABLE_LEAGUE_IDS: number[] = FEATURED_LEAGUE_IDS

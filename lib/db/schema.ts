@@ -133,9 +133,13 @@ export const marketValueReviewQueue = pgTable('market_value_review_queue', {
   /** API-Football id'si (teamId veya playerId) */
   entityId: integer('entityId').notNull(),
   entityName: text('entityName').notNull(),
+  /** API-Football tarafındaki takımın/oyuncunun ülkesi (menşei/uyruğu) — manuel eşleştirmeye yardımcı olur */
+  entityCountry: text('entityCountry'),
   /** Bulunan en yakın Transfermarkt adayının adı */
   candidateName: text('candidateName'),
   candidateTransfermarktId: text('candidateTransfermarktId'),
+  /** Transfermarkt adayının ülkesi (kulüp ülkesi / oyuncu uyruğu) */
+  candidateCountry: text('candidateCountry'),
   candidateValueEur: numeric('candidateValueEur', { precision: 14, scale: 2 }),
   /** 0-100 arası benzerlik skoru */
   confidence: integer('confidence').notNull(),

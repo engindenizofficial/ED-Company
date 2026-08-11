@@ -393,6 +393,28 @@ export async function getSquad(teamId: number): Promise<SquadPlayer[]> {
   }))
 }
 
+/**
+ * Bir takımın API-Football'daki menşei ülkesini döndürür. SADECE piyasa
+ * değeri manuel gözden geçirme kuyruğu (review queue) için kullanılır —
+ * belirsiz eşleşmelerde admin'e Transfermarkt adayıyla karşılaştırma imkanı
+ * verir. Otomatik eşleşen takımlar için çağrılmaz.
+ */
+export async function getTeamCountry(teamId: number): Promise<string | null> {
+  const raw = await safeFetch<any>("/teams", { id: teamId }, 3600)
+  const country = raw[0]?.team?.country ?? null
+  return country ? toTurkishCountry(country) : null
+}
+
+/**
+ * Bir oyuncunun API-Football'daki uyruğunu döndürür. SADECE piyasa değeri
+ * manuel gözden geçirme kuyruğu için kullanılır (bkz. getTeamCountry).
+ */
+export async function getPlayerNationality(playerId: number, season: number): Promise<string | null> {
+  const raw = await safeFetch<any>("/players", { id: playerId, season }, 3600)
+  const nationality = raw[0]?.player?.nationality ?? null
+  return nationality ? toTurkishCountry(nationality) : null
+}
+
 export async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
   const raw = await safeFetch<any>("/injuries", { fixture: fixtureId }, 1800)
   return raw.map((r) => ({
