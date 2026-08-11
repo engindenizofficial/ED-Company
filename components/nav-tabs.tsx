@@ -1,11 +1,12 @@
 "use client"
 
-import { CalendarDays, KeyRound, UserPlus } from "lucide-react"
+import { CalendarDays, KeyRound, ShieldCheck, UserPlus } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useSession } from "@/lib/auth-client"
 import { FavoritesMenu } from "@/components/favorites-menu"
+import { isAdminEmail } from "@/lib/admin"
 
 const tabs = [
   { href: "/", label: "Maçlar", icon: CalendarDays },
@@ -14,6 +15,7 @@ const tabs = [
 export function NavTabs() {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const isAdmin = isAdminEmail(session?.user?.email)
 
   return (
     <nav
@@ -59,9 +61,25 @@ export function NavTabs() {
           {/* Auth butonları */}
           <div className="ml-2 flex items-center gap-1.5 pl-2 border-l border-border/60">
             {session?.user ? (
-              <span className="hidden sm:block text-[11px] text-muted-foreground font-medium max-w-[100px] truncate">
-                {session.user.name}
-              </span>
+              <>
+                {isAdmin && (
+                  <Link
+                    href="/admin/market-value-review"
+                    className={cn(
+                      "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors",
+                      pathname.startsWith("/admin")
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary",
+                    )}
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Admin</span>
+                  </Link>
+                )}
+                <span className="hidden sm:block text-[11px] text-muted-foreground font-medium max-w-[100px] truncate">
+                  {session.user.name}
+                </span>
+              </>
             ) : (
               <>
                 <Link
