@@ -23,6 +23,7 @@ import { TeamButton } from "@/components/team-panel"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 import { toTurkishCountry } from "@/lib/tr-aliases"
+import { formatMarketValueEur } from "@/lib/market-value-format"
 import type {
   Fixture,
   LeagueSeasonStats,
@@ -200,20 +201,32 @@ function SeasonOverviewSection({ leagueId, leagueName, active }: { leagueId: num
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
           {status === "empty" && <SectionEmptyState leagueName={leagueName} label="sezon özeti verisi" />}
           {status === "success" && data && (
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: "Oynanan Maç", value: data.totalMatches.toLocaleString("tr-TR") },
-                { label: "Toplam Gol", value: data.totalGoals.toLocaleString("tr-TR") },
-                { label: "Maç Başı Gol", value: data.avgGoalsPerMatch.toFixed(2) },
-              ].map(({ label, value }) => (
-                <div
-                  key={label}
-                  className="flex flex-col items-center gap-0.5 rounded-xl border border-border/60 bg-secondary/30 px-2 py-3"
-                >
-                  <span className="text-xl font-black tabular-nums leading-none text-foreground">{value}</span>
-                  <span className="mt-1 text-center text-[10px] leading-tight text-muted-foreground">{label}</span>
+            <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "Oynanan Maç", value: data.totalMatches.toLocaleString("tr-TR") },
+                  { label: "Toplam Gol", value: data.totalGoals.toLocaleString("tr-TR") },
+                  { label: "Maç Başı Gol", value: data.avgGoalsPerMatch.toFixed(2) },
+                ].map(({ label, value }) => (
+                  <div
+                    key={label}
+                    className="flex flex-col items-center gap-0.5 rounded-xl border border-border/60 bg-secondary/30 px-2 py-3"
+                  >
+                    <span className="text-xl font-black tabular-nums leading-none text-foreground">{value}</span>
+                    <span className="mt-1 text-center text-[10px] leading-tight text-muted-foreground">{label}</span>
+                  </div>
+                ))}
+              </div>
+              {formatMarketValueEur(data.totalMarketValueEur) && (
+                <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-3 py-2.5">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-primary/80">
+                    Toplam Kadro Değeri
+                  </span>
+                  <span className="text-base font-black tabular-nums text-primary">
+                    {formatMarketValueEur(data.totalMarketValueEur)}
+                  </span>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
@@ -264,7 +277,8 @@ function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; 
                           <th className="px-1.5 pb-2 text-center font-semibold" title="Atılan Gol">A</th>
                           <th className="px-1.5 pb-2 text-center font-semibold" title="Yenilen Gol">Y</th>
                           <th className="px-1.5 pb-2 text-center font-semibold" title="Averaj">AV</th>
-                          <th className="pl-1.5 pb-2 text-center font-semibold" title="Puan">P</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title="Puan">P</th>
+                          <th className="pl-1.5 pb-2 text-right font-semibold" title="Kadro Değeri">Değer</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
@@ -295,8 +309,11 @@ function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; 
                               {r.goalsFor - r.goalsAgainst > 0 ? "+" : ""}
                               {r.goalsFor - r.goalsAgainst}
                             </td>
-                            <td className="pl-1.5 py-2 text-center tabular-nums font-black text-foreground">
+                            <td className="px-1.5 py-2 text-center tabular-nums font-black text-foreground">
                               {r.points}
+                            </td>
+                            <td className="pl-1.5 py-2 text-right tabular-nums font-bold text-muted-foreground">
+                              {formatMarketValueEur(r.marketValueEur) ?? "–"}
                             </td>
                           </tr>
                         ))}

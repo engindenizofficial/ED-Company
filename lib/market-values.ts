@@ -66,6 +66,37 @@ export async function getPlayerMarketValue(playerId: number): Promise<PlayerMark
 }
 
 /**
+ * Birden fazla takımın toplam kadro piyasa değerini tek sorguda okur (puan
+ * durumu tablosu gibi N takım için N sorgu atmamak için). Bulunamayan id'ler
+ * map'te yer almaz.
+ */
+export async function getTeamMarketValues(
+  teamIds: number[],
+): Promise<Map<number, TeamMarketValueInfo>> {
+  const result = new Map<number, TeamMarketValueInfo>()
+  if (teamIds.length === 0) return result
+
+  const rows = await db
+    .select({
+      teamId: teamMarketValue.teamId,
+      totalValueEur: teamMarketValue.totalValueEur,
+      matchStatus: teamMarketValue.matchStatus,
+      lastScrapedAt: teamMarketValue.lastScrapedAt,
+    })
+    .from(teamMarketValue)
+    .where(inArray(teamMarketValue.teamId, teamIds))
+
+  for (const row of rows) {
+    result.set(row.teamId, {
+      totalValueEur: row.totalValueEur !== null ? Number(row.totalValueEur) : null,
+      matchStatus: row.matchStatus as TeamMarketValueInfo["matchStatus"],
+      lastScrapedAt: row.lastScrapedAt,
+    })
+  }
+  return result
+}
+
+/**
  * Birden fazla oyuncunun piyasa değerini tek sorguda okur (kadro listesi gibi
  * N oyuncu için N sorgu atmamak için). Bulunamayan id'ler map'te yer almaz.
  */

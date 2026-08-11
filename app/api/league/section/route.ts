@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
+import { getTeamMarketValues } from "@/lib/market-values"
 import type {
   Fixture,
   LeagueSeasonStats,
@@ -66,6 +67,9 @@ function mapFixture(r: RawFixture): Fixture {
   }
 }
 
+// Piyasa değerini yalnızca DB'deki teamMarketValue tablosundan okur (bkz.
+// lib/market-values.ts) — asla canlı scrape tetiklemez, sadece haftalık
+// cron'un doldurduğu veriyi gösterir.
 async function fetchStandings(leagueId: number, season: number): Promise<StandingRow[]> {
   const standingsRaw = await apiFetch<any>("/standings", { league: leagueId, season })
   const standings: StandingRow[] = []
@@ -80,10 +84,20 @@ async function fetchStandings(leagueId: number, season: number): Promise<Standin
           win: row.all?.win ?? 0, draw: row.all?.draw ?? 0, lose: row.all?.lose ?? 0,
           goalsFor: row.all?.goals?.for ?? 0, goalsAgainst: row.all?.goals?.against ?? 0,
           form: row.form ?? null, group: row.group ?? entry?.league?.name ?? "",
+          marketValueEur: null,
         })
       }
     }
   }
+
+  if (standings.length > 0) {
+    const teamIds = [...new Set(standings.map((r) => r.teamId).filter((id) => id > 0))]
+    const values = await getTeamMarketValues(teamIds)
+    for (const row of standings) {
+      row.marketValueEur = values.get(row.teamId)?.totalValueEur ?? null
+    }
+  }
+
   return standings
 }
 
@@ -115,12 +129,15 @@ export async function GET(request: Request) {
         const avgGoalsPerMatch = totalMatches > 0 ? totalGoals / totalMatches : 0
         const yellowCards = (topYellowRaw ?? []).reduce((s: number, e: any) => s + (e.statistics?.[0]?.cards?.yellow ?? 0), 0)
         const redCards = (topRedRaw ?? []).reduce((s: number, e: any) => s + (e.statistics?.[0]?.cards?.red ?? 0), 0)
+        const knownValues = standings.map((r) => r.marketValueEur).filter((v): v is number => v !== null && v !== undefined)
+        const totalMarketValueEur = knownValues.length > 0 ? knownValues.reduce((s, v) => s + v, 0) : null
         const data: LeagueSeasonStats = {
           totalMatches,
           totalGoals,
           avgGoalsPerMatch: parseFloat(avgGoalsPerMatch.toFixed(2)),
           yellowCards,
           redCards,
+          totalMarketValueEur,
         }
         return NextResponse.json({ data })
       }

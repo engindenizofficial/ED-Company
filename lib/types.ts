@@ -94,6 +94,12 @@ export interface StandingRow {
   goalsAgainst: number
   form: string | null
   group: string
+  /**
+   * Transfermarkt kaynaklı toplam kadro piyasa değeri (tam euro). Sadece lig
+   * puan durumu (standings) sekmesinde doldurulur; diğer üreticilerde (maç
+   * detayı, takım sayfası) alan atlanır ve undefined kalır.
+   */
+  marketValueEur?: number | null
 }
 
 export interface InjuryItem {
@@ -397,6 +403,8 @@ export interface LeagueSeasonStats {
   yellowCards: number
   /** Toplam kırmızı kart */
   redCards: number
+  /** Transfermarkt kaynaklı, ligdeki tüm takımların toplam kadro piyasa değeri (tam euro). Hiçbir takım eşleşmemişse null. */
+  totalMarketValueEur: number | null
 }
 
 export interface LeagueTopScorer {
