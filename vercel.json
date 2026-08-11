@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/update-market-values",
       "schedule": "0 0 * * 3"
-    },
-    {
-      "path": "/api/cron/resume-market-values",
-      "schedule": "*/15 * * * *"
     }
   ]
 }
