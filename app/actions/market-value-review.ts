@@ -73,6 +73,9 @@ export async function approveReviewEntry(id: string): Promise<void> {
         totalValueEur: row.candidateValueEur,
         matchConfidence: row.confidence,
         matchStatus: "matched",
+        // Kilitle: cron artık bu takımın eşleşmesini yeniden hesaplayıp
+        // üzerine yazmayacak (bkz. lib/market-value-sync.ts).
+        manualOverride: true,
         updatedAt: now,
       })
       .where(eq(teamMarketValue.teamId, row.entityId))
@@ -84,6 +87,7 @@ export async function approveReviewEntry(id: string): Promise<void> {
         valueEur: row.candidateValueEur,
         matchConfidence: row.confidence,
         matchStatus: "matched",
+        manualOverride: true,
         updatedAt: now,
       })
       .where(eq(playerMarketValue.playerId, row.entityId))
@@ -212,6 +216,9 @@ export async function rejectReviewEntry(id: string): Promise<void> {
         totalValueEur: null,
         matchConfidence: null,
         matchStatus: "unmatched",
+        // Kilitle: cron bu takım için "unmatched" kararını yeniden eşleşme
+        // denemesine çevirmesin — admin bilerek boş bıraktı.
+        manualOverride: true,
         updatedAt: now,
       })
       .where(eq(teamMarketValue.teamId, row.entityId))
@@ -223,6 +230,7 @@ export async function rejectReviewEntry(id: string): Promise<void> {
         valueEur: null,
         matchConfidence: null,
         matchStatus: "unmatched",
+        manualOverride: true,
         updatedAt: now,
       })
       .where(eq(playerMarketValue.playerId, row.entityId))

@@ -95,6 +95,14 @@ export const teamMarketValue = pgTable('team_market_value', {
   matchConfidence: integer('matchConfidence'),
   /** "matched" | "review" | "unmatched" */
   matchStatus: text('matchStatus').notNull().default('unmatched'),
+  /**
+   * Admin bu eşleşmeyi manuel gözden geçirme ekranından onayladı/reddetti mi?
+   * true ise cron job (haftalık isim benzerliği yeniden hesaplaması) bu satırın
+   * matchStatus/transfermarktTeamId/totalValueEur/matchConfidence alanlarına
+   * ASLA dokunmaz — admin kararı kalıcıdır. Sadece lastScrapedAt/piyasa değeri
+   * yeniden scrape edilebilir (bkz. lib/market-value-sync.ts).
+   */
+  manualOverride: boolean('manualOverride').notNull().default(false),
   lastScrapedAt: timestamp('lastScrapedAt'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
@@ -117,6 +125,8 @@ export const playerMarketValue = pgTable('player_market_value', {
   matchConfidence: integer('matchConfidence'),
   /** "matched" | "review" | "unmatched" */
   matchStatus: text('matchStatus').notNull().default('unmatched'),
+  /** Bkz. team_market_value.manualOverride — aynı kilit mantığı oyuncu satırları için. */
+  manualOverride: boolean('manualOverride').notNull().default(false),
   lastScrapedAt: timestamp('lastScrapedAt'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),

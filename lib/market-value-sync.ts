@@ -1,6 +1,6 @@
 import { db } from "./db"
 import { teamMarketValue, playerMarketValue, marketValueReviewQueue } from "./db/schema"
-import { eq } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 import { scrapeLeagueTeams, scrapeTeamSquad, scrapeTeamCountry, scrapePlayerNationality, SCRAPABLE_LEAGUE_IDS } from "./transfermarkt-scraper"
 import { getLeagueTeamsForMatching, matchTeams, matchPlayersForTeam } from "./market-value-matcher"
 import { getTeamCountry, getPlayerNationality } from "./api-football"
@@ -19,6 +19,133 @@ function currentSeason(): number {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+interface LockedRow {
+  matchStatus: "matched" | "review" | "unmatched"
+  transfermarktId: string | null
+}
+
+/**
+ * Admin tarafından manuel onaylanmış/reddedilmiş (manualOverride = true) takım
+ * satırlarını okur. Bu takımlar için cron, isim benzerliğini yeniden hesaplasa
+ * bile matchStatus/transfermarktTeamId üzerine YAZMAZ — admin kararı kalıcıdır.
+ */
+async function getLockedTeamMap(teamIds: number[]): Promise<Map<number, LockedRow>> {
+  const result = new Map<number, LockedRow>()
+  if (teamIds.length === 0) return result
+
+  const rows = await db
+    .select({
+      teamId: teamMarketValue.teamId,
+      matchStatus: teamMarketValue.matchStatus,
+      transfermarktTeamId: teamMarketValue.transfermarktTeamId,
+      manualOverride: teamMarketValue.manualOverride,
+    })
+    .from(teamMarketValue)
+    .where(inArray(teamMarketValue.teamId, teamIds))
+
+  for (const row of rows) {
+    if (!row.manualOverride) continue
+    result.set(row.teamId, {
+      matchStatus: row.matchStatus as LockedRow["matchStatus"],
+      transfermarktId: row.transfermarktTeamId,
+    })
+  }
+  return result
+}
+
+/** Oyuncular için aynı kilit mantığı — bkz. getLockedTeamMap. */
+async function getLockedPlayerMap(playerIds: number[]): Promise<Map<number, LockedRow>> {
+  const result = new Map<number, LockedRow>()
+  if (playerIds.length === 0) return result
+
+  const rows = await db
+    .select({
+      playerId: playerMarketValue.playerId,
+      matchStatus: playerMarketValue.matchStatus,
+      transfermarktPlayerId: playerMarketValue.transfermarktPlayerId,
+      manualOverride: playerMarketValue.manualOverride,
+    })
+    .from(playerMarketValue)
+    .where(inArray(playerMarketValue.playerId, playerIds))
+
+  for (const row of rows) {
+    if (!row.manualOverride) continue
+    result.set(row.playerId, {
+      matchStatus: row.matchStatus as LockedRow["matchStatus"],
+      transfermarktId: row.transfermarktPlayerId,
+    })
+  }
+  return result
+}
+
+interface PlayerSyncCounts {
+  matched: number
+  review: number
+  unmatched: number
+}
+
+/**
+ * Bir takımın kadrosunu Transfermarkt'tan çekip oyuncuları eşleştirir ve
+ * yazar. Admin tarafından manuel kilitlenmiş (manualOverride) oyuncu
+ * satırlarına dokunmaz — onların kararı sabit sayılır.
+ */
+async function syncTeamPlayers(apiFootballTeamId: number, transfermarktTeamId: string, season: number): Promise<PlayerSyncCounts> {
+  const counts: PlayerSyncCounts = { matched: 0, review: 0, unmatched: 0 }
+
+  // Transfermarkt'a art arda çok hızlı istek atmamak için takımlar arası
+  // küçük bir bekleme (rate-limit / 503 riskini azaltır).
+  await sleep(700)
+  let scrapedPlayers = await scrapeTeamSquad(transfermarktTeamId)
+  if (scrapedPlayers.length === 0) {
+    // Geçici bir rate-limit (503) olabilir — biraz daha bekleyip bir kez tekrar dene.
+    await sleep(2000)
+    scrapedPlayers = await scrapeTeamSquad(transfermarktTeamId)
+  }
+  if (scrapedPlayers.length === 0) return counts
+
+  const playerMatches = await matchPlayersForTeam(apiFootballTeamId, scrapedPlayers)
+  const lockedPlayers = await getLockedPlayerMap(playerMatches.map((pm) => pm.apiFootballPlayerId))
+
+  for (const pm of playerMatches) {
+    const locked = lockedPlayers.get(pm.apiFootballPlayerId)
+    if (locked) {
+      // Admin bu oyuncu için kararını vermiş — cron üzerine yazmaz, sadece sayar.
+      if (locked.matchStatus === "matched") counts.matched++
+      else counts.unmatched++
+      continue
+    }
+
+    await upsertPlayerMarketValue(apiFootballTeamId, pm)
+
+    if (pm.status === "unmatched") {
+      counts.unmatched++
+      continue
+    }
+    if (pm.status === "review") {
+      counts.review++
+      const [entityCountry, candidateCountry] = await Promise.all([
+        getPlayerNationality(pm.apiFootballPlayerId, season),
+        pm.transfermarktPlayerId ? scrapePlayerNationality(pm.transfermarktPlayerId) : Promise.resolve(null),
+      ])
+      await upsertReviewQueueEntry({
+        entityType: "player",
+        entityId: pm.apiFootballPlayerId,
+        entityName: pm.apiFootballPlayerName,
+        entityCountry,
+        candidateName: pm.transfermarktPlayerName,
+        candidateTransfermarktId: pm.transfermarktPlayerId,
+        candidateCountry,
+        candidateValueEur: pm.valueEur,
+        confidence: pm.confidence,
+      })
+      continue
+    }
+    counts.matched++
+  }
+
+  return counts
 }
 
 /** Bir ligin takım + oyuncu piyasa değerlerini scrape edip DB'ye yazar. */
@@ -40,6 +167,11 @@ export async function syncLeagueMarketValues(leagueId: number): Promise<{
 
   const teamMatches = matchTeams(apiFootballTeams, scrapedTeams)
 
+  // Admin tarafından manuel onaylanmış/reddedilmiş takımları önceden oku —
+  // bu takımların isim benzerliği bu hafta hâlâ eşik altında çıksa bile
+  // kararları bozulmayacak (bkz. syncTeamPlayers / getLockedTeamMap).
+  const lockedTeams = await getLockedTeamMap(teamMatches.map((tm) => tm.apiFootballTeamId))
+
   let teamsMatched = 0
   let teamsReview = 0
   let teamsUnmatched = 0
@@ -48,6 +180,23 @@ export async function syncLeagueMarketValues(leagueId: number): Promise<{
   let playersUnmatched = 0
 
   for (const tm of teamMatches) {
+    const locked = lockedTeams.get(tm.apiFootballTeamId)
+
+    if (locked) {
+      // Bu takımın eşleşmesi admin tarafından sabitlendi — matchStatus/
+      // transfermarktTeamId üzerine yazılmaz, review kuyruğuna da düşürülmez.
+      if (locked.matchStatus !== "matched" || !locked.transfermarktId) {
+        teamsUnmatched++
+        continue
+      }
+      teamsMatched++
+      const counts = await syncTeamPlayers(tm.apiFootballTeamId, locked.transfermarktId, season)
+      playersMatched += counts.matched
+      playersReview += counts.review
+      playersUnmatched += counts.unmatched
+      continue
+    }
+
     await upsertTeamMarketValue(leagueId, tm)
 
     if (tm.status === "unmatched") {
@@ -83,47 +232,10 @@ export async function syncLeagueMarketValues(leagueId: number): Promise<{
 
     // Takım eşleşti (status === "matched") — kadroyu çek ve oyuncuları eşleştir.
     if (!tm.transfermarktTeamId) continue
-    // Transfermarkt'a art arda çok hızlı istek atmamak için takımlar arası
-    // küçük bir bekleme (rate-limit / 503 riskini azaltır).
-    await sleep(700)
-    let scrapedPlayers = await scrapeTeamSquad(tm.transfermarktTeamId)
-    if (scrapedPlayers.length === 0) {
-      // Geçici bir rate-limit (503) olabilir — biraz daha bekleyip bir kez tekrar dene.
-      await sleep(2000)
-      scrapedPlayers = await scrapeTeamSquad(tm.transfermarktTeamId)
-    }
-    if (scrapedPlayers.length === 0) continue
-
-    const playerMatches = await matchPlayersForTeam(tm.apiFootballTeamId, scrapedPlayers)
-
-    for (const pm of playerMatches) {
-      await upsertPlayerMarketValue(tm.apiFootballTeamId, pm)
-
-      if (pm.status === "unmatched") {
-        playersUnmatched++
-        continue
-      }
-      if (pm.status === "review") {
-        playersReview++
-        const [entityCountry, candidateCountry] = await Promise.all([
-          getPlayerNationality(pm.apiFootballPlayerId, season),
-          pm.transfermarktPlayerId ? scrapePlayerNationality(pm.transfermarktPlayerId) : Promise.resolve(null),
-        ])
-        await upsertReviewQueueEntry({
-          entityType: "player",
-          entityId: pm.apiFootballPlayerId,
-          entityName: pm.apiFootballPlayerName,
-          entityCountry,
-          candidateName: pm.transfermarktPlayerName,
-          candidateTransfermarktId: pm.transfermarktPlayerId,
-          candidateCountry,
-          candidateValueEur: pm.valueEur,
-          confidence: pm.confidence,
-        })
-        continue
-      }
-      playersMatched++
-    }
+    const counts = await syncTeamPlayers(tm.apiFootballTeamId, tm.transfermarktTeamId, season)
+    playersMatched += counts.matched
+    playersReview += counts.review
+    playersUnmatched += counts.unmatched
   }
 
   return { leagueId, teamsMatched, teamsReview, teamsUnmatched, playersMatched, playersReview, playersUnmatched }
