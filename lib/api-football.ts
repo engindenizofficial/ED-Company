@@ -385,6 +385,11 @@ export async function getSquad(teamId: number): Promise<SquadPlayer[]> {
     number: p.number ?? null,
     pos: p.position ?? null,
     photo: p.photo ?? null,
+    // Bu fonksiyon maç analiz paneli (homeSquad/awaySquad) ve eşleştirme
+    // modülü tarafından kullanılıyor — piyasa değeri orada gösterilmiyor.
+    // Takım panelindeki kadro sekmesi piyasa değerini ayrıca
+    // /api/team/section üzerinden DB'den okuyup dolduruyor.
+    marketValueEur: null,
   }))
 }
 

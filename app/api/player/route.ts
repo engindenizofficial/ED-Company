@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
+import { getPlayerMarketValue } from "@/lib/market-values"
 import type { PlayerProfile } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -35,6 +36,10 @@ export async function GET(request: Request) {
   const p = entry.player ?? {}
   const currentStats = entry.statistics?.[0] ?? {}
 
+  // Piyasa değeri veritabanından okunur (cron tarafından haftalık dolduruluyor);
+  // burada asla canlı scrape tetiklenmez, sadece mevcut kaydı okunur.
+  const marketValue = p.id ? await getPlayerMarketValue(p.id).catch(() => null) : null
+
   const profile: PlayerProfile = {
     id: p.id ?? 0,
     name: p.name ?? "",
@@ -63,6 +68,7 @@ export async function GET(request: Request) {
           season: currentStats.league.season,
         }
       : null,
+    marketValueEur: marketValue?.matchStatus === "matched" ? marketValue.valueEur : null,
   }
 
   return NextResponse.json(profile)

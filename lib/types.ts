@@ -170,6 +170,8 @@ export interface PlayerProfile {
   team: TeamInfo | null
   /** Current league */
   league: { id: number; name: string; country: string; logo: string; season: number } | null
+  /** Transfermarkt kaynaklı piyasa değeri (tam euro). DB'de eşleşme yoksa null. */
+  marketValueEur: number | null
 }
 
 export interface PlayerSeasonStats {
@@ -441,6 +443,8 @@ export interface SquadPlayer {
   number: number | null
   pos: string | null
   photo: string | null
+  /** Transfermarkt kaynaklı piyasa değeri (tam euro). DB'de eşleşme yoksa null. */
+  marketValueEur: number | null
 }
 
 export interface TeamTransfer {
@@ -498,6 +502,8 @@ export interface TeamBasicInfo {
   team: TeamInfo
   venue: { name: string | null; city: string | null; capacity: number | null; image: string | null }
   currentSeason: number
+  /** Transfermarkt kaynaklı toplam kadro piyasa değeri (tam euro). DB'de eşleşme yoksa null. */
+  marketValueEur: number | null
 }
 
 /** Sadece "Sezon İstatistikleri" sekmesi için (form/maç listesi hariç). */

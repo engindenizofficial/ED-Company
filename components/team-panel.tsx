@@ -24,6 +24,7 @@ import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { PlayerButton } from "@/components/player-panel"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
+import { formatMarketValueEur } from "@/lib/market-value-format"
 import type {
   Fixture,
   SquadPlayer,
@@ -473,6 +474,11 @@ function SquadSection({ teamId, teamName, active }: { teamId: number; teamName: 
                             {p.age != null && (
                               <span className="text-[10px] text-muted-foreground/60">{p.age} yaş</span>
                             )}
+                            {formatMarketValueEur(p.marketValueEur) && (
+                              <span className="text-[10px] font-bold tabular-nums text-primary">
+                                {formatMarketValueEur(p.marketValueEur)}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </PlayerButton>
@@ -879,6 +885,16 @@ function TeamPanelInner({
               <span className="rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-black text-primary">
                 {basic.currentSeason}/{String(basic.currentSeason + 1).slice(2)}
               </span>
+              {formatMarketValueEur(basic.marketValueEur) && (
+                <>
+                  <span className="text-[10px] uppercase tracking-[0.15em] font-bold text-muted-foreground/70">
+                    Kadro Değeri
+                  </span>
+                  <span className="rounded-lg border border-border bg-secondary px-2 py-0.5 text-[11px] font-black text-foreground">
+                    {formatMarketValueEur(basic.marketValueEur)}
+                  </span>
+                </>
+              )}
             </div>
           )}
         </div>

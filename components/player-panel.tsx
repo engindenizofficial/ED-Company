@@ -27,6 +27,7 @@ import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 import { toTurkishCountry } from "@/lib/tr-aliases"
+import { formatMarketValueEur } from "@/lib/market-value-format"
 import type {
   PlayerProfile,
   PlayerSeasonStats,
@@ -786,6 +787,14 @@ function PlayerPanelInner({
                   <>
                     <span className="text-border">·</span>
                     <span className="font-bold">#{profile.number}</span>
+                  </>
+                )}
+                {formatMarketValueEur(profile.marketValueEur) && (
+                  <>
+                    <span className="text-border">·</span>
+                    <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-black text-primary">
+                      {formatMarketValueEur(profile.marketValueEur)}
+                    </span>
                   </>
                 )}
               </div>

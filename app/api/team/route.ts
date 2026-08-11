@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
+import { getTeamMarketValue } from "@/lib/market-values"
 import type { TeamBasicInfo, TeamInfo } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -30,6 +31,11 @@ export async function GET(request: Request) {
 
   const rawTeam = teamRaw[0]
   const team: TeamInfo = { id: rawTeam.team.id, name: rawTeam.team.name, logo: rawTeam.team.logo }
+
+  // Piyasa değeri veritabanından okunur (cron tarafından haftalık dolduruluyor);
+  // burada asla canlı scrape tetiklenmez, sadece mevcut kaydı okunur.
+  const marketValue = await getTeamMarketValue(teamId).catch(() => null)
+
   const payload: TeamBasicInfo = {
     team,
     venue: {
@@ -39,6 +45,7 @@ export async function GET(request: Request) {
       image: rawTeam.venue?.image ?? null,
     },
     currentSeason: currentSeason(),
+    marketValueEur: marketValue?.matchStatus === "matched" ? marketValue.totalValueEur : null,
   }
   return NextResponse.json(payload)
 }
