@@ -73,7 +73,7 @@ export const favorite = pgTable('favorite', {
 
 // ---------------------------------------------------------------------------
 // Piyasa değeri (market value) tabloları
-// Kaynak: Transfermarkt scraping. Sadece cron job (Pazar gece yarısı) tarafından
+// Kaynak: Transfermarkt scraping. Sadece cron job (Çarşamba gece yarısı UTC / TR 03:00) tarafından
 // yazılır. Uygulama tarafı bu tabloları sadece OKUR, hiçbir zaman anlık scrape
 // tetiklemez.
 // ---------------------------------------------------------------------------

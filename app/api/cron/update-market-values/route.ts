@@ -10,8 +10,8 @@ import {
 } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
-// Vercel Cron her Pazar 00:00 (İstanbul saati) bu endpoint'i tetikler
-// (bkz. vercel.json — "0 21 * * 6" = Cumartesi 21:00 UTC = Pazar 00:00 TR).
+// Vercel Cron her Çarşamba 03:00 (İstanbul saati) bu endpoint'i tetikler
+// (bkz. vercel.json — "0 0 * * 3" = Çarşamba 00:00 UTC = Çarşamba 03:00 TR).
 //
 // 23 lig tek bir istekte işlenmiyor (Transfermarkt + API-Football'a yüzlerce
 // istek gidiyor, serverless zaman aşımı riski var). Bunun yerine bu route
