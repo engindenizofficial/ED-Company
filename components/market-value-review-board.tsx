@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
-import { Check, Loader2, ShieldAlert, X } from "lucide-react"
+import { Check, Globe, Loader2, ShieldAlert, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,7 +9,11 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatMarketValueEur } from "@/lib/market-value-format"
-import { approveReviewEntry, rejectReviewEntry } from "@/app/actions/market-value-review"
+import {
+  approveReviewEntry,
+  backfillReviewQueueCountriesBatch,
+  rejectReviewEntry,
+} from "@/app/actions/market-value-review"
 
 export interface ReviewQueueItem {
   id: string
@@ -46,6 +50,39 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
   )
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [, startBackfillTransition] = useTransition()
+
+  const [isBackfilling, setIsBackfilling] = useState(false)
+  const [backfillDone, setBackfillDone] = useState(0)
+  const [backfillError, setBackfillError] = useState<string | null>(null)
+
+  const missingCountryCount = useMemo(() => {
+    return items.filter(
+      (item) =>
+        (statusById[item.id] ?? item.status) === "pending" &&
+        (item.entityCountry === null || item.candidateCountry === null),
+    ).length
+  }, [items, statusById])
+
+  function runBackfill() {
+    setIsBackfilling(true)
+    setBackfillError(null)
+    setBackfillDone(0)
+    startBackfillTransition(async () => {
+      try {
+        let done = false
+        while (!done) {
+          const result = await backfillReviewQueueCountriesBatch()
+          setBackfillDone((prev) => prev + result.updated)
+          done = result.done
+        }
+      } catch (err) {
+        setBackfillError(err instanceof Error ? err.message : "Ülke bilgileri doldurulurken bir hata oluştu.")
+      } finally {
+        setIsBackfilling(false)
+      }
+    })
+  }
 
   const grouped = useMemo(() => {
     const result: Record<Status, ReviewQueueItem[]> = { pending: [], approved: [], rejected: [] }
@@ -70,17 +107,38 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-          <ShieldAlert className="size-5" />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+            <ShieldAlert className="size-5" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-balance">Piyasa Değeri Manuel Kontrolü</h1>
+            <p className="text-sm text-muted-foreground text-pretty">
+              Otomatik eşleştirmenin güven skoru eşiğin altında kaldığı takım ve oyuncu adayları. Onayladığınızda
+              aday, piyasa değeri tablosuna işlenir; reddettiğinizde ilgili kayıt boş bırakılır.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-lg font-bold tracking-tight text-balance">Piyasa Değeri Manuel Kontrolü</h1>
-          <p className="text-sm text-muted-foreground text-pretty">
-            Otomatik eşleştirmenin güven skoru eşiğin altında kaldığı takım ve oyuncu adayları. Onayladığınızda
-            aday, piyasa değeri tablosuna işlenir; reddettiğinizde ilgili kayıt boş bırakılır.
-          </p>
-        </div>
+
+        {missingCountryCount > 0 && (
+          <div className="flex shrink-0 flex-col items-start gap-1.5 sm:items-end">
+            <Button size="sm" variant="outline" disabled={isBackfilling} onClick={runBackfill}>
+              {isBackfilling ? (
+                <Loader2 className="animate-spin" data-icon="inline-start" />
+              ) : (
+                <Globe data-icon="inline-start" />
+              )}
+              Ülkeleri Doldur
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {isBackfilling
+                ? `${backfillDone} kayıt dolduruldu, devam ediyor…`
+                : `${missingCountryCount} bekleyen kayıtta ülke bilgisi eksik`}
+            </p>
+            {backfillError && <p className="text-xs text-destructive">{backfillError}</p>}
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="pending">

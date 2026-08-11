@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio"
 import { FEATURED_LEAGUE_IDS } from "./api-football"
+import { toTurkishCountry } from "./tr-aliases"
 
 // ---------------------------------------------------------------------------
 // Transfermarkt scraping katmanı.
@@ -211,7 +212,9 @@ export async function scrapeTeamCountry(transfermarktTeamId: string): Promise<st
   const $ = cheerio.load(html)
   const flag = $(".data-header__club-info img.flaggenrahmen").first()
   const country = flag.attr("title")?.trim()
-  return country || null
+  // Transfermarkt bayrak title'ları İngilizce geliyor; API-Football tarafı
+  // Türkçeleştirildiği için admin karşılaştırmasında ikisi tutarlı görünsün.
+  return country ? toTurkishCountry(country) : null
 }
 
 /**
@@ -230,6 +233,7 @@ export async function scrapePlayerNationality(transfermarktPlayerId: string): Pr
     .map((_, el) => $(el).attr("title")?.trim())
     .get()
     .filter((c): c is string => Boolean(c))
+    .map(toTurkishCountry)
   return countries.length > 0 ? countries.join(" / ") : null
 }
 

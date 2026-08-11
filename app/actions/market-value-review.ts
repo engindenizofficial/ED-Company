@@ -2,11 +2,13 @@
 
 import { headers } from "next/headers"
 import { revalidatePath } from "next/cache"
-import { eq } from "drizzle-orm"
+import { and, count, eq, isNull, or } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { marketValueReviewQueue, teamMarketValue, playerMarketValue } from "@/lib/db/schema"
+import { getTeamCountry, getPlayerNationality } from "@/lib/api-football"
+import { scrapeTeamCountry, scrapePlayerNationality } from "@/lib/transfermarkt-scraper"
 
 // ---------------------------------------------------------------------------
 // Manuel gözden geçirme arayüzünün (8. adım) yazma katmanı. Sadece admin
@@ -88,6 +90,100 @@ export async function approveReviewEntry(id: string): Promise<void> {
   }
 
   revalidatePath(REVIEW_PATH)
+}
+
+const BACKFILL_BATCH_SIZE = 12
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function currentSeason(): number {
+  const now = new Date()
+  return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
+}
+
+export interface BackfillBatchResult {
+  done: boolean
+  updated: number
+  failed: number
+  remaining: number
+}
+
+/**
+ * "pending" durumundaki, henüz entityCountry/candidateCountry doldurulmamış
+ * eski review kayıtlarını geriye dönük dolduran tek bir grup. Bugüne kadar
+ * biriken 700+ kayıt için, cron her yeni review'a bunu artık otomatik
+ * eklediğinden (bkz. lib/market-value-sync.ts) bu sadece geçmiş kayıtlar
+ * için bir kerelik geriye dönük doldurma amaçlıdır.
+ *
+ * Transfermarkt'a art arda çok hızlı istek atmamak için grup küçük tutulur;
+ * admin panelindeki buton bu fonksiyonu "done: true" gelene kadar art arda
+ * çağırır (bkz. components/market-value-review-board.tsx).
+ */
+export async function backfillReviewQueueCountriesBatch(): Promise<BackfillBatchResult> {
+  await requireAdmin()
+
+  const season = currentSeason()
+
+  const rows = await db
+    .select()
+    .from(marketValueReviewQueue)
+    .where(
+      and(
+        eq(marketValueReviewQueue.status, "pending"),
+        or(isNull(marketValueReviewQueue.entityCountry), isNull(marketValueReviewQueue.candidateCountry)),
+      ),
+    )
+    .limit(BACKFILL_BATCH_SIZE)
+
+  if (rows.length === 0) {
+    revalidatePath(REVIEW_PATH)
+    return { done: true, updated: 0, failed: 0, remaining: 0 }
+  }
+
+  let updated = 0
+  let failed = 0
+
+  for (const row of rows) {
+    try {
+      const [entityCountry, candidateCountry] = await Promise.all([
+        row.entityType === "team" ? getTeamCountry(row.entityId) : getPlayerNationality(row.entityId, season),
+        row.candidateTransfermarktId
+          ? row.entityType === "team"
+            ? scrapeTeamCountry(row.candidateTransfermarktId)
+            : scrapePlayerNationality(row.candidateTransfermarktId)
+          : Promise.resolve(null),
+      ])
+
+      await db
+        .update(marketValueReviewQueue)
+        .set({ entityCountry, candidateCountry })
+        .where(eq(marketValueReviewQueue.id, row.id))
+
+      updated++
+    } catch (err) {
+      failed++
+      console.error(`[v0] Backfill hatası (${row.id}):`, err instanceof Error ? err.message : err)
+    }
+
+    // Transfermarkt'a art arda çok hızlı istek atmamak için bekleme.
+    await sleep(400)
+  }
+
+  const [{ remaining }] = await db
+    .select({ remaining: count() })
+    .from(marketValueReviewQueue)
+    .where(
+      and(
+        eq(marketValueReviewQueue.status, "pending"),
+        or(isNull(marketValueReviewQueue.entityCountry), isNull(marketValueReviewQueue.candidateCountry)),
+      ),
+    )
+
+  revalidatePath(REVIEW_PATH)
+
+  return { done: remaining === 0, updated, failed, remaining }
 }
 
 /**
