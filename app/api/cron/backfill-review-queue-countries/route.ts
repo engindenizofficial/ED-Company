@@ -34,7 +34,10 @@ function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) return true
   const header = request.headers.get("authorization")
-  return header === `Bearer ${secret}`
+  if (header === `Bearer ${secret}`) return true
+  // vercel curl gibi custom header gönderemeyen araçlar için query param desteği.
+  const url = new URL(request.url)
+  return url.searchParams.get("secret") === secret
 }
 
 async function triggerNextBatch(request: Request): Promise<void> {
