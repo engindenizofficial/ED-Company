@@ -76,8 +76,15 @@ export function NavTabs() {
                     <span className="hidden sm:inline">Admin</span>
                   </Link>
                 )}
-                <span className="hidden sm:block text-[11px] text-muted-foreground font-medium max-w-[100px] truncate">
-                  {session.user.name}
+                <span className="hidden sm:flex items-center gap-1.5">
+                  <span className="text-[11px] text-muted-foreground font-medium max-w-[100px] truncate">
+                    {session.user.name}
+                  </span>
+                  {isAdmin && (
+                    <span className="brand-gradient bg-clip-text text-transparent text-[10px] font-black tracking-[0.15em] uppercase">
+                      Admin
+                    </span>
+                  )}
                 </span>
               </>
             ) : (
