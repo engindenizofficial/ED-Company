@@ -104,6 +104,16 @@ export const teamMarketValue = pgTable('team_market_value', {
    */
   manualOverride: boolean('manualOverride').notNull().default(false),
   lastScrapedAt: timestamp('lastScrapedAt'),
+  /**
+   * Bu takımın API-Football tarafında "hâlâ var" olarak son doğrulandığı an —
+   * lock durumundan bağımsız olarak, cron her ligi taradığında güncellenir.
+   * Haftalık tam tarama döngüsünde bir takım hiç görülmezse (leagueId'si
+   * artık takip edilen 23 ligden hiçbirinde çıkmıyorsa) bu alan geride kalır
+   * ve temizlik adımı (cleanupStaleMarketValueRows) satırı siler. Admin
+   * onayı (manualOverride) bu temizlikten muaf DEĞİLDİR — eşleşme kilitli
+   * olsa da takım gerçekten ligden düşmüşse ghost kayıt olarak silinir.
+   */
+  lastSeenAt: timestamp('lastSeenAt').notNull().defaultNow(),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })
@@ -128,6 +138,8 @@ export const playerMarketValue = pgTable('player_market_value', {
   /** Bkz. team_market_value.manualOverride — aynı kilit mantığı oyuncu satırları için. */
   manualOverride: boolean('manualOverride').notNull().default(false),
   lastScrapedAt: timestamp('lastScrapedAt'),
+  /** Bkz. team_market_value.lastSeenAt — oyuncu takımının kadrosunda hâlâ görülüyor mu? */
+  lastSeenAt: timestamp('lastSeenAt').notNull().defaultNow(),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })

@@ -1,6 +1,6 @@
 import { db } from "./db"
 import { teamMarketValue, playerMarketValue, marketValueReviewQueue } from "./db/schema"
-import { eq, inArray } from "drizzle-orm"
+import { eq, inArray, lt, and, or } from "drizzle-orm"
 import { scrapeLeagueTeams, scrapeTeamSquad, scrapeTeamCountry, scrapePlayerNationality, SCRAPABLE_LEAGUE_IDS } from "./transfermarkt-scraper"
 import { getLeagueTeamsForMatching, matchTeams, matchPlayersForTeam } from "./market-value-matcher"
 import { getTeamCountry, getPlayerNationality } from "./api-football"
@@ -91,7 +91,12 @@ interface PlayerSyncCounts {
  * yazar. Admin tarafından manuel kilitlenmiş (manualOverride) oyuncu
  * satırlarına dokunmaz — onların kararı sabit sayılır.
  */
-async function syncTeamPlayers(apiFootballTeamId: number, transfermarktTeamId: string, season: number): Promise<PlayerSyncCounts> {
+async function syncTeamPlayers(
+  apiFootballTeamId: number,
+  transfermarktTeamId: string,
+  season: number,
+  runStartedAt: Date,
+): Promise<PlayerSyncCounts> {
   const counts: PlayerSyncCounts = { matched: 0, review: 0, unmatched: 0 }
 
   // Transfermarkt'a art arda çok hızlı istek atmamak için takımlar arası
@@ -106,7 +111,21 @@ async function syncTeamPlayers(apiFootballTeamId: number, transfermarktTeamId: s
   if (scrapedPlayers.length === 0) return counts
 
   const playerMatches = await matchPlayersForTeam(apiFootballTeamId, scrapedPlayers)
-  const lockedPlayers = await getLockedPlayerMap(playerMatches.map((pm) => pm.apiFootballPlayerId))
+  const playerIds = playerMatches.map((pm) => pm.apiFootballPlayerId)
+  const lockedPlayers = await getLockedPlayerMap(playerIds)
+
+  // Bu takımın kadrosunda API-Football tarafında hâlâ görünen HER oyuncuyu
+  // "var" olarak işaretle — kilitli olsun ya da olmasın. Bir oyuncu transfer
+  // olup başka bir (taranan) takıma geçtiğinde, o takımın senkronu sırasında
+  // burada tekrar "görülecek" ve lastSeenAt tazelenecek; hiçbir taranan
+  // takımın kadrosunda artık görünmüyorsa (transfer dışı lig, emeklilik vb.)
+  // bu satır dokunulmadan kalır ve temizlik adımında silinir.
+  if (playerIds.length > 0) {
+    await db
+      .update(playerMarketValue)
+      .set({ lastSeenAt: runStartedAt })
+      .where(inArray(playerMarketValue.playerId, playerIds))
+  }
 
   for (const pm of playerMatches) {
     const locked = lockedPlayers.get(pm.apiFootballPlayerId)
@@ -117,7 +136,7 @@ async function syncTeamPlayers(apiFootballTeamId: number, transfermarktTeamId: s
       continue
     }
 
-    await upsertPlayerMarketValue(apiFootballTeamId, pm)
+    await upsertPlayerMarketValue(apiFootballTeamId, pm, runStartedAt)
 
     if (pm.status === "unmatched") {
       counts.unmatched++
@@ -148,8 +167,16 @@ async function syncTeamPlayers(apiFootballTeamId: number, transfermarktTeamId: s
   return counts
 }
 
-/** Bir ligin takım + oyuncu piyasa değerlerini scrape edip DB'ye yazar. */
-export async function syncLeagueMarketValues(leagueId: number): Promise<{
+/**
+ * Bir ligin takım + oyuncu piyasa değerlerini scrape edip DB'ye yazar.
+ *
+ * @param runStartedAt Bu haftalık cron döngüsünün başladığı an (23 ligin
+ * hepsinde AYNI değer kullanılır — bkz. app/api/cron/update-market-values).
+ * Her görülen takım/oyuncu satırının lastSeenAt'i bu değere set edilir;
+ * döngü sonunda lastSeenAt < runStartedAt olan satırlar "artık görülmedi"
+ * (ligden düşmüş takım, transfer olmuş oyuncu vb.) sayılıp temizlenir.
+ */
+export async function syncLeagueMarketValues(leagueId: number, runStartedAt: Date): Promise<{
   leagueId: number
   teamsMatched: number
   teamsReview: number
@@ -166,11 +193,19 @@ export async function syncLeagueMarketValues(leagueId: number): Promise<{
   ])
 
   const teamMatches = matchTeams(apiFootballTeams, scrapedTeams)
+  const teamIds = teamMatches.map((tm) => tm.apiFootballTeamId)
 
   // Admin tarafından manuel onaylanmış/reddedilmiş takımları önceden oku —
   // bu takımların isim benzerliği bu hafta hâlâ eşik altında çıksa bile
   // kararları bozulmayacak (bkz. syncTeamPlayers / getLockedTeamMap).
-  const lockedTeams = await getLockedTeamMap(teamMatches.map((tm) => tm.apiFootballTeamId))
+  const lockedTeams = await getLockedTeamMap(teamIds)
+
+  // Bu ligin standings'inde API-Football tarafında hâlâ görünen HER takımı
+  // "var" olarak işaretle — kilitli olsun ya da olmasın (bkz. syncTeamPlayers
+  // içindeki aynı mantık, oyuncular için).
+  if (teamIds.length > 0) {
+    await db.update(teamMarketValue).set({ lastSeenAt: runStartedAt }).where(inArray(teamMarketValue.teamId, teamIds))
+  }
 
   let teamsMatched = 0
   let teamsReview = 0
@@ -190,14 +225,14 @@ export async function syncLeagueMarketValues(leagueId: number): Promise<{
         continue
       }
       teamsMatched++
-      const counts = await syncTeamPlayers(tm.apiFootballTeamId, locked.transfermarktId, season)
+      const counts = await syncTeamPlayers(tm.apiFootballTeamId, locked.transfermarktId, season, runStartedAt)
       playersMatched += counts.matched
       playersReview += counts.review
       playersUnmatched += counts.unmatched
       continue
     }
 
-    await upsertTeamMarketValue(leagueId, tm)
+    await upsertTeamMarketValue(leagueId, tm, runStartedAt)
 
     if (tm.status === "unmatched") {
       teamsUnmatched++
@@ -232,7 +267,7 @@ export async function syncLeagueMarketValues(leagueId: number): Promise<{
 
     // Takım eşleşti (status === "matched") — kadroyu çek ve oyuncuları eşleştir.
     if (!tm.transfermarktTeamId) continue
-    const counts = await syncTeamPlayers(tm.apiFootballTeamId, tm.transfermarktTeamId, season)
+    const counts = await syncTeamPlayers(tm.apiFootballTeamId, tm.transfermarktTeamId, season, runStartedAt)
     playersMatched += counts.matched
     playersReview += counts.review
     playersUnmatched += counts.unmatched
@@ -244,6 +279,7 @@ export async function syncLeagueMarketValues(leagueId: number): Promise<{
 async function upsertTeamMarketValue(
   leagueId: number,
   tm: Awaited<ReturnType<typeof matchTeams>>[number],
+  runStartedAt: Date,
 ): Promise<void> {
   const id = `team-${tm.apiFootballTeamId}`
   const now = new Date()
@@ -261,6 +297,7 @@ async function upsertTeamMarketValue(
       matchConfidence: tm.confidence,
       matchStatus: tm.status,
       lastScrapedAt: now,
+      lastSeenAt: runStartedAt,
       updatedAt: now,
     })
     .onConflictDoUpdate({
@@ -273,6 +310,7 @@ async function upsertTeamMarketValue(
         matchConfidence: tm.confidence,
         matchStatus: tm.status,
         lastScrapedAt: now,
+        lastSeenAt: runStartedAt,
         updatedAt: now,
       },
     })
@@ -281,6 +319,7 @@ async function upsertTeamMarketValue(
 async function upsertPlayerMarketValue(
   teamId: number,
   pm: Awaited<ReturnType<typeof matchPlayersForTeam>>[number],
+  runStartedAt: Date,
 ): Promise<void> {
   const id = `player-${pm.apiFootballPlayerId}`
   const now = new Date()
@@ -298,6 +337,7 @@ async function upsertPlayerMarketValue(
       matchConfidence: pm.confidence,
       matchStatus: pm.status,
       lastScrapedAt: now,
+      lastSeenAt: runStartedAt,
       updatedAt: now,
     })
     .onConflictDoUpdate({
@@ -310,6 +350,7 @@ async function upsertPlayerMarketValue(
         matchConfidence: pm.confidence,
         matchStatus: pm.status,
         lastScrapedAt: now,
+        lastSeenAt: runStartedAt,
         updatedAt: now,
       },
     })
@@ -377,6 +418,85 @@ async function upsertReviewQueueEntry(input: ReviewEntryInput): Promise<void> {
         status: "pending",
       },
     })
+}
+
+export interface CleanupResult {
+  skipped: boolean
+  teamsDeleted: number
+  playersDeleted: number
+  reviewEntriesDeleted: number
+}
+
+/**
+ * 23 ligin TÜMÜ bu haftalık cron döngüsünde hatasız işlendiyse çağrılır
+ * (bkz. app/api/cron/update-market-values). "Hayalet" kayıtları temizler:
+ *
+ * - Bir takım artık takip edilen 23 ligden hiçbirinin standings'inde
+ *   çıkmıyorsa (relegasyon, lig değişikliği, kulüp feshi vb.) o takımın
+ *   satırının lastSeenAt'i bu döngüde hiç güncellenmemiştir.
+ * - Bir oyuncu artık taranan hiçbir takımın kadrosunda görünmüyorsa
+ *   (transfer, emeklilik, sözleşme feshi vb.) aynı şekilde geride kalır.
+ *
+ * Bu, admin'in manuel onayladığı (manualOverride) satırları da kapsar —
+ * eşleşme kilitli olsa da varlığın kendisi artık gerçek değilse ghost kayıt
+ * olarak silinir; kilit sadece "hâlâ var olan bir varlığın eşleşmesini
+ * yeniden hesaplama" işlemini engeller, "artık var olmayan bir varlığı
+ * sonsuza dek DB'de tutma" işlemini değil.
+ *
+ * hadErrors=true ise hiçbir şey silinmez — bu döngüde bir veya daha fazla
+ * lig transient bir hata yüzünden atlanmış olabilir, bu da o ligin
+ * takımlarının lastSeenAt'inin yanlışlıkla geride kalmasına (ve gerçek,
+ * hâlâ aktif takımların silinmesine) yol açabilir. Bir dahaki hatasız
+ * döngüye kadar beklemek daha güvenlidir.
+ */
+export async function cleanupStaleMarketValueRows(runStartedAt: Date, hadErrors: boolean): Promise<CleanupResult> {
+  if (hadErrors) {
+    console.log("[v0] Cron döngüsünde hata(lar) oluştu — hayalet kayıt temizliği bu hafta atlanıyor.")
+    return { skipped: true, teamsDeleted: 0, playersDeleted: 0, reviewEntriesDeleted: 0 }
+  }
+
+  const staleTeams = await db
+    .delete(teamMarketValue)
+    .where(lt(teamMarketValue.lastSeenAt, runStartedAt))
+    .returning({ teamId: teamMarketValue.teamId })
+
+  const stalePlayers = await db
+    .delete(playerMarketValue)
+    .where(lt(playerMarketValue.lastSeenAt, runStartedAt))
+    .returning({ playerId: playerMarketValue.playerId })
+
+  let reviewEntriesDeleted = 0
+  const staleTeamIds = staleTeams.map((t) => t.teamId)
+  const stalePlayerIds = stalePlayers.map((p) => p.playerId)
+
+  // Silinen varlıklara ait, henüz karar verilmemiş review kuyruğu kayıtlarını
+  // da temizle — artık var olmayan bir takım/oyuncu için "onayla/reddet"
+  // gösterilmesin.
+  if (staleTeamIds.length > 0 || stalePlayerIds.length > 0) {
+    const conditions = []
+    if (staleTeamIds.length > 0) {
+      conditions.push(and(eq(marketValueReviewQueue.entityType, "team"), inArray(marketValueReviewQueue.entityId, staleTeamIds)))
+    }
+    if (stalePlayerIds.length > 0) {
+      conditions.push(and(eq(marketValueReviewQueue.entityType, "player"), inArray(marketValueReviewQueue.entityId, stalePlayerIds)))
+    }
+    const deleted = await db
+      .delete(marketValueReviewQueue)
+      .where(or(...conditions))
+      .returning({ id: marketValueReviewQueue.id })
+    reviewEntriesDeleted = deleted.length
+  }
+
+  console.log(
+    `[v0] Hayalet kayıt temizliği tamamlandı: ${staleTeams.length} takım, ${stalePlayers.length} oyuncu, ${reviewEntriesDeleted} review kaydı silindi.`,
+  )
+
+  return {
+    skipped: false,
+    teamsDeleted: staleTeams.length,
+    playersDeleted: stalePlayers.length,
+    reviewEntriesDeleted,
+  }
 }
 
 export { SCRAPABLE_LEAGUE_IDS }
