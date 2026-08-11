@@ -374,7 +374,7 @@ async function getOdds(fixtureId: number): Promise<{ home: number | null; draw: 
   return { home: null, draw: null, away: null }
 }
 
-async function getSquad(teamId: number): Promise<SquadPlayer[]> {
+export async function getSquad(teamId: number): Promise<SquadPlayer[]> {
   const raw = await safeFetch<any>("/players/squads", { team: teamId }, 3600)
   if (!raw.length) return []
   const players: any[] = raw[0]?.players ?? []
