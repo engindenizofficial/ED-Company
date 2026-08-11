@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useSession } from "@/lib/auth-client"
 import { FavoritesMenu } from "@/components/favorites-menu"
+import { isAdminEmail } from "@/lib/admin"
 
 const tabs = [
   { href: "/", label: "Maçlar", icon: CalendarDays },
@@ -14,6 +15,7 @@ const tabs = [
 export function NavTabs() {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const isAdmin = isAdminEmail(session?.user?.email)
 
   return (
     <nav
@@ -59,8 +61,15 @@ export function NavTabs() {
           {/* Auth butonları */}
           <div className="ml-2 flex items-center gap-1.5 pl-2 border-l border-border/60">
             {session?.user ? (
-              <span className="hidden sm:block text-[11px] text-muted-foreground font-medium max-w-[100px] truncate">
-                {session.user.name}
+              <span className="hidden sm:flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground font-medium max-w-[100px] truncate">
+                  {session.user.name}
+                </span>
+                {isAdmin && (
+                  <span className="brand-gradient bg-clip-text text-transparent text-[10px] font-black tracking-[0.15em] uppercase">
+                    Admin
+                  </span>
+                )}
               </span>
             ) : (
               <>
