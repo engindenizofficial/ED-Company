@@ -6,6 +6,8 @@ import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { marketValueReviewQueue } from "@/lib/db/schema"
 import { MarketValueReviewBoard, type ReviewQueueItem } from "@/components/market-value-review-board"
+import { MarketValueCronStatus } from "@/components/market-value-cron-status"
+import { getMarketValueCronStatus } from "@/app/actions/market-value-cron"
 
 export const metadata = {
   title: "Piyasa Değeri Kontrolü — ED Company",
@@ -19,10 +21,10 @@ export default async function MarketValueReviewPage() {
     redirect("/")
   }
 
-  const rows = await db
-    .select()
-    .from(marketValueReviewQueue)
-    .orderBy(desc(marketValueReviewQueue.createdAt))
+  const [rows, cronStatus] = await Promise.all([
+    db.select().from(marketValueReviewQueue).orderBy(desc(marketValueReviewQueue.createdAt)),
+    getMarketValueCronStatus(),
+  ])
 
   const items: ReviewQueueItem[] = rows.map((row) => ({
     id: row.id,
@@ -40,6 +42,9 @@ export default async function MarketValueReviewPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-8">
+      <div className="mb-6">
+        <MarketValueCronStatus initialStatus={cronStatus} />
+      </div>
       <MarketValueReviewBoard items={items} />
     </main>
   )

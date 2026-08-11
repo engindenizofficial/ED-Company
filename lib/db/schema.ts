@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, numeric } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, boolean, integer, numeric, jsonb } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -169,4 +169,33 @@ export const marketValueReviewQueue = pgTable('market_value_review_queue', {
   status: text('status').notNull().default('pending'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   resolvedAt: timestamp('resolvedAt'),
+})
+
+/**
+ * Haftalık 23 ligi zincirleme işleyen cron döngüsünün kalıcı durumu.
+ * "Zincir kırıldığında hangi ligde kalındığı hiçbir yerde tutulmuyor" sorununu
+ * çözer: her adım (her lig) bu satıra yazılır, böylece süreç bir yerde
+ * (crash, zaman aşımı, ağ hatası) kesilse bile bir sonraki çağrı — otomatik
+ * "resume" cron'u (bkz. app/api/cron/resume-market-values) veya admin'in
+ * manuel tetiklemesi — tam olarak nerede kalındığını bilir.
+ */
+export const marketValueCronRun = pgTable('market_value_cron_run', {
+  id: text('id').primaryKey(),
+  /** Bu haftalık döngünün başladığı an — lastSeenAt karşılaştırması için kullanılır. */
+  runStartedAt: timestamp('runStartedAt').notNull(),
+  /** "running" | "completed" */
+  status: text('status').notNull().default('running'),
+  /** Sırada işlenecek (henüz tamamlanmamış) SCRAPABLE_LEAGUE_IDS index'i. */
+  currentLeagueIndex: integer('currentLeagueIndex').notNull().default(0),
+  /** Bu döngüde en az bir lig, tüm yeniden deneme haklarını tükettikten sonra kalıcı olarak başarısız oldu mu? */
+  hadErrors: boolean('hadErrors').notNull().default(false),
+  /**
+   * Her lig için { leagueId, status: "pending"|"success"|"failed", attempts, lastError, updatedAt }
+   * — hangi ligin işlendiğini, kaç kez denendiğini ve son hatasını gösterir.
+   */
+  leagueStatuses: jsonb('leagueStatuses').notNull(),
+  /** Zincirin hâlâ "canlı" ilerlediğini gösterir — her adımda güncellenir. Watchdog eskime kontrolü için buna bakar. */
+  heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })
