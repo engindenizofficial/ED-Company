@@ -1,9 +1,8 @@
 import { db } from "./db"
 import { teamMarketValue, playerMarketValue, marketValueReviewQueue } from "./db/schema"
 import { eq, inArray, lt, and, or } from "drizzle-orm"
-import { scrapeLeagueTeams, scrapeTeamSquad, scrapeTeamCountry, scrapePlayerNationality, SCRAPABLE_LEAGUE_IDS } from "./transfermarkt-scraper"
+import { scrapeLeagueTeams, scrapeTeamSquad, SCRAPABLE_LEAGUE_IDS } from "./transfermarkt-scraper"
 import { getLeagueTeamsForMatching, matchTeams, matchPlayersForTeam } from "./market-value-matcher"
-import { getTeamCountry, getPlayerNationality } from "./api-football"
 
 // ---------------------------------------------------------------------------
 // Cron job'ın çağırdığı yazma (write) katmanı. Scrape + eşleştirme sonuçlarını
@@ -144,18 +143,16 @@ async function syncTeamPlayers(
     }
     if (pm.status === "review") {
       counts.review++
-      const [entityCountry, candidateCountry] = await Promise.all([
-        getPlayerNationality(pm.apiFootballPlayerId, season),
-        pm.transfermarktPlayerId ? scrapePlayerNationality(pm.transfermarktPlayerId) : Promise.resolve(null),
-      ])
+      // Ülke bilgisi burada OTOMATIK çekilmez — sadece admin panelindeki
+      // "eksik ülke bilgilerini doldur" butonu (backfillReviewQueueCountriesBatch)
+      // ile manuel olarak doldurulur. Yeni kayıt null ülke ile, henüz denenmemiş
+      // (countryLookupAttempted=false, varsayılan) olarak eklenir.
       await upsertReviewQueueEntry({
         entityType: "player",
         entityId: pm.apiFootballPlayerId,
         entityName: pm.apiFootballPlayerName,
-        entityCountry,
         candidateName: pm.transfermarktPlayerName,
         candidateTransfermarktId: pm.transfermarktPlayerId,
-        candidateCountry,
         candidateValueEur: pm.valueEur,
         confidence: pm.confidence,
       })
@@ -296,21 +293,16 @@ export async function syncSingleTeam(
   }
 
   if (tm.status === "review") {
-    // Belirsiz eşleşmede admin'e karşılaştırma imkanı vermek için her iki
-    // taraftan da menşei ülkesini çekiyoruz — sadece review'a düşen az
-    // sayıda kayıt için, otomatik eşleşenlerde bu ek isteklere gerek yok.
-    const [entityCountry, candidateCountry] = await Promise.all([
-      getTeamCountry(tm.apiFootballTeamId),
-      tm.transfermarktTeamId ? scrapeTeamCountry(tm.transfermarktTeamId) : Promise.resolve(null),
-    ])
+    // Ülke bilgisi burada OTOMATIK çekilmez — sadece admin panelindeki
+    // "eksik ülke bilgilerini doldur" butonu (backfillReviewQueueCountriesBatch)
+    // ile manuel olarak doldurulur. Yeni kayıt null ülke ile, henüz denenmemiş
+    // (countryLookupAttempted=false, varsayılan) olarak eklenir.
     await upsertReviewQueueEntry({
       entityType: "team",
       entityId: tm.apiFootballTeamId,
       entityName: tm.apiFootballTeamName,
-      entityCountry,
       candidateName: tm.transfermarktTeamName,
       candidateTransfermarktId: tm.transfermarktTeamId,
-      candidateCountry,
       candidateValueEur: tm.totalValueEur,
       confidence: tm.confidence,
     })
@@ -417,10 +409,8 @@ interface ReviewEntryInput {
   entityType: "team" | "player"
   entityId: number
   entityName: string
-  entityCountry: string | null
   candidateName: string | null
   candidateTransfermarktId: string | null
-  candidateCountry: string | null
   candidateValueEur: number | null
   confidence: number
 }
@@ -430,6 +420,15 @@ interface ReviewEntryInput {
  * böylece cron her çalıştığında aynı belirsiz eşleşme için kuyrukta sonsuz
  * çoğalma olmaz — kayıt güncellenir. Daha önce "approved"/"rejected" olarak
  * çözülmüş bir kayıt tekrar "pending"e dönmez (durum çözülmüşse dokunulmaz).
+ *
+ * ÖNEMLİ — ülke bilgisi (entityCountry/candidateCountry) burada HİÇ
+ * yazılmaz. Bu alanlar SADECE admin panelindeki "eksik ülke bilgilerini
+ * doldur" butonu (backfillReviewQueueCountriesBatch, app/actions/market-value-review.ts)
+ * tarafından, admin manuel tetiklediğinde doldurulur. Yeni bir kayıt insert
+ * edilirken bu alanlar null (varsayılan) kalır; var olan bir kayıt
+ * güncellenirken de bu alanlara dokunulmaz — aksi halde cron'un haftalık
+ * tekrar çalışması, admin'in manuel butonla doldurduğu ülke verisini null
+ * ile ezerdi.
  */
 async function upsertReviewQueueEntry(input: ReviewEntryInput): Promise<void> {
   const id = `${input.entityType}-${input.entityId}`
@@ -453,10 +452,8 @@ async function upsertReviewQueueEntry(input: ReviewEntryInput): Promise<void> {
       entityType: input.entityType,
       entityId: input.entityId,
       entityName: input.entityName,
-      entityCountry: input.entityCountry,
       candidateName: input.candidateName,
       candidateTransfermarktId: input.candidateTransfermarktId,
-      candidateCountry: input.candidateCountry,
       candidateValueEur: input.candidateValueEur !== null ? String(input.candidateValueEur) : null,
       confidence: input.confidence,
       status: "pending",
@@ -466,13 +463,10 @@ async function upsertReviewQueueEntry(input: ReviewEntryInput): Promise<void> {
       target: marketValueReviewQueue.id,
       set: {
         entityName: input.entityName,
-        entityCountry: input.entityCountry,
         candidateName: input.candidateName,
         candidateTransfermarktId: input.candidateTransfermarktId,
-        candidateCountry: input.candidateCountry,
         candidateValueEur: input.candidateValueEur !== null ? String(input.candidateValueEur) : null,
         confidence: input.confidence,
-        status: "pending",
       },
     })
 }
