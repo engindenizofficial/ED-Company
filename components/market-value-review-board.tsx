@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
-import { Check, Globe, Loader2, ShieldAlert, X } from "lucide-react"
+import { Check, Globe, Loader2, ShieldAlert, User, Users, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,11 +31,22 @@ export interface ReviewQueueItem {
 }
 
 type Status = ReviewQueueItem["status"]
+type EntityType = ReviewQueueItem["entityType"]
 
 const STATUS_LABEL: Record<Status, string> = {
   pending: "Bekleyen",
   approved: "Onaylanan",
   rejected: "Reddedilen",
+}
+
+const ENTITY_TYPE_LABEL: Record<EntityType, string> = {
+  team: "Takımlar",
+  player: "Oyuncular",
+}
+
+const ENTITY_TYPE_ICON: Record<EntityType, typeof Users> = {
+  team: Users,
+  player: User,
 }
 
 /** Skor eşiğe (82) ne kadar yakınsa o kadar "iyi" — düşük skor daha riskli. */
@@ -89,10 +100,16 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
     })
   }
 
-  const grouped = useMemo(() => {
-    const result: Record<Status, ReviewQueueItem[]> = { pending: [], approved: [], rejected: [] }
+  // Takım ve oyuncu adaylarını admin işini kolaylaştırmak için ayrı ayrı
+  // grupluyoruz — önce tür (Takım/Oyuncu), sonra durum (Bekleyen/Onaylanan/
+  // Reddedilen).
+  const groupedByType = useMemo(() => {
+    const result: Record<EntityType, Record<Status, ReviewQueueItem[]>> = {
+      team: { pending: [], approved: [], rejected: [] },
+      player: { pending: [], approved: [], rejected: [] },
+    }
     for (const item of items) {
-      result[statusById[item.id] ?? item.status].push(item)
+      result[item.entityType][statusById[item.id] ?? item.status].push(item)
     }
     return result
   }, [items, statusById])
@@ -109,6 +126,9 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
       }
     })
   }
+
+  const teamPendingCount = groupedByType.team.pending.length
+  const playerPendingCount = groupedByType.player.pending.length
 
   return (
     <div className="flex flex-col gap-6">
@@ -146,119 +166,171 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
         )}
       </div>
 
-      <Tabs defaultValue="pending">
+      <Tabs defaultValue="team">
         <TabsList>
-          {(["pending", "approved", "rejected"] as const).map((status) => (
-            <TabsTrigger key={status} value={status}>
-              {STATUS_LABEL[status]}
-              <Badge variant="secondary" className="ml-1.5">
-                {grouped[status].length}
-              </Badge>
-            </TabsTrigger>
-          ))}
+          {(["team", "player"] as const).map((entityType) => {
+            const Icon = ENTITY_TYPE_ICON[entityType]
+            const pendingCount = entityType === "team" ? teamPendingCount : playerPendingCount
+            return (
+              <TabsTrigger key={entityType} value={entityType}>
+                <Icon data-icon="inline-start" />
+                {ENTITY_TYPE_LABEL[entityType]}
+                {pendingCount > 0 && (
+                  <Badge variant="secondary" className="ml-1.5">
+                    {pendingCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )
+          })}
         </TabsList>
 
-        {(["pending", "approved", "rejected"] as const).map((status) => (
-          <TabsContent key={status} value={status} className="mt-4">
-            {grouped[status].length === 0 ? (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <ShieldAlert />
-                  </EmptyMedia>
-                  <EmptyTitle>Kayıt yok</EmptyTitle>
-                  <EmptyDescription>
-                    {status === "pending"
-                      ? "Şu anda gözden geçirilmeyi bekleyen bir eşleşme yok."
-                      : `${STATUS_LABEL[status]} durumunda bir kayıt bulunmuyor.`}
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <Card>
-                <CardHeader className="sr-only">
-                  <CardTitle>{STATUS_LABEL[status]} eşleşmeler</CardTitle>
-                  <CardDescription>Takım ve oyuncu eşleştirme adayları</CardDescription>
-                </CardHeader>
-                <CardContent className="px-0 sm:px-4">
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Tür</TableHead>
-                          <TableHead>API-Football</TableHead>
-                          <TableHead>Transfermarkt adayı</TableHead>
-                          <TableHead>Değer</TableHead>
-                          <TableHead>Güven</TableHead>
-                          {status === "pending" && <TableHead className="text-right">Aksiyon</TableHead>}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {grouped[status].map((item) => {
-                          const formattedValue = formatMarketValueEur(item.candidateValueEur)
-                          const busy = isPending && pendingId === item.id
-                          return (
-                            <TableRow key={item.id}>
-                              <TableCell>
-                                <Badge variant="outline">{item.entityType === "team" ? "Takım" : "Oyuncu"}</Badge>
-                              </TableCell>
-                              <TableCell className="font-medium">
-                                <div>{item.entityName}</div>
-                                {item.entityCountry && (
-                                  <div className="text-xs font-normal text-muted-foreground">
-                                    {item.entityCountry}
-                                  </div>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                <div className="text-foreground">{item.candidateName ?? "—"}</div>
-                                {item.candidateCountry && (
-                                  <div className="text-xs text-muted-foreground">{item.candidateCountry}</div>
-                                )}
-                              </TableCell>
-                              <TableCell>{formattedValue ?? "—"}</TableCell>
-                              <TableCell>
-                                <Badge variant={confidenceVariant(item.confidence)}>{item.confidence}</Badge>
-                              </TableCell>
-                              {status === "pending" && (
-                                <TableCell className="text-right">
-                                  <div className="flex justify-end gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={busy}
-                                      onClick={() => resolve(item.id, "rejected")}
-                                    >
-                                      {busy ? (
-                                        <Loader2 className="animate-spin" data-icon="inline-start" />
-                                      ) : (
-                                        <X data-icon="inline-start" />
-                                      )}
-                                      Reddet
-                                    </Button>
-                                    <Button size="sm" disabled={busy} onClick={() => resolve(item.id, "approved")}>
-                                      {busy ? (
-                                        <Loader2 className="animate-spin" data-icon="inline-start" />
-                                      ) : (
-                                        <Check data-icon="inline-start" />
-                                      )}
-                                      Onayla
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              )}
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+        {(["team", "player"] as const).map((entityType) => (
+          <TabsContent key={entityType} value={entityType} className="mt-4">
+            <StatusTabsPanel
+              entityType={entityType}
+              grouped={groupedByType[entityType]}
+              isPending={isPending}
+              pendingId={pendingId}
+              onResolve={resolve}
+            />
           </TabsContent>
         ))}
       </Tabs>
     </div>
+  )
+}
+
+/**
+ * Bir varlık türü (Takım/Oyuncu) için Bekleyen/Onaylanan/Reddedilen alt
+ * sekmelerini ve tabloyu render eder. Admin işini kolaylaştırmak için takım
+ * ve oyuncu adayları artık MarketValueReviewBoard'da ayrı sekmelerde
+ * gösteriliyor; bu bileşen o iki sekmenin içeriğini üretir.
+ */
+function StatusTabsPanel({
+  entityType,
+  grouped,
+  isPending,
+  pendingId,
+  onResolve,
+}: {
+  entityType: EntityType
+  grouped: Record<Status, ReviewQueueItem[]>
+  isPending: boolean
+  pendingId: string | null
+  onResolve: (id: string, next: Status) => void
+}) {
+  return (
+    <Tabs defaultValue="pending">
+      <TabsList>
+        {(["pending", "approved", "rejected"] as const).map((status) => (
+          <TabsTrigger key={status} value={status}>
+            {STATUS_LABEL[status]}
+            <Badge variant="secondary" className="ml-1.5">
+              {grouped[status].length}
+            </Badge>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+
+      {(["pending", "approved", "rejected"] as const).map((status) => (
+        <TabsContent key={status} value={status} className="mt-4">
+          {grouped[status].length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ShieldAlert />
+                </EmptyMedia>
+                <EmptyTitle>Kayıt yok</EmptyTitle>
+                <EmptyDescription>
+                  {status === "pending"
+                    ? `Şu anda gözden geçirilmeyi bekleyen bir ${entityType === "team" ? "takım" : "oyuncu"} eşleşmesi yok.`
+                    : `${STATUS_LABEL[status]} durumunda bir kayıt bulunmuyor.`}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <Card>
+              <CardHeader className="sr-only">
+                <CardTitle>
+                  {STATUS_LABEL[status]} {ENTITY_TYPE_LABEL[entityType].toLowerCase()}
+                </CardTitle>
+                <CardDescription>{ENTITY_TYPE_LABEL[entityType]} eşleştirme adayları</CardDescription>
+              </CardHeader>
+              <CardContent className="px-0 sm:px-4">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>API-Football</TableHead>
+                        <TableHead>Transfermarkt adayı</TableHead>
+                        <TableHead>Değer</TableHead>
+                        <TableHead>Güven</TableHead>
+                        {status === "pending" && <TableHead className="text-right">Aksiyon</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {grouped[status].map((item) => {
+                        const formattedValue = formatMarketValueEur(item.candidateValueEur)
+                        const busy = isPending && pendingId === item.id
+                        return (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-medium">
+                              <div>{item.entityName}</div>
+                              {item.entityCountry && (
+                                <div className="text-xs font-normal text-muted-foreground">
+                                  {item.entityCountry}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              <div className="text-foreground">{item.candidateName ?? "—"}</div>
+                              {item.candidateCountry && (
+                                <div className="text-xs text-muted-foreground">{item.candidateCountry}</div>
+                              )}
+                            </TableCell>
+                            <TableCell>{formattedValue ?? "—"}</TableCell>
+                            <TableCell>
+                              <Badge variant={confidenceVariant(item.confidence)}>{item.confidence}</Badge>
+                            </TableCell>
+                            {status === "pending" && (
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={busy}
+                                    onClick={() => onResolve(item.id, "rejected")}
+                                  >
+                                    {busy ? (
+                                      <Loader2 className="animate-spin" data-icon="inline-start" />
+                                    ) : (
+                                      <X data-icon="inline-start" />
+                                    )}
+                                    Reddet
+                                  </Button>
+                                  <Button size="sm" disabled={busy} onClick={() => onResolve(item.id, "approved")}>
+                                    {busy ? (
+                                      <Loader2 className="animate-spin" data-icon="inline-start" />
+                                    ) : (
+                                      <Check data-icon="inline-start" />
+                                    )}
+                                    Onayla
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      ))}
+    </Tabs>
   )
 }
