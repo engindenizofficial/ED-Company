@@ -1,6 +1,12 @@
 import { after } from "next/server"
 import { cleanupStaleMarketValueRows, SCRAPABLE_LEAGUE_IDS } from "@/lib/market-value-sync"
-import { getActiveCronRun, processCronRunStep, completeCronRun, isCronRunStale } from "@/lib/market-value-cron-run"
+import {
+  getActiveCronRun,
+  processCronRunStep,
+  completeCronRun,
+  isCronRunStale,
+  triggerChainContinuation,
+} from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
 // "Watchdog" — haftalık piyasa değeri cron zinciri (bkz. app/api/cron/
@@ -50,11 +56,9 @@ async function triggerNextResumeStep(request: Request, runId: string): Promise<v
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  try {
-    await fetch(url.toString(), { headers })
-  } catch (err) {
-    console.error("[v0] Bir sonraki resume adımı tetiklenemedi:", err)
-  }
+  // Zaman aşımı + yeniden deneme ile — bkz. lib/market-value-cron-run.ts
+  // içindeki triggerChainContinuation açıklaması.
+  await triggerChainContinuation(url.toString(), headers)
 }
 
 export async function GET(request: Request) {

@@ -6,6 +6,7 @@ import {
   processCronRunStep,
   completeCronRun,
   isCronRunStale,
+  triggerChainContinuation,
   type CronRunRow,
 } from "@/lib/market-value-cron-run"
 
@@ -64,11 +65,11 @@ async function triggerNextStep(request: Request, runId: string): Promise<void> {
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  try {
-    await fetch(url.toString(), { headers })
-  } catch (err) {
-    console.error("[v0] Bir sonraki cron adımı tetiklenemedi:", err)
-  }
+  // Zaman aşımı + yeniden deneme ile — bkz. lib/market-value-cron-run.ts
+  // içindeki triggerChainContinuation açıklaması: bunlar OLMADAN, askıda
+  // kalan tek bir self-fetch isteği after()'ı maxDuration'a kadar bekletip
+  // zinciri hiçbir hata izi bırakmadan sessizce kırabiliyordu.
+  await triggerChainContinuation(url.toString(), headers)
 }
 
 export async function GET(request: Request) {

@@ -48,8 +48,50 @@ const TEAM_RETRY_DELAY_MS = 3000
 /** Bir "running" run'ın heartbeat'i bundan eskiyse zincir kırılmış sayılır ve devam ettirilebilir. */
 export const STALE_HEARTBEAT_MS = 10 * 60 * 1000
 
+/**
+ * Zincirin kendi kendini tetikleyen self-fetch isteği (bkz. route.ts'lerdeki
+ * triggerNextStep/triggerNextResumeStep) için zaman aşımı — bu YOKKEN, ağ
+ * tarafında askıda kalan (ne başarılı ne hatalı biten) bir istek, after()'ı
+ * maxDuration (300s) sonuna kadar bekletip fonksiyonu SESSİZCE (hiçbir catch
+ * çalışmadan, hiçbir hata loglanmadan) zorla sonlandırırdı — zincir tam
+ * olarak bu şekilde, rastgele bir noktada iz bırakmadan kırılıyordu.
+ */
+const SELF_FETCH_TIMEOUT_MS = 15_000
+/** Self-fetch tetiklemesi başarısız/zaman aşımına uğrarsa en fazla bu kadar denenir. */
+const SELF_FETCH_MAX_ATTEMPTS = 3
+/** Self-fetch denemeleri arası bekleme. */
+const SELF_FETCH_RETRY_DELAY_MS = 2000
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Zincirin bir sonraki adımını tetikleyen self-fetch isteğini, zaman aşımı ve
+ * yeniden deneme ile dayanıklı şekilde yapar. Tek doğruluk kaynağı burası —
+ * hem ana cron route'u hem de watchdog route'u bunu kullanır, böylece askıda
+ * kalan tek bir istek artık tüm zinciri sessizce öldüremez.
+ */
+export async function triggerChainContinuation(url: string, headers: Record<string, string>): Promise<void> {
+  for (let attempt = 1; attempt <= SELF_FETCH_MAX_ATTEMPTS; attempt++) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), SELF_FETCH_TIMEOUT_MS)
+    try {
+      await fetch(url, { headers, signal: controller.signal })
+      return
+    } catch (err) {
+      console.error(
+        `[v0] Zincir devam tetiklemesi başarısız (deneme ${attempt}/${SELF_FETCH_MAX_ATTEMPTS}): ${url}`,
+        err,
+      )
+      if (attempt < SELF_FETCH_MAX_ATTEMPTS) {
+        await sleep(SELF_FETCH_RETRY_DELAY_MS)
+      }
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  }
+  console.error(`[v0] Zincir devam tetiklemesi tüm denemelerden sonra başarısız oldu, zincir burada duracak: ${url}`)
 }
 
 export type LeagueRunStatus = "pending" | "success" | "failed"
