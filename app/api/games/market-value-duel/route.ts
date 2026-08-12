@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server"
-import { createDuelRound, resolveDuelRound } from "@/lib/games/market-value-duel"
+import { createDuelRound, resolveDuelRound, type DuelDifficulty } from "@/lib/games/market-value-duel"
 
 export const dynamic = "force-dynamic"
 
+const VALID_DIFFICULTIES: DuelDifficulty[] = ["easy", "normal", "hard"]
+
+function parseDifficulty(value: string | null): DuelDifficulty {
+  if (value && (VALID_DIFFICULTIES as string[]).includes(value)) return value as DuelDifficulty
+  return "normal"
+}
+
 /** Yeni bir düello turu: 2 rastgele oyuncu (piyasa değeri GİZLİ) + imzalı jeton. */
-export async function GET() {
-  const round = await createDuelRound()
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const difficulty = parseDifficulty(searchParams.get("difficulty"))
+
+  const round = await createDuelRound(difficulty)
   if (!round) {
     return NextResponse.json(
       { error: "Yeterli oyuncu verisi bulunamadı. Lütfen daha sonra tekrar deneyin." },

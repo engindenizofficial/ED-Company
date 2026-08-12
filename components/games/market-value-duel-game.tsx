@@ -1,17 +1,48 @@
 "use client"
 
 import { AnimatePresence, motion } from "motion/react"
-import { useCallback, useEffect, useRef, useState } from "react"
-import { Flame, LoaderCircle, RotateCcw, Swords, Trophy, Volume2, VolumeX, Zap } from "lucide-react"
+import { useCallback, useRef, useState } from "react"
+import { Flame, Gauge, RotateCcw, Skull, Sparkles, Swords, Trophy, Volume2, VolumeX, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DuelPlayerCard } from "@/components/games/duel-player-card"
 import { useSoundEffects } from "@/lib/games/use-sound-effects"
-import type { DuelPlayer, DuelResult, DuelRound } from "@/lib/games/market-value-duel"
+import type { DuelDifficulty, DuelPlayer, DuelResult, DuelRound } from "@/lib/games/market-value-duel"
 
-type Phase = "loading" | "playing" | "revealed" | "error"
+type Phase = "select-difficulty" | "loading" | "playing" | "revealed" | "error"
+
+const DIFFICULTIES: {
+  id: DuelDifficulty
+  label: string
+  desc: string
+  icon: typeof Gauge
+  accent: string
+}[] = [
+  {
+    id: "easy",
+    label: "Kolay",
+    desc: "Herkesin bildiği süperstarlar",
+    icon: Sparkles,
+    accent: "text-emerald-400 ring-emerald-400/30 bg-emerald-500/10",
+  },
+  {
+    id: "normal",
+    label: "Normal",
+    desc: "Futbolseverin bildiği isimler",
+    icon: Gauge,
+    accent: "text-amber-400 ring-amber-400/30 bg-amber-500/10",
+  },
+  {
+    id: "hard",
+    label: "Zor",
+    desc: "Sadece fanatiklerin bileceği isimler",
+    icon: Skull,
+    accent: "text-rose-400 ring-rose-400/30 bg-rose-500/10",
+  },
+]
 
 export function MarketValueDuelGame() {
-  const [phase, setPhase] = useState<Phase>("loading")
+  const [phase, setPhase] = useState<Phase>("select-difficulty")
+  const [difficulty, setDifficulty] = useState<DuelDifficulty | null>(null)
   const [round, setRound] = useState<DuelRound | null>(null)
   const [result, setResult] = useState<DuelResult | null>(null)
   const [pickedId, setPickedId] = useState<number | null>(null)
@@ -28,39 +59,50 @@ export function MarketValueDuelGame() {
   // İlk yüklemede "yeni tur" sesinin çalmasını önlemek için (henüz oynanmadı).
   const hasPlayedRef = useRef(false)
 
-  const loadRound = useCallback(async () => {
-    if (loadingRef.current) return
-    loadingRef.current = true
-    setPhase("loading")
-    setResult(null)
-    setPickedId(null)
-    setFlash(null)
-    try {
-      const res = await fetch("/api/games/market-value-duel", { cache: "no-store" })
-      if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        setErrorMsg(data?.error ?? "Oyun yüklenemedi.")
+  const loadRound = useCallback(
+    async (activeDifficulty: DuelDifficulty) => {
+      if (loadingRef.current) return
+      loadingRef.current = true
+      setPhase("loading")
+      setResult(null)
+      setPickedId(null)
+      setFlash(null)
+      try {
+        const res = await fetch(`/api/games/market-value-duel?difficulty=${activeDifficulty}`, {
+          cache: "no-store",
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => null)
+          setErrorMsg(data?.error ?? "Oyun yüklenemedi.")
+          setPhase("error")
+          return
+        }
+        const data = (await res.json()) as DuelRound
+        setRound(data)
+        setPhase("playing")
+        if (hasPlayedRef.current) play("newRound")
+        hasPlayedRef.current = true
+      } catch {
+        setErrorMsg("Bağlantı hatası. Lütfen tekrar deneyin.")
         setPhase("error")
-        return
+      } finally {
+        loadingRef.current = false
       }
-      const data = (await res.json()) as DuelRound
-      setRound(data)
-      setPhase("playing")
-      if (hasPlayedRef.current) play("newRound")
-      hasPlayedRef.current = true
-    } catch {
-      setErrorMsg("Bağlantı hatası. Lütfen tekrar deneyin.")
-      setPhase("error")
-    } finally {
-      loadingRef.current = false
-    }
-  }, [play])
+    },
+    [play],
+  )
 
-  useEffect(() => {
-    loadRound()
-    // Bileşen ilk kurulumunda sadece bir kez çalışır.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const handleSelectDifficulty = useCallback(
+    (next: DuelDifficulty) => {
+      setDifficulty(next)
+      setScore(0)
+      setStreak(0)
+      setBestStreak(0)
+      hasPlayedRef.current = false
+      loadRound(next)
+    },
+    [loadRound],
+  )
 
   const handlePick = useCallback(
     async (player: DuelPlayer) => {
@@ -112,17 +154,77 @@ export function MarketValueDuelGame() {
   )
 
   const handleNext = useCallback(() => {
-    loadRound()
-  }, [loadRound])
+    if (difficulty) loadRound(difficulty)
+  }, [loadRound, difficulty])
 
   const handleRestart = useCallback(() => {
     setScore(0)
     setStreak(0)
-    loadRound()
-  }, [loadRound])
+    if (difficulty) loadRound(difficulty)
+  }, [loadRound, difficulty])
+
+  const handleChangeDifficulty = useCallback(() => {
+    setDifficulty(null)
+    setRound(null)
+    setResult(null)
+    setPickedId(null)
+    setPhase("select-difficulty")
+  }, [])
 
   const revealed = phase === "revealed" && result !== null
   const wrongPick = revealed && result && pickedId !== null && result.correctId !== pickedId
+  const currentDifficultyMeta = DIFFICULTIES.find((d) => d.id === difficulty) ?? null
+
+  if (phase === "select-difficulty") {
+    return (
+      <div className="flex min-h-[440px] flex-col items-center justify-center gap-8 py-6">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary ring-1 ring-primary/30">
+            <Swords className="h-6 w-6" />
+          </div>
+          <h2 className="text-xl font-black uppercase italic tracking-tight text-foreground">
+            Zorluk Seç
+          </h2>
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+            Arenaya hangi seviyeden gireceksin? Seçim seni bekleyen rakiplerin tanınırlığını
+            belirler.
+          </p>
+        </div>
+
+        <div className="grid w-full max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
+          {DIFFICULTIES.map((d, i) => {
+            const Icon = d.icon
+            return (
+              <motion.button
+                key={d.id}
+                type="button"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.08, type: "spring", stiffness: 300, damping: 22 }}
+                onClick={() => handleSelectDifficulty(d.id)}
+                className={cn(
+                  "group flex flex-col items-center gap-2.5 rounded-2xl border border-border/60 bg-card px-4 py-6 text-center transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10",
+                )}
+              >
+                <div
+                  className={cn(
+                    "flex h-12 w-12 items-center justify-center rounded-xl ring-1 transition-transform group-hover:scale-110",
+                    d.accent,
+                  )}
+                >
+                  <Icon className="h-5.5 w-5.5" />
+                </div>
+                <span className="text-base font-black uppercase italic tracking-tight text-foreground">
+                  {d.label}
+                </span>
+                <span className="text-xs leading-relaxed text-muted-foreground">{d.desc}</span>
+              </motion.button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -187,6 +289,20 @@ export function MarketValueDuelGame() {
         </div>
 
         <div className="relative flex items-center gap-1">
+          {currentDifficultyMeta && (
+            <button
+              type="button"
+              onClick={handleChangeDifficulty}
+              className={cn(
+                "hidden items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide ring-1 transition-opacity hover:opacity-80 sm:flex",
+                currentDifficultyMeta.accent,
+              )}
+              aria-label="Zorluk seviyesini değiştir"
+            >
+              <currentDifficultyMeta.icon className="h-3 w-3" />
+              {currentDifficultyMeta.label}
+            </button>
+          )}
           <button
             type="button"
             onClick={toggleMuted}
@@ -274,7 +390,7 @@ export function MarketValueDuelGame() {
               <p className="text-sm text-muted-foreground">{errorMsg}</p>
               <button
                 type="button"
-                onClick={loadRound}
+                onClick={handleNext}
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
               >
                 Tekrar Dene

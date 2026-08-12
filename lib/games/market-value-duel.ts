@@ -1,7 +1,7 @@
 import crypto from "crypto"
 import { sql } from "drizzle-orm"
 import { db } from "@/lib/db"
-import { playerMarketValue } from "@/lib/db/schema"
+import { playerMarketValue, teamMarketValue } from "@/lib/db/schema"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import { getPlayerMarketValues } from "@/lib/market-values"
@@ -36,6 +36,42 @@ export interface DuelRound {
 export interface DuelResult {
   correctId: number
   values: Record<number, number | null>
+}
+
+export type DuelDifficulty = "easy" | "normal" | "hard"
+
+// ---------------------------------------------------------------------------
+// Zorluk seviyeleri — takımın oynadığı ligin "ünü" ve oyuncunun piyasa
+// değeri kombinasyonuna göre "ne kadar tanınır" olduğunu yaklaştırıyoruz.
+// Elimizde doğrudan bir popülerlik metriği yok, ama Avrupa'nın en büyük 5
+// liginde oynayan + çok yüksek değerli oyuncular herkesin tanıdığı
+// süperstarlardır; küçük liglerde oynayan / düşük değerli oyuncular ise
+// sadece işin ehli taraftarların bileceği isimlerdir.
+// ---------------------------------------------------------------------------
+
+/** İngiltere, İspanya, İtalya, Almanya, Fransa — en yüksek görünürlüklü 5 lig. */
+const ELITE_LEAGUE_IDS = [39, 140, 135, 78, 61]
+/** Elit ligler + Avrupa'da hâlâ genel bilinirliği olan orta seviye ligler. */
+const KNOWN_LEAGUE_IDS = [...ELITE_LEAGUE_IDS, 94, 203, 88, 144, 197, 179]
+
+function difficultyCondition(difficulty: DuelDifficulty) {
+  const eliteLeagues = sql.join(ELITE_LEAGUE_IDS, sql`, `)
+  const knownLeagues = sql.join(KNOWN_LEAGUE_IDS, sql`, `)
+
+  switch (difficulty) {
+    case "easy":
+      // Herkesin bilebileceği: elit liglerde oynayan, süperstar seviyesinde
+      // (35M€ ve üzeri) oyuncular.
+      return sql`${teamMarketValue.leagueId} in (${eliteLeagues}) and ${playerMarketValue.valueEur} >= 35000000`
+    case "normal":
+      // Futbolla az çok ilgilenen birinin bilebileceği: bilinen liglerde
+      // oynayan, orta-üst düzey değere sahip oyuncular.
+      return sql`${teamMarketValue.leagueId} in (${knownLeagues}) and ${playerMarketValue.valueEur} >= 5000000 and ${playerMarketValue.valueEur} < 35000000`
+    case "hard":
+      // Sadece işin fanatiği olanların bileceği: küçük liglerde oynayan
+      // veya düşük piyasa değerine sahip oyuncular.
+      return sql`(${teamMarketValue.leagueId} not in (${knownLeagues}) or ${playerMarketValue.valueEur} < 5000000)`
+  }
 }
 
 function currentSeason(): number {
@@ -78,8 +114,12 @@ export function verifyRoundToken(token: string): [number, number] | null {
   }
 }
 
-/** Piyasa değeri eşleşmiş satırlardan rastgele `count` adet farklı oyuncu seçer. */
-async function pickRandomMatchedPlayers(count: number, excludeIds: number[] = []) {
+/**
+ * Piyasa değeri eşleşmiş satırlardan, seçilen zorluk seviyesine uyan rastgele
+ * `count` adet farklı oyuncu seçer. Zorluk filtresi oyuncunun o anki takımının
+ * ligine (team_market_value.leagueId) ve piyasa değerine bakar.
+ */
+async function pickRandomMatchedPlayers(count: number, difficulty: DuelDifficulty, excludeIds: number[] = []) {
   const exclude = excludeIds.length > 0 ? sql`and ${playerMarketValue.playerId} not in (${sql.join(excludeIds, sql`, `)})` : sql``
   const rows = await db
     .select({
@@ -88,8 +128,9 @@ async function pickRandomMatchedPlayers(count: number, excludeIds: number[] = []
       valueEur: playerMarketValue.valueEur,
     })
     .from(playerMarketValue)
+    .innerJoin(teamMarketValue, sql`${teamMarketValue.teamId} = ${playerMarketValue.teamId}`)
     .where(
-      sql`${playerMarketValue.matchStatus} = 'matched' and ${playerMarketValue.valueEur} is not null and ${playerMarketValue.valueEur} > 0 ${exclude}`,
+      sql`${playerMarketValue.matchStatus} = 'matched' and ${playerMarketValue.valueEur} is not null and ${playerMarketValue.valueEur} > 0 and ${teamMarketValue.matchStatus} = 'matched' and (${difficultyCondition(difficulty)}) ${exclude}`,
     )
     .orderBy(sql`random()`)
     .limit(count)
@@ -131,14 +172,14 @@ const MAX_POOL_ROUNDS = 6
 const POOL_BATCH_SIZE = 6
 
 /** Yeni bir düello turu üretir: 2 rastgele (bilgisi TAM olan) oyuncu + imzalı tur jetonu. */
-export async function createDuelRound(): Promise<DuelRound | null> {
+export async function createDuelRound(difficulty: DuelDifficulty = "normal"): Promise<DuelRound | null> {
   const valid: DuelPlayer[] = []
   const triedIds: number[] = []
 
   // Bilgisi eksik (fotoğraf/takım/ülke yok) oyuncuları eleyip havuzu
   // kademeli olarak büyüterek en az 2 tam bilgili oyuncu bulana kadar dener.
   for (let round = 0; round < MAX_POOL_ROUNDS && valid.length < 2; round++) {
-    const candidates = await pickRandomMatchedPlayers(POOL_BATCH_SIZE, triedIds)
+    const candidates = await pickRandomMatchedPlayers(POOL_BATCH_SIZE, difficulty, triedIds)
     if (candidates.length === 0) break
     triedIds.push(...candidates.map((c) => c.playerId))
 
