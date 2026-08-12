@@ -26,11 +26,15 @@ export function NavTabs() {
         {/* Hamburger (sadece giriş yapmış kullanıcılar) + Logo sol */}
         <div className="flex items-center gap-2">
           <FavoritesMenu />
-          <span className="select-none text-[13px] font-black tracking-[0.18em] uppercase">
+          <Link
+            href="/"
+            className="select-none text-[13px] font-black tracking-[0.18em] uppercase"
+            aria-label="Ana ekrana dön"
+          >
             <span className="brand-gradient bg-clip-text text-transparent">ED</span>
             <span className="text-foreground/30 mx-1">/</span>
             <span className="text-foreground/60 font-semibold tracking-widest text-[11px]">ANALYTICS</span>
-          </span>
+          </Link>
         </div>
 
         {/* Sağ: Tabs + Auth */}
