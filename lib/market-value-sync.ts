@@ -26,9 +26,16 @@ export interface LockedRow {
 }
 
 /**
- * Admin tarafından manuel onaylanmış/reddedilmiş (manualOverride = true) takım
- * satırlarını okur. Bu takımlar için cron, isim benzerliğini yeniden hesaplasa
- * bile matchStatus/transfermarktTeamId üzerine YAZMAZ — admin kararı kalıcıdır.
+ * Admin tarafından manuel ONAYLANMIŞ (matchStatus="matched" + manualOverride)
+ * takım satırlarını okur. Bu takımlar için cron, isim benzerliğini yeniden
+ * hesaplasa bile eşleşme kararı üzerine YAZMAZ — sadece parasal değeri
+ * günceller (bkz. syncSingleTeam).
+ *
+ * ÖNEMLİ — REDDEDİLEN (matchStatus="unmatched" + manualOverride) satırlar bu
+ * haritaya BİLEREK dahil edilmez. Admin'in reddetme kararı kalıcı değildir:
+ * bir sonraki taramada bu takım, admin hiçbir şey reddetmemiş gibi normal
+ * eşleştirme mantığına (matchTeams) girer ve yeni veriye göre "matched",
+ * "review" ya da tekrar "unmatched" olabilir.
  */
 async function getLockedTeamMap(teamIds: number[]): Promise<Map<number, LockedRow>> {
   const result = new Map<number, LockedRow>()
@@ -45,7 +52,7 @@ async function getLockedTeamMap(teamIds: number[]): Promise<Map<number, LockedRo
     .where(inArray(teamMarketValue.teamId, teamIds))
 
   for (const row of rows) {
-    if (!row.manualOverride) continue
+    if (!row.manualOverride || row.matchStatus !== "matched") continue
     result.set(row.teamId, {
       matchStatus: row.matchStatus as LockedRow["matchStatus"],
       transfermarktId: row.transfermarktTeamId,
@@ -70,7 +77,7 @@ async function getLockedPlayerMap(playerIds: number[]): Promise<Map<number, Lock
     .where(inArray(playerMarketValue.playerId, playerIds))
 
   for (const row of rows) {
-    if (!row.manualOverride) continue
+    if (!row.manualOverride || row.matchStatus !== "matched") continue
     result.set(row.playerId, {
       matchStatus: row.matchStatus as LockedRow["matchStatus"],
       transfermarktId: row.transfermarktPlayerId,
@@ -385,6 +392,12 @@ async function upsertTeamMarketValue(
   const id = `team-${tm.apiFootballTeamId}`
   const now = new Date()
 
+  // Bu fonksiyona ulaşıldıysa takım kilitli DEĞİLDİR (bkz. getLockedTeamMap
+  // — sadece "matched" + manualOverride satırlar kilitli sayılır). Yani
+  // buraya, hiç dokunulmamış bir takım İÇİN ya da daha önce reddedilmiş
+  // (manualOverride=true, matchStatus="unmatched") ama artık yeniden
+  // değerlendirilen bir takım için gelinebilir. İkinci durumda eski
+  // manualOverride bayrağını da temizliyoruz ki veri modeli tutarlı kalsın.
   await db
     .insert(teamMarketValue)
     .values({
@@ -397,6 +410,7 @@ async function upsertTeamMarketValue(
       totalValueEur: tm.totalValueEur !== null ? String(tm.totalValueEur) : null,
       matchConfidence: tm.confidence,
       matchStatus: tm.status,
+      manualOverride: false,
       lastScrapedAt: now,
       lastSeenAt: runStartedAt,
       updatedAt: now,
@@ -410,6 +424,7 @@ async function upsertTeamMarketValue(
         totalValueEur: tm.totalValueEur !== null ? String(tm.totalValueEur) : null,
         matchConfidence: tm.confidence,
         matchStatus: tm.status,
+        manualOverride: false,
         lastScrapedAt: now,
         lastSeenAt: runStartedAt,
         updatedAt: now,
@@ -425,6 +440,9 @@ async function upsertPlayerMarketValue(
   const id = `player-${pm.apiFootballPlayerId}`
   const now = new Date()
 
+  // Bkz. upsertTeamMarketValue'daki açıklama — buraya ulaşıldıysa oyuncu
+  // kilitli DEĞİLDİR; daha önce reddedilmiş bir oyuncunun manualOverride
+  // bayrağı da burada temizlenir.
   await db
     .insert(playerMarketValue)
     .values({
@@ -437,6 +455,7 @@ async function upsertPlayerMarketValue(
       valueEur: pm.valueEur !== null ? String(pm.valueEur) : null,
       matchConfidence: pm.confidence,
       matchStatus: pm.status,
+      manualOverride: false,
       lastScrapedAt: now,
       lastSeenAt: runStartedAt,
       updatedAt: now,
@@ -450,6 +469,7 @@ async function upsertPlayerMarketValue(
         valueEur: pm.valueEur !== null ? String(pm.valueEur) : null,
         matchConfidence: pm.confidence,
         matchStatus: pm.status,
+        manualOverride: false,
         lastScrapedAt: now,
         lastSeenAt: runStartedAt,
         updatedAt: now,
@@ -470,32 +490,25 @@ interface ReviewEntryInput {
 /**
  * Review kuyruğuna deterministik id (`${entityType}-${entityId}`) ile yazar,
  * böylece cron her çalıştığında aynı belirsiz eşleşme için kuyrukta sonsuz
- * çoğalma olmaz — kayıt güncellenir. Daha önce "approved"/"rejected" olarak
- * çözülmüş bir kayıt tekrar "pending"e dönmez (durum çözülmüşse dokunulmaz).
+ * çoğalma olmaz — kayıt güncellenir.
  *
- * ÖNEMLİ — ülke bilgisi (entityCountry/candidateCountry) burada HİÇ
- * yazılmaz. Bu alanlar SADECE admin panelindeki "eksik ülke bilgilerini
- * doldur" butonu (backfillReviewQueueCountriesBatch, app/actions/market-value-review.ts)
- * tarafından, admin manuel tetiklediğinde doldurulur. Yeni bir kayıt insert
- * edilirken bu alanlar null (varsayılan) kalır; var olan bir kayıt
- * güncellenirken de bu alanlara dokunulmaz — aksi halde cron'un haftalık
- * tekrar çalışması, admin'in manuel butonla doldurduğu ülke verisini null
- * ile ezerdi.
+ * Bu fonksiyon SADECE kilitsiz (manualOverride yok / matched değil) bir
+ * entity için çağrılır (bkz. syncSingleTeam / syncTeamPlayers — onaylanmış
+ * "matched" satırlar tamamen bypass edilir, buraya hiç gelmez). Yani:
+ * - Hiç dokunulmamış bir entity için ilk kez "pending" oluşturulur.
+ * - Admin'in ÖNCEDEN REDDETTİĞİ bir entity, bu haftaki taramada tekrar
+ *   belirsiz çıkarsa, eski "rejected" durumu görmezden gelinip kayıt
+ *   yeniden "pending"e açılır — admin'in reddetme kararı kalıcı değildir,
+ *   bir sonraki taramada sanki hiç reddetmemiş gibi ele alınır.
+ * - Aday (candidateTransfermarktId) değişmiş olabileceğinden, eski
+ *   candidateCountry / countryLookupAttempted da sıfırlanır ki admin
+ *   panelindeki "eksik ülke bilgilerini doldur" butonu yeni aday için taze
+ *   veri çeksin (entityCountry genelde sabit kalır ama tutarlılık için o da
+ *   sıfırlanır).
  */
 async function upsertReviewQueueEntry(input: ReviewEntryInput): Promise<void> {
   const id = `${input.entityType}-${input.entityId}`
   const now = new Date()
-
-  const existing = await db
-    .select({ status: marketValueReviewQueue.status })
-    .from(marketValueReviewQueue)
-    .where(eq(marketValueReviewQueue.id, id))
-    .limit(1)
-
-  if (existing.length > 0 && existing[0].status !== "pending") {
-    // Daha önce elle onaylanmış/reddedilmiş bir kayıt — cron üzerine yazmasın.
-    return
-  }
 
   await db
     .insert(marketValueReviewQueue)
@@ -515,10 +528,15 @@ async function upsertReviewQueueEntry(input: ReviewEntryInput): Promise<void> {
       target: marketValueReviewQueue.id,
       set: {
         entityName: input.entityName,
+        entityCountry: null,
         candidateName: input.candidateName,
         candidateTransfermarktId: input.candidateTransfermarktId,
+        candidateCountry: null,
+        countryLookupAttempted: false,
         candidateValueEur: input.candidateValueEur !== null ? String(input.candidateValueEur) : null,
         confidence: input.confidence,
+        status: "pending",
+        resolvedAt: null,
       },
     })
 }
