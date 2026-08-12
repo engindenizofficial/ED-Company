@@ -252,6 +252,14 @@ const EMPTY_TEAM_SYNC_COUNTS: TeamSyncCounts = {
 export async function prepareLeagueTeamSync(leagueId: number, runStartedAt: Date): Promise<LeagueTeamProgress> {
   const season = currentSeason()
 
+  // Bir önceki ligin son takım/oyuncu isteğinden sonra Transfermarkt'a hemen
+  // yeni bir lig sayfası isteği atmamak için kısa bir bekleme — art arda çok
+  // hızlı gelen istekler bot korumasını (403/429) tetikleme riskini artırıyor.
+  // Gerçek bloklanma durumunda artık scrapeLeagueTeams sessizce boş dönmüyor,
+  // hata fırlatıyor (bkz. transfermarkt-scraper.ts fetchHtml) — bu bekleme
+  // sadece bloklanma riskini azaltmak için, hatayı gizlemek için değil.
+  await sleep(1500)
+
   const [apiFootballTeams, scrapedTeams] = await Promise.all([
     getLeagueTeamsForMatching(leagueId, season),
     scrapeLeagueTeams(leagueId),

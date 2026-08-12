@@ -85,11 +85,34 @@ function sleep(ms: number): Promise<void> {
 const FETCH_TIMEOUT_MS = 20_000
 
 /**
- * Transfermarkt sayfasını indirir. Geçici ağ hatalarında (ve zaman
- * aşımlarında) birkaç kez tekrar dener. Kalıcı hatalarda (404 vb.) null
- * döner — bir sayfanın çekilememesi tüm işlemi durdurmamalı.
+ * Transfermarkt'ın rate-limit / bot koruması (403 Forbidden, 429 Too Many
+ * Requests) ve geçici sunucu hataları (5xx) için kullanılan, giderek uzayan
+ * bekleme süreleri. Transfermarkt'ın bot engelleri genelde birkaç saniyelik
+ * bir 5xx hiçbirinden daha uzun sürdüğü için buradaki gecikmeler kasıtlı
+ * olarak daha büyük.
  */
-async function fetchHtml(url: string, retries = 2): Promise<string | null> {
+const BLOCKING_RETRY_DELAYS_MS = [3000, 8000, 20000]
+
+/**
+ * Transfermarkt sayfasını indirir. Geçici ağ hatalarında, 5xx'lerde ve
+ * rate-limit/bot koruması yanıtlarında (403/429) giderek uzayan beklemelerle
+ * birkaç kez tekrar dener (429 için "Retry-After" header'ı varsa ona uyar).
+ *
+ * ÖNEMLİ — SADECE 404 (sayfa gerçekten yok) "veri yok" sayılıp null döner.
+ * Tüm denemeler tükendiğinde diğer her durumda (403/429/5xx/ağ hatası) bu
+ * fonksiyon artık sessizce null DÖNMEZ, hata FIRLATIR. Önceden null dönmesi,
+ * çağıran tarafın (scrapeLeagueTeams/scrapeTeamSquad) bunu "bu ligde/takımda
+ * hiç oyuncu/takım yok" ile ayırt edememesine ve cron'un bloklanan bir ligi
+ * sessizce "başarılı, 0 eşleşme" olarak işaretlemesine yol açıyordu — hiçbir
+ * hata görünmediği için sorun fark edilemiyordu. Artık bu hata
+ * lib/market-value-sync.ts -> prepareLeagueTeamSync üzerinden
+ * lib/market-value-cron-run.ts -> prepareLeagueWithRetries'e kadar
+ * propagate olur; o katman ligi yeniden dener ve son çare olarak "failed"
+ * işaretleyip admin panelindeki "X lig başarısız" göstergesine yansıtır.
+ */
+async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length): Promise<string | null> {
+  let lastError: string | null = null
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -103,26 +126,38 @@ async function fetchHtml(url: string, retries = 2): Promise<string | null> {
         signal: controller.signal,
       })
       if (!res.ok) {
-        if (res.status >= 500 && attempt < retries) {
-          await sleep(500 * (attempt + 1))
+        if (res.status === 404) {
+          // Sayfa gerçekten yok — bu bir hata değil, "veri yok" sonucudur.
+          return null
+        }
+        if ((res.status >= 500 || res.status === 429 || res.status === 403) && attempt < retries) {
+          const retryAfterHeader = res.headers.get("retry-after")
+          const retryAfterMs = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) * 1000 : Number.NaN
+          const delay = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : BLOCKING_RETRY_DELAYS_MS[attempt]
+          console.warn(
+            `[v0] Transfermarkt fetch geçici olarak başarısız (${res.status}), ${delay}ms sonra tekrar denenecek (deneme ${attempt + 1}/${retries + 1}): ${url}`,
+          )
+          await sleep(delay)
           continue
         }
-        console.warn(`[v0] Transfermarkt fetch başarısız (${res.status}): ${url}`)
-        return null
+        lastError = `HTTP ${res.status}`
+        break
       }
       return await res.text()
     } catch (err) {
+      lastError = err instanceof Error ? err.message : "Bilinmeyen hata"
       if (attempt < retries) {
-        await sleep(500 * (attempt + 1))
+        await sleep(BLOCKING_RETRY_DELAYS_MS[attempt])
         continue
       }
-      console.warn(`[v0] Transfermarkt fetch hatası (zaman aşımı olabilir): ${url}`, err)
-      return null
+      break
     } finally {
       clearTimeout(timeoutId)
     }
   }
-  return null
+
+  console.error(`[v0] Transfermarkt fetch tüm denemelerden sonra başarısız oldu (${lastError}): ${url}`)
+  throw new Error(`Transfermarkt fetch başarısız oldu (${lastError ?? "bilinmeyen hata"}): ${url}`)
 }
 
 /**
