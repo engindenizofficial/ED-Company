@@ -115,31 +115,41 @@ export interface BackfillBatchResult {
 }
 
 /**
- * "pending" durumundaki, henüz entityCountry/candidateCountry doldurulmamış
- * eski review kayıtlarını geriye dönük dolduran tek bir grup. Bugüne kadar
- * biriken 700+ kayıt için, cron her yeni review'a bunu artık otomatik
- * eklediğinden (bkz. lib/market-value-sync.ts) bu sadece geçmiş kayıtlar
- * için bir kerelik geriye dönük doldurma amaçlıdır.
+ * "pending" durumundaki, henüz ülke doldurma denemesi yapılmamış eski review
+ * kayıtlarını geriye dönük dolduran tek bir grup. Bugüne kadar biriken 700+
+ * kayıt için, cron her yeni review'a bunu artık otomatik eklediğinden (bkz.
+ * lib/market-value-sync.ts) bu sadece geçmiş kayıtlar için bir kerelik
+ * geriye dönük doldurma amaçlıdır.
+ *
+ * ÖNEMLİ — countryLookupAttempted bayrağı: API-Football / Transfermarkt
+ * kaynağında bazı takım/oyuncular için ülke verisi hiç bulunmayabilir; bu
+ * durumda sonuç null'dır ama bu bir "hata" değildir. Eskiden WHERE koşulu
+ * sadece entityCountry/candidateCountry'nin null olup olmadığına bakıyordu,
+ * bu yüzden veri bulunamayan satırlar her turda yeniden seçiliyor ve
+ * sonsuza kadar "güncelleniyor" (yine null ile) — updated sayacı gerçek
+ * kayıt sayısını katlarca aşıyor ve döngü hiç durmuyordu. Şimdi her satır
+ * işlendiğinde (sonuç null olsa da) countryLookupAttempted=true yazılıyor
+ * ve WHERE koşulu bunu da kontrol ediyor, böylece gerçekten çözülemeyen
+ * satırlar bir kez denenip kalıcı olarak dışarıda kalıyor.
  *
  * Transfermarkt'a art arda çok hızlı istek atmamak için grup küçük tutulur;
  * admin panelindeki buton bu fonksiyonu "done: true" gelene kadar art arda
  * çağırır (bkz. components/market-value-review-board.tsx).
  */
+function backfillPendingCondition() {
+  return and(
+    eq(marketValueReviewQueue.status, "pending"),
+    eq(marketValueReviewQueue.countryLookupAttempted, false),
+    or(isNull(marketValueReviewQueue.entityCountry), isNull(marketValueReviewQueue.candidateCountry)),
+  )
+}
+
 export async function backfillReviewQueueCountriesBatch(): Promise<BackfillBatchResult> {
   await requireAdmin()
 
   const season = currentSeason()
 
-  const rows = await db
-    .select()
-    .from(marketValueReviewQueue)
-    .where(
-      and(
-        eq(marketValueReviewQueue.status, "pending"),
-        or(isNull(marketValueReviewQueue.entityCountry), isNull(marketValueReviewQueue.candidateCountry)),
-      ),
-    )
-    .limit(BACKFILL_BATCH_SIZE)
+  const rows = await db.select().from(marketValueReviewQueue).where(backfillPendingCondition()).limit(BACKFILL_BATCH_SIZE)
 
   if (rows.length === 0) {
     revalidatePath(REVIEW_PATH)
@@ -160,30 +170,31 @@ export async function backfillReviewQueueCountriesBatch(): Promise<BackfillBatch
           : Promise.resolve(null),
       ])
 
+      // Sonuç null olsa bile deneme yapıldığını işaretle — aksi halde bu
+      // satır bir sonraki turda tekrar seçilip sonsuza kadar denenir.
       await db
         .update(marketValueReviewQueue)
-        .set({ entityCountry, candidateCountry })
+        .set({
+          entityCountry: entityCountry ?? row.entityCountry,
+          candidateCountry: candidateCountry ?? row.candidateCountry,
+          countryLookupAttempted: true,
+        })
         .where(eq(marketValueReviewQueue.id, row.id))
 
       updated++
     } catch (err) {
       failed++
       console.error(`[v0] Backfill hatası (${row.id}):`, err instanceof Error ? err.message : err)
+      // Gerçek bir hata (ağ/timeout vb.) olduğunda bayrağı işaretleME —
+      // böylece bu satır bir sonraki turda yeniden denenir. Sadece "veri
+      // bulunamadı" (null dönen) durumlar kalıcı olarak dışarıda kalır.
     }
 
     // Transfermarkt'a art arda çok hızlı istek atmamak için bekleme.
     await sleep(400)
   }
 
-  const [{ remaining }] = await db
-    .select({ remaining: count() })
-    .from(marketValueReviewQueue)
-    .where(
-      and(
-        eq(marketValueReviewQueue.status, "pending"),
-        or(isNull(marketValueReviewQueue.entityCountry), isNull(marketValueReviewQueue.candidateCountry)),
-      ),
-    )
+  const [{ remaining }] = await db.select({ remaining: count() }).from(marketValueReviewQueue).where(backfillPendingCondition())
 
   revalidatePath(REVIEW_PATH)
 

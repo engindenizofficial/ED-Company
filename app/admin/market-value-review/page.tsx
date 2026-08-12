@@ -34,6 +34,7 @@ export default async function MarketValueReviewPage() {
     entityCountry: row.entityCountry,
     candidateName: row.candidateName,
     candidateCountry: row.candidateCountry,
+    countryLookupAttempted: row.countryLookupAttempted,
     candidateValueEur: row.candidateValueEur !== null ? Number(row.candidateValueEur) : null,
     confidence: row.confidence,
     status: row.status as "pending" | "approved" | "rejected",

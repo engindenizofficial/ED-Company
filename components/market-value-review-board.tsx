@@ -23,6 +23,7 @@ export interface ReviewQueueItem {
   entityCountry: string | null
   candidateName: string | null
   candidateCountry: string | null
+  countryLookupAttempted: boolean
   candidateValueEur: number | null
   confidence: number
   status: "pending" | "approved" | "rejected"
@@ -56,10 +57,14 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
   const [backfillDone, setBackfillDone] = useState(0)
   const [backfillError, setBackfillError] = useState<string | null>(null)
 
+  // countryLookupAttempted=true olan satırlar için ülke bulunamamış olabilir
+  // ama en az bir deneme yapılmıştır — bu satırları "eksik" sayıp butonu
+  // sonsuza kadar aktif göstermiyoruz (bkz. backfillReviewQueueCountriesBatch).
   const missingCountryCount = useMemo(() => {
     return items.filter(
       (item) =>
         (statusById[item.id] ?? item.status) === "pending" &&
+        !item.countryLookupAttempted &&
         (item.entityCountry === null || item.candidateCountry === null),
     ).length
   }, [items, statusById])

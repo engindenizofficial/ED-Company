@@ -162,6 +162,14 @@ export const marketValueReviewQueue = pgTable('market_value_review_queue', {
   candidateTransfermarktId: text('candidateTransfermarktId'),
   /** Transfermarkt adayının ülkesi (kulüp ülkesi / oyuncu uyruğu) */
   candidateCountry: text('candidateCountry'),
+  /**
+   * Ülke bilgisi için en az bir doldurma denemesi yapıldı mı? API-Football /
+   * Transfermarkt kaynağında veri bulunamayınca entityCountry/candidateCountry
+   * null kalabilir — bu durumda bu alan olmadan satır her backfill turunda
+   * tekrar seçilip sonsuza kadar "işlenip" hiçbir zaman çözülmüyordu. Bu
+   * bayrak true olduktan sonra satır backfill sorgusundan çıkar.
+   */
+  countryLookupAttempted: boolean('countryLookupAttempted').notNull().default(false),
   candidateValueEur: numeric('candidateValueEur', { precision: 14, scale: 2 }),
   /** 0-100 arası benzerlik skoru */
   confidence: integer('confidence').notNull(),
