@@ -7,6 +7,7 @@ import { db } from "@/lib/db"
 import { marketValueReviewQueue } from "@/lib/db/schema"
 import { MarketValueReviewBoard, type ReviewQueueItem } from "@/components/market-value-review-board"
 import { MarketValueCronStatus } from "@/components/market-value-cron-status"
+import { MarketValueDangerZone } from "@/components/market-value-danger-zone"
 import { getMarketValueCronStatus } from "@/app/actions/market-value-cron"
 
 export const metadata = {
@@ -43,8 +44,9 @@ export default async function MarketValueReviewPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-8">
-      <div className="mb-6">
+      <div className="mb-6 flex flex-col gap-4">
         <MarketValueCronStatus initialStatus={cronStatus} />
+        <MarketValueDangerZone />
       </div>
       <MarketValueReviewBoard items={items} />
     </main>
