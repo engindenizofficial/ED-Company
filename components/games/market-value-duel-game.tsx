@@ -2,9 +2,10 @@
 
 import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Flame, LoaderCircle, RotateCcw, Swords, Trophy, Zap } from "lucide-react"
+import { Flame, LoaderCircle, RotateCcw, Swords, Trophy, Volume2, VolumeX, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DuelPlayerCard } from "@/components/games/duel-player-card"
+import { useSoundEffects } from "@/lib/games/use-sound-effects"
 import type { DuelPlayer, DuelResult, DuelRound } from "@/lib/games/market-value-duel"
 
 type Phase = "loading" | "playing" | "revealed" | "error"
@@ -20,9 +21,12 @@ export function MarketValueDuelGame() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [flash, setFlash] = useState<"good" | "bad" | null>(null)
   const [comboPop, setComboPop] = useState<number | null>(null)
+  const { play, muted, toggleMuted } = useSoundEffects()
 
   // Aynı anda birden fazla tur isteğinin çakışmasını önlemek için.
   const loadingRef = useRef(false)
+  // İlk yüklemede "yeni tur" sesinin çalmasını önlemek için (henüz oynanmadı).
+  const hasPlayedRef = useRef(false)
 
   const loadRound = useCallback(async () => {
     if (loadingRef.current) return
@@ -42,23 +46,28 @@ export function MarketValueDuelGame() {
       const data = (await res.json()) as DuelRound
       setRound(data)
       setPhase("playing")
+      if (hasPlayedRef.current) play("newRound")
+      hasPlayedRef.current = true
     } catch {
       setErrorMsg("Bağlantı hatası. Lütfen tekrar deneyin.")
       setPhase("error")
     } finally {
       loadingRef.current = false
     }
-  }, [])
+  }, [play])
 
   useEffect(() => {
     loadRound()
-  }, [loadRound])
+    // Bileşen ilk kurulumunda sadece bir kez çalışır.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handlePick = useCallback(
     async (player: DuelPlayer) => {
       if (!round || phase !== "playing") return
       setPickedId(player.id)
       setPhase("revealed")
+      play("select")
 
       try {
         const res = await fetch("/api/games/market-value-duel", {
@@ -78,17 +87,20 @@ export function MarketValueDuelGame() {
         const correct = data.correctId === player.id
         setFlash(correct ? "good" : "bad")
         if (correct) {
+          play("correct")
           setScore((s) => s + 1)
           setStreak((s) => {
             const next = s + 1
             setBestStreak((b) => Math.max(b, next))
             if (next >= 2) {
               setComboPop(next)
+              setTimeout(() => play("combo"), 220)
               setTimeout(() => setComboPop(null), 900)
             }
             return next
           })
         } else {
+          play("wrong")
           setStreak(0)
         }
       } catch {
@@ -96,7 +108,7 @@ export function MarketValueDuelGame() {
         setPhase("error")
       }
     },
-    [round, phase],
+    [round, phase, play],
   )
 
   const handleNext = useCallback(() => {
@@ -174,15 +186,26 @@ export function MarketValueDuelGame() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleRestart}
-          className="relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          aria-label="Oyunu yeniden başlat"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Sıfırla</span>
-        </button>
+        <div className="relative flex items-center gap-1">
+          <button
+            type="button"
+            onClick={toggleMuted}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            aria-label={muted ? "Sesi aç" : "Sesi kapat"}
+            aria-pressed={muted}
+          >
+            {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            type="button"
+            onClick={handleRestart}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            aria-label="Oyunu yeniden başlat"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Sıfırla</span>
+          </button>
+        </div>
 
         <div className="relative flex items-center gap-2.5">
           <div className="flex flex-col items-end leading-tight">
