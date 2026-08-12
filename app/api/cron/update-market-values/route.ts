@@ -34,6 +34,17 @@ import {
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
+// ÖNEMLİ — zincir eskiden HER HTTP çağrısında SADECE BİR takım işleyip kendi
+// kendini yeniden tetikliyordu (self-fetch). ~23 lig × ortalama birkaç
+// takım = yüzlerce ayrı self-fetch demekti; bunlardan biri engellenirse
+// (örn. Vercel Deployment Protection) ya da ağ hatası alırsa zincir tam
+// olarak orada kırılıyordu. Şimdi her çağrı, aşağıdaki zaman bütçesi
+// dolana kadar (veya döngü tamamlanana kadar) ARKA ARKAYA birden çok adım
+// işler — bu, gereken self-fetch sayısını (ve dolayısıyla kırılma riskini)
+// yüzlerce yerine tek haneli sayılara indirir. Buffer, self-fetch'in kendi
+// zaman aşımı (15s) + yeniden denemeleri için maxDuration'dan pay bırakır.
+const STEP_BUDGET_MS = 260_000
+
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   // CRON_SECRET henüz tanımlı değilse kontrolü atla (geliştirme/ilk kurulum).
@@ -112,7 +123,18 @@ export async function GET(request: Request) {
     }
   }
 
-  const { run: updatedRun, done } = await processCronRunStep(run)
+  // Zaman bütçesi dolana ya da döngü tamamlanana kadar arka arkaya adım işle
+  // — bkz. STEP_BUDGET_MS açıklaması: bu, self-fetch'e olan bağımlılığı (ve
+  // dolayısıyla kırılma riskini) büyük ölçüde azaltır.
+  const startedAt = Date.now()
+  let updatedRun = run
+  let done = false
+
+  do {
+    const step = await processCronRunStep(updatedRun)
+    updatedRun = step.run
+    done = step.done
+  } while (!done && Date.now() - startedAt < STEP_BUDGET_MS)
 
   if (done) {
     // Zincirdeki son adım: tüm ligler işlendi (veya en fazla deneme sayısı

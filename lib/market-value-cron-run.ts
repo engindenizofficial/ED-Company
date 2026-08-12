@@ -77,7 +77,17 @@ export async function triggerChainContinuation(url: string, headers: Record<stri
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), SELF_FETCH_TIMEOUT_MS)
     try {
-      await fetch(url, { headers, signal: controller.signal })
+      const response = await fetch(url, { headers, signal: controller.signal })
+      if (!response.ok) {
+        // ÖNEMLİ — daha önce burada sadece fetch'in ağ hatası fırlatması
+        // yakalanıyordu; bir 401 (örn. Vercel Deployment Protection'ın
+        // self-fetch'i engellemesi) ya da 5xx yanıtı "başarılı" sayılıp
+        // zincir hiçbir hata izi bırakmadan sessizce duruyordu. Şimdi
+        // başarısız durum kodları da hata olarak ele alınıp yeniden denenir
+        // ve loglanır.
+        const body = await response.text().catch(() => "")
+        throw new Error(`HTTP ${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 300)}` : ""}`)
+      }
       return
     } catch (err) {
       console.error(

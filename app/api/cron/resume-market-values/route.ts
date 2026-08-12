@@ -29,6 +29,11 @@ import {
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
+// Bkz. app/api/cron/update-market-values/route.ts — aynı zaman bütçesi
+// deseni: her çağrı, gereken self-fetch sayısını (ve kırılma riskini) tek
+// haneli sayılara indirmek için birden çok adımı arka arkaya işler.
+const STEP_BUDGET_MS = 260_000
+
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) return true
@@ -87,7 +92,17 @@ export async function GET(request: Request) {
     console.log(`[v0] Kırılmış döngü tespit edildi (${run.id}), lig index ${run.currentLeagueIndex}'ten devam ediliyor.`)
   }
 
-  const { run: updatedRun, done } = await processCronRunStep(run)
+  // Bkz. update-market-values/route.ts — zaman bütçesi dolana ya da döngü
+  // tamamlanana kadar arka arkaya adım işle.
+  const startedAt = Date.now()
+  let updatedRun = run
+  let done = false
+
+  do {
+    const step = await processCronRunStep(updatedRun)
+    updatedRun = step.run
+    done = step.done
+  } while (!done && Date.now() - startedAt < STEP_BUDGET_MS)
 
   if (done) {
     const cleanup = await cleanupStaleMarketValueRows(updatedRun.runStartedAt, updatedRun.hadErrors)
