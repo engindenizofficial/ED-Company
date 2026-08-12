@@ -79,7 +79,8 @@ export function verifyRoundToken(token: string): [number, number] | null {
 }
 
 /** Piyasa değeri eşleşmiş satırlardan rastgele `count` adet farklı oyuncu seçer. */
-async function pickRandomMatchedPlayers(count: number) {
+async function pickRandomMatchedPlayers(count: number, excludeIds: number[] = []) {
+  const exclude = excludeIds.length > 0 ? sql`and ${playerMarketValue.playerId} not in (${sql.join(excludeIds, sql`, `)})` : sql``
   const rows = await db
     .select({
       playerId: playerMarketValue.playerId,
@@ -87,44 +88,77 @@ async function pickRandomMatchedPlayers(count: number) {
       valueEur: playerMarketValue.valueEur,
     })
     .from(playerMarketValue)
-    .where(sql`${playerMarketValue.matchStatus} = 'matched' and ${playerMarketValue.valueEur} is not null and ${playerMarketValue.valueEur} > 0`)
+    .where(
+      sql`${playerMarketValue.matchStatus} = 'matched' and ${playerMarketValue.valueEur} is not null and ${playerMarketValue.valueEur} > 0 ${exclude}`,
+    )
     .orderBy(sql`random()`)
     .limit(count)
 
   return rows
 }
 
-/** API-Football'dan tek bir oyuncunun fotoğraf/takım/uyruk bilgisini çeker. */
-async function enrichPlayer(playerId: number, fallbackName: string): Promise<DuelPlayer> {
+/**
+ * API-Football'dan tek bir oyuncunun fotoğraf/takım/uyruk bilgisini çeker.
+ * Fotoğraf, takım veya ülke bilgisinden biri eksikse `null` döner — bu
+ * oyuncu kart olarak asla gösterilmeyecek (yarım/eksik kart oyunu bozar).
+ */
+async function enrichPlayer(playerId: number, fallbackName: string): Promise<DuelPlayer | null> {
   const season = currentSeason()
   const raw = await safeApiFootballFetch<any>("/players", { id: playerId, season })
   const entry = raw[0]
   const p = entry?.player ?? {}
   const stats = entry?.statistics?.[0] ?? {}
 
+  const photo: string | null = typeof p.photo === "string" && p.photo.trim().length > 0 ? p.photo : null
+  const teamName: string | null =
+    stats.team && typeof stats.team.name === "string" && stats.team.name.trim().length > 0 ? stats.team.name : null
+  const country: string | null = p.nationality ? toTurkishCountry(p.nationality) : null
+  const name: string | null = typeof p.name === "string" && p.name.trim().length > 0 ? p.name : fallbackName || null
+
+  // Kart için gereken 4 alandan biri eksikse bu oyuncuyu tamamen ele.
+  if (!photo || !teamName || !country || !name) return null
+
   return {
     id: playerId,
-    name: p.name || fallbackName,
-    photo: p.photo ?? null,
-    team: stats.team ? { name: stats.team.name, logo: stats.team.logo ?? null } : null,
-    country: p.nationality ? toTurkishCountry(p.nationality) : null,
+    name,
+    photo,
+    team: { name: teamName, logo: stats.team?.logo ?? null },
+    country,
   }
 }
 
-/** Yeni bir düello turu üretir: 2 rastgele oyuncu + imzalı tur jetonu. Değer içermez. */
+const MAX_POOL_ROUNDS = 6
+const POOL_BATCH_SIZE = 6
+
+/** Yeni bir düello turu üretir: 2 rastgele (bilgisi TAM olan) oyuncu + imzalı tur jetonu. */
 export async function createDuelRound(): Promise<DuelRound | null> {
-  // Aynı ikilinin tekrar tekrar çıkmasını azaltmak için havuzdan biraz daha
-  // fazla satır çekip aralarından 2 farklı oyuncu seçiyoruz.
-  const candidates = await pickRandomMatchedPlayers(2)
-  if (candidates.length < 2) return null
+  const valid: DuelPlayer[] = []
+  const triedIds: number[] = []
 
-  const [a, b] = candidates
-  const [playerA, playerB] = await Promise.all([
-    enrichPlayer(a.playerId, a.playerName),
-    enrichPlayer(b.playerId, b.playerName),
-  ])
+  // Bilgisi eksik (fotoğraf/takım/ülke yok) oyuncuları eleyip havuzu
+  // kademeli olarak büyüterek en az 2 tam bilgili oyuncu bulana kadar dener.
+  for (let round = 0; round < MAX_POOL_ROUNDS && valid.length < 2; round++) {
+    const candidates = await pickRandomMatchedPlayers(POOL_BATCH_SIZE, triedIds)
+    if (candidates.length === 0) break
+    triedIds.push(...candidates.map((c) => c.playerId))
 
-  const token = signRoundToken([a.playerId, b.playerId])
+    const enriched = await Promise.all(candidates.map((c) => enrichPlayer(c.playerId, c.playerName)))
+    for (const player of enriched) {
+      if (player) valid.push(player)
+    }
+  }
+
+  if (valid.length < 2) return null
+
+  // Havuzdan rastgele 2 farklı oyuncu seç.
+  const i = Math.floor(Math.random() * valid.length)
+  let j = Math.floor(Math.random() * valid.length)
+  while (j === i) j = Math.floor(Math.random() * valid.length)
+
+  const playerA = valid[i]
+  const playerB = valid[j]
+
+  const token = signRoundToken([playerA.id, playerB.id])
   return { token, players: [playerA, playerB] }
 }
 

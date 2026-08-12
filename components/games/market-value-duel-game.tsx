@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Flame, LoaderCircle, RotateCcw, Trophy } from "lucide-react"
+import { Flame, LoaderCircle, RotateCcw, Swords, Trophy, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DuelPlayerCard } from "@/components/games/duel-player-card"
 import type { DuelPlayer, DuelResult, DuelRound } from "@/lib/games/market-value-duel"
@@ -18,6 +18,8 @@ export function MarketValueDuelGame() {
   const [streak, setStreak] = useState(0)
   const [bestStreak, setBestStreak] = useState(0)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [flash, setFlash] = useState<"good" | "bad" | null>(null)
+  const [comboPop, setComboPop] = useState<number | null>(null)
 
   // Aynı anda birden fazla tur isteğinin çakışmasını önlemek için.
   const loadingRef = useRef(false)
@@ -28,6 +30,7 @@ export function MarketValueDuelGame() {
     setPhase("loading")
     setResult(null)
     setPickedId(null)
+    setFlash(null)
     try {
       const res = await fetch("/api/games/market-value-duel", { cache: "no-store" })
       if (!res.ok) {
@@ -73,11 +76,16 @@ export function MarketValueDuelGame() {
         setResult(data)
 
         const correct = data.correctId === player.id
+        setFlash(correct ? "good" : "bad")
         if (correct) {
           setScore((s) => s + 1)
           setStreak((s) => {
             const next = s + 1
             setBestStreak((b) => Math.max(b, next))
+            if (next >= 2) {
+              setComboPop(next)
+              setTimeout(() => setComboPop(null), 900)
+            }
             return next
           })
         } else {
@@ -102,42 +110,87 @@ export function MarketValueDuelGame() {
   }, [loadRound])
 
   const revealed = phase === "revealed" && result !== null
+  const wrongPick = revealed && result && pickedId !== null && result.correctId !== pickedId
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Skor tablosu */}
-      <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+      {/* Tam ekran sonuç flaşı */}
+      <AnimatePresence>
+        {flash && (
+          <motion.div
+            key={flash}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onAnimationComplete={() => setFlash(null)}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className={cn(
+              "pointer-events-none fixed inset-0 z-50",
+              flash === "good"
+                ? "bg-[radial-gradient(circle_at_50%_35%,color-mix(in_oklch,var(--primary)_35%,transparent),transparent_65%)]"
+                : "bg-[radial-gradient(circle_at_50%_35%,color-mix(in_oklch,var(--destructive)_32%,transparent),transparent_65%)]",
+            )}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Combo patlaması */}
+      <AnimatePresence>
+        {comboPop !== null && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.4, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.7, y: -30 }}
+            transition={{ type: "spring", stiffness: 380, damping: 16 }}
+            className="pointer-events-none fixed left-1/2 top-24 z-50 -translate-x-1/2"
+          >
+            <div className="flex items-center gap-1.5 rounded-full border border-orange-400/40 bg-orange-500/15 px-5 py-2 text-orange-300 shadow-[0_0_30px_-5px_rgba(249,115,22,0.6)] backdrop-blur-sm">
+              <Zap className="h-4 w-4 fill-orange-300" />
+              <span className="text-sm font-black italic tracking-wide">{comboPop}x KOMBO!</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* HUD skor tablosu */}
+      <div className="relative flex items-center justify-between gap-3 overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-card via-card to-card px-4 py-3 shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_8px_24px_-8px_rgba(0,0,0,0.5)]">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_40%,color-mix(in_oklch,var(--primary)_8%,transparent)_50%,transparent_60%)]" />
+
+        <div className="relative flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/25">
             <Trophy className="h-4.5 w-4.5" />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Skor
-            </span>
-            <span className="text-base font-black tabular-nums text-foreground">{score}</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Skor</span>
+            <motion.span
+              key={score}
+              initial={{ scale: 1.3 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 15 }}
+              className="text-lg font-black tabular-nums text-foreground"
+            >
+              {score}
+            </motion.span>
           </div>
         </div>
 
         <button
           type="button"
           onClick={handleRestart}
-          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           aria-label="Oyunu yeniden başlat"
         >
           <RotateCcw className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Sıfırla</span>
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="relative flex items-center gap-2.5">
           <div className="flex flex-col items-end leading-tight">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Seri
-            </span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Seri</span>
             <span
               className={cn(
-                "text-base font-black tabular-nums",
-                streak >= 3 ? "text-orange-500" : "text-foreground",
+                "text-lg font-black tabular-nums transition-colors",
+                streak >= 3 ? "text-orange-400" : "text-foreground",
               )}
             >
               {streak}
@@ -145,8 +198,8 @@ export function MarketValueDuelGame() {
           </div>
           <div
             className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
-              streak >= 3 ? "bg-orange-500/10 text-orange-500" : "bg-muted text-muted-foreground",
+              "relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
+              streak >= 3 ? "bg-orange-500/15 text-orange-400 ring-1 ring-orange-400/30" : "bg-muted text-muted-foreground",
             )}
           >
             <Flame className={cn("h-4.5 w-4.5", streak >= 3 && "animate-pulse")} />
@@ -154,15 +207,14 @@ export function MarketValueDuelGame() {
         </div>
       </div>
 
-      {/* En iyi seri bilgisi */}
       {bestStreak > 0 && (
         <p className="-mt-2 text-center text-xs text-muted-foreground">
-          En iyi serin: <span className="font-semibold text-foreground">{bestStreak}</span>
+          En iyi serin: <span className="font-bold text-foreground">{bestStreak}</span>
         </p>
       )}
 
       {/* Oyun alanı */}
-      <div className="relative min-h-[420px]">
+      <div className={cn("relative min-h-[440px]", wrongPick && "animate-shake-bad")}>
         <AnimatePresence mode="wait">
           {phase === "loading" && (
             <motion.div
@@ -170,11 +222,20 @@ export function MarketValueDuelGame() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex min-h-[420px] flex-col items-center justify-center gap-3 rounded-3xl border border-border/60 bg-card"
+              className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-3xl border border-primary/15 bg-card/60"
             >
-              <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
-              <span className="text-xs font-medium text-muted-foreground">
-                Oyuncular getiriliyor
+              <div className="relative flex h-16 w-16 items-center justify-center">
+                <motion.div
+                  animate={{ scale: [1, 1.4, 1], opacity: [0.5, 0, 0.5] }}
+                  transition={{ duration: 1.4, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+                  className="absolute inset-0 rounded-full bg-primary/20"
+                />
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary ring-1 ring-primary/30">
+                  <Swords className="h-5 w-5" />
+                </div>
+              </div>
+              <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Rakipler ringe çıkıyor
               </span>
             </motion.div>
           )}
@@ -185,13 +246,13 @@ export function MarketValueDuelGame() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex min-h-[420px] flex-col items-center justify-center gap-4 rounded-3xl border border-border/60 bg-card px-6 text-center"
+              className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-3xl border border-primary/15 bg-card/60 px-6 text-center"
             >
               <p className="text-sm text-muted-foreground">{errorMsg}</p>
               <button
                 type="button"
                 onClick={loadRound}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
               >
                 Tekrar Dene
               </button>
@@ -207,9 +268,13 @@ export function MarketValueDuelGame() {
               className="flex flex-col gap-4"
             >
               {!revealed && (
-                <p className="text-balance text-center text-sm font-medium text-muted-foreground">
+                <motion.p
+                  animate={{ opacity: [0.6, 1, 0.6] }}
+                  transition={{ duration: 2.2, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+                  className="text-balance text-center text-sm font-bold uppercase tracking-wide text-muted-foreground"
+                >
                   Piyasa değeri daha yüksek olan futbolcuyu seç
-                </p>
+                </motion.p>
               )}
 
               <div className="relative grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
@@ -226,13 +291,19 @@ export function MarketValueDuelGame() {
                   onPick={() => handlePick(round.players[0])}
                 />
 
-                {/* VS ayırıcı */}
+                {/* VS çarpışma rozeti */}
                 <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center sm:inset-y-0 sm:left-1/2 sm:right-auto sm:-translate-x-1/2">
                   <motion.div
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.2, type: "spring", stiffness: 300, damping: 16 }}
-                    className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-background bg-secondary text-[11px] font-black text-muted-foreground shadow-md"
+                    key={revealed ? "clash" : "idle"}
+                    initial={revealed ? { scale: 1.6, opacity: 0 } : { scale: 0, opacity: 0, rotate: -25 }}
+                    animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                    transition={{ delay: revealed ? 0 : 0.2, type: "spring", stiffness: 340, damping: 15 }}
+                    className={cn(
+                      "flex h-11 w-11 items-center justify-center rounded-full border-2 text-[11px] font-black shadow-lg",
+                      revealed
+                        ? "border-primary bg-primary text-primary-foreground shadow-primary/40"
+                        : "border-background bg-secondary text-muted-foreground shadow-black/30",
+                    )}
                   >
                     VS
                   </motion.div>
@@ -265,9 +336,9 @@ export function MarketValueDuelGame() {
                     <button
                       type="button"
                       onClick={handleNext}
-                      className="rounded-full bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-transform hover:scale-105 active:scale-95"
+                      className="rounded-full bg-primary px-7 py-2.5 text-sm font-black uppercase tracking-wide text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95"
                     >
-                      Sonraki Tur
+                      Sıradaki Rakip
                     </button>
                   </motion.div>
                 )}
