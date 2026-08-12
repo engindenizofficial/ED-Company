@@ -129,9 +129,31 @@ async function syncTeamPlayers(
   for (const pm of playerMatches) {
     const locked = lockedPlayers.get(pm.apiFootballPlayerId)
     if (locked) {
-      // Admin bu oyuncu için kararını vermiş — cron üzerine yazmaz, sadece sayar.
+      // Admin bu oyuncu için eşleşme kararını vermiş — matchStatus/
+      // transfermarktPlayerId üzerine yazılmaz. Ama parasal değeri, kilitli
+      // Transfermarkt profilinin bu haftaki scrape edilmiş değeriyle
+      // güncel tutuyoruz — aksi halde onaylanan oyuncunun değeri onay
+      // anındaki tutarda donuk kalırdı. pm.transfermarktPlayerId'ye
+      // GÜVENMİYORUZ çünkü bu haftanın isim eşleştirmesi kilitli profilden
+      // farklı bir Transfermarkt oyuncusuna işaret edebilir — bunun yerine
+      // doğrudan scrapedPlayers içinde kilitli id'yi arıyoruz.
       if (locked.matchStatus === "matched") counts.matched++
       else counts.unmatched++
+
+      if (locked.matchStatus === "matched" && locked.transfermarktId) {
+        const scrapedMatch = scrapedPlayers.find((sp) => sp.transfermarktId === locked.transfermarktId)
+        if (scrapedMatch) {
+          const now = new Date()
+          await db
+            .update(playerMarketValue)
+            .set({
+              valueEur: scrapedMatch.valueEur !== null ? String(scrapedMatch.valueEur) : null,
+              lastScrapedAt: now,
+              updatedAt: now,
+            })
+            .where(eq(playerMarketValue.playerId, pm.apiFootballPlayerId))
+        }
+      }
       continue
     }
 
@@ -168,6 +190,15 @@ async function syncTeamPlayers(
 export interface TeamSyncTask {
   match: Awaited<ReturnType<typeof matchTeams>>[number]
   locked: LockedRow | null
+  /**
+   * Kilitli (manualOverride) VE "matched" bir takım için, bu haftanın
+   * scrape edilmiş verisinde locked.transfermarktId'ye karşılık gelen güncel
+   * piyasa değeri. Admin'in eşleşme kararı (hangi Transfermarkt profili
+   * doğru) değişmez, ama parasal değer her hafta bu alandan güncellenir —
+   * aksi halde onaylanan takımların değeri onay anındaki tutarda donuk
+   * kalırdı. Kilitli değilse veya scrape'te bulunamadıysa null.
+   */
+  lockedValueEur: number | null
 }
 
 export interface LeagueTeamProgress {
@@ -236,10 +267,18 @@ export async function prepareLeagueTeamSync(leagueId: number, runStartedAt: Date
     await db.update(teamMarketValue).set({ lastSeenAt: runStartedAt }).where(inArray(teamMarketValue.teamId, teamIds))
   }
 
-  const tasks: TeamSyncTask[] = teamMatches.map((match) => ({
-    match,
-    locked: lockedTeams.get(match.apiFootballTeamId) ?? null,
-  }))
+  const tasks: TeamSyncTask[] = teamMatches.map((match) => {
+    const locked = lockedTeams.get(match.apiFootballTeamId) ?? null
+    let lockedValueEur: number | null = null
+    if (locked && locked.matchStatus === "matched" && locked.transfermarktId) {
+      // Admin'in sabitlediği Transfermarkt profilinin bu haftaki scrape
+      // edilmiş değerini bul — eşleşme kararına dokunmadan sadece değeri
+      // güncel tutmak için.
+      const scrapedMatch = scrapedTeams.find((st) => st.transfermarktId === locked.transfermarktId)
+      lockedValueEur = scrapedMatch ? scrapedMatch.totalValueEur : null
+    }
+    return { match, locked, lockedValueEur }
+  })
 
   return {
     season,
@@ -276,6 +315,19 @@ export async function syncSingleTeam(
     if (locked.matchStatus !== "matched" || !locked.transfermarktId) {
       return { ...EMPTY_TEAM_SYNC_COUNTS, teamsUnmatched: 1 }
     }
+    // Eşleşme kararı sabit kalır, ama parasal değeri (totalValueEur) bu
+    // haftanın scrape edilmiş verisiyle güncel tutuyoruz — aksi halde
+    // onaylanan takımların değeri onay anındaki tutarda donuk kalırdı.
+    const now = new Date()
+    await db
+      .update(teamMarketValue)
+      .set({
+        totalValueEur: task.lockedValueEur !== null ? String(task.lockedValueEur) : null,
+        lastScrapedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(teamMarketValue.teamId, tm.apiFootballTeamId))
+
     const counts = await syncTeamPlayers(tm.apiFootballTeamId, locked.transfermarktId, season, runStartedAt)
     return {
       ...EMPTY_TEAM_SYNC_COUNTS,
