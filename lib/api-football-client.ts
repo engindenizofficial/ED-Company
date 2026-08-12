@@ -58,6 +58,16 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/**
+ * Tek bir istek için zaman aşımı. Bu OLMADAN, API-Football yanıt vermeden
+ * bağlantıyı askıda tutarsa `fetch()` süresiz beklerdi — cron zinciri
+ * hiçbir hata/log bırakmadan, serverless'in maxDuration (300s) sınırında
+ * SESSİZCE öldürülene kadar tam olarak burada donardı. Zaman aşımı burada
+ * AbortController ile catch bloğuna düşürülüyor, böylece aşağıdaki mevcut
+ * retry mantığı (429/5xx/ağ hatası) devreye giriyor.
+ */
+const FETCH_TIMEOUT_MS = 20_000
+
 export class ApiFootballError extends Error {
   status: number
   constructor(message: string, status: number) {
@@ -134,9 +144,11 @@ async function doFetch<T>(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     await acquireSlot()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
     let res: Response
     try {
-      res = await fetch(url, fetchInit)
+      res = await fetch(url, { ...fetchInit, signal: controller.signal })
     } catch (err) {
       releaseSlot()
       lastError = err
@@ -145,6 +157,8 @@ async function doFetch<T>(
         continue
       }
       throw err instanceof Error ? err : new ApiFootballError("Ağ hatası", 500)
+    } finally {
+      clearTimeout(timeoutId)
     }
     releaseSlot()
 

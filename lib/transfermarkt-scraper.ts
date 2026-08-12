@@ -74,12 +74,25 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Transfermarkt sayfasını indirir. Geçici ağ hatalarında birkaç kez tekrar dener.
- * Kalıcı hatalarda (404 vb.) null döner — bir sayfanın çekilememesi tüm
- * işlemi durdurmamalı.
+ * Tek bir sayfa isteği için zaman aşımı. Bu OLMADAN, Transfermarkt yanıt
+ * vermeden bağlantıyı askıda tutarsa `fetch()` süresiz beklerdi — cron
+ * zinciri hiçbir hata/log bırakmadan, serverless'in maxDuration (300s)
+ * sınırında SESSİZCE öldürülene kadar tam olarak burada donardı (haftalık
+ * lig döngüsünün rastgele bir takımda "sebepsizce" durmasının asıl kök
+ * nedeni buydu). Zaman aşımı burada AbortController ile catch bloğuna
+ * düşürülüyor, böylece aşağıdaki mevcut retry mantığı devreye giriyor.
+ */
+const FETCH_TIMEOUT_MS = 20_000
+
+/**
+ * Transfermarkt sayfasını indirir. Geçici ağ hatalarında (ve zaman
+ * aşımlarında) birkaç kez tekrar dener. Kalıcı hatalarda (404 vb.) null
+ * döner — bir sayfanın çekilememesi tüm işlemi durdurmamalı.
  */
 async function fetchHtml(url: string, retries = 2): Promise<string | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
     try {
       const res = await fetch(url, {
         headers: {
@@ -87,6 +100,7 @@ async function fetchHtml(url: string, retries = 2): Promise<string | null> {
           "Accept-Language": "en-US,en;q=0.9",
         },
         redirect: "follow",
+        signal: controller.signal,
       })
       if (!res.ok) {
         if (res.status >= 500 && attempt < retries) {
@@ -102,8 +116,10 @@ async function fetchHtml(url: string, retries = 2): Promise<string | null> {
         await sleep(500 * (attempt + 1))
         continue
       }
-      console.warn(`[v0] Transfermarkt fetch hatası: ${url}`, err)
+      console.warn(`[v0] Transfermarkt fetch hatası (zaman aşımı olabilir): ${url}`, err)
       return null
+    } finally {
+      clearTimeout(timeoutId)
     }
   }
   return null
