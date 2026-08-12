@@ -1,26 +1,50 @@
 import { db } from "./db"
 import { marketValueCronRun } from "./db/schema"
 import { desc, eq } from "drizzle-orm"
-import { syncLeagueMarketValues, SCRAPABLE_LEAGUE_IDS } from "./market-value-sync"
+import {
+  prepareLeagueTeamSync,
+  syncSingleTeam,
+  SCRAPABLE_LEAGUE_IDS,
+  type LeagueTeamProgress,
+  type TeamSyncTask,
+  type TeamSyncCounts,
+} from "./market-value-sync"
 
 // ---------------------------------------------------------------------------
-// Haftalık 23 lig cron döngüsünün kalıcı durumu + tek bir ligi yeniden deneme
-// mantığı. Bu modül, hem ana cron route'u (app/api/cron/update-market-values)
-// hem de kırılan zinciri devam ettiren watchdog route'u (app/api/cron/
-// resume-market-values) hem de admin panelindeki manuel "devam ettir"
-// butonu tarafından kullanılır — tek doğruluk kaynağı burası.
+// Haftalık 23 ligi zincirleme işleyen cron döngüsünün kalıcı durumu. Bu modül,
+// hem ana cron route'u (app/api/cron/update-market-values) hem de kırılan
+// zinciri devam ettiren watchdog route'u (app/api/cron/resume-market-values)
+// hem de admin panelindeki manuel "devam ettir" butonu tarafından kullanılır
+// — tek doğruluk kaynağı burası.
 //
-// Neden gerekli: önceden zincir SADECE URL parametreleriyle taşınıyordu
-// (after() -> fetch() -> after() -> ...). Bu zincir kırılırsa (serverless
-// zaman aşımı, crash, ağ hatası) hangi ligin işlendiği/kaldığı hiçbir yerde
-// tutulmuyordu ve o hafta kalan ligler hiç işlenmiyordu. Artık her adım bu
-// tabloya (market_value_cron_run) yazılıyor.
+// ÖNEMLİ — zincirin granülerliği artık LİG değil, TAKIM'dır. Önceden her
+// adım bir ligin TÜMÜNÜ (o ligdeki her takımın kadrosunu tek tek çekerek)
+// işliyordu; büyük liglerde (~20 takım × takım başına birkaç istek) bu tek
+// adım 60 saniyelik serverless zaman aşımını aşabiliyordu ve zincir bir
+// ligin ORTASINDA kırılıyordu — bu kırılma hiçbir yerde tutulmadığı için o
+// hafta kalan ligler hiç işlenmiyordu.
+//
+// Şimdi her lig iki alt-adıma bölünüyor:
+//   1) "Hazırlık" adımı (bkz. prepareLeagueTeamSync) — SADECE o ligin takım
+//      listesini çekip eşleştirir (tek round-trip çifti), sonucu bu satırın
+//      leagueStatuses[i].teamProgress alanına yazar.
+//   2) Takım adımları — teamProgress.tasks içindeki takımlar TEK TEK (her
+//      çağrıda bir takım) işlenir, ilerleme (nextTeamIndex + sayaçlar) her
+//      adımda bu satıra kaydedilir.
+// Bir lig kaç takımdan oluşursa oluşsun, her HTTP çağrısı en fazla "bir
+// hazırlık" veya "bir takım" kadar iş yapar — bu yüzden zincir artık bir
+// ligin ortasında asla zaman aşımına uğramaz; kırılırsa (crash, ağ hatası)
+// tam olarak hangi ligin hangi takımında kalındığı bu satırdan okunur.
 // ---------------------------------------------------------------------------
 
-/** Bir lig sync hatası "geçici" (rate limit, ağ, 503) sayılıp en fazla bu kadar denenir. */
+/** Lig hazırlık adımının (takım listesini çekme) "geçici" hata sayılıp en fazla bu kadar denenmesi. */
 const MAX_ATTEMPTS_PER_LEAGUE = 3
-/** Denemeler arası bekleme — art arda aynı hatayı hemen tekrar üretmemek için. */
+/** Lig hazırlık denemeleri arası bekleme. */
 const RETRY_DELAYS_MS = [4000, 12000]
+/** Tek bir takımın senkronu başarısız olursa en fazla bu kadar denenir — takım adımı zaten küçük olduğu için az deneme yeterli. */
+const MAX_ATTEMPTS_PER_TEAM = 2
+/** Takım denemeleri arası bekleme. */
+const TEAM_RETRY_DELAY_MS = 3000
 /** Bir "running" run'ın heartbeat'i bundan eskiyse zincir kırılmış sayılır ve devam ettirilebilir. */
 export const STALE_HEARTBEAT_MS = 10 * 60 * 1000
 
@@ -33,9 +57,17 @@ export type LeagueRunStatus = "pending" | "success" | "failed"
 export interface LeagueStatusEntry {
   leagueId: number
   status: LeagueRunStatus
+  /** Lig hazırlık adımının kaç kez denendiği (takım bazlı denemeler burada sayılmaz). */
   attempts: number
   lastError: string | null
   updatedAt: string
+  /**
+   * Bu ligin takım bazlı zincirleme ilerlemesi. Lig "pending" durumundayken
+   * (hazırlık yapılmış ama takımların hepsi işlenmemişken) dolu olur; lig
+   * "success"/"failed" olarak tamamlandığında null'a döner (satırı şişirmemek
+   * için).
+   */
+  teamProgress?: LeagueTeamProgress | null
 }
 
 export interface CronRunRow {
@@ -58,6 +90,7 @@ function initialLeagueStatuses(): LeagueStatusEntry[] {
     attempts: 0,
     lastError: null,
     updatedAt: now,
+    teamProgress: null,
   }))
 }
 
@@ -106,25 +139,24 @@ export function isCronRunStale(run: CronRunRow): boolean {
 }
 
 /**
- * Tek bir ligi, geçici hatalara karşı en fazla MAX_ATTEMPTS_PER_LEAGUE kez
- * deneyerek işler. Kalıcı görünen bir hata (örn. IP engeli) tüm denemeleri
- * de tüketebilir — bu durumda lig "failed" olarak işaretlenip zincir bir
- * SONRAKI lige geçer (bu ligi sonsuza dek beklemez); ertesi haftaki tam
- * döngüde veya admin'in manuel "devam ettir" isteğinde yeniden denenir.
+ * Bir ligin takım listesini (hazırlık adımını), geçici hatalara karşı en
+ * fazla MAX_ATTEMPTS_PER_LEAGUE kez deneyerek çeker. Bu adım hafif olduğu
+ * için (tek round-trip çifti) kalıcı bir hata görülmesi nadir olmalı — ama
+ * görülürse lig doğrudan "failed" işaretlenip zincir bir SONRAKI lige geçer.
  */
-async function runSingleLeagueWithRetries(
+async function prepareLeagueWithRetries(
   leagueId: number,
   runStartedAt: Date,
-): Promise<{ status: LeagueRunStatus; attempts: number; error: string | null }> {
+): Promise<{ progress: LeagueTeamProgress | null; attempts: number; error: string | null }> {
   let lastError: string | null = null
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_LEAGUE; attempt++) {
     try {
-      await syncLeagueMarketValues(leagueId, runStartedAt)
-      return { status: "success", attempts: attempt, error: null }
+      const progress = await prepareLeagueTeamSync(leagueId, runStartedAt)
+      return { progress, attempts: attempt, error: null }
     } catch (err) {
       lastError = err instanceof Error ? err.message : "Bilinmeyen hata"
-      console.error(`[v0] Lig ${leagueId} güncellenirken hata (deneme ${attempt}/${MAX_ATTEMPTS_PER_LEAGUE}):`, err)
+      console.error(`[v0] Lig ${leagueId} takım listesi hazırlanırken hata (deneme ${attempt}/${MAX_ATTEMPTS_PER_LEAGUE}):`, err)
       const delay = RETRY_DELAYS_MS[attempt - 1]
       if (attempt < MAX_ATTEMPTS_PER_LEAGUE && delay) {
         await sleep(delay)
@@ -132,30 +164,67 @@ async function runSingleLeagueWithRetries(
     }
   }
 
-  return { status: "failed", attempts: MAX_ATTEMPTS_PER_LEAGUE, error: lastError }
+  return { progress: null, attempts: MAX_ATTEMPTS_PER_LEAGUE, error: lastError }
 }
 
 /**
- * Döngünün TEK bir adımını işler: `run.currentLeagueIndex`'teki ligi (varsa
- * yeniden deneyerek) senkronlar, sonucu `market_value_cron_run` satırına
- * kalıcı olarak yazar ve güncellenmiş satırı döndürür. Çağıran taraf (route
- * handler'lar), bir sonraki adımı tetiklemekten veya döngüyü tamamlamaktan
- * sorumludur — bu fonksiyon sadece "bir lig işle + durumu kaydet" yapar.
+ * Tek bir takımı, geçici hatalara karşı en fazla MAX_ATTEMPTS_PER_TEAM kez
+ * deneyerek işler. Tüm denemeler tükenirse bu takım "unmatched" sayılır ama
+ * zincir DURMAZ — bir sonraki takıma (veya lige) geçilir; bu takımın kaydı
+ * (lastSeenAt) hazırlık adımında zaten tazelenmiş olduğu için "hayalet"
+ * sayılıp silinmez, sadece o hafta güncellenmemiş olur.
  */
-export async function processCronRunStep(run: CronRunRow): Promise<{ run: CronRunRow; done: boolean }> {
-  const leagueIndex = run.currentLeagueIndex
+async function syncSingleTeamWithRetries(
+  leagueId: number,
+  task: TeamSyncTask,
+  season: number,
+  runStartedAt: Date,
+): Promise<ReturnType<typeof syncSingleTeam> extends Promise<infer T> ? T : never> {
+  let lastError: string | null = null
 
-  if (leagueIndex >= SCRAPABLE_LEAGUE_IDS.length) {
-    return { run, done: true }
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_TEAM; attempt++) {
+    try {
+      return await syncSingleTeam(leagueId, task, season, runStartedAt)
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : "Bilinmeyen hata"
+      console.error(
+        `[v0] Takım ${task.match.apiFootballTeamId} (lig ${leagueId}) işlenirken hata (deneme ${attempt}/${MAX_ATTEMPTS_PER_TEAM}):`,
+        err,
+      )
+      if (attempt < MAX_ATTEMPTS_PER_TEAM) {
+        await sleep(TEAM_RETRY_DELAY_MS)
+      }
+    }
   }
 
-  const leagueId = SCRAPABLE_LEAGUE_IDS[leagueIndex]
-  const outcome = await runSingleLeagueWithRetries(leagueId, run.runStartedAt)
+  console.error(`[v0] Takım ${task.match.apiFootballTeamId} (lig ${leagueId}) tüm denemelerden sonra atlandı: ${lastError}`)
+  return {
+    teamsMatched: 0,
+    teamsReview: 0,
+    teamsUnmatched: 1,
+    playersMatched: 0,
+    playersReview: 0,
+    playersUnmatched: 0,
+  }
+}
 
+/** Bir ligi "success"/"failed" olarak tamamlar, sıradaki lige geçer ve satırı kaydeder. */
+async function finalizeLeagueStep(
+  run: CronRunRow,
+  leagueIndex: number,
+  outcome: { status: LeagueRunStatus; attempts: number; error: string | null },
+): Promise<{ run: CronRunRow; done: boolean }> {
   const now = new Date()
-  const nextLeagueStatuses = run.leagueStatuses.map((entry) =>
-    entry.leagueId === leagueId
-      ? { ...entry, status: outcome.status, attempts: outcome.attempts, lastError: outcome.error, updatedAt: now.toISOString() }
+  const nextLeagueStatuses = run.leagueStatuses.map((entry, i) =>
+    i === leagueIndex
+      ? {
+          ...entry,
+          status: outcome.status,
+          attempts: outcome.attempts,
+          lastError: outcome.error,
+          updatedAt: now.toISOString(),
+          teamProgress: null,
+        }
       : entry,
   )
   const hadErrors = run.hadErrors || outcome.status === "failed"
@@ -174,6 +243,91 @@ export async function processCronRunStep(run: CronRunRow): Promise<{ run: CronRu
     .returning()
 
   return { run: updated as CronRunRow, done: nextIndex >= SCRAPABLE_LEAGUE_IDS.length }
+}
+
+/**
+ * Döngünün TEK bir adımını işler. `run.currentLeagueIndex`'teki lig için:
+ *
+ * - Henüz takım listesi hazırlanmamışsa (teamProgress yok) SADECE hazırlık
+ *   adımını yapar ve sonucu kaydeder (henüz hiçbir takım işlenmez).
+ * - Takım listesi hazırsa ve işlenmemiş takım varsa SADECE bir takımı
+ *   (yeniden deneyerek) işler ve ilerlemeyi kaydeder.
+ * - Ligin tüm takımları işlenmişse ligi tamamlar ve sıradaki lige geçer.
+ *
+ * Her çağrı bu üç durumdan sadece BİRİNİ yapar — bu yüzden lig büyüklüğünden
+ * bağımsız olarak her adım sabit ve küçük bir süre alır. Çağıran taraf (route
+ * handler'lar), bir sonraki adımı tetiklemekten veya döngüyü tamamlamaktan
+ * sorumludur.
+ */
+export async function processCronRunStep(run: CronRunRow): Promise<{ run: CronRunRow; done: boolean }> {
+  const leagueIndex = run.currentLeagueIndex
+
+  if (leagueIndex >= SCRAPABLE_LEAGUE_IDS.length) {
+    return { run, done: true }
+  }
+
+  const leagueId = SCRAPABLE_LEAGUE_IDS[leagueIndex]
+  const entry = run.leagueStatuses[leagueIndex]
+
+  // 1) Bu lig için takım listesi henüz hazırlanmadıysa — hazırlık adımını yap.
+  if (!entry.teamProgress) {
+    const prep = await prepareLeagueWithRetries(leagueId, run.runStartedAt)
+
+    if (!prep.progress) {
+      // Lig seviyesinde kalıcı hata (takım listesi hiç çekilemedi) —
+      // bu ligi "failed" işaretle, sıradaki lige geç.
+      return finalizeLeagueStep(run, leagueIndex, { status: "failed", attempts: prep.attempts, error: prep.error })
+    }
+
+    const now = new Date()
+    const nextLeagueStatuses = run.leagueStatuses.map((e, i) =>
+      i === leagueIndex ? { ...e, attempts: prep.attempts, updatedAt: now.toISOString(), teamProgress: prep.progress } : e,
+    )
+    const [updated] = await db
+      .update(marketValueCronRun)
+      .set({ leagueStatuses: nextLeagueStatuses, heartbeatAt: now, updatedAt: now })
+      .where(eq(marketValueCronRun.id, run.id))
+      .returning()
+
+    // Bu takımların hiçbiri henüz işlenmedi — bir sonraki adımda (bir sonraki
+    // self-fetch'te) ilk takım işlenecek. Boş bir lig (tasks.length === 0)
+    // olsa bile, tutarlılık için ligi burada kapatmıyoruz; bir sonraki adım
+    // "işlenecek takım yok" durumunu görüp ligi hemen tamamlayacak.
+    return { run: updated as CronRunRow, done: false }
+  }
+
+  const progress = entry.teamProgress
+
+  // 2) Sırada işlenecek bir takım varsa — SADECE onu işle.
+  if (progress.nextTeamIndex < progress.tasks.length) {
+    const task = progress.tasks[progress.nextTeamIndex]
+    const outcome = await syncSingleTeamWithRetries(leagueId, task, progress.season, run.runStartedAt)
+
+    const now = new Date()
+    const nextProgress: LeagueTeamProgress = {
+      ...progress,
+      nextTeamIndex: progress.nextTeamIndex + 1,
+      teamsMatched: progress.teamsMatched + outcome.teamsMatched,
+      teamsReview: progress.teamsReview + outcome.teamsReview,
+      teamsUnmatched: progress.teamsUnmatched + outcome.teamsUnmatched,
+      playersMatched: progress.playersMatched + outcome.playersMatched,
+      playersReview: progress.playersReview + outcome.playersReview,
+      playersUnmatched: progress.playersUnmatched + outcome.playersUnmatched,
+    }
+    const nextLeagueStatuses = run.leagueStatuses.map((e, i) =>
+      i === leagueIndex ? { ...e, updatedAt: now.toISOString(), teamProgress: nextProgress } : e,
+    )
+    const [updated] = await db
+      .update(marketValueCronRun)
+      .set({ leagueStatuses: nextLeagueStatuses, heartbeatAt: now, updatedAt: now })
+      .where(eq(marketValueCronRun.id, run.id))
+      .returning()
+
+    return { run: updated as CronRunRow, done: false }
+  }
+
+  // 3) Ligin tüm takımları işlendi — ligi "success" olarak tamamla, sıradaki lige geç.
+  return finalizeLeagueStep(run, leagueIndex, { status: "success", attempts: entry.attempts, error: null })
 }
 
 /** Döngüyü "completed" olarak işaretler — cleanup adımından sonra çağrılır. */

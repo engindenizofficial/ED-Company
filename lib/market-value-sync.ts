@@ -21,7 +21,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-interface LockedRow {
+export interface LockedRow {
   matchStatus: "matched" | "review" | "unmatched"
   transfermarktId: string | null
 }
@@ -167,24 +167,54 @@ async function syncTeamPlayers(
   return counts
 }
 
-/**
- * Bir ligin takım + oyuncu piyasa değerlerini scrape edip DB'ye yazar.
- *
- * @param runStartedAt Bu haftalık cron döngüsünün başladığı an (23 ligin
- * hepsinde AYNI değer kullanılır — bkz. app/api/cron/update-market-values).
- * Her görülen takım/oyuncu satırının lastSeenAt'i bu değere set edilir;
- * döngü sonunda lastSeenAt < runStartedAt olan satırlar "artık görülmedi"
- * (ligden düşmüş takım, transfer olmuş oyuncu vb.) sayılıp temizlenir.
- */
-export async function syncLeagueMarketValues(leagueId: number, runStartedAt: Date): Promise<{
-  leagueId: number
+/** Bir ligin, zincirleme (takım bazlı) işlenmeye hazır takım listesi. */
+export interface TeamSyncTask {
+  match: Awaited<ReturnType<typeof matchTeams>>[number]
+  locked: LockedRow | null
+}
+
+export interface LeagueTeamProgress {
+  season: number
+  tasks: TeamSyncTask[]
+  nextTeamIndex: number
   teamsMatched: number
   teamsReview: number
   teamsUnmatched: number
   playersMatched: number
   playersReview: number
   playersUnmatched: number
-}> {
+}
+
+export interface TeamSyncCounts {
+  teamsMatched: number
+  teamsReview: number
+  teamsUnmatched: number
+  playersMatched: number
+  playersReview: number
+  playersUnmatched: number
+}
+
+const EMPTY_TEAM_SYNC_COUNTS: TeamSyncCounts = {
+  teamsMatched: 0,
+  teamsReview: 0,
+  teamsUnmatched: 0,
+  playersMatched: 0,
+  playersReview: 0,
+  playersUnmatched: 0,
+}
+
+/**
+ * Bir ligin takım listesini çekip eşleştirir ve zincirleme işlenmeye hazır
+ * hale getirir. TEK bir HTTP round-trip çifti (API-Football standings +
+ * Transfermarkt lig sayfası) kullanır — 60 saniyelik serverless zaman
+ * aşımının çok altında kalan, "hafif" bir adımdır. Asıl ağır iş (her takımın
+ * kadrosunu çekmek) burada YAPILMAZ; dönen `tasks` listesi tek tek
+ * `syncSingleTeam` ile işlenir (bkz. lib/market-value-cron-run.ts).
+ *
+ * @param runStartedAt Bu haftalık cron döngüsünün başladığı an — takımların
+ * lastSeenAt'i burada tazelenir (oyuncular her takım işlenirken tazelenir).
+ */
+export async function prepareLeagueTeamSync(leagueId: number, runStartedAt: Date): Promise<LeagueTeamProgress> {
   const season = currentSeason()
 
   const [apiFootballTeams, scrapedTeams] = await Promise.all([
@@ -202,78 +232,105 @@ export async function syncLeagueMarketValues(leagueId: number, runStartedAt: Dat
 
   // Bu ligin standings'inde API-Football tarafında hâlâ görünen HER takımı
   // "var" olarak işaretle — kilitli olsun ya da olmasın (bkz. syncTeamPlayers
-  // içindeki aynı mantık, oyuncular için).
+  // içindeki aynı mantık, oyuncular için). Bu, bir takımın kadro senkronu
+  // (syncSingleTeam) her ne sebeple olursa olsun atlansa/başarısız olsa bile
+  // bu takımın "hayalet" sayılıp silinmesini önler.
   if (teamIds.length > 0) {
     await db.update(teamMarketValue).set({ lastSeenAt: runStartedAt }).where(inArray(teamMarketValue.teamId, teamIds))
   }
 
-  let teamsMatched = 0
-  let teamsReview = 0
-  let teamsUnmatched = 0
-  let playersMatched = 0
-  let playersReview = 0
-  let playersUnmatched = 0
+  const tasks: TeamSyncTask[] = teamMatches.map((match) => ({
+    match,
+    locked: lockedTeams.get(match.apiFootballTeamId) ?? null,
+  }))
 
-  for (const tm of teamMatches) {
-    const locked = lockedTeams.get(tm.apiFootballTeamId)
+  return {
+    season,
+    tasks,
+    nextTeamIndex: 0,
+    teamsMatched: 0,
+    teamsReview: 0,
+    teamsUnmatched: 0,
+    playersMatched: 0,
+    playersReview: 0,
+    playersUnmatched: 0,
+  }
+}
 
-    if (locked) {
-      // Bu takımın eşleşmesi admin tarafından sabitlendi — matchStatus/
-      // transfermarktTeamId üzerine yazılmaz, review kuyruğuna da düşürülmez.
-      if (locked.matchStatus !== "matched" || !locked.transfermarktId) {
-        teamsUnmatched++
-        continue
-      }
-      teamsMatched++
-      const counts = await syncTeamPlayers(tm.apiFootballTeamId, locked.transfermarktId, season, runStartedAt)
-      playersMatched += counts.matched
-      playersReview += counts.review
-      playersUnmatched += counts.unmatched
-      continue
+/**
+ * Zincirin en küçük birimi: SADECE bir takımı (varsa kadrosuyla) işler.
+ * `prepareLeagueTeamSync`'in ürettiği tek bir `TeamSyncTask`'ı alır. Takım
+ * başına en fazla ~1 Transfermarkt kadro isteği + sabit bekleme (bkz.
+ * syncTeamPlayers) yapar, bu yüzden lig büyüklüğünden bağımsız olarak her
+ * zaman zaman aşımının çok altında kalır.
+ */
+export async function syncSingleTeam(
+  leagueId: number,
+  task: TeamSyncTask,
+  season: number,
+  runStartedAt: Date,
+): Promise<TeamSyncCounts> {
+  const tm = task.match
+  const locked = task.locked
+
+  if (locked) {
+    // Bu takımın eşleşmesi admin tarafından sabitlendi — matchStatus/
+    // transfermarktTeamId üzerine yazılmaz, review kuyruğuna da düşürülmez.
+    if (locked.matchStatus !== "matched" || !locked.transfermarktId) {
+      return { ...EMPTY_TEAM_SYNC_COUNTS, teamsUnmatched: 1 }
     }
-
-    await upsertTeamMarketValue(leagueId, tm, runStartedAt)
-
-    if (tm.status === "unmatched") {
-      teamsUnmatched++
-      continue
+    const counts = await syncTeamPlayers(tm.apiFootballTeamId, locked.transfermarktId, season, runStartedAt)
+    return {
+      ...EMPTY_TEAM_SYNC_COUNTS,
+      teamsMatched: 1,
+      playersMatched: counts.matched,
+      playersReview: counts.review,
+      playersUnmatched: counts.unmatched,
     }
-    if (tm.status === "review") {
-      teamsReview++
-      // Belirsiz eşleşmede admin'e karşılaştırma imkanı vermek için her iki
-      // taraftan da menşei ülkesini çekiyoruz — sadece review'a düşen az
-      // sayıda kayıt için, otomatik eşleşenlerde bu ek isteklere gerek yok.
-      const [entityCountry, candidateCountry] = await Promise.all([
-        getTeamCountry(tm.apiFootballTeamId),
-        tm.transfermarktTeamId ? scrapeTeamCountry(tm.transfermarktTeamId) : Promise.resolve(null),
-      ])
-      await upsertReviewQueueEntry({
-        entityType: "team",
-        entityId: tm.apiFootballTeamId,
-        entityName: tm.apiFootballTeamName,
-        entityCountry,
-        candidateName: tm.transfermarktTeamName,
-        candidateTransfermarktId: tm.transfermarktTeamId,
-        candidateCountry,
-        candidateValueEur: tm.totalValueEur,
-        confidence: tm.confidence,
-      })
-      // Belirsiz takım eşleşmesinde oyuncu aramasına girmiyoruz — yanlış
-      // takımın kadrosuyla eşleştirme yapıp hatalı veri üretmemek için.
-      continue
-    }
-
-    teamsMatched++
-
-    // Takım eşleşti (status === "matched") — kadroyu çek ve oyuncuları eşleştir.
-    if (!tm.transfermarktTeamId) continue
-    const counts = await syncTeamPlayers(tm.apiFootballTeamId, tm.transfermarktTeamId, season, runStartedAt)
-    playersMatched += counts.matched
-    playersReview += counts.review
-    playersUnmatched += counts.unmatched
   }
 
-  return { leagueId, teamsMatched, teamsReview, teamsUnmatched, playersMatched, playersReview, playersUnmatched }
+  await upsertTeamMarketValue(leagueId, tm, runStartedAt)
+
+  if (tm.status === "unmatched") {
+    return { ...EMPTY_TEAM_SYNC_COUNTS, teamsUnmatched: 1 }
+  }
+
+  if (tm.status === "review") {
+    // Belirsiz eşleşmede admin'e karşılaştırma imkanı vermek için her iki
+    // taraftan da menşei ülkesini çekiyoruz — sadece review'a düşen az
+    // sayıda kayıt için, otomatik eşleşenlerde bu ek isteklere gerek yok.
+    const [entityCountry, candidateCountry] = await Promise.all([
+      getTeamCountry(tm.apiFootballTeamId),
+      tm.transfermarktTeamId ? scrapeTeamCountry(tm.transfermarktTeamId) : Promise.resolve(null),
+    ])
+    await upsertReviewQueueEntry({
+      entityType: "team",
+      entityId: tm.apiFootballTeamId,
+      entityName: tm.apiFootballTeamName,
+      entityCountry,
+      candidateName: tm.transfermarktTeamName,
+      candidateTransfermarktId: tm.transfermarktTeamId,
+      candidateCountry,
+      candidateValueEur: tm.totalValueEur,
+      confidence: tm.confidence,
+    })
+    // Belirsiz takım eşleşmesinde oyuncu aramasına girmiyoruz — yanlış
+    // takımın kadrosuyla eşleştirme yapıp hatalı veri üretmemek için.
+    return { ...EMPTY_TEAM_SYNC_COUNTS, teamsReview: 1 }
+  }
+
+  // Takım eşleşti (status === "matched") — kadroyu çek ve oyuncuları eşleştir.
+  if (!tm.transfermarktTeamId) {
+    return { ...EMPTY_TEAM_SYNC_COUNTS, teamsMatched: 1 }
+  }
+  const counts = await syncTeamPlayers(tm.apiFootballTeamId, tm.transfermarktTeamId, season, runStartedAt)
+  return {
+    ...EMPTY_TEAM_SYNC_COUNTS,
+    teamsMatched: 1,
+    playersMatched: counts.matched,
+    playersReview: counts.review,
+    playersUnmatched: counts.unmatched,
+  }
 }
 
 async function upsertTeamMarketValue(
