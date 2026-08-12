@@ -6,6 +6,7 @@ import {
   processCronRunStep,
   completeCronRun,
   isCronRunStale,
+  runMatchesCurrentLeagueList,
   triggerChainContinuation,
   type CronRunRow,
 } from "@/lib/market-value-cron-run"
@@ -108,7 +109,19 @@ export async function GET(request: Request) {
     // varsa ona devam edilir; yoksa yeni bir döngü başlatılır.
     const active = await getActiveCronRun()
 
-    if (!active) {
+    if (active && !runMatchesCurrentLeagueList(active)) {
+      // Bu satır, lig listesi (FEATURED_LEAGUE_IDS) değişmeden ÖNCE
+      // başlatılmış — eski leagueStatuses artık koddaki güncel listeyle
+      // index bazında eşleşmiyor (bkz. runMatchesCurrentLeagueList). Devam
+      // ettirmeye çalışmak yanlış ligin verisini yazabilir veya zinciri
+      // sessizce kırabilir. Bu eski satırı "tamamlandı" (hatalı) işaretleyip
+      // güncel listeyle sıfırdan bir döngü başlatıyoruz.
+      console.warn(
+        `[v0] Aktif döngü (${active.id}) güncel lig listesiyle uyuşmuyor (lig sayısı/sırası değişti) — eskisi kapatılıp yeni döngü başlatılıyor.`,
+      )
+      await completeCronRun(active.id)
+      run = await startNewCronRun()
+    } else if (!active) {
       run = await startNewCronRun()
     } else if (isCronRunStale(active)) {
       // Zincir kırılmıştı (heartbeat eskimiş) — admin manuel devam ettirmediyse,

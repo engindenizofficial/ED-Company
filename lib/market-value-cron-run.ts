@@ -191,6 +191,31 @@ export function isCronRunStale(run: CronRunRow): boolean {
 }
 
 /**
+ * Bir döngü satırının `leagueStatuses`'ı, koddaki GÜNCEL SCRAPABLE_LEAGUE_IDS
+ * listesiyle (sıra ve sayı olarak) hâlâ eşleşiyor mu kontrol eder.
+ *
+ * ÖNEMLİ — bu kontrol OLMADAN şu senaryo zinciri sessizce (veya bir crash'le)
+ * kırabiliyordu: bir döngü satırı "running" durumdayken (örn. bir lig
+ * eklenip/kaldırılıp/sıra değiştirilip) deploy edilirse, DB'deki eski
+ * leagueStatuses artık kod içindeki YENİ SCRAPABLE_LEAGUE_IDS ile aynı
+ * index'te aynı ligi işaret etmez. processCronRunStep, `run.leagueStatuses[i]`
+ * (eski, kısa/kaymış dizi) ile `SCRAPABLE_LEAGUE_IDS[i]` (yeni liste) arasında
+ * eşleşmeyen bir lig id'siyle devam ederdi — yanlış ligin verisini yanlış
+ * lig id'sine yazabilir, ya da eski dizinin sonuna gelince (`entry`
+ * undefined) `entry.teamProgress` okunurken throw ederdi. Bu throw,
+ * `after()` ile bir sonraki adımı tetiklemeden ÖNCE gerçekleştiği için
+ * heartbeat bir daha güncellenmez ve döngü "zincir kırıldı" olarak donar.
+ *
+ * Çağıran taraf (route handler'ları), bu fonksiyon false dönerse mevcut
+ * satırı devam ettirmek YERİNE tamamlanmış işaretleyip yeni bir döngü
+ * başlatmalıdır.
+ */
+export function runMatchesCurrentLeagueList(run: CronRunRow): boolean {
+  if (run.leagueStatuses.length !== SCRAPABLE_LEAGUE_IDS.length) return false
+  return run.leagueStatuses.every((entry, i) => entry.leagueId === SCRAPABLE_LEAGUE_IDS[i])
+}
+
+/**
  * Bir ligin takım listesini (hazırlık adımını), geçici hatalara karşı en
  * fazla MAX_ATTEMPTS_PER_LEAGUE kez deneyerek çeker. Bu adım hafif olduğu
  * için (tek round-trip çifti) kalıcı bir hata görülmesi nadir olmalı — ama
@@ -320,6 +345,19 @@ export async function processCronRunStep(run: CronRunRow): Promise<{ run: CronRu
 
   const leagueId = SCRAPABLE_LEAGUE_IDS[leagueIndex]
   const entry = run.leagueStatuses[leagueIndex]
+
+  // Son çare koruması — bkz. runMatchesCurrentLeagueList açıklaması. Normalde
+  // çağıran taraf (route.ts) bu satıra hiç gelmeden mismatch'i tespit edip
+  // yeni bir döngü başlatmalı; ama olur da buraya kadar gelinirse (örn. eski
+  // bir kod yolundan), `entry` undefined olabilir veya yanlış ligi işaret
+  // edebilir — bu durumda sessizce throw etmek (ve zinciri "kırılmış" bırakmak)
+  // yerine döngüyü burada güvenle sonlandırıyoruz.
+  if (!entry || entry.leagueId !== leagueId) {
+    console.error(
+      `[v0] Döngü ${run.id} lig listesiyle uyuşmuyor (index ${leagueIndex}, beklenen lig ${leagueId}, kayıtlı: ${entry?.leagueId ?? "yok"}) — döngü güvenlik amacıyla burada sonlandırılıyor.`,
+    )
+    return { run, done: true }
+  }
 
   // 1) Bu lig için takım listesi henüz hazırlanmadıysa — hazırlık adımını yap.
   if (!entry.teamProgress) {

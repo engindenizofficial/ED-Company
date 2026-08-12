@@ -5,6 +5,7 @@ import {
   processCronRunStep,
   completeCronRun,
   isCronRunStale,
+  runMatchesCurrentLeagueList,
   triggerChainContinuation,
 } from "@/lib/market-value-cron-run"
 
@@ -76,6 +77,23 @@ export async function GET(request: Request) {
 
   if (!run) {
     return Response.json({ resumed: false, reason: "Devam eden bir döngü yok." })
+  }
+
+  if (!runMatchesCurrentLeagueList(run)) {
+    // Bkz. lib/market-value-cron-run.ts -> runMatchesCurrentLeagueList: bu
+    // satır, lig listesi değişmeden önce başlatılmış — devam ettirmek
+    // yanlış ligin verisini yazabilir. Devam ettirmiyoruz; bu eski satırı
+    // kapatıyoruz ki ana cron route'u (veya admin'in "Şimdi Tara" butonu)
+    // bir sonraki tetiklemede güncel listeyle sıfırdan bir döngü başlatsın.
+    console.warn(
+      `[v0] Devam ettirilecek döngü (${run.id}) güncel lig listesiyle uyuşmuyor — kapatılıyor, devam ettirilmiyor.`,
+    )
+    await completeCronRun(run.id)
+    return Response.json({
+      resumed: false,
+      reason: "Lig listesi değişti, eski döngü artık geçersiz — kapatıldı. Bir sonraki tarama sıfırdan başlayacak.",
+      runId: run.id,
+    })
   }
 
   if (continuationRunId) {
