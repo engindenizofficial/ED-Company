@@ -23,11 +23,9 @@ import {
 // kalıcı tutulur (bkz. lib/market-value-cron-run.ts). Her adımda (her lig
 // işlendiğinde) o satır güncellenir: hangi ligde kalındığı, kaç kez denendiği,
 // son hatası. Zincir bir yerde kesilirse (crash, zaman aşımı, ağ hatası) bu
-// satır tam olarak nerede kalındığını gösterir ve:
-//   - watchdog cron'u (bkz. app/api/cron/resume-market-values, sık aralıklarla
-//     tetiklenir) heartbeat'i eskimiş bir "running" satır bulursa otomatik
-//     devam ettirir,
-//   - admin panelinden manuel "devam ettir" de aynı mekanizmayı tetikleyebilir.
+// satır tam olarak nerede kalındığını gösterir. Devam ettirme otomatik
+// gerçekleşmez — admin panelindeki "Devam Ettir" butonu (bkz. app/api/cron/
+// resume-market-values) manuel olarak tetiklenmelidir.
 //
 // Ayrıca her lig, geçici hatalara (rate limit, 503, ağ) karşı tek istek
 // içinde birkaç kez yeniden denenir (bkz. runSingleLeagueWithRetries).
@@ -89,7 +87,8 @@ export async function GET(request: Request) {
     // aynı döngüye devam et.
     run = await getActiveCronRun()
     if (!run || run.id !== continuationRunId) {
-      // Döngü bu arada başka bir yoldan (örn. watchdog) tamamlanmış olabilir.
+      // Döngü bu arada başka bir yoldan (örn. admin panelinden manuel devam
+      // ettirme) tamamlanmış olabilir.
       return Response.json({ done: true, message: "Döngü zaten tamamlanmış." })
     }
   } else {
@@ -101,9 +100,9 @@ export async function GET(request: Request) {
     if (!active) {
       run = await startNewCronRun()
     } else if (isCronRunStale(active)) {
-      // Zincir kırılmıştı (heartbeat eskimiş) — normalde watchdog bunu
-      // yakalar, ama Vercel Cron'un bir sonraki haftalık tetiklemesi de aynı
-      // durumu görürse doğrudan devam ettirir.
+      // Zincir kırılmıştı (heartbeat eskimiş) — admin manuel devam ettirmediyse,
+      // Vercel Cron'un bir sonraki haftalık tetiklemesi aynı durumu görüp
+      // doğrudan devam ettirir.
       console.log(`[v0] Kırılmış döngü (${active.id}) bu istekle devam ettiriliyor.`)
       run = active
     } else {

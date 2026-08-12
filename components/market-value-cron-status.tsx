@@ -11,9 +11,9 @@ import { resumeMarketValueCronNow, type CronRunStatus } from "@/app/actions/mark
 // Haftalık piyasa değeri cron döngüsünün ("23 lig zincirleme işleniyor" —
 // bkz. app/api/cron/update-market-values) son çalışmasının durumunu gösterir.
 // Zincir kırılırsa (crash, zaman aşımı, ağ hatası) admin burada hangi ligde
-// kalındığını görür ve watchdog'un (sık aralıklarla otomatik tetiklenen
-// resume cron'u) bir sonraki çalışmasını beklemeden "Devam Ettir" ile anında
-// tetikleyebilir (bkz. app/actions/market-value-cron.ts).
+// kalındığını görür ve "Devam Ettir" ile anında devam ettirebilir (bkz.
+// app/actions/market-value-cron.ts). Bunu tetikleyen otomatik bir zamanlama
+// yoktur — devam ettirme yalnızca bu buton ile yapılır.
 // ---------------------------------------------------------------------------
 
 function formatDateTime(iso: string): string {
@@ -81,9 +81,9 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
         {isBroken && (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-destructive">
-              Zincir {Math.round((Date.now() - new Date(status.heartbeatAt).getTime()) / 60000)} dakikadır ilerlemedi
-              — otomatik devam ettirme (watchdog) bir sonraki çalışmasında bunu fark edecek, ama beklemeden de
-              tetikleyebilirsiniz.
+              Zincir {Math.round((Date.now() - new Date(status.heartbeatAt).getTime()) / 60000)} dakikadır ilerlemedi.
+              Otomatik bir devam ettirme yapılmaz — devam etmesi için aşağıdaki butonla manuel olarak tetiklemeniz
+              gerekir.
             </p>
             <Button size="sm" variant="outline" disabled={isPending} onClick={handleResume} className="shrink-0">
               {isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <RotateCcw data-icon="inline-start" />}

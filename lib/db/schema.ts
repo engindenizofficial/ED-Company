@@ -175,9 +175,10 @@ export const marketValueReviewQueue = pgTable('market_value_review_queue', {
  * Haftalık 23 ligi zincirleme işleyen cron döngüsünün kalıcı durumu.
  * "Zincir kırıldığında hangi ligde kalındığı hiçbir yerde tutulmuyor" sorununu
  * çözer: her adım (her lig) bu satıra yazılır, böylece süreç bir yerde
- * (crash, zaman aşımı, ağ hatası) kesilse bile bir sonraki çağrı — otomatik
- * "resume" cron'u (bkz. app/api/cron/resume-market-values) veya admin'in
- * manuel tetiklemesi — tam olarak nerede kalındığını bilir.
+ * (crash, zaman aşımı, ağ hatası) kesilse bile bir sonraki çağrı — admin
+ * panelindeki manuel "devam ettir" tetiklemesi (bkz. app/api/cron/
+ * resume-market-values) veya Vercel Cron'un bir sonraki haftalık çalışması —
+ * tam olarak nerede kalındığını bilir.
  */
 export const marketValueCronRun = pgTable('market_value_cron_run', {
   id: text('id').primaryKey(),
@@ -194,7 +195,7 @@ export const marketValueCronRun = pgTable('market_value_cron_run', {
    * — hangi ligin işlendiğini, kaç kez denendiğini ve son hatasını gösterir.
    */
   leagueStatuses: jsonb('leagueStatuses').notNull(),
-  /** Zincirin hâlâ "canlı" ilerlediğini gösterir — her adımda güncellenir. Watchdog eskime kontrolü için buna bakar. */
+  /** Zincirin hâlâ "canlı" ilerlediğini gösterir — her adımda güncellenir. Eskime (stale) kontrolü için buna bakılır. */
   heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),

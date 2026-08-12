@@ -9,23 +9,21 @@ import {
 } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
-// "Watchdog" — haftalık piyasa değeri cron zinciri (bkz. app/api/cron/
-// update-market-values) bir yerde kesilirse (serverless zaman aşımı, crash,
-// after()'ın tetiklediği fetch'in ağ hatasıyla başarısız olması vb.) bu
-// route onu fark edip devam ettirir.
+// Haftalık piyasa değeri cron zinciri (bkz. app/api/cron/update-market-values)
+// bir yerde kesilirse (serverless zaman aşımı, crash, after()'ın tetikledi ği
+// fetch'in ağ hatasıyla başarısız olması vb.) bu route kaldığı yerden devam
+// ettirir.
+//
+// Bu route otomatik bir zamanlamayla ÇALIŞMAZ (vercel.json'da bu route için
+// bir cron tanımlı değil) — sadece admin panelindeki "Devam Ettir" butonuyla
+// (bkz. app/actions/market-value-cron.ts) manuel olarak tetiklenir. Otomatik
+// tetiklenmesi istenirse vercel.json'a bu route için bir cron eklenmelidir.
 //
 // Bu route ANA cron'un yaptığını yapmaz: YENİ bir haftalık döngü ASLA
 // başlatmaz — sadece heartbeat'i eskimiş (STALE_HEARTBEAT_MS'den daha uzun
 // süredir güncellenmemiş) "running" bir döngü bulursa, kaldığı ligden devam
 // eder. Sağlıklı ilerleyen bir döngüye veya döngü yoksa hiçbir şeye
-// dokunmaz — bu yüzden sık aralıklarla (bkz. vercel.json) güvenle
-// tetiklenebilir.
-//
-// Not: Vercel Hobby planında cron job'lar günde bir defaya indirgenebilir;
-// bu durumda watchdog'un fiili çalışma sıklığı bu route'un vercel.json'daki
-// schedule'ından daha seyrek olabilir. Pro plana geçildiğinde tam sıklıkta
-// çalışır. Admin panelindeki "Devam Ettir" butonu (bkz. app/actions/
-// market-value-cron.ts) plan kısıtlamasından bağımsız, anında bir yol sağlar.
+// dokunmaz.
 // ---------------------------------------------------------------------------
 
 export const dynamic = "force-dynamic"
@@ -81,10 +79,10 @@ export async function GET(request: Request) {
     }
     // Zincirin içinden gelen devam çağrısı — staleness kontrolüne gerek yok.
   } else if (!isCronRunStale(run)) {
-    // Dıştan gelen (watchdog cron'un kendi zamanlamasından tetiklenen) bir
-    // istek ve döngü sağlıklı ilerliyor (yakın zamanda bir heartbeat var) —
-    // devam ettirmeye çalışırsak aynı ligi iki kez işleriz. Dokunma.
-    return Response.json({ resumed: false, reason: "Döngü sağlıklı ilerliyor, watchdog'a gerek yok.", runId: run.id })
+    // Dıştan gelen (örn. admin panelinden manuel) bir istek ve döngü
+    // sağlıklı ilerliyor (yakın zamanda bir heartbeat var) — devam
+    // ettirmeye çalışırsak aynı ligi iki kez işleriz. Dokunma.
+    return Response.json({ resumed: false, reason: "Döngü zaten sağlıklı ilerliyor, dokunmaya gerek yok.", runId: run.id })
   } else {
     console.log(`[v0] Kırılmış döngü tespit edildi (${run.id}), lig index ${run.currentLeagueIndex}'ten devam ediliyor.`)
   }

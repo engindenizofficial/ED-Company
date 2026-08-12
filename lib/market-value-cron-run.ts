@@ -13,9 +13,9 @@ import {
 // ---------------------------------------------------------------------------
 // Haftalık 23 ligi zincirleme işleyen cron döngüsünün kalıcı durumu. Bu modül,
 // hem ana cron route'u (app/api/cron/update-market-values) hem de kırılan
-// zinciri devam ettiren watchdog route'u (app/api/cron/resume-market-values)
-// hem de admin panelindeki manuel "devam ettir" butonu tarafından kullanılır
-// — tek doğruluk kaynağı burası.
+// zinciri devam ettiren route'u (app/api/cron/resume-market-values) hem de
+// admin panelindeki manuel "devam ettir" butonu tarafından kullanılır — tek
+// doğruluk kaynağı burası.
 //
 // ÖNEMLİ — zincirin granülerliği artık LİG değil, TAKIM'dır. Önceden her
 // adım bir ligin TÜMÜNÜ (o ligdeki her takımın kadrosunu tek tek çekerek)
@@ -69,7 +69,7 @@ function sleep(ms: number): Promise<void> {
 /**
  * Zincirin bir sonraki adımını tetikleyen self-fetch isteğini, zaman aşımı ve
  * yeniden deneme ile dayanıklı şekilde yapar. Tek doğruluk kaynağı burası —
- * hem ana cron route'u hem de watchdog route'u bunu kullanır, böylece askıda
+ * hem ana cron route'u hem de resume route'u bunu kullanır, böylece askıda
  * kalan tek bir istek artık tüm zinciri sessizce öldüremez.
  */
 export async function triggerChainContinuation(url: string, headers: Record<string, string>): Promise<void> {
@@ -136,7 +136,7 @@ function initialLeagueStatuses(): LeagueStatusEntry[] {
   }))
 }
 
-/** Yeni bir haftalık döngü satırı oluşturur — SADECE gerçek Vercel Cron tetiklemesinde (veya admin'in "yeni döngü başlat" isteğinde) çağrılmalı, watchdog bunu asla çağırmaz. */
+/** Yeni bir haftalık döngü satırı oluşturur — SADECE gerçek Vercel Cron tetiklemesinde (veya admin'in "yeni döngü başlat" isteğinde) çağrılmalı, resume route'u bunu asla çağırmaz. */
 export async function startNewCronRun(): Promise<CronRunRow> {
   const now = new Date()
   const id = `run-${now.getTime()}`
