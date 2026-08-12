@@ -100,17 +100,6 @@ export function DuelPlayerCard({
         )}
       </AnimatePresence>
 
-      {revealed && !isPicked && isCorrect !== null && (
-        <motion.div
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 400, damping: 18, delay: 0.25 }}
-          className="absolute left-3 top-3 z-10 rounded-full bg-primary/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-primary ring-1 ring-primary/40"
-        >
-          Galip
-        </motion.div>
-      )}
-
       {/* Fotoğraf */}
       <div className="relative flex h-32 w-32 items-center justify-center">
         <div

@@ -109,7 +109,6 @@ export function MarketValueDuelGame() {
       if (!round || phase !== "playing") return
       setPickedId(player.id)
       setPhase("revealed")
-      play("select")
 
       try {
         const res = await fetch("/api/games/market-value-duel", {
