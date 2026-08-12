@@ -37,6 +37,14 @@ const TOP_LEAGUES: LeagueSearchResult[] = [
     flagUrl: "https://media.api-sports.io/flags/eu.svg",
     aliases: ["konferans ligi", "uecl"],
   },
+  {
+    id: 531,
+    name: "UEFA Super Cup",
+    logo: "https://media.api-sports.io/football/leagues/531.png",
+    country: "Avrupa",
+    flagUrl: "https://media.api-sports.io/flags/eu.svg",
+    aliases: ["super kupa", "süper kupa", "uefa super kupa", "uefa süper kupa"],
+  },
   // Ulusal Ligler
   {
     id: 39,

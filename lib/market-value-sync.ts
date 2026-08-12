@@ -562,10 +562,10 @@ export interface CleanupResult {
 }
 
 /**
- * 23 ligin TÜMÜ bu haftalık cron döngüsünde hatasız işlendiyse çağrılır
+ * 24 ligin TÜMÜ bu haftalık cron döngüsünde hatasız işlendiyse çağrılır
  * (bkz. app/api/cron/update-market-values). "Hayalet" kayıtları temizler:
  *
- * - Bir takım artık takip edilen 23 ligden hiçbirinin standings'inde
+ * - Bir takım artık takip edilen 24 ligden hiçbirinin standings'inde
  *   çıkmıyorsa (relegasyon, lig değişikliği, kulüp feshi vb.) o takımın
  *   satırının lastSeenAt'i bu döngüde hiç güncellenmemiştir.
  * - Bir oyuncu artık taranan hiçbir takımın kadrosunda görünmüyorsa

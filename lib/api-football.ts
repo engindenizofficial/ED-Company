@@ -30,6 +30,7 @@ export const FEATURED_LEAGUE_IDS: number[] = [
   2,   // Champions League
   3,   // Europa League
   848, // Conference League
+  531, // UEFA Super Cup
   39,  // Premier League
   140, // La Liga
   135, // Serie A

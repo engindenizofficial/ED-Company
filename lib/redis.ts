@@ -88,7 +88,7 @@ export async function setCachedFixtures(date: string, data: FixturesResponse): P
 }
 
 // ---------------------------------------------------------------------------
-// All teams (tüm 23 ligin takım listesi — arama için)
+// All teams (tüm 24 ligin takım listesi — arama için)
 // ---------------------------------------------------------------------------
 
 export async function getCachedAllTeams(season: number): Promise<TeamSearchResult[] | null> {

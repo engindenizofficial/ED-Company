@@ -24,6 +24,7 @@ export const LEAGUE_TO_TRANSFERMARKT_CODE: Record<number, string> = {
   2: "CL", // Champions League
   3: "EL", // Europa League
   848: "UECL", // Conference League
+  531: "USC", // UEFA Super Cup
   39: "GB1", // Premier League
   140: "ES1", // La Liga
   135: "IT1", // Serie A
@@ -288,5 +289,5 @@ export async function scrapePlayerNationality(transfermarktPlayerId: string): Pr
   return countries.length > 0 ? countries.join(" / ") : null
 }
 
-/** Cron job'ın sırayla çağıracağı, tüm desteklenen 23 ligin id listesi. */
+/** Cron job'ın sırayla çağıracağı, tüm desteklenen 24 ligin id listesi. */
 export const SCRAPABLE_LEAGUE_IDS: number[] = FEATURED_LEAGUE_IDS

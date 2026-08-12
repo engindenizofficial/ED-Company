@@ -108,7 +108,7 @@ export const teamMarketValue = pgTable('team_market_value', {
    * Bu takımın API-Football tarafında "hâlâ var" olarak son doğrulandığı an —
    * lock durumundan bağımsız olarak, cron her ligi taradığında güncellenir.
    * Haftalık tam tarama döngüsünde bir takım hiç görülmezse (leagueId'si
-   * artık takip edilen 23 ligden hiçbirinde çıkmıyorsa) bu alan geride kalır
+   * artık takip edilen 24 ligden hiçbirinde çıkmıyorsa) bu alan geride kalır
    * ve temizlik adımı (cleanupStaleMarketValueRows) satırı siler. Admin
    * onayı (manualOverride) bu temizlikten muaf DEĞİLDİR — eşleşme kilitli
    * olsa da takım gerçekten ligden düşmüşse ghost kayıt olarak silinir.
@@ -165,7 +165,7 @@ export const marketValueReviewQueue = pgTable('market_value_review_queue', {
   /**
    * Ülke bilgisi için en az bir doldurma denemesi yapıldı mı? API-Football /
    * Transfermarkt kaynağında veri bulunamayınca entityCountry/candidateCountry
-   * null kalabilir — bu durumda bu alan olmadan satır her backfill turunda
+   * null kalabilir �� bu durumda bu alan olmadan satır her backfill turunda
    * tekrar seçilip sonsuza kadar "işlenip" hiçbir zaman çözülmüyordu. Bu
    * bayrak true olduktan sonra satır backfill sorgusundan çıkar.
    */
@@ -180,7 +180,7 @@ export const marketValueReviewQueue = pgTable('market_value_review_queue', {
 })
 
 /**
- * Haftalık 23 ligi zincirleme işleyen cron döngüsünün kalıcı durumu.
+ * Haftalık 24 ligi zincirleme işleyen cron döngüsünün kalıcı durumu.
  * "Zincir kırıldığında hangi ligde kalındığı hiçbir yerde tutulmuyor" sorununu
  * çözer: her adım (her lig) bu satıra yazılır, böylece süreç bir yerde
  * (crash, zaman aşımı, ağ hatası) kesilse bile bir sonraki çağrı — admin

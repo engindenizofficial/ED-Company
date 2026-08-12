@@ -140,7 +140,7 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
 }
 
-/** 23 ligin tüm takımlarını API'den batch batch çekip döndürür.
+/** 24 ligin tüm takımlarını API'den batch batch çekip döndürür.
  *  Promise.all ile hepsini aynı anda göndermek rate limit'i patlattığından
  *  BATCH_SIZE'lık gruplar halinde, aralarında kısa beklemeyle çekilir.
  *  Her lig için önce currentSeason dener, boş gelirse bir önceki sezonu dener.

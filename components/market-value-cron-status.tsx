@@ -12,7 +12,7 @@ import {
 } from "@/app/actions/market-value-cron"
 
 // ---------------------------------------------------------------------------
-// Haftalık piyasa değeri cron döngüsünün ("23 lig zincirleme işleniyor" —
+// Haftalık piyasa değeri cron döngüsünün ("24 lig zincirleme işleniyor" —
 // bkz. app/api/cron/update-market-values) son çalışmasının durumunu gösterir.
 // Zincir kırılırsa (crash, zaman aşımı, ağ hatası) admin burada hangi ligde
 // kalındığını görür ve "Devam Ettir" ile anında devam ettirebilir (bkz.

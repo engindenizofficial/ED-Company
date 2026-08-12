@@ -14,7 +14,7 @@ import {
 // Vercel Cron her Çarşamba 03:00 (İstanbul saati) bu endpoint'i tetikler
 // (bkz. vercel.json — "0 0 * * 3" = Çarşamba 00:00 UTC = Çarşamba 03:00 TR).
 //
-// 23 lig tek bir istekte işlenmiyor (Transfermarkt + API-Football'a yüzlerce
+// 24 lig tek bir istekte işlenmiyor (Transfermarkt + API-Football'a yüzlerce
 // istek gidiyor, serverless zaman aşımı riski var). Bunun yerine bu route
 // kendi kendini zincirler: her çağrı SADECE bir ligi işler, sonra bir sonraki
 // ligi tetikleyip (after() ile, cevabı bekletmeden) hemen yanıt döner.
@@ -35,7 +35,7 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
 // ÖNEMLİ — zincir eskiden HER HTTP çağrısında SADECE BİR takım işleyip kendi
-// kendini yeniden tetikliyordu (self-fetch). ~23 lig × ortalama birkaç
+// kendini yeniden tetikliyordu (self-fetch). ~24 lig × ortalama birkaç
 // takım = yüzlerce ayrı self-fetch demekti; bunlardan biri engellenirse
 // (örn. Vercel Deployment Protection) ya da ağ hatası alırsa zincir tam
 // olarak orada kırılıyordu. Şimdi her çağrı, aşağıdaki zaman bütçesi

@@ -11,7 +11,7 @@ import {
 } from "./market-value-sync"
 
 // ---------------------------------------------------------------------------
-// Haftalık 23 ligi zincirleme işleyen cron döngüsünün kalıcı durumu. Bu modül,
+// Haftalık 24 ligi zincirleme işleyen cron döngüsünün kalıcı durumu. Bu modül,
 // hem ana cron route'u (app/api/cron/update-market-values) hem de kırılan
 // zinciri devam ettiren route'u (app/api/cron/resume-market-values) hem de
 // admin panelindeki manuel "devam ettir" butonu tarafından kullanılır — tek

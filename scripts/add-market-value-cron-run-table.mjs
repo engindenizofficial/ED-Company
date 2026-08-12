@@ -1,4 +1,4 @@
-// Tek seferlik şema kurulum scripti — 23 ligi zincirleme işleyen haftalık cron
+// Tek seferlik şema kurulum scripti — 24 ligi zincirleme işleyen haftalık cron
 // döngüsünün durumunu (hangi ligde kalındı, kaç kez denendi, hata var mı)
 // kalıcı olarak tutan "market_value_cron_run" tablosunu ekler. Bu sayede
 // zincir bir yerde kesilirse (crash, zaman aşımı, ağ hatası) bir sonraki
