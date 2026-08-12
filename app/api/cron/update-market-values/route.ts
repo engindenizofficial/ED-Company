@@ -56,6 +56,14 @@ async function triggerNextStep(request: Request, runId: string): Promise<void> {
   const secret = process.env.CRON_SECRET
   if (secret) headers.authorization = `Bearer ${secret}`
 
+  // Vercel Authentication (Deployment Protection) tüm ".vercel.app"
+  // URL'lerini korumaya alıyor. Vercel Cron'un İLK çağrısı bu korumayı
+  // otomatik atlar, ama bu self-fetch (zincirin kendi kendini tetiklemesi)
+  // normal bir dış istek gibi görülür ve engellenir. Bunu aşmak için
+  // Protection Bypass for Automation secret'ı header olarak eklenir.
+  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+  if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
+
   try {
     await fetch(url.toString(), { headers })
   } catch (err) {

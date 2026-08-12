@@ -77,6 +77,12 @@ export async function resumeMarketValueCronNow(): Promise<{ triggered: boolean; 
   const headersInit: Record<string, string> = {}
   if (secret) headersInit.authorization = `Bearer ${secret}`
 
+  // Bkz. app/api/cron/update-market-values/route.ts — bu fetch de deployment
+  // URL'ine gittiği için Vercel Authentication korumasından geçiyor, bypass
+  // secret'ı gerekiyor.
+  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+  if (bypassSecret) headersInit["x-vercel-protection-bypass"] = bypassSecret
+
   const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
   try {
     // Yanıtı beklemiyoruz — zincir kendi kendini after() ile devam ettirecek.

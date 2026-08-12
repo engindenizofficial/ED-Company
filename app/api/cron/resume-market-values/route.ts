@@ -44,6 +44,12 @@ async function triggerNextResumeStep(request: Request, runId: string): Promise<v
   const secret = process.env.CRON_SECRET
   if (secret) headers.authorization = `Bearer ${secret}`
 
+  // Bkz. app/api/cron/update-market-values/route.ts — self-fetch, Vercel
+  // Authentication (Deployment Protection) tarafından engellenmemesi için
+  // Protection Bypass for Automation secret'ı gerekiyor.
+  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+  if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
+
   try {
     await fetch(url.toString(), { headers })
   } catch (err) {
