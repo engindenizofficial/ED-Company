@@ -9,6 +9,7 @@ import { db } from "@/lib/db"
 import { marketValueReviewQueue, teamMarketValue, playerMarketValue } from "@/lib/db/schema"
 import { getTeamCountry, getPlayerNationality } from "@/lib/api-football"
 import { scrapeTeamCountry, scrapePlayerNationality } from "@/lib/transfermarkt-scraper"
+import { syncTeamPlayers } from "@/lib/market-value-sync"
 
 // ---------------------------------------------------------------------------
 // Manuel gözden geçirme arayüzünün (8. adım) yazma katmanı. Sadece admin
@@ -79,6 +80,23 @@ export async function approveReviewEntry(id: string): Promise<void> {
         updatedAt: now,
       })
       .where(eq(teamMarketValue.teamId, row.entityId))
+
+    // Takımın oyuncu verisi bir sonraki cron koşusuna kadar boş kalmasın —
+    // onay anında kadroyu hemen tara. Bu bir "en iyi çaba" (best-effort)
+    // adımdır: Transfermarkt geçici olarak bloklarsa (bkz.
+    // transfermarkt-scraper.ts fetchHtml) burada hata fırlar, ama takımın
+    // onay kararı zaten kaydedildi — bir sonraki cron koşusu bu takımı
+    // kilitli-matched olarak görüp oyuncularını normal şekilde tarayacak.
+    if (row.candidateTransfermarktId) {
+      try {
+        await syncTeamPlayers(row.entityId, row.candidateTransfermarktId, currentSeason(), now)
+      } catch (err) {
+        console.error(
+          `[v0] Takım onaylandı ama anlık oyuncu senkronu başarısız oldu (teamId: ${row.entityId}) — bir sonraki cron koşusunda tekrar denenecek:`,
+          err instanceof Error ? err.message : err,
+        )
+      }
+    }
   } else {
     await db
       .update(playerMarketValue)

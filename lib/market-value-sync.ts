@@ -96,8 +96,13 @@ interface PlayerSyncCounts {
  * Bir takımın kadrosunu Transfermarkt'tan çekip oyuncuları eşleştirir ve
  * yazar. Admin tarafından manuel kilitlenmiş (manualOverride) oyuncu
  * satırlarına dokunmaz — onların kararı sabit sayılır.
+ *
+ * Export edilmiştir: cron'un normal akışının dışında, bir admin bir takımı
+ * review kuyruğundan ONAYLADIĞI anda da çağrılır (bkz.
+ * app/actions/market-value-review.ts -> approveReviewEntry), böylece o
+ * takımın oyuncu verisi bir sonraki cron koşusuna kadar boş kalmaz.
  */
-async function syncTeamPlayers(
+export async function syncTeamPlayers(
   apiFootballTeamId: number,
   transfermarktTeamId: string,
   season: number,
