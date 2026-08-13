@@ -432,7 +432,7 @@ function TeamRow({
     <div className="flex items-center gap-2.5">
       {logo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={logo || "/placeholder.svg"} alt="" className="h-5 w-5 shrink-0 object-contain" />
+        <img src={logo || "/placeholder.svg"} alt="" className="h-5 w-5 shrink-0 object-contain" width={20} height={20} loading="lazy" decoding="async" />
       ) : (
         <div className="h-5 w-5 shrink-0 rounded-full bg-secondary" />
       )}

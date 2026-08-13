@@ -216,7 +216,7 @@ export function FavoriteSearchBar() {
                           <div className="relative h-8 w-8 shrink-0">
                             {r.logo ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={r.logo} alt="" className="h-8 w-8 object-contain" />
+                              <img src={r.logo} alt="" className="h-8 w-8 object-contain" width={32} height={32} loading="lazy" decoding="async" />
                             ) : (
                               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-[11px] font-black text-muted-foreground">
                                 {r.name.charAt(0)}
@@ -230,7 +230,7 @@ export function FavoriteSearchBar() {
                             <div className="flex items-center gap-1.5">
                               {r.leagueLogo && (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={r.leagueLogo} alt="" className="h-3 w-3 object-contain opacity-70" />
+                                <img src={r.leagueLogo} alt="" className="h-3 w-3 object-contain opacity-70" width={12} height={12} loading="lazy" decoding="async" />
                               )}
                               <span className="truncate text-[11px] text-muted-foreground/85">
                                 {r.leagueName}
@@ -274,7 +274,7 @@ export function FavoriteSearchBar() {
                           <div className="relative h-8 w-8 shrink-0">
                             {r.logo ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={r.logo} alt="" className="h-8 w-8 object-contain" />
+                              <img src={r.logo} alt="" className="h-8 w-8 object-contain" width={32} height={32} loading="lazy" decoding="async" />
                             ) : (
                               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-[11px] font-black text-muted-foreground">
                                 {r.name.charAt(0)}
@@ -288,7 +288,7 @@ export function FavoriteSearchBar() {
                             <div className="flex items-center gap-1.5">
                               {r.flagUrl && (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={r.flagUrl} alt="" className="h-3 w-4 rounded-sm object-cover opacity-80" />
+                                <img src={r.flagUrl} alt="" className="h-3 w-4 rounded-sm object-cover opacity-80" width={16} height={12} loading="lazy" decoding="async" />
                               )}
                               <span className="truncate text-[11px] text-muted-foreground/85">
                                 {toTurkishCountry(r.country)}

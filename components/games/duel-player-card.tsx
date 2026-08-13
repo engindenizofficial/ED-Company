@@ -116,6 +116,9 @@ export function DuelPlayerCard({
               alt={player.name}
               crossOrigin="anonymous"
               className="h-full w-full object-cover"
+              width={112}
+              height={112}
+              decoding="async"
             />
           ) : (
             <Shield className="h-10 w-10 text-muted-foreground" />
@@ -137,6 +140,10 @@ export function DuelPlayerCard({
               alt=""
               crossOrigin="anonymous"
               className="h-4 w-4 object-contain"
+              width={16}
+              height={16}
+              loading="lazy"
+              decoding="async"
             />
           )}
           <span>{player.team.name}</span>

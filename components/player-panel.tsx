@@ -233,7 +233,7 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
               <div className="mb-4 flex items-center gap-3">
                 {s.team.logo && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={s.team.logo} alt="" className="h-8 w-8 object-contain" />
+                  <img src={s.team.logo} alt="" className="h-8 w-8 object-contain" width={32} height={32} loading="lazy" decoding="async" />
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-foreground">
@@ -242,7 +242,7 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
                   <div className="flex items-center gap-1.5">
                     {s.league.logo && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={s.league.logo} alt="" className="h-3.5 w-3.5 object-contain" />
+                      <img src={s.league.logo} alt="" className="h-3.5 w-3.5 object-contain" width={14} height={14} loading="lazy" decoding="async" />
                     )}
                     <p className="truncate text-[11px] text-muted-foreground">
                       {s.leagueNames.length > 0 ? s.leagueNames.join(" • ") : s.league.name}
@@ -475,7 +475,7 @@ function CareerSummarySection({ playerId, playerName, active }: { playerId: numb
                           <div className="flex items-center gap-1.5">
                             {s.team.logo && (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={s.team.logo} alt="" className="h-4 w-4 object-contain" />
+                              <img src={s.team.logo} alt="" className="h-4 w-4 object-contain" width={16} height={16} loading="lazy" decoding="async" />
                             )}
                             <span className="max-w-[80px] truncate font-semibold text-foreground">
                               {s.team.name}
@@ -615,13 +615,13 @@ function TransfersSection({ playerId, playerName, active }: { playerId: number; 
                   <div className="flex min-w-0 flex-1 items-center gap-1.5">
                     {t.teamFrom.logo && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.teamFrom.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      <img src={t.teamFrom.logo} alt="" className="h-4 w-4 shrink-0 object-contain" width={16} height={16} loading="lazy" decoding="async" />
                     )}
                     <span className="max-w-[70px] truncate text-muted-foreground">{t.teamFrom.name}</span>
                     <ArrowLeftRight className="h-3 w-3 shrink-0 text-muted-foreground" />
                     {t.teamTo.logo && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.teamTo.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      <img src={t.teamTo.logo} alt="" className="h-4 w-4 shrink-0 object-contain" width={16} height={16} loading="lazy" decoding="async" />
                     )}
                     <span className="max-w-[70px] truncate font-semibold text-foreground">{t.teamTo.name}</span>
                   </div>
@@ -747,7 +747,7 @@ function PlayerPanelInner({
               src={player.photo}
               alt={player.name}
               className="h-14 w-14 rounded-full border border-border object-cover"
-            />
+              width={56} height={56} loading="lazy" decoding="async" />
           ) : (
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-border bg-secondary">
               <UserRound className="h-6 w-6 text-muted-foreground" />
@@ -850,7 +850,7 @@ function PlayerPanelInner({
           <div className="flex shrink-0 items-center gap-2 border-b border-border bg-secondary/40 px-4 py-2">
             {profile.team.logo && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.team.logo} alt="" className="h-4 w-4 object-contain" />
+              <img src={profile.team.logo} alt="" className="h-4 w-4 object-contain" width={16} height={16} loading="lazy" decoding="async" />
             )}
             <span className="text-xs font-semibold text-foreground">{profile.team.name}</span>
             {profile.league && (
@@ -858,7 +858,7 @@ function PlayerPanelInner({
                 <span className="text-border">·</span>
                 {profile.league.logo && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profile.league.logo} alt="" className="h-4 w-4 object-contain" />
+                  <img src={profile.league.logo} alt="" className="h-4 w-4 object-contain" width={16} height={16} loading="lazy" decoding="async" />
                 )}
                 <span className="text-xs text-muted-foreground">{profile.league.name}</span>
                 <span className="text-border">·</span>

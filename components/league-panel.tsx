@@ -75,7 +75,7 @@ function PlayerAvatar({ photo, name }: { photo: string | null; name: string }) {
       src={photo}
       alt=""
       className="h-6 w-6 shrink-0 rounded-full border border-border object-cover"
-    />
+              width={24} height={24} loading="lazy" decoding="async" />
   ) : (
     <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary">
       <Users className="h-3 w-3 text-muted-foreground" />
@@ -86,7 +86,7 @@ function PlayerAvatar({ photo, name }: { photo: string | null; name: string }) {
 function TeamLogo({ logo, name }: { logo: string; name: string }) {
   return logo ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={logo} alt={name} title={name} className="mx-auto h-5 w-5 object-contain" />
+    <img src={logo} alt={name} title={name} className="mx-auto h-5 w-5 object-contain" width={20} height={20} loading="lazy" decoding="async" />
   ) : (
     <span className="text-[10px] text-muted-foreground">{name}</span>
   )
@@ -293,7 +293,7 @@ function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; 
                               >
                                 {r.teamLogo ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={r.teamLogo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                                  <img src={r.teamLogo} alt="" className="h-4 w-4 shrink-0 object-contain" width={16} height={16} loading="lazy" decoding="async" />
                                 ) : null}
                                 <span className="max-w-[90px] truncate font-semibold text-foreground hover:text-primary">
                                   {r.team}
@@ -593,13 +593,13 @@ function RecentFixturesSection({ leagueId, leagueName, active }: { leagueId: num
                     </span>
                     <div className="flex items-center gap-1.5 truncate">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain" width={16} height={16} loading="lazy" decoding="async" />
                       <span className="truncate text-xs font-semibold text-foreground">{f.home.name}</span>
                       <span className="shrink-0 font-black tabular-nums text-foreground">
                         {f.goalsHome} – {f.goalsAway}
                       </span>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain" width={16} height={16} loading="lazy" decoding="async" />
                       <span className="truncate text-xs font-semibold text-foreground">{f.away.name}</span>
                     </div>
                   </div>
@@ -637,11 +637,11 @@ function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: n
                     <span className="text-[10px] text-muted-foreground">{f.league.round}</span>
                     <div className="flex items-center gap-1.5 truncate">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain" width={16} height={16} loading="lazy" decoding="async" />
                       <span className="truncate text-xs font-semibold text-foreground">{f.home.name}</span>
                       <span className="shrink-0 text-muted-foreground">–</span>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain" />
+                      <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain" width={16} height={16} loading="lazy" decoding="async" />
                       <span className="truncate text-xs font-semibold text-foreground">{f.away.name}</span>
                     </div>
                   </div>
@@ -709,7 +709,7 @@ function LeaguePanelInner({
               src={league.logo}
               alt={league.name}
               className="h-12 w-12 shrink-0 object-contain drop-shadow-sm"
-            />
+              width={48} height={48} loading="lazy" decoding="async" />
           ) : (
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-secondary border border-border">
               <Shield className="h-6 w-6 text-muted-foreground" />
@@ -720,7 +720,7 @@ function LeaguePanelInner({
             <div className="mt-0.5 flex items-center gap-1.5">
               {league.flagUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={league.flagUrl} alt="" className="h-3 w-4 rounded-[2px] object-cover" />
+                <img src={league.flagUrl} alt="" className="h-3 w-4 rounded-[2px] object-cover" width={16} height={12} loading="lazy" decoding="async" />
               )}
               <p className="text-xs text-muted-foreground">{toTurkishCountry(league.country)}</p>
             </div>
