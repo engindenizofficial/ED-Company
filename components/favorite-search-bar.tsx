@@ -139,7 +139,7 @@ export function FavoriteSearchBar() {
           {loading ? (
             <LoaderCircle className="h-3.5 w-3.5 animate-spin text-primary" />
           ) : (
-            <Search className={`h-3.5 w-3.5 transition-colors ${query.length > 0 ? "text-primary" : "text-muted-foreground/60"}`} />
+            <Search className={`h-3.5 w-3.5 transition-colors ${query.length > 0 ? "text-primary" : "text-muted-foreground/75"}`} />
           )}
         </span>
 
@@ -155,7 +155,7 @@ export function FavoriteSearchBar() {
           className="
             w-full rounded-xl border bg-secondary/50 py-2.5 pl-10 pr-10
             text-sm font-medium text-foreground outline-none
-            placeholder:font-normal placeholder:text-muted-foreground/45
+            placeholder:font-normal placeholder:text-muted-foreground/60
             transition-all duration-150
             border-border/50
             focus:border-primary/60 focus:bg-card focus:shadow-sm
@@ -187,7 +187,7 @@ export function FavoriteSearchBar() {
         >
           {!hasAnyResults && !loading ? (
             <div className="flex flex-col items-center gap-1.5 px-4 py-8 text-center">
-              <Search className="h-5 w-5 text-muted-foreground/30" />
+              <Search className="h-5 w-5 text-muted-foreground/50" />
               <p className="text-xs text-muted-foreground">
                 <span className="font-semibold text-foreground">{`"${query}"`}</span> için sonuç bulunamadı
               </p>
@@ -197,11 +197,11 @@ export function FavoriteSearchBar() {
               {hasTeams && (
                 <>
                   <li className="flex items-center gap-2 px-3.5 py-2">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
                       Takımlar
                     </span>
                     <span className="h-px flex-1 bg-border/50" />
-                    <span className="text-[10px] tabular-nums text-muted-foreground/40">{teamResults.length}</span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground/60">{teamResults.length}</span>
                   </li>
                   {teamResults.map((r) => {
                     const already = isFavorite("team", r.id)
@@ -232,7 +232,7 @@ export function FavoriteSearchBar() {
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={r.leagueLogo} alt="" className="h-3 w-3 object-contain opacity-70" />
                               )}
-                              <span className="truncate text-[11px] text-muted-foreground/70">
+                              <span className="truncate text-[11px] text-muted-foreground/85">
                                 {r.leagueName}
                                 {r.country ? ` · ${toTurkishCountry(r.country)}` : ""}
                               </span>
@@ -241,7 +241,7 @@ export function FavoriteSearchBar() {
                           {already ? (
                             <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
                           ) : (
-                            <span className="shrink-0 text-[10px] text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100">
+                            <span className="shrink-0 text-[10px] text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100">
                               +
                             </span>
                           )}
@@ -255,11 +255,11 @@ export function FavoriteSearchBar() {
               {hasLeagues && (
                 <>
                   <li className={`flex items-center gap-2 px-3.5 py-2${hasTeams ? " mt-1 border-t border-border/40 pt-3" : ""}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
                       Ligler
                     </span>
                     <span className="h-px flex-1 bg-border/50" />
-                    <span className="text-[10px] tabular-nums text-muted-foreground/40">{leagueResults.length}</span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground/60">{leagueResults.length}</span>
                   </li>
                   {leagueResults.map((r) => {
                     const already = isFavorite("league", r.id)
@@ -290,7 +290,7 @@ export function FavoriteSearchBar() {
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={r.flagUrl} alt="" className="h-3 w-4 rounded-sm object-cover opacity-80" />
                               )}
-                              <span className="truncate text-[11px] text-muted-foreground/70">
+                              <span className="truncate text-[11px] text-muted-foreground/85">
                                 {toTurkishCountry(r.country)}
                               </span>
                             </div>
@@ -298,7 +298,7 @@ export function FavoriteSearchBar() {
                           {already ? (
                             <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
                           ) : (
-                            <span className="shrink-0 text-[10px] text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100">
+                            <span className="shrink-0 text-[10px] text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100">
                               +
                             </span>
                           )}

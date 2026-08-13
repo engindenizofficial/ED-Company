@@ -60,11 +60,11 @@ export default function GamesHubPage() {
                 <Lock className="h-5 w-5" />
               </div>
               <h2 className="mt-4 text-lg font-bold text-muted-foreground">Yakında</h2>
-              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground/70">
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground/85">
                 Yeni oyunlar üzerinde çalışıyoruz. Takipte kalın.
               </p>
             </div>
-            <div className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">
+            <div className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground/75">
               Hazırlanıyor
             </div>
           </div>

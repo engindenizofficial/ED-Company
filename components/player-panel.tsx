@@ -118,7 +118,7 @@ function SectionLoading({ label }: { label: string }) {
 function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-      <AlertTriangle className="h-5 w-5 text-destructive/70" />
+      <AlertTriangle className="h-5 w-5 text-destructive/85" />
       <p className="text-xs font-bold text-destructive">Veri alınamadı</p>
       {error && <p className="text-[11px] text-muted-foreground">{error}</p>}
       <button
@@ -136,7 +136,7 @@ function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: 
 function SectionEmptyState({ playerName, label }: { playerName: string; label: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-      <Inbox className="h-5 w-5 text-muted-foreground/50" />
+      <Inbox className="h-5 w-5 text-muted-foreground/65" />
       <p className="text-xs text-muted-foreground">
         {playerName} için {label} bulunamadı.
       </p>
@@ -153,7 +153,7 @@ function StatRow({ label, value, sub }: { label: string; value: string; sub?: st
     <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
       <div className="flex flex-col gap-0.5">
         <span className="text-muted-foreground">{label}</span>
-        {sub && <span className="text-[10px] text-muted-foreground/70">{sub}</span>}
+        {sub && <span className="text-[10px] text-muted-foreground/85">{sub}</span>}
       </div>
       <span className="shrink-0 font-black tabular-nums text-foreground">{value}</span>
     </div>
@@ -772,7 +772,7 @@ function PlayerPanelInner({
                       <Calendar className="h-3 w-3" />
                       {profile.age} yaş
                       {profile.birthDate && (
-                        <span className="text-muted-foreground/60">
+                        <span className="text-muted-foreground/75">
                           ({new Date(profile.birthDate).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })})
                         </span>
                       )}
@@ -886,7 +886,7 @@ function PlayerPanelInner({
 
           {error && (
             <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 py-12 text-center">
-              <UserRoundX className="h-8 w-8 text-destructive/60" />
+              <UserRoundX className="h-8 w-8 text-destructive/75" />
               <p className="text-sm font-semibold text-destructive">Veri alınamadı</p>
               <p className="text-xs text-muted-foreground">{error}</p>
             </div>

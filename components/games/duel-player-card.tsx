@@ -145,7 +145,7 @@ export function DuelPlayerCard({
 
       {/* Ülke */}
       {player.country && (
-        <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground/80">
+        <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground/90">
           <MapPin className="h-3 w-3" />
           <span>{player.country}</span>
         </div>

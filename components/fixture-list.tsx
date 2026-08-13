@@ -32,7 +32,7 @@ function FavoriteStarButton({
       aria-pressed={active}
       aria-label={active ? `${label} favorilerden kaldır` : `${label} favorilere ekle`}
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-lg text-muted-foreground/40 transition-colors hover:text-primary",
+        "flex shrink-0 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:text-primary",
         size === "sm" ? "h-6 w-6" : "h-5 w-5",
       )}
     >
@@ -307,7 +307,7 @@ export function FixtureList({
               }
             />
             <div className="ml-auto h-px flex-1 bg-border/60" />
-            <span className="text-[10px] tabular-nums text-muted-foreground/50">{group.items.length}</span>
+            <span className="text-[10px] tabular-nums text-muted-foreground/65">{group.items.length}</span>
           </div>
 
           {/* Fixture cards */}
@@ -385,12 +385,12 @@ export function FixtureList({
                           </>
                         ) : played ? (
                           <>
-                            <span className="text-[10px] font-medium text-muted-foreground/60">Tamamlandı</span>
+                            <span className="text-[10px] font-medium text-muted-foreground/75">Tamamlandı</span>
                             <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{statusLabel(f.statusShort)}</span>
                           </>
                         ) : (
                           <>
-                            <span className="text-[10px] text-muted-foreground/60">Başlangıç</span>
+                            <span className="text-[10px] text-muted-foreground/75">Başlangıç</span>
                             <span className="flex items-center gap-1 text-[13px] font-bold tabular-nums text-foreground">
                               <Clock className="h-3 w-3 text-muted-foreground" />
                               {kickoff(f.date)}

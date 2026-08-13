@@ -162,7 +162,7 @@ function SectionLoading({ label }: { label: string }) {
 function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-      <AlertTriangle className="h-5 w-5 text-destructive/70" />
+      <AlertTriangle className="h-5 w-5 text-destructive/85" />
       <p className="text-xs font-bold text-destructive">Veri alınamadı</p>
       {error && <p className="text-[11px] text-muted-foreground">{error}</p>}
       <button
@@ -180,7 +180,7 @@ function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: 
 function SectionEmptyState({ leagueName, label }: { leagueName: string; label: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-      <Inbox className="h-5 w-5 text-muted-foreground/50" />
+      <Inbox className="h-5 w-5 text-muted-foreground/65" />
       <p className="text-xs text-muted-foreground">
         {leagueName} için {label} bulunamadı.
       </p>
@@ -220,7 +220,7 @@ function SeasonOverviewSection({ leagueId, leagueName, active }: { leagueId: num
               </div>
               {formatMarketValueEur(data.totalMarketValueEur) && (
                 <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-3 py-2.5">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-primary/80">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-primary/90">
                     Toplam Kadro Değeri
                   </span>
                   <span className="text-base font-black tabular-nums text-primary">
@@ -261,7 +261,7 @@ function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; 
               {Object.entries(groups).map(([group, rows]) => (
                 <div key={group}>
                   {Object.keys(groups).length > 1 && (
-                    <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">
+                    <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
                       {group}
                     </p>
                   )}
@@ -756,7 +756,7 @@ function LeaguePanelInner({
 
           {error && (
             <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 py-12 text-center">
-              <ShieldOff className="h-8 w-8 text-destructive/60" />
+              <ShieldOff className="h-8 w-8 text-destructive/75" />
               <p className="text-sm font-semibold text-destructive">Veri alınamadı</p>
               <p className="text-xs text-muted-foreground">{error}</p>
             </div>

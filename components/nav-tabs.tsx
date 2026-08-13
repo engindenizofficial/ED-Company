@@ -33,8 +33,8 @@ export function NavTabs() {
             aria-label="Ana ekrana dön"
           >
             <span className="brand-gradient bg-clip-text text-transparent">ED</span>
-            <span className="text-foreground/30 mx-1">/</span>
-            <span className="text-foreground/60 font-semibold tracking-widest text-[11px]">ANALYTICS</span>
+            <span className="text-foreground/50 mx-1">/</span>
+            <span className="text-foreground/75 font-semibold tracking-widest text-[11px]">ANALYTICS</span>
           </Link>
         </div>
 

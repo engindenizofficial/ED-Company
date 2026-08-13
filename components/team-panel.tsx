@@ -154,7 +154,7 @@ function SectionLoading({ label }: { label: string }) {
 function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-      <AlertTriangle className="h-5 w-5 text-destructive/70" />
+      <AlertTriangle className="h-5 w-5 text-destructive/85" />
       <p className="text-xs font-bold text-destructive">Veri alınamadı</p>
       {error && <p className="text-[11px] text-muted-foreground">{error}</p>}
       <button
@@ -172,7 +172,7 @@ function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: 
 function SectionEmptyState({ teamName, label }: { teamName: string; label: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-      <Inbox className="h-5 w-5 text-muted-foreground/50" />
+      <Inbox className="h-5 w-5 text-muted-foreground/65" />
       <p className="text-xs text-muted-foreground">
         {teamName} için {label} bulunamadı.
       </p>
@@ -308,14 +308,14 @@ function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; t
                       <img src={f.league.logo} alt="" className="h-3.5 w-3.5 object-contain opacity-80" />
                       <span className="text-[10px] text-muted-foreground truncate">{f.league.name}</span>
                       {f.league.round && (
-                        <span className="shrink-0 text-[10px] text-muted-foreground/50">· {f.league.round}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground/65">· {f.league.round}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={f.home.logo} alt="" className="h-4 w-4 object-contain" />
                       <span className="text-xs font-semibold text-foreground truncate">{f.home.name}</span>
-                      <span className="shrink-0 text-muted-foreground/50">–</span>
+                      <span className="shrink-0 text-muted-foreground/65">–</span>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={f.away.logo} alt="" className="h-4 w-4 object-contain" />
                       <span className="text-xs font-semibold text-foreground truncate">{f.away.name}</span>
@@ -384,7 +384,7 @@ function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: 
               {/* Career */}
               {data.career.length > 0 && (
                 <div className="flex flex-col gap-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70 px-1">Kariyer</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85 px-1">Kariyer</p>
                   {data.career.map((c, i) => (
                     <div
                       key={i}
@@ -443,7 +443,7 @@ function SquadSection({ teamId, teamName, active }: { teamId: number; teamName: 
             <div className="flex flex-col gap-4">
               {positions.map(pos => (
                 <div key={pos}>
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70 px-1">
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85 px-1">
                     {POS_LABEL[pos] ?? pos}
                   </p>
                   <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
@@ -473,7 +473,7 @@ function SquadSection({ teamId, teamName, active }: { teamId: number; teamName: 
                               <span className="text-[10px] font-bold tabular-nums text-muted-foreground">#{p.number}</span>
                             )}
                             {p.age != null && (
-                              <span className="text-[10px] text-muted-foreground/60">{p.age} yaş</span>
+                              <span className="text-[10px] text-muted-foreground/75">{p.age} yaş</span>
                             )}
                             {formatMarketValueEur(p.marketValueEur) && (
                               <span className="text-[10px] font-bold tabular-nums text-primary">
@@ -545,7 +545,7 @@ function TopScorersSection({ teamId, teamName, active }: { teamId: number; teamN
                               {s.player.name}
                             </span>
                             {s.pos && (
-                              <span className="text-[9px] uppercase text-muted-foreground/60 leading-none">{s.pos}</span>
+                              <span className="text-[9px] uppercase text-muted-foreground/75 leading-none">{s.pos}</span>
                             )}
                           </div>
                         </PlayerButton>
@@ -595,7 +595,7 @@ function StandingsSection({ teamId, teamName, active }: { teamId: number; teamNa
               {Object.entries(groups).map(([group, rows]) => (
                 <div key={group}>
                   {Object.keys(groups).length > 1 && (
-                    <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70 px-1">{group}</p>
+                    <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85 px-1">{group}</p>
                   )}
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
@@ -692,7 +692,7 @@ function TransfersSection({ teamId, teamName, active }: { teamId: number; teamNa
             <div className="flex flex-col gap-4">
               {incoming.length > 0 && (
                 <div className="flex flex-col gap-1.5">
-                  <p className="flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">
+                  <p className="flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
                     <ArrowDownLeft className="h-3 w-3 text-primary" />
                     Gelenler ({incoming.length})
                   </p>
@@ -703,7 +703,7 @@ function TransfersSection({ teamId, teamName, active }: { teamId: number; teamNa
               )}
               {outgoing.length > 0 && (
                 <div className="flex flex-col gap-1.5">
-                  <p className="flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/70">
+                  <p className="flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
                     <ArrowUpRight className="h-3 w-3 text-destructive" />
                     Gidenler ({outgoing.length})
                   </p>
@@ -758,7 +758,7 @@ function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direc
               <img src={fromTeam.logo} alt="" className="h-3 w-3 object-contain opacity-70" />
             )}
             <span className="text-[10px] text-muted-foreground truncate">{fromTeam.name}</span>
-            <span className="text-[10px] text-muted-foreground/40">→</span>
+            <span className="text-[10px] text-muted-foreground/60">→</span>
             {toTeam.logo && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={toTeam.logo} alt="" className="h-3 w-3 object-contain opacity-70" />
@@ -883,13 +883,13 @@ function TeamPanelInner({
           {/* Season meta bar */}
           {basic && (
             <div className="relative flex items-center gap-3 border-b border-border/60 bg-secondary/40 px-5 py-2">
-              <span className="text-[10px] uppercase tracking-[0.15em] font-bold text-muted-foreground/70">Sezon</span>
+              <span className="text-[10px] uppercase tracking-[0.15em] font-bold text-muted-foreground/85">Sezon</span>
               <span className="rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-black text-primary">
                 {basic.currentSeason}/{String(basic.currentSeason + 1).slice(2)}
               </span>
               {formatMarketValueEur(basic.marketValueEur) && (
                 <>
-                  <span className="text-[10px] uppercase tracking-[0.15em] font-bold text-muted-foreground/70">
+                  <span className="text-[10px] uppercase tracking-[0.15em] font-bold text-muted-foreground/85">
                     Kadro Değeri
                   </span>
                   <span className="rounded-lg border border-border bg-secondary px-2 py-0.5 text-[11px] font-black text-foreground">
@@ -912,7 +912,7 @@ function TeamPanelInner({
 
           {error && (
             <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 py-12 text-center">
-              <ShieldOff className="h-8 w-8 text-destructive/60" />
+              <ShieldOff className="h-8 w-8 text-destructive/75" />
               <p className="text-sm font-bold text-destructive">Veri alınamadı</p>
               <p className="text-xs text-muted-foreground">{error}</p>
             </div>

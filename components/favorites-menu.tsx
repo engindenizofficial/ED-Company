@@ -148,7 +148,7 @@ export function FavoritesMenu() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Menüyü aç"
-        className="flex items-center justify-center rounded-lg p-2 -ml-1 text-foreground/80 transition-colors hover:bg-secondary hover:text-foreground"
+        className="flex items-center justify-center rounded-lg p-2 -ml-1 text-foreground/90 transition-colors hover:bg-secondary hover:text-foreground"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -218,7 +218,7 @@ export function FavoritesMenu() {
                       <span className="truncate text-sm font-semibold text-foreground">Hesabım</span>
                       <span className="truncate text-[11px] text-muted-foreground">{session.user.name}</span>
                     </div>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
                   </button>
                 ) : null}
 
@@ -233,7 +233,7 @@ export function FavoritesMenu() {
                       <ShieldCheck className="h-4 w-4 text-primary" />
                     </div>
                     <span className="flex-1 text-sm font-semibold text-foreground">Yönetim Paneli</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
                   </Link>
                 ) : null}
 
@@ -252,7 +252,7 @@ export function FavoritesMenu() {
                       {favorites.length}
                     </span>
                   ) : null}
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
                 </button>
 
                 {/* Tema Rengi — Favorilerim'in altında, hem misafir hem giriş yapmış kullanıcılarda */}
@@ -270,7 +270,7 @@ export function FavoritesMenu() {
                     className="h-4 w-4 shrink-0 rounded-full ring-1 ring-border"
                     style={{ backgroundColor: activeAccent.swatch }}
                   />
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
                 </button>
 
                 {/* Çıkış Yap (giriş yapmışsa) / Giriş Yap daveti (misafirse) — en altta */}
@@ -349,7 +349,7 @@ export function FavoritesMenu() {
                 <div className="mt-4 flex flex-col gap-1">
                   {favorites.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border/60 px-4 py-8 text-center">
-                      <Star className="h-5 w-5 text-muted-foreground/30" />
+                      <Star className="h-5 w-5 text-muted-foreground/50" />
                       <p className="text-xs text-muted-foreground">
                         Henüz favori eklemediniz. Yukarıdan takım veya lig arayın.
                       </p>
@@ -419,7 +419,7 @@ function SortableFavoriteRow({
         {...attributes}
         {...listeners}
         aria-label="Sürükleyerek sıralamayı değiştir"
-        className="flex h-8 w-6 shrink-0 cursor-grab touch-none select-none items-center justify-center text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
+        className="flex h-8 w-6 shrink-0 cursor-grab touch-none select-none items-center justify-center text-muted-foreground/65 hover:text-muted-foreground active:cursor-grabbing"
       >
         <GripVertical className="h-4 w-4" />
       </button>
@@ -449,7 +449,7 @@ function SortableFavoriteRow({
         type="button"
         onClick={onRemove}
         aria-label={`${favorite.name} favorilerden kaldır`}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/65 transition-colors hover:bg-destructive/10 hover:text-destructive"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
