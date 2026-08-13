@@ -182,8 +182,14 @@ export interface PlayerProfile {
 
 export interface PlayerSeasonStats {
   season: number
+  /** O sezon en çok dakika aldığı takım (birincil takım, gösterim amaçlı). */
   team: TeamInfo
+  /** O sezon forma giydiği tüm takımlar (transfer olduysa birden fazla). */
+  teams: TeamInfo[]
+  /** O sezon en çok dakika aldığı turnuva (birincil lig, logo gösterimi amaçlı). */
   league: { id: number; name: string; country: string; logo: string }
+  /** O sezon oynadığı tüm turnuvaların isimleri (lig, kupa, Şampiyonlar Ligi vb. birleştirilmiş). */
+  leagueNames: string[]
   appearances: number | null
   lineups: number | null
   minutes: number | null

@@ -223,26 +223,29 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
                       )}
                     >
                       {st.season}/{String(st.season + 1).slice(2)}
-                      {st.league.name ? ` · ${st.league.name}` : ""}
                     </button>
                   ))}
                 </div>
               )}
 
-              {/* Team & League */}
+              {/* Team & League — sezon boyunca oynadığı tüm takım/turnuvaların özeti */}
               <div className="mb-4 flex items-center gap-3">
                 {s.team.logo && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={s.team.logo} alt="" className="h-8 w-8 object-contain" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-foreground">{s.team.name}</p>
+                  <p className="truncate text-sm font-bold text-foreground">
+                    {s.teams.length > 1 ? s.teams.map((t) => t.name).join(" • ") : s.team.name}
+                  </p>
                   <div className="flex items-center gap-1.5">
                     {s.league.logo && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={s.league.logo} alt="" className="h-3.5 w-3.5 object-contain" />
                     )}
-                    <p className="truncate text-[11px] text-muted-foreground">{s.league.name}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {s.leagueNames.length > 0 ? s.leagueNames.join(" • ") : s.league.name}
+                    </p>
                   </div>
                 </div>
                 {rating != null && (
