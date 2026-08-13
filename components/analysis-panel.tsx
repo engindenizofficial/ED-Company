@@ -1457,13 +1457,17 @@ function H2HList({
   homeName: string
   awayName: string
 }) {
-  // Summary: home wins, draws, away wins
-  const homeWins = h2h.filter((g) => {
-    const isHome = g.homeTeam === homeName || (g.home && !g.homeTeam)
-    return isHome ? g.result === "W" : g.result === "L"
-  }).length
+  // Summary: home wins, draws, away wins.
+  // `g.result` API-football üzerinden zaten güncel maçın ev sahibi takımı
+  // (bu bileşene `homeName` olarak geçirilen takım) perspektifinden geliyor:
+  // "W" = o takım o geçmiş maçı kazandı, "L" = rakip kazandı — geçmiş maçta
+  // hangi takımın kendi sahasında oynadığından bağımsız. Bu yüzden burada
+  // `g.home` / `g.homeTeam` ile tekrar bir "ev sahibi mi" kontrolü yapmaya
+  // gerek yok; yapılırsa deplasmanda oynanan maçlarda kazanan taraf ters
+  // gösterilir.
+  const homeWins = h2h.filter((g) => g.result === "W").length
   const draws = h2h.filter((g) => g.result === "D").length
-  const awayWins = h2h.length - homeWins - draws
+  const awayWins = h2h.filter((g) => g.result === "L").length
 
   return (
     <div className="flex flex-col gap-3">
