@@ -99,6 +99,7 @@ interface SectionState<T> {
 }
 
 function useTeamSection<T>(teamId: number, section: string, open: boolean) {
+  const { t } = useLanguage()
   const [state, setState] = useState<SectionState<T>>({ status: "idle", data: null, error: null })
   // "hasLoadedRef" isteğin tamamlanıp tamamlanmadığını takip eder. React 18/19
   // geliştirme modunda (Strict Mode) her effect mount->unmount->mount şeklinde
@@ -117,7 +118,7 @@ function useTeamSection<T>(teamId: number, section: string, open: boolean) {
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => null)
-          throw new Error(body?.error ?? `Sunucu hatası: ${res.status}`)
+          throw new Error(body?.error ?? t("common.serverErrorWithStatus", { status: res.status }))
         }
         return res.json() as Promise<{ data: T | null }>
       })
@@ -129,7 +130,7 @@ function useTeamSection<T>(teamId: number, section: string, open: boolean) {
       .catch((err) => {
         if (cancelled) return
         hasLoadedRef.current = true
-        setState({ status: "error", data: null, error: err instanceof Error ? err.message : "Bir hata oluştu" })
+        setState({ status: "error", data: null, error: err instanceof Error ? err.message : t("common.unexpectedError") })
       })
     return () => {
       cancelled = true

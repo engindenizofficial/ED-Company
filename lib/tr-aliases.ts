@@ -235,6 +235,28 @@ export function toTurkishCountry(country: string): string {
   return COUNTRY_TR_DISPLAY[key] ?? country
 }
 
+// Ters harita: Türkçe görüntüleme adı (küçük harf) → İngilizce orijinal ad.
+// api-football.ts gibi veri katmanları ülke adlarını istemciye ulaşmadan önce
+// zaten Türkçeye çevirdiği için, İngilizce arayüzde göstermek amacıyla bu
+// dönüşümü geri almak gerekiyor.
+const COUNTRY_EN_DISPLAY: Record<string, string> = Object.entries(COUNTRY_TR_DISPLAY).reduce(
+  (acc, [en, tr]) => {
+    acc[tr.toLowerCase()] = en.replace(/\b\w/g, (c) => c.toUpperCase())
+    return acc
+  },
+  {} as Record<string, string>,
+)
+
+/** Ülke adını verilen dile göre görüntüleme adına çevirir.
+ *  Veri katmanından gelen değer zaten Türkçe olduğundan, "en" için ters
+ *  eşleme yapılır; "tr" için değer olduğu gibi döndürülür. */
+export function toDisplayCountry(country: string, locale: "tr" | "en"): string {
+  if (!country) return country
+  if (locale === "tr") return country
+  const key = country.toLowerCase().trim()
+  return COUNTRY_EN_DISPLAY[key] ?? country
+}
+
 const LEAGUE_ALIASES: Array<{ match: string; tr: string }> = [
   { match: "champions league", tr: "şampiyonlar ligi" },
   { match: "europa league", tr: "avrupa ligi" },

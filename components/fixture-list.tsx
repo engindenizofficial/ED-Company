@@ -4,8 +4,10 @@ import { Clock, Star } from "lucide-react"
 import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
 import { cn } from "@/lib/utils"
-import { toTurkishCountry } from "@/lib/tr-aliases"
+import { toDisplayCountry } from "@/lib/tr-aliases"
 import { useFavorites } from "@/contexts/favorites-context"
+import { useLanguage } from "@/contexts/language-context"
+import type { Locale } from "@/lib/i18n/dictionaries"
 import type { Fixture } from "@/lib/types"
 import type { FavoriteItem } from "@/contexts/favorites-context"
 
@@ -21,6 +23,7 @@ function FavoriteStarButton({
   onToggle: () => void
   size?: "sm" | "xs"
 }) {
+  const { t } = useLanguage()
   return (
     <button
       type="button"
@@ -30,7 +33,11 @@ function FavoriteStarButton({
         onToggle()
       }}
       aria-pressed={active}
-      aria-label={active ? `${label} favorilerden kaldır` : `${label} favorilere ekle`}
+      aria-label={
+        active
+          ? t("fixtureList.removeFromFavorites", { name: label })
+          : t("fixtureList.addToFavorites", { name: label })
+      }
       className={cn(
         "flex shrink-0 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:text-primary",
         size === "sm" ? "h-6 w-6" : "h-5 w-5",
@@ -43,8 +50,8 @@ function FavoriteStarButton({
   )
 }
 
-function kickoff(iso: string): string {
-  return new Date(iso).toLocaleTimeString("tr-TR", {
+function kickoff(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleTimeString(locale === "tr" ? "tr-TR" : "en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Europe/Istanbul",
@@ -57,56 +64,21 @@ function isLive(short: string): boolean {
   return LIVE_STATUSES.has(short)
 }
 
-function statusLabel(short: string): string {
-  switch (short) {
-    case "FT":
-      return "MS"
-    case "AET":
-      return "MS (uzatma)"
-    case "PEN":
-      return "MS (pen.)"
-    case "HT":
-      return "İY"
-    case "1H":
-      return "1. Yarı"
-    case "2H":
-      return "2. Yarı"
-    case "ET":
-      return "Uzatma"
-    case "BT":
-      return "Devre arası"
-    case "P":
-      return "Penaltılar"
-    case "SUSP":
-      return "Durduruldu"
-    case "INT":
-      return "Ara verildi"
-    case "PST":
-      return "Ertelendi"
-    case "CANC":
-      return "İptal"
-    case "ABD":
-      return "Tatil edildi"
-    case "TBD":
-      return "Belirsiz"
-    case "NS":
-      return "Başlamadı"
-    default:
-      return short
-  }
+function statusLabel(short: string, t: (key: string) => string): string {
+  return t(`matchStatus.${short}`)
 }
 
-function liveText(f: Fixture): string {
-  if (f.statusShort === "HT") return "İY"
-  if (f.statusShort === "BT") return "Devre arası"
-  if (f.statusShort === "P") return "Penaltılar"
+function liveText(f: Fixture, t: (key: string) => string): string {
+  if (f.statusShort === "HT") return t("matchStatus.HT")
+  if (f.statusShort === "BT") return t("matchStatus.BT")
+  if (f.statusShort === "P") return t("matchStatus.P")
   if (typeof f.elapsed === "number") {
     if (f.elapsedExtra != null && f.elapsedExtra > 0) {
       return `${f.elapsed}+${f.elapsedExtra}'`
     }
     return `${f.elapsed}'`
   }
-  return statusLabel(f.statusShort)
+  return statusLabel(f.statusShort, t)
 }
 
 function groupByLeague(fixtures: Fixture[]) {
@@ -267,6 +239,7 @@ export function FixtureList({
   favorites?: FavoriteItem[]
 }) {
   const { isFavorite, toggleFavorite } = useFavorites()
+  const { t, locale } = useLanguage()
   const groups = buildRenderGroups(fixtures, favorites)
 
   const leagueFavoriteIds = new Set(favorites.filter((f) => f.type === "league").map((f) => f.itemId))
@@ -289,7 +262,7 @@ export function FixtureList({
               className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-primary"
             >
               {group.name}
-              <span className="ml-1.5 font-normal opacity-60">{toTurkishCountry(group.country)}</span>
+              <span className="ml-1.5 font-normal opacity-60">{toDisplayCountry(group.country, locale)}</span>
             </LeagueButton>
             <FavoriteStarButton
               active={leagueIsFavorite}
@@ -379,21 +352,21 @@ export function FixtureList({
                           <>
                             <span className="flex items-center gap-1 text-[10px] font-bold tabular-nums text-destructive">
                               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
-                              CANLI
+                              {t("matchStatus.liveBadge")}
                             </span>
-                            <span className="text-[11px] font-semibold tabular-nums text-foreground">{liveText(f)}</span>
+                            <span className="text-[11px] font-semibold tabular-nums text-foreground">{liveText(f, t)}</span>
                           </>
                         ) : played ? (
                           <>
-                            <span className="text-[10px] font-medium text-muted-foreground/75">Tamamlandı</span>
-                            <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{statusLabel(f.statusShort)}</span>
+                            <span className="text-[10px] font-medium text-muted-foreground/75">{t("matchStatus.completed")}</span>
+                            <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{statusLabel(f.statusShort, t)}</span>
                           </>
                         ) : (
                           <>
-                            <span className="text-[10px] text-muted-foreground/75">Başlangıç</span>
+                            <span className="text-[10px] text-muted-foreground/75">{t("matchStatus.kickoffLabel")}</span>
                             <span className="flex items-center gap-1 text-[13px] font-bold tabular-nums text-foreground">
                               <Clock className="h-3 w-3 text-muted-foreground" />
-                              {kickoff(f.date)}
+                              {kickoff(f.date, locale)}
                             </span>
                           </>
                         )}
