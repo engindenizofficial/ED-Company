@@ -9,6 +9,7 @@ import { LeagueProvider } from '@/contexts/league-context'
 import { LeaguePanel } from '@/components/league-panel'
 import { PlayerProvider } from '@/contexts/player-context'
 import { PlayerPanel } from '@/components/player-panel'
+import { PanelRouteGuard } from '@/components/panel-route-guard'
 import { FavoritesProvider } from '@/contexts/favorites-context'
 import { ThemeColorProvider } from '@/contexts/theme-color-context'
 import './globals.css'
@@ -71,6 +72,7 @@ export default function RootLayout({
             <TeamProvider>
               <PlayerProvider>
                 <FavoritesProvider>
+                  <PanelRouteGuard />
                   <NavTabs />
                   <LoginPromptModal />
                   {children}

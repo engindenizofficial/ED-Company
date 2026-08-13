@@ -52,12 +52,24 @@ function pushPanel(onPop: () => void): number {
 function popPanel(id: number, closedByBack: boolean) {
   const idx = stack.findIndex((e) => e.id === id)
   if (idx !== -1) stack.splice(idx, 1)
+  if (closedByBack || typeof window === "undefined") return
+
   // Panel geri tuşuyla değil de programatik olarak (X butonu, overlay
-  // tıklama, ESC vb.) kapatıldıysa, açılırken eklediğimiz sanal history
-  // girdisini de geri alıyoruz. Aksi halde her panel açılışında history
-  // yığınına bir girdi birikir ve kullanıcı geri tuşuna defalarca basmak
-  // zorunda kalır.
-  if (!closedByBack && typeof window !== "undefined") {
+  // tıklama, ESC, sayfa geçişi vb.) kapatıldıysa, açılırken eklediğimiz
+  // sanal history girdisini de geri alıyoruz. Aksi halde her panel
+  // açılışında history yığınına bir girdi birikir ve kullanıcı geri tuşuna
+  // defalarca basmak zorunda kalır.
+  //
+  // ÖNEMLİ: Bunu yalnızca eklediğimiz sanal girdi HALA tarayıcı geçmişinin
+  // en üstündeyse yapıyoruz. Panel açıkken kullanıcı gerçek bir sayfa
+  // geçişi yaparsa (örn. Ana Sayfa'dan "Oyunlar" sekmesine geçerse), Next.js
+  // kendi history girdisini bizim sanal girdimizin ÜSTÜNE ekler. Bu durumda
+  // history.back() çağırmak, bizim girdimizi değil, kullanıcının az önce
+  // yaptığı gerçek navigasyonu geri alır — kullanıcıyı beklenmedik şekilde
+  // önceki sayfaya fırlatır. Bu yüzden önce en üstteki girdinin gerçekten
+  // bizim panelimize ait olup olmadığını kontrol ediyoruz.
+  const topState = window.history.state as { __panelId?: number } | null
+  if (topState?.__panelId === id) {
     window.history.back()
   }
 }
