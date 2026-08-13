@@ -224,13 +224,13 @@ function SeasonOverviewSection({ leagueId, leagueName, active }: { leagueId: num
                   </div>
                 ))}
               </div>
-              {formatMarketValueEur(data.totalMarketValueEur) && (
+              {formatMarketValueEur(data.totalMarketValueEur, locale) && (
                 <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-3 py-2.5">
                   <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-primary/90">
                     {t("league.totalSquadValue")}
                   </span>
                   <span className="text-base font-black tabular-nums text-primary">
-                    {formatMarketValueEur(data.totalMarketValueEur)}
+                    {formatMarketValueEur(data.totalMarketValueEur, locale)}
                   </span>
                 </div>
               )}
@@ -247,7 +247,7 @@ function SeasonOverviewSection({ leagueId, leagueName, active }: { leagueId: num
 // ---------------------------------------------------------------------------
 
 function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const { status, data, error, retry } = useLeagueSection<StandingRow[]>(leagueId, "standings", active)
 
   const groups = (data ?? []).reduce<Record<string, StandingRow[]>>((acc, r) => {
@@ -321,7 +321,7 @@ function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; 
                               {r.points}
                             </td>
                             <td className="pl-1.5 py-2 text-right tabular-nums font-bold text-muted-foreground">
-                              {formatMarketValueEur(r.marketValueEur) ?? "–"}
+                              {formatMarketValueEur(r.marketValueEur, locale) ?? "–"}
                             </td>
                           </tr>
                         ))}
