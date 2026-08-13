@@ -10,6 +10,7 @@ import { TeamSearchBar } from "@/components/team-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useFavorites } from "@/contexts/favorites-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
+import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import type { Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
 
 function todayTR(): string {
@@ -360,6 +361,7 @@ export default function Page() {
   }, [handleRefresh])
 
   useBodyScrollLock(!!selected)
+  useCloseOnBackButton(!!selected, () => setSelected(null))
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
