@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { TrendingUp, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/contexts/language-context"
 import type { PredictionResult } from "@/lib/types"
 
 // Model etiket haritası — model string'inden okunabilir isim üret
@@ -41,6 +42,7 @@ function buildModelStats(results: PredictionResult[]): ModelStat[] {
 }
 
 export function SuccessPanel({ results }: { results: PredictionResult[] }) {
+  const { t } = useLanguage()
   const [expanded, setExpanded] = useState(false)
 
   const total = results.length
@@ -52,7 +54,7 @@ export function SuccessPanel({ results }: { results: PredictionResult[] }) {
   const modelStats = buildModelStats(results)
 
   return (
-    <section aria-label="Tahmin başarı paneli" className="rounded-2xl border border-border/70 bg-card overflow-hidden">
+    <section aria-label={t("successPanel.ariaLabel")} className="rounded-2xl border border-border/70 bg-card overflow-hidden">
       {/* Ana satır — tıklanabilir */}
       <button
         type="button"
@@ -65,16 +67,16 @@ export function SuccessPanel({ results }: { results: PredictionResult[] }) {
           <TrendingUp className="h-3.5 w-3.5" />
         </span>
 
-        <span className="text-sm font-semibold text-foreground">Tahmin Başarısı</span>
+        <span className="text-sm font-semibold text-foreground">{t("successPanel.title")}</span>
 
         <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-          {total} maç
+          {t("successPanel.matchesCount", { count: total })}
         </span>
 
         {/* Sağ: istatistikler + chevron */}
         <div className="ml-auto flex items-center gap-3 flex-wrap justify-end">
-          <StatChip label="Taraf" hits={sideHits} total={total} rate={sideRate} />
-          <StatChip label="Skor" hits={scoreHits} total={total} rate={scoreRate} />
+          <StatChip label={t("successPanel.side")} hits={sideHits} total={total} rate={sideRate} />
+          <StatChip label={t("successPanel.score")} hits={scoreHits} total={total} rate={scoreRate} />
           <ChevronDown
             className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 shrink-0", expanded && "rotate-180")}
           />
@@ -90,10 +92,10 @@ export function SuccessPanel({ results }: { results: PredictionResult[] }) {
             return (
               <div key={m.label} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
                 <span className="text-xs font-semibold text-foreground shrink-0 min-w-0 truncate max-w-[140px]">{m.label}</span>
-                <span className="text-[10px] text-muted-foreground shrink-0">{m.total} maç</span>
+                <span className="text-[10px] text-muted-foreground shrink-0">{t("successPanel.matchesCount", { count: m.total })}</span>
                 <div className="ml-auto flex items-center gap-3 flex-wrap justify-end">
-                  <StatChip label="Taraf" hits={m.sideHits} total={m.total} rate={mSideRate} />
-                  <StatChip label="Skor" hits={m.scoreHits} total={m.total} rate={mScoreRate} />
+                  <StatChip label={t("successPanel.side")} hits={m.sideHits} total={m.total} rate={mSideRate} />
+                  <StatChip label={t("successPanel.score")} hits={m.scoreHits} total={m.total} rate={mScoreRate} />
                 </div>
               </div>
             )
@@ -103,7 +105,7 @@ export function SuccessPanel({ results }: { results: PredictionResult[] }) {
 
       {expanded && modelStats.length === 0 && (
         <div className="border-t border-border/60 px-4 py-3 text-[11px] text-muted-foreground">
-          Model bazlı veriler mevcut değil — daha eski tahminlerde model oyu kaydedilmemiş.
+          {t("successPanel.noModelData")}
         </div>
       )}
     </section>

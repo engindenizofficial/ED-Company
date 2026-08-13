@@ -4,12 +4,14 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { authClient, signIn, signUp } from '@/lib/auth-client'
+import { useLanguage } from '@/contexts/language-context'
 
 interface AuthFormProps {
   mode: 'sign-in' | 'sign-up'
 }
 
 export function AuthForm({ mode }: AuthFormProps) {
+  const { t } = useLanguage()
   const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -35,7 +37,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     // (veya farklı davranıp) her ortamda tutarsız bir sonuca yol açar.
     const popup = window.open('', 'google-oauth', 'width=480,height=640')
     if (!popup) {
-      setError('Google penceresi açılamadı. Tarayıcınızın pop-up engelleyicisini kontrol edin.')
+      setError(t('auth.popupBlocked'))
       setGoogleLoading(false)
       return
     }
@@ -53,7 +55,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       const authUrl = res.data?.url
       if (res.error || !authUrl) {
         popup.close()
-        setError(res.error?.message ?? 'Google ile bağlantı kurulamadı.')
+        setError(res.error?.message ?? t('auth.googleConnectFailed'))
         setGoogleLoading(false)
         return
       }
@@ -80,15 +82,13 @@ export function AuthForm({ mode }: AuthFormProps) {
             window.location.href = '/'
           } else {
             setGoogleLoading(false)
-            setError(
-              'Google girişi tamamlandı ama oturum bu sekmede algılanamadı. Lütfen sayfayı yenileyip tekrar deneyin.',
-            )
+            setError(t('auth.sessionNotDetected'))
           }
         }
       }, 500)
     } catch {
       popup.close()
-      setError('Beklenmedik bir hata oluştu.')
+      setError(t('common.unexpectedError'))
       setGoogleLoading(false)
     }
   }
@@ -102,7 +102,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       if (isSignUp) {
         const res = await signUp.email({ name, email, password })
         if (res.error) {
-          setError(res.error.message ?? 'Kayıt sırasında bir hata oluştu.')
+          setError(res.error.message ?? t('auth.signUpError'))
           return
         }
         setVerificationSent(true)
@@ -111,20 +111,20 @@ export function AuthForm({ mode }: AuthFormProps) {
         // Şifre doğru mu önce kontrol et, ardından OTP gönder
         const res = await signIn.email({ email, password, rememberMe: false })
         if (res.error) {
-          setError(res.error.message ?? 'E-posta veya şifre hatalı.')
+          setError(res.error.message ?? t('auth.wrongCredentials'))
           return
         }
         // Şifre doğru — OTP gönder ve oturumu kapat (OTP onaylanınca tekrar açılacak)
         await authClient.signOut()
         const otpRes = await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' })
         if (otpRes.error) {
-          setError('Doğrulama kodu gönderilemedi. Tekrar deneyin.')
+          setError(t('auth.otpSendFailed'))
           return
         }
         setOtpStep(true)
       }
     } catch {
-      setError('Beklenmedik bir hata oluştu.')
+      setError(t('common.unexpectedError'))
     } finally {
       setLoading(false)
     }
@@ -134,7 +134,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     e.preventDefault()
     const code = otp.join('')
     if (code.length < 6) {
-      setError('Lütfen 6 haneli kodu eksiksiz girin.')
+      setError(t('auth.otpIncomplete'))
       return
     }
     setError('')
@@ -142,13 +142,13 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
       const res = await authClient.signIn.emailOtp({ email, otp: code })
       if (res.error) {
-        setError('Kod hatalı veya süresi dolmuş.')
+        setError(t('auth.otpInvalid'))
         return
       }
       router.push('/')
       router.refresh()
     } catch {
-      setError('Beklenmedik bir hata oluştu.')
+      setError(t('common.unexpectedError'))
     } finally {
       setLoading(false)
     }
@@ -176,11 +176,11 @@ export function AuthForm({ mode }: AuthFormProps) {
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-foreground tracking-tight">ED Analytics</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Doğrulama kodu girin</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('auth.enterOtpTitle')}</p>
           </div>
           <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
             <p className="text-sm text-muted-foreground text-center mb-6">
-              <span className="font-semibold text-foreground">{email}</span> adresine 6 haneli kod gönderdik.
+              <span className="font-semibold text-foreground">{email}</span> {t('auth.otpSentTo')}
             </p>
             <form onSubmit={handleOtpSubmit} className="flex flex-col gap-5">
               <div className="flex justify-center gap-2">
@@ -210,12 +210,12 @@ export function AuthForm({ mode }: AuthFormProps) {
                 disabled={loading}
                 className="h-10 w-full rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 active:opacity-80 transition disabled:opacity-50"
               >
-                {loading ? 'Doğrulanıyor...' : 'Doğrula ve Giriş Yap'}
+                {loading ? t('auth.verifying') : t('auth.verifyAndSignIn')}
               </button>
             </form>
           </div>
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            Kod gelmedi mi?{' '}
+            {t('auth.didntGetCode')}{' '}
             <button
               type="button"
               className="font-semibold text-primary hover:underline"
@@ -224,7 +224,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                 await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' })
               }}
             >
-              Tekrar gönder
+              {t('auth.resend')}
             </button>
           </p>
           <p className="mt-2 text-center text-sm text-muted-foreground">
@@ -233,7 +233,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               className="hover:underline"
               onClick={() => { setOtpStep(false); setOtp(['', '', '', '', '', '']); setError('') }}
             >
-              Geri dön
+              {t('auth.goBack')}
             </button>
           </p>
         </div>
@@ -251,18 +251,18 @@ export function AuthForm({ mode }: AuthFormProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
-            <h2 className="text-lg font-bold text-foreground mb-2">E-postanı Doğrula</h2>
+            <h2 className="text-lg font-bold text-foreground mb-2">{t('auth.verifyEmailTitle')}</h2>
             <p className="text-sm text-muted-foreground mb-1">
-              <span className="font-semibold text-foreground">{email}</span> adresine doğrulama linki gönderdik.
+              <span className="font-semibold text-foreground">{email}</span> {t('auth.verifyEmailSentTo')}
             </p>
             <p className="text-xs text-muted-foreground">
-              Spam klasörünü de kontrol etmeyi unutma.
+              {t('auth.checkSpam')}
             </p>
           </div>
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            Zaten doğruladın mı?{' '}
+            {t('auth.alreadyVerified')}{' '}
             <Link href="/sign-in" className="font-semibold text-primary hover:underline">
-              Giriş Yap
+              {t('auth.signIn')}
             </Link>
           </p>
         </div>
@@ -275,9 +275,9 @@ export function AuthForm({ mode }: AuthFormProps) {
       <div className="w-full max-w-sm">
         {/* Logo / Başlık */}
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">ED Company</h1>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">{t('auth.appName')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {isSignUp ? 'Hesap oluştur' : 'Hesabına giriş yap'}
+            {isSignUp ? t('auth.createAccount') : t('auth.signInToAccount')}
           </p>
         </div>
 
@@ -295,12 +295,12 @@ export function AuthForm({ mode }: AuthFormProps) {
               <path fill="#FBBC05" d="M11.69 28.2c-.43-1.28-.68-2.65-.68-4.2s.25-2.92.68-4.2v-5.7H4.34C2.85 17.1 2 20.44 2 24s.85 6.9 2.34 9.9l7.35-5.7z" />
               <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.1l7.35 5.7c1.73-5.2 6.58-9.05 12.31-9.05z" />
             </svg>
-            {googleLoading ? 'Yönlendiriliyor...' : isSignUp ? "Google ile Kayıt Ol" : 'Google ile Giriş Yap'}
+            {googleLoading ? t('auth.redirecting') : isSignUp ? t('auth.signUpWithGoogle') : t('auth.continueWithGoogle')}
           </button>
 
           <div className="my-4 flex items-center gap-3">
             <span className="h-px flex-1 bg-border" />
-            <span className="text-xs font-medium text-muted-foreground">veya</span>
+            <span className="text-xs font-medium text-muted-foreground">{t('common.or')}</span>
             <span className="h-px flex-1 bg-border" />
           </div>
 
@@ -308,7 +308,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             {isSignUp && (
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="name" className="text-xs font-semibold text-foreground uppercase tracking-wide">
-                  Ad Soyad
+                  {t('auth.fullName')}
                 </label>
                 <input
                   id="name"
@@ -317,7 +317,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Adın Soyadın"
+                  placeholder={t('auth.fullNamePlaceholder')}
                   className="h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition"
                 />
               </div>
@@ -325,7 +325,7 @@ export function AuthForm({ mode }: AuthFormProps) {
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="email" className="text-xs font-semibold text-foreground uppercase tracking-wide">
-                E-posta
+                {t('auth.email')}
               </label>
               <input
                 id="email"
@@ -334,14 +334,14 @@ export function AuthForm({ mode }: AuthFormProps) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="ornek@mail.com"
+                placeholder={t('auth.emailPlaceholder')}
                 className="h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="password" className="text-xs font-semibold text-foreground uppercase tracking-wide">
-                Şifre
+                {t('auth.password')}
               </label>
               <input
                 id="password"
@@ -366,7 +366,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               disabled={loading}
               className="mt-1 h-10 w-full rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 active:opacity-80 transition disabled:opacity-50"
             >
-              {loading ? (isSignUp ? 'Kaydediliyor...' : 'Giriş yapılıyor...') : (isSignUp ? 'Kayıt Ol' : 'Giriş Yap')}
+              {loading ? (isSignUp ? t('auth.signingUp') : t('auth.signingIn')) : (isSignUp ? t('auth.signUp') : t('auth.signIn'))}
             </button>
           </form>
         </div>
@@ -375,16 +375,16 @@ export function AuthForm({ mode }: AuthFormProps) {
         <p className="mt-4 text-center text-sm text-muted-foreground">
           {isSignUp ? (
             <>
-              Zaten hesabın var mı?{' '}
+              {t('auth.alreadyHaveAccount')}{' '}
               <Link href="/sign-in" className="font-semibold text-primary hover:underline">
-                Giriş Yap
+                {t('auth.signIn')}
               </Link>
             </>
           ) : (
             <>
-              Hesabın yok mu?{' '}
+              {t('auth.noAccount')}{' '}
               <Link href="/sign-up" className="font-semibold text-primary hover:underline">
-                Kayıt Ol
+                {t('auth.signUp')}
               </Link>
             </>
           )}
@@ -402,7 +402,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             }}
             className="text-xs text-muted-foreground hover:text-foreground transition"
           >
-            Giriş yapmadan devam et
+            {t('auth.continueWithoutSignIn')}
           </button>
         </p>
       </div>

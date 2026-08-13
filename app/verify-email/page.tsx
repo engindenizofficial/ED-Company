@@ -4,8 +4,10 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { authClient } from '@/lib/auth-client'
+import { useLanguage } from '@/contexts/language-context'
 
 function VerifyEmailContent() {
+  const { t } = useLanguage()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
@@ -15,7 +17,7 @@ function VerifyEmailContent() {
     const token = searchParams.get('token')
     if (!token) {
       setStatus('error')
-      setErrorMessage('Geçersiz doğrulama linki.')
+      setErrorMessage(t('auth.invalidVerificationLink'))
       return
     }
 
@@ -23,7 +25,7 @@ function VerifyEmailContent() {
       .then((res) => {
         if (res.error) {
           setStatus('error')
-          setErrorMessage(res.error.message ?? 'Doğrulama başarısız oldu.')
+          setErrorMessage(res.error.message ?? t('auth.verificationFailed'))
         } else {
           setStatus('success')
           setTimeout(() => router.push('/'), 2000)
@@ -31,8 +33,9 @@ function VerifyEmailContent() {
       })
       .catch(() => {
         setStatus('error')
-        setErrorMessage('Beklenmedik bir hata oluştu.')
+        setErrorMessage(t('common.unexpectedError'))
       })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router])
 
   return (
@@ -42,7 +45,7 @@ function VerifyEmailContent() {
           {status === 'loading' && (
             <>
               <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-              <p className="text-sm text-muted-foreground">E-posta doğrulanıyor...</p>
+              <p className="text-sm text-muted-foreground">{t('auth.verifyingEmail')}</p>
             </>
           )}
           {status === 'success' && (
@@ -52,8 +55,8 @@ function VerifyEmailContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-lg font-bold text-foreground mb-2">E-posta Doğrulandı</h2>
-              <p className="text-sm text-muted-foreground">Hesabın aktifleşti. Ana sayfaya yönlendiriliyorsun...</p>
+              <h2 className="text-lg font-bold text-foreground mb-2">{t('auth.emailVerifiedTitle')}</h2>
+              <p className="text-sm text-muted-foreground">{t('auth.emailVerifiedDesc')}</p>
             </>
           )}
           {status === 'error' && (
@@ -63,13 +66,13 @@ function VerifyEmailContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </div>
-              <h2 className="text-lg font-bold text-foreground mb-2">Doğrulama Başarısız</h2>
+              <h2 className="text-lg font-bold text-foreground mb-2">{t('auth.verificationFailedTitle')}</h2>
               <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
               <Link
                 href="/sign-in"
                 className="inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 transition"
               >
-                Giriş Sayfasına Dön
+                {t('auth.backToSignIn')}
               </Link>
             </>
           )}

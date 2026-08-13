@@ -26,6 +26,7 @@ import { PlayerButton } from "@/components/player-panel"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 import { formatMarketValueEur } from "@/lib/market-value-format"
+import { useLanguage } from "@/contexts/language-context"
 import type {
   Fixture,
   SquadPlayer,
@@ -42,8 +43,8 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function kickoff(iso: string): string {
-  return new Date(iso).toLocaleDateString("tr-TR", {
+function kickoff(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
     day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "Europe/Istanbul",
   })
 }

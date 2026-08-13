@@ -169,7 +169,7 @@ export function DuelPlayerCard({
               exit={{ opacity: 0, scale: 0.9 }}
               className="flex items-center gap-1 rounded-full border border-dashed border-white/15 bg-white/[0.02] px-4 py-1.5 text-xs font-black uppercase tracking-wide text-muted-foreground"
             >
-              ??? €
+              {t("duel.hiddenValue")}
             </motion.div>
           ) : (
             <motion.div
@@ -182,7 +182,7 @@ export function DuelPlayerCard({
                 isCorrect ? "text-primary drop-shadow-[0_0_12px_color-mix(in_oklch,var(--primary)_60%,transparent)]" : "text-foreground",
               )}
             >
-              {formattedValue ?? "Bilinmiyor"}
+              {formattedValue ?? t("duel.unknown")}
             </motion.div>
           )}
         </AnimatePresence>

@@ -25,6 +25,7 @@ import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import { formatMarketValueEur } from "@/lib/market-value-format"
+import { useLanguage } from "@/contexts/language-context"
 import type {
   Fixture,
   LeagueSeasonStats,
@@ -38,8 +39,8 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function kickoff(iso: string): string {
-  return new Date(iso).toLocaleDateString("tr-TR", {
+function kickoff(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
     day: "2-digit",
     month: "2-digit",
     year: "2-digit",
@@ -47,8 +48,8 @@ function kickoff(iso: string): string {
   })
 }
 
-function kickoffFull(iso: string): string {
-  return new Date(iso).toLocaleDateString("tr-TR", {
+function kickoffFull(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
     day: "2-digit",
     month: "short",
     weekday: "short",
@@ -56,8 +57,8 @@ function kickoffFull(iso: string): string {
   })
 }
 
-function matchTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("tr-TR", {
+function matchTime(iso: string, locale: string): string {
+  return new Date(iso).toLocaleTimeString(locale === "en" ? "en-US" : "tr-TR", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Europe/Istanbul",
@@ -151,19 +152,21 @@ function useLeagueSection<T>(leagueId: number, section: string, open: boolean) {
 }
 
 function SectionLoading({ label }: { label: string }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
-      <p className="text-xs font-medium text-muted-foreground">{label} yükleniyor...</p>
+      <p className="text-xs font-medium text-muted-foreground">{label} {t("league.loadingSuffix")}</p>
     </div>
   )
 }
 
 function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <AlertTriangle className="h-5 w-5 text-destructive/85" />
-      <p className="text-xs font-bold text-destructive">Veri alınamadı</p>
+      <p className="text-xs font-bold text-destructive">{t("league.dataFetchFailed")}</p>
       {error && <p className="text-[11px] text-muted-foreground">{error}</p>}
       <button
         type="button"
@@ -171,18 +174,19 @@ function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: 
         className="mt-1 flex items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-secondary/70"
       >
         <RotateCw className="h-3 w-3" />
-        Tekrar dene
+        {t("league.retry")}
       </button>
     </div>
   )
 }
 
 function SectionEmptyState({ leagueName, label }: { leagueName: string; label: string }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <Inbox className="h-5 w-5 text-muted-foreground/65" />
       <p className="text-xs text-muted-foreground">
-        {leagueName} için {label} bulunamadı.
+        {t("league.noDataFor", { league: leagueName, label })}
       </p>
     </div>
   )
@@ -193,21 +197,22 @@ function SectionEmptyState({ leagueName, label }: { leagueName: string; label: s
 // ---------------------------------------------------------------------------
 
 function SeasonOverviewSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { t, locale } = useLanguage()
   const { status, data, error, retry } = useLeagueSection<LeagueSeasonStats>(leagueId, "seasonStats", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Sezon özeti" />}
+          {status === "loading" && <SectionLoading label={t("league.seasonOverview")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="sezon özeti verisi" />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label={t("league.seasonStatsData")} />}
           {status === "success" && data && (
             <div className="flex flex-col gap-2">
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { label: "Oynanan Maç", value: data.totalMatches.toLocaleString("tr-TR") },
-                  { label: "Toplam Gol", value: data.totalGoals.toLocaleString("tr-TR") },
-                  { label: "Maç Başı Gol", value: data.avgGoalsPerMatch.toFixed(2) },
+                  { label: t("league.playedMatches"), value: data.totalMatches.toLocaleString(locale === "en" ? "en-US" : "tr-TR") },
+                  { label: t("league.totalGoals"), value: data.totalGoals.toLocaleString(locale === "en" ? "en-US" : "tr-TR") },
+                  { label: t("league.goalsPerMatch"), value: data.avgGoalsPerMatch.toFixed(2) },
                 ].map(({ label, value }) => (
                   <div
                     key={label}
@@ -221,7 +226,7 @@ function SeasonOverviewSection({ leagueId, leagueName, active }: { leagueId: num
               {formatMarketValueEur(data.totalMarketValueEur) && (
                 <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-3 py-2.5">
                   <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-primary/90">
-                    Toplam Kadro Değeri
+                    {t("league.totalSquadValue")}
                   </span>
                   <span className="text-base font-black tabular-nums text-primary">
                     {formatMarketValueEur(data.totalMarketValueEur)}
@@ -241,6 +246,7 @@ function SeasonOverviewSection({ leagueId, leagueName, active }: { leagueId: num
 // ---------------------------------------------------------------------------
 
 function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLeagueSection<StandingRow[]>(leagueId, "standings", active)
 
   const groups = (data ?? []).reduce<Record<string, StandingRow[]>>((acc, r) => {
@@ -253,9 +259,9 @@ function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; 
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Puan durumu" />}
+          {status === "loading" && <SectionLoading label={t("league.standings")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="puan durumu verisi" />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label={t("league.standingsData")} />}
           {status === "success" && data && (
             <div className="flex flex-col gap-4">
               {Object.entries(groups).map(([group, rows]) => (
@@ -270,16 +276,16 @@ function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; 
                       <thead>
                         <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
                           <th className="w-6 pb-2 pr-2 font-semibold">#</th>
-                          <th className="pb-2 pr-2 font-semibold">Takım</th>
-                          <th className="px-1.5 pb-2 text-center font-semibold" title="Oynanan">O</th>
-                          <th className="px-1.5 pb-2 text-center font-semibold" title="Galibiyet">G</th>
-                          <th className="px-1.5 pb-2 text-center font-semibold" title="Beraberlik">B</th>
-                          <th className="px-1.5 pb-2 text-center font-semibold" title="Mağlubiyet">M</th>
-                          <th className="px-1.5 pb-2 text-center font-semibold" title="Atılan Gol">A</th>
-                          <th className="px-1.5 pb-2 text-center font-semibold" title="Yenilen Gol">Y</th>
-                          <th className="px-1.5 pb-2 text-center font-semibold" title="Averaj">AV</th>
-                          <th className="px-1.5 pb-2 text-center font-semibold" title="Puan">P</th>
-                          <th className="pl-1.5 pb-2 text-right font-semibold" title="Kadro Değeri">Değer</th>
+                          <th className="pb-2 pr-2 font-semibold">{t("league.team")}</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.played")}>O</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.win")}>G</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.draw")}>B</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.lose")}>M</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.goalsFor")}>A</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.goalsAgainst")}>Y</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.goalDiff")}>AV</th>
+                          <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.points")}>P</th>
+                          <th className="pl-1.5 pb-2 text-right font-semibold" title={t("league.squadValue")}>{t("league.value")}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
@@ -336,26 +342,27 @@ function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; 
 // ---------------------------------------------------------------------------
 
 function TopScorersSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLeagueSection<LeagueTopScorer[]>(leagueId, "topScorers", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Gol krallığı" />}
+          {status === "loading" && <SectionLoading label={t("league.topScorers")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="gol krallığı verisi" />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label={t("league.topScorersData")} />}
           {status === "success" && data && (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
                     <th className="w-6 pb-2 pr-2 font-semibold">#</th>
-                    <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Gol">G</th>
+                    <th className="pb-2 pr-3 font-semibold">{t("league.player")}</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.team")}>T</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("games.title")}>G</th>
                     <th className="px-1.5 pb-2 text-center font-semibold" title="Asist">A</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
-                    <th className="pl-1.5 pb-2 text-center font-semibold" title="Ort.">Ort.</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.matchAbbr")}>M</th>
+                    <th className="pl-1.5 pb-2 text-center font-semibold" title={t("league.avgAbbr")}>{t("league.avgAbbr")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -397,26 +404,27 @@ function TopScorersSection({ leagueId, leagueName, active }: { leagueId: number;
 // ---------------------------------------------------------------------------
 
 function TopAssistsSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLeagueSection<LeagueTopAssist[]>(leagueId, "topAssists", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Asist krallığı" />}
+          {status === "loading" && <SectionLoading label={t("league.topAssists")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="asist krallığı verisi" />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label={t("league.topAssistsData")} />}
           {status === "success" && data && (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
                     <th className="w-6 pb-2 pr-2 font-semibold">#</th>
-                    <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
+                    <th className="pb-2 pr-3 font-semibold">{t("league.player")}</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.team")}>T</th>
                     <th className="px-1.5 pb-2 text-center font-semibold" title="Asist">A</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Gol">G</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
-                    <th className="pl-1.5 pb-2 text-center font-semibold" title="Ort.">Ort.</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("games.title")}>G</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.matchAbbr")}>M</th>
+                    <th className="pl-1.5 pb-2 text-center font-semibold" title={t("league.avgAbbr")}>{t("league.avgAbbr")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -458,25 +466,26 @@ function TopAssistsSection({ leagueId, leagueName, active }: { leagueId: number;
 // ---------------------------------------------------------------------------
 
 function TopYellowCardsSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLeagueSection<LeagueTopCard[]>(leagueId, "topYellowCards", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Sarı kart krallığı" />}
+          {status === "loading" && <SectionLoading label={t("league.topYellowCards")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="sarı kart krallığı verisi" />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label={t("league.topYellowCardsData")} />}
           {status === "success" && data && (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
                     <th className="w-6 pb-2 pr-2 font-semibold">#</th>
-                    <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Sarı Kart">SK</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Kırmızı Kart">KK</th>
-                    <th className="pl-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
+                    <th className="pb-2 pr-3 font-semibold">{t("league.player")}</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.team")}>T</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.yellowCard")}>SK</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.redCard")}>KK</th>
+                    <th className="pl-1.5 pb-2 text-center font-semibold" title={t("league.matchAbbr")}>M</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -515,25 +524,26 @@ function TopYellowCardsSection({ leagueId, leagueName, active }: { leagueId: num
 // ---------------------------------------------------------------------------
 
 function TopRedCardsSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLeagueSection<LeagueTopCard[]>(leagueId, "topRedCards", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Kırmızı kart krallığı" />}
+          {status === "loading" && <SectionLoading label={t("league.topRedCards")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="kırmızı kart krallığı verisi" />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label={t("league.topRedCardsData")} />}
           {status === "success" && data && (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
                     <th className="w-6 pb-2 pr-2 font-semibold">#</th>
-                    <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Takım">T</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Kırmızı Kart">KK</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Sarı Kart">SK</th>
-                    <th className="pl-1.5 pb-2 text-center font-semibold" title="Maç">M</th>
+                    <th className="pb-2 pr-3 font-semibold">{t("league.player")}</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.team")}>T</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.redCard")}>KK</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.yellowCard")}>SK</th>
+                    <th className="pl-1.5 pb-2 text-center font-semibold" title={t("league.matchAbbr")}>M</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -572,14 +582,15 @@ function TopRedCardsSection({ leagueId, leagueName, active }: { leagueId: number
 // ---------------------------------------------------------------------------
 
 function RecentFixturesSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { t, locale } = useLanguage()
   const { status, data, error, retry } = useLeagueSection<Fixture[]>(leagueId, "recentFixtures", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Son maçlar" />}
+          {status === "loading" && <SectionLoading label={t("league.recentFixtures")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="son maç verisi" />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label={t("league.recentFixturesData")} />}
           {status === "success" && data && (
             <div className="flex flex-col gap-1.5">
               {data.map((f) => (
@@ -589,7 +600,7 @@ function RecentFixturesSection({ leagueId, leagueName, active }: { leagueId: num
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="text-[10px] text-muted-foreground">
-                      {f.league.round} · {kickoff(f.date)}
+                      {f.league.round} · {kickoff(f.date, locale)}
                     </span>
                     <div className="flex items-center gap-1.5 truncate">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -618,14 +629,15 @@ function RecentFixturesSection({ leagueId, leagueName, active }: { leagueId: num
 // ---------------------------------------------------------------------------
 
 function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
+  const { t, locale } = useLanguage()
   const { status, data, error, retry } = useLeagueSection<Fixture[]>(leagueId, "upcomingFixtures", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Yaklaşan maçlar" />}
+          {status === "loading" && <SectionLoading label={t("league.upcomingFixtures")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState leagueName={leagueName} label="yaklaşan maç verisi" />}
+          {status === "empty" && <SectionEmptyState leagueName={leagueName} label={t("league.upcomingFixturesData")} />}
           {status === "success" && data && (
             <div className="flex flex-col gap-1.5">
               {data.map((f) => (
@@ -646,8 +658,8 @@ function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: n
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-0.5">
-                    <span className="font-black tabular-nums text-foreground">{matchTime(f.date)}</span>
-                    <span className="text-[10px] text-muted-foreground">{kickoffFull(f.date)}</span>
+                    <span className="font-black tabular-nums text-foreground">{matchTime(f.date, locale)}</span>
+                    <span className="text-[10px] text-muted-foreground">{kickoffFull(f.date, locale)}</span>
                   </div>
                 </div>
               ))}
@@ -678,17 +690,18 @@ function LeaguePanelInner({
   panel: LeaguePanelState
   closeLeague: () => void
 }) {
+  const { t } = useLanguage()
   const { league, basic, loading, error } = panel
 
   const tabs: PanelTabItem[] = [
-    { key: "seasonStats", label: "Sezon Özeti", icon: <Activity className="h-3.5 w-3.5" /> },
-    { key: "standings", label: "Puan Durumu", icon: <Shield className="h-3.5 w-3.5" /> },
-    { key: "topScorers", label: "Gol Krallığı", icon: <Star className="h-3.5 w-3.5" /> },
-    { key: "topAssists", label: "Asist Krallığı", icon: <Zap className="h-3.5 w-3.5" /> },
-    { key: "topYellowCards", label: "Sarı Kart Krallığı", icon: <Square className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" /> },
-    { key: "topRedCards", label: "Kırmızı Kart Krallığı", icon: <Square className="h-3.5 w-3.5 fill-destructive text-destructive" /> },
-    { key: "recentFixtures", label: "Son Maçlar", icon: <Calendar className="h-3.5 w-3.5" /> },
-    { key: "upcomingFixtures", label: "Yaklaşan Maçlar", icon: <Calendar className="h-3.5 w-3.5" /> },
+    { key: "seasonStats", label: t("league.seasonOverview"), icon: <Activity className="h-3.5 w-3.5" /> },
+    { key: "standings", label: t("league.standings"), icon: <Shield className="h-3.5 w-3.5" /> },
+    { key: "topScorers", label: t("league.topScorers"), icon: <Star className="h-3.5 w-3.5" /> },
+    { key: "topAssists", label: t("league.topAssists"), icon: <Zap className="h-3.5 w-3.5" /> },
+    { key: "topYellowCards", label: t("league.topYellowCards"), icon: <Square className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" /> },
+    { key: "topRedCards", label: t("league.topRedCards"), icon: <Square className="h-3.5 w-3.5 fill-destructive text-destructive" /> },
+    { key: "recentFixtures", label: t("league.recentFixtures"), icon: <Calendar className="h-3.5 w-3.5" /> },
+    { key: "upcomingFixtures", label: t("league.upcomingFixtures"), icon: <Calendar className="h-3.5 w-3.5" /> },
   ]
   const [activeTab, setActiveTab] = useState(tabs[0].key)
 
@@ -697,7 +710,7 @@ function LeaguePanelInner({
       className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
-      aria-label={`${league.name} lig bilgileri`}
+      aria-label={`${league.name} ${t("league.leagueInfo")}`}
     >
       <div className="flex h-full w-full flex-col overflow-hidden">
 
@@ -728,7 +741,7 @@ function LeaguePanelInner({
           <button
             type="button"
             onClick={closeLeague}
-            aria-label="Kapat"
+            aria-label={t("common.close")}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -738,7 +751,7 @@ function LeaguePanelInner({
         {/* Season badge */}
         {basic && (
           <div className="flex items-center gap-2 border-b border-border bg-secondary/50 px-4 py-2 shrink-0">
-            <span className="text-xs text-muted-foreground">Sezon</span>
+            <span className="text-xs text-muted-foreground">{t("league.season")}</span>
             <span className="rounded-lg bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary">
               {basic.season}/{String(basic.season + 1).slice(2)}
             </span>
@@ -750,14 +763,14 @@ function LeaguePanelInner({
           {loading && (
             <div className="flex flex-col items-center justify-center gap-3 py-16">
               <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Lig verileri yükleniyor...</p>
+              <p className="text-sm text-muted-foreground">{t("league.leagueDataLoading")}</p>
             </div>
           )}
 
           {error && (
             <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 py-12 text-center">
               <ShieldOff className="h-8 w-8 text-destructive/75" />
-              <p className="text-sm font-semibold text-destructive">Veri alınamadı</p>
+              <p className="text-sm font-semibold text-destructive">{t("league.dataFetchFailed")}</p>
               <p className="text-xs text-muted-foreground">{error}</p>
             </div>
           )}
