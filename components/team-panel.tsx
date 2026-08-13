@@ -144,19 +144,21 @@ function useTeamSection<T>(teamId: number, section: string, open: boolean) {
 }
 
 function SectionLoading({ label }: { label: string }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
-      <p className="text-xs font-medium text-muted-foreground">{label} yükleniyor...</p>
+      <p className="text-xs font-medium text-muted-foreground">{label} {t("league.loadingSuffix")}</p>
     </div>
   )
 }
 
 function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <AlertTriangle className="h-5 w-5 text-destructive/85" />
-      <p className="text-xs font-bold text-destructive">Veri alınamadı</p>
+      <p className="text-xs font-bold text-destructive">{t("league.dataFetchFailed")}</p>
       {error && <p className="text-[11px] text-muted-foreground">{error}</p>}
       <button
         type="button"
@@ -164,18 +166,19 @@ function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: 
         className="mt-1 flex items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-secondary/70"
       >
         <RotateCw className="h-3 w-3" />
-        Tekrar dene
+        {t("league.retry")}
       </button>
     </div>
   )
 }
 
 function SectionEmptyState({ teamName, label }: { teamName: string; label: string }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <Inbox className="h-5 w-5 text-muted-foreground/65" />
       <p className="text-xs text-muted-foreground">
-        {teamName} için {label} bulunamadı.
+        {t("league.noDataFor", { league: teamName, label })}
       </p>
     </div>
   )
@@ -186,22 +189,23 @@ function SectionEmptyState({ teamName, label }: { teamName: string; label: strin
 // ---------------------------------------------------------------------------
 
 function SeasonStatsSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useTeamSection<TeamStatsSummary>(teamId, "stats", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Sezon istatistikleri" />}
+          {status === "loading" && <SectionLoading label={t("team.seasonStats")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState teamName={teamName} label="sezon istatistiği verisi" />}
+          {status === "empty" && <SectionEmptyState teamName={teamName} label={t("team.seasonStatsData")} />}
           {status === "success" && data && (
             <div className="flex flex-col gap-4">
               {/* W/D/L big numbers */}
               <div className="grid grid-cols-3 divide-x divide-border rounded-xl border border-border overflow-hidden">
                 {[
-                  { label: "Galibiyet", value: data.wins, cls: "text-primary" },
-                  { label: "Beraberlik", value: data.draws, cls: "text-muted-foreground" },
-                  { label: "Mağlubiyet", value: data.losses, cls: "text-destructive" },
+                  { label: t("team.win"), value: data.wins, cls: "text-primary" },
+                  { label: t("team.draw"), value: data.draws, cls: "text-muted-foreground" },
+                  { label: t("team.lose"), value: data.losses, cls: "text-destructive" },
                 ].map(({ label, value, cls }) => (
                   <div key={label} className="flex flex-col items-center gap-0.5 py-3 bg-secondary/30">
                     <span className={cn("text-3xl font-black tabular-nums leading-none", cls)}>{value}</span>
@@ -212,11 +216,11 @@ function SeasonStatsSection({ teamId, teamName, active }: { teamId: number; team
 
               {/* Bars */}
               <div className="flex flex-col gap-3">
-                <StatBar label="Oynanan Maç" value={data.played} max={38} />
-                <StatBar label="Maç başı atılan gol (ort.)" value={parseFloat(data.goalsForAvg.toFixed(2))} max={4} accent />
-                <StatBar label="Maç başı yenilen gol (ort.)" value={parseFloat(data.goalsAgainstAvg.toFixed(2))} max={4} />
-                <StatBar label="Gol yemeden geçen maç" value={data.cleanSheets} max={data.played} />
-                <StatBar label="Gol atamadığı maç" value={data.failedToScore} max={data.played} accent />
+                <StatBar label={t("team.playedMatches")} value={data.played} max={38} />
+                <StatBar label={t("team.goalsForAvg")} value={parseFloat(data.goalsForAvg.toFixed(2))} max={4} accent />
+                <StatBar label={t("team.goalsAgainstAvg")} value={parseFloat(data.goalsAgainstAvg.toFixed(2))} max={4} />
+                <StatBar label={t("team.cleanSheets")} value={data.cleanSheets} max={data.played} />
+                <StatBar label={t("team.failedToScore")} value={data.failedToScore} max={data.played} accent />
               </div>
             </div>
           )}
@@ -231,14 +235,15 @@ function SeasonStatsSection({ teamId, teamName, active }: { teamId: number; team
 // ---------------------------------------------------------------------------
 
 function FormSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { t, locale } = useLanguage()
   const { status, data, error, retry } = useTeamSection<TeamFormData>(teamId, "form", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Form bilgisi" />}
+          {status === "loading" && <SectionLoading label={t("team.recentForm")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState teamName={teamName} label="form verisi" />}
+          {status === "empty" && <SectionEmptyState teamName={teamName} label={t("team.formData")} />}
           {status === "success" && data && (() => {
             const recent = data.recent
             const formCharsFromString = recent.length === 0 && data.formString ? data.formString.split("") : []
@@ -264,12 +269,12 @@ function FormSection({ teamId, teamName, active }: { teamId: number; teamName: s
                         <FormDot result={g.result} />
                         <span className="truncate font-semibold text-foreground">{g.opponent}</span>
                         <span className="shrink-0 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                          {g.home ? "Ev" : "Dep"}
+                          {g.home ? t("team.home") : t("team.away")}
                         </span>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-0.5">
                         <span className="font-black tabular-nums text-foreground">{g.scored}–{g.conceded}</span>
-                        <span className="text-[10px] text-muted-foreground">{kickoff(g.date)}</span>
+                        <span className="text-[10px] text-muted-foreground">{kickoff(g.date, locale)}</span>
                       </div>
                     </div>
                   ))}
@@ -288,14 +293,15 @@ function FormSection({ teamId, teamName, active }: { teamId: number; teamName: s
 // ---------------------------------------------------------------------------
 
 function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { t, locale } = useLanguage()
   const { status, data, error, retry } = useTeamSection<Fixture[]>(teamId, "fixtures", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Son maçlar" />}
+          {status === "loading" && <SectionLoading label={t("team.recentFixtures")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState teamName={teamName} label="son maç verisi" />}
+          {status === "empty" && <SectionEmptyState teamName={teamName} label={t("team.recentFixturesData")} />}
           {status === "success" && data && (
             <div className="flex flex-col gap-1.5">
               {data.map(f => (
@@ -324,7 +330,7 @@ function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; t
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-0.5">
                     <span className="text-sm font-black tabular-nums text-foreground">{f.goalsHome} – {f.goalsAway}</span>
-                    <span className="text-[10px] text-muted-foreground">{kickoff(f.date)}</span>
+                    <span className="text-[10px] text-muted-foreground">{kickoff(f.date, locale)}</span>
                   </div>
                 </div>
               ))}
@@ -341,14 +347,15 @@ function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; t
 // ---------------------------------------------------------------------------
 
 function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useTeamSection<TeamCoach>(teamId, "coach", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Teknik direktör bilgisi" />}
+          {status === "loading" && <SectionLoading label={t("team.coach")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState teamName={teamName} label="teknik direktör verisi" />}
+          {status === "empty" && <SectionEmptyState teamName={teamName} label={t("team.coachData")} />}
           {status === "success" && data && (
             <div className="flex flex-col gap-4">
               {/* Coach identity */}
@@ -375,7 +382,7 @@ function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: 
                     )}
                     {data.age != null && (
                       <span className="rounded-lg bg-secondary border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                        {data.age} yaş
+                        {data.age} {t("team.age")}
                       </span>
                     )}
                   </div>
@@ -385,7 +392,7 @@ function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: 
               {/* Career */}
               {data.career.length > 0 && (
                 <div className="flex flex-col gap-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85 px-1">Kariyer</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85 px-1">{t("team.career")}</p>
                   {data.career.map((c, i) => (
                     <div
                       key={i}
@@ -399,7 +406,7 @@ function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: 
                         <span className="text-xs font-semibold text-foreground">{c.team.name}</span>
                       </div>
                       <span className="text-[10px] tabular-nums text-muted-foreground">
-                        {c.start ? c.start.slice(0, 4) : "?"} – {c.end ? c.end.slice(0, 4) : "günümüz"}
+                        {c.start ? c.start.slice(0, 4) : "?"} – {c.end ? c.end.slice(0, 4) : t("team.present")}
                       </span>
                     </div>
                   ))}
@@ -418,15 +425,16 @@ function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: 
 // ---------------------------------------------------------------------------
 
 const POS_ORDER: Record<string, number> = { Goalkeeper: 0, Defender: 1, Midfielder: 2, Attacker: 3 }
-const POS_LABEL: Record<string, string> = {
-  Goalkeeper: "Kaleci", Defender: "Defans", Midfielder: "Orta Saha", Attacker: "Forvet",
-}
 
 function SquadSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { t } = useLanguage()
+  const POS_LABEL: Record<string, string> = {
+    Goalkeeper: t("team.goalkeeper"), Defender: t("team.defender"), Midfielder: t("team.midfielder"), Attacker: t("team.attacker"),
+  }
   const { status, data, error, retry } = useTeamSection<SquadPlayer[]>(teamId, "squad", active)
 
   const grouped = (data ?? []).reduce<Record<string, SquadPlayer[]>>((acc, p) => {
-    const pos = p.pos ?? "Diğer"
+    const pos = p.pos ?? t("team.other")
     if (!acc[pos]) acc[pos] = []
     acc[pos].push(p)
     return acc
@@ -437,9 +445,9 @@ function SquadSection({ teamId, teamName, active }: { teamId: number; teamName: 
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Kadro" />}
+          {status === "loading" && <SectionLoading label={t("team.squad")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState teamName={teamName} label="kadro verisi" />}
+          {status === "empty" && <SectionEmptyState teamName={teamName} label={t("team.squadData")} />}
           {status === "success" && data && (
             <div className="flex flex-col gap-4">
               {positions.map(pos => (
@@ -474,7 +482,7 @@ function SquadSection({ teamId, teamName, active }: { teamId: number; teamName: 
                               <span className="text-[10px] font-bold tabular-nums text-muted-foreground">#{p.number}</span>
                             )}
                             {p.age != null && (
-                              <span className="text-[10px] text-muted-foreground/75">{p.age} yaş</span>
+                              <span className="text-[10px] text-muted-foreground/75">{p.age} {t("team.age")}</span>
                             )}
                             {formatMarketValueEur(p.marketValueEur) && (
                               <span className="text-[10px] font-bold tabular-nums text-primary">
@@ -501,27 +509,28 @@ function SquadSection({ teamId, teamName, active }: { teamId: number; teamName: 
 // ---------------------------------------------------------------------------
 
 function TopScorersSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useTeamSection<TeamTopScorer[]>(teamId, "topScorers", active)
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Lig gol krallığı" />}
+          {status === "loading" && <SectionLoading label={t("team.leagueTopScorers")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState teamName={teamName} label="lig gol krallığı verisi" />}
+          {status === "empty" && <SectionEmptyState teamName={teamName} label={t("team.leagueTopScorersData")} />}
           {status === "success" && data && (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
                     <th className="pb-2 pr-2 font-semibold w-6">#</th>
-                    <th className="pb-2 pr-3 font-semibold">Oyuncu</th>
+                    <th className="pb-2 pr-3 font-semibold">{t("team.player")}</th>
                     <th className="pb-2 px-1.5 font-semibold text-center" title="Gol">G</th>
                     <th className="pb-2 px-1.5 font-semibold text-center" title="Asist">A</th>
                     <th className="pb-2 px-1.5 font-semibold text-center" title="Maç">M</th>
-                    <th className="pb-2 px-1.5 font-semibold text-center" title="Puan">Puan</th>
-                    <th className="pb-2 px-1.5 font-semibold text-center" title="Sarı Kart">🟨</th>
-                    <th className="pb-2 pl-1.5 font-semibold text-center" title="Kırmızı Kart">🟥</th>
+                    <th className="pb-2 px-1.5 font-semibold text-center" title={t("team.points")}>{t("team.points")}</th>
+                    <th className="pb-2 px-1.5 font-semibold text-center" title={t("team.yellowCard")}>🟨</th>
+                    <th className="pb-2 pl-1.5 font-semibold text-center" title={t("team.redCard")}>🟥</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -576,6 +585,7 @@ function TopScorersSection({ teamId, teamName, active }: { teamId: number; teamN
 // ---------------------------------------------------------------------------
 
 function StandingsSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useTeamSection<StandingRow[]>(teamId, "standings", active)
 
   const groups = (data ?? []).reduce<Record<string, StandingRow[]>>((acc, r) => {
@@ -588,9 +598,9 @@ function StandingsSection({ teamId, teamName, active }: { teamId: number; teamNa
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Puan durumu" />}
+          {status === "loading" && <SectionLoading label={t("team.standings")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState teamName={teamName} label="puan durumu verisi" />}
+          {status === "empty" && <SectionEmptyState teamName={teamName} label={t("team.standingsData")} />}
           {status === "success" && data && (
             <div className="flex flex-col gap-4">
               {Object.entries(groups).map(([group, rows]) => (
@@ -603,15 +613,15 @@ function StandingsSection({ teamId, teamName, active }: { teamId: number; teamNa
                       <thead>
                         <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
                           <th className="pb-1.5 pr-2 font-semibold w-6">#</th>
-                          <th className="pb-1.5 pr-3 font-semibold">Takım</th>
-                          <th className="pb-1.5 px-1.5 font-semibold text-center" title="Oynanan">O</th>
-                          <th className="pb-1.5 px-1.5 font-semibold text-center" title="Galibiyet">G</th>
-                          <th className="pb-1.5 px-1.5 font-semibold text-center" title="Beraberlik">B</th>
-                          <th className="pb-1.5 px-1.5 font-semibold text-center" title="Mağlubiyet">M</th>
-                          <th className="pb-1.5 px-1.5 font-semibold text-center" title="Atılan">A</th>
-                          <th className="pb-1.5 px-1.5 font-semibold text-center" title="Yenilen">Y</th>
-                          <th className="pb-1.5 px-1.5 font-semibold text-center" title="Puan">P</th>
-                          <th className="pb-1.5 pl-1.5 font-semibold text-center" title="Son 5 maç">Form</th>
+                          <th className="pb-1.5 pr-3 font-semibold">{t("team.team")}</th>
+                          <th className="pb-1.5 px-1.5 font-semibold text-center" title={t("team.played")}>O</th>
+                          <th className="pb-1.5 px-1.5 font-semibold text-center" title={t("team.win")}>G</th>
+                          <th className="pb-1.5 px-1.5 font-semibold text-center" title={t("team.draw")}>B</th>
+                          <th className="pb-1.5 px-1.5 font-semibold text-center" title={t("team.lose")}>M</th>
+                          <th className="pb-1.5 px-1.5 font-semibold text-center" title={t("team.goalsFor")}>A</th>
+                          <th className="pb-1.5 px-1.5 font-semibold text-center" title={t("team.goalsAgainst")}>Y</th>
+                          <th className="pb-1.5 px-1.5 font-semibold text-center" title={t("team.points")}>P</th>
+                          <th className="pb-1.5 pl-1.5 font-semibold text-center" title={t("team.last5Matches")}>{t("team.form")}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
@@ -677,6 +687,7 @@ function StandingsSection({ teamId, teamName, active }: { teamId: number; teamNa
 // ---------------------------------------------------------------------------
 
 function TransfersSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useTeamSection<TeamTransfer[]>(teamId, "transfers", active)
 
   const incoming = (data ?? []).filter(t => t.teamTo.id === teamId)
@@ -686,19 +697,19 @@ function TransfersSection({ teamId, teamName, active }: { teamId: number; teamNa
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Transferler" />}
+          {status === "loading" && <SectionLoading label={t("team.transfers")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState teamName={teamName} label="transfer verisi" />}
+          {status === "empty" && <SectionEmptyState teamName={teamName} label={t("team.transfersData")} />}
           {status === "success" && data && (
             <div className="flex flex-col gap-4">
               {incoming.length > 0 && (
                 <div className="flex flex-col gap-1.5">
                   <p className="flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
                     <ArrowDownLeft className="h-3 w-3 text-primary" />
-                    Gelenler ({incoming.length})
+                    {t("team.incoming")} ({incoming.length})
                   </p>
-                  {incoming.map((t) => (
-                    <TransferRow key={`in-${t.player.id}-${t.date}-${t.teamFrom.id}`} transfer={t} direction="in" />
+                  {incoming.map((tr) => (
+                    <TransferRow key={`in-${tr.player.id}-${tr.date}-${tr.teamFrom.id}`} transfer={tr} direction="in" />
                   ))}
                 </div>
               )}
@@ -706,10 +717,10 @@ function TransfersSection({ teamId, teamName, active }: { teamId: number; teamNa
                 <div className="flex flex-col gap-1.5">
                   <p className="flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
                     <ArrowUpRight className="h-3 w-3 text-destructive" />
-                    Gidenler ({outgoing.length})
+                    {t("team.outgoing")} ({outgoing.length})
                   </p>
-                  {outgoing.map((t) => (
-                    <TransferRow key={`out-${t.player.id}-${t.date}-${t.teamTo.id}`} transfer={t} direction="out" />
+                  {outgoing.map((tr) => (
+                    <TransferRow key={`out-${tr.player.id}-${tr.date}-${tr.teamTo.id}`} transfer={tr} direction="out" />
                   ))}
                 </div>
               )}
@@ -810,17 +821,18 @@ function TeamPanelInner({
   panel: { team: { id: number; name: string; logo: string }; basic: TeamBasicInfo | null; loading: boolean; error: string | null }
   closeTeam: () => void
 }) {
+  const { t, locale } = useLanguage()
   const { team, basic, loading, error } = panel
 
   const tabs: PanelTabItem[] = [
-    { key: "stats", label: "Sezon İstatistikleri", icon: <Activity className="h-3.5 w-3.5" /> },
-    { key: "form", label: "Son Form", icon: <Activity className="h-3.5 w-3.5" /> },
-    { key: "fixtures", label: "Son Maçlar", icon: <Calendar className="h-3.5 w-3.5" /> },
-    { key: "coach", label: "Teknik Direktör", icon: <UserCheck className="h-3.5 w-3.5" /> },
-    { key: "squad", label: "Kadro", icon: <Users className="h-3.5 w-3.5" /> },
-    { key: "topScorers", label: "Lig Gol Krallığı", icon: <Star className="h-3.5 w-3.5" /> },
-    { key: "standings", label: "Puan Durumu", icon: <Shield className="h-3.5 w-3.5" /> },
-    { key: "transfers", label: "Transferler", icon: <ArrowLeftRight className="h-3.5 w-3.5" /> },
+    { key: "stats", label: t("team.seasonStats"), icon: <Activity className="h-3.5 w-3.5" /> },
+    { key: "form", label: t("team.recentForm"), icon: <Activity className="h-3.5 w-3.5" /> },
+    { key: "fixtures", label: t("team.recentFixtures"), icon: <Calendar className="h-3.5 w-3.5" /> },
+    { key: "coach", label: t("team.coach"), icon: <UserCheck className="h-3.5 w-3.5" /> },
+    { key: "squad", label: t("team.squad"), icon: <Users className="h-3.5 w-3.5" /> },
+    { key: "topScorers", label: t("team.leagueTopScorers"), icon: <Star className="h-3.5 w-3.5" /> },
+    { key: "standings", label: t("team.standings"), icon: <Shield className="h-3.5 w-3.5" /> },
+    { key: "transfers", label: t("team.transfers"), icon: <ArrowLeftRight className="h-3.5 w-3.5" /> },
   ]
   const [activeTab, setActiveTab] = useState(tabs[0].key)
 
@@ -829,7 +841,7 @@ function TeamPanelInner({
       className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
-      aria-label={`${team.name} takım bilgileri`}
+      aria-label={`${team.name} ${t("team.teamInfo")}`}
     >
       {/* Full screen panel */}
       <div className="flex h-full w-full flex-col overflow-hidden">
@@ -863,7 +875,7 @@ function TeamPanelInner({
                   </span>
                   {basic.venue.capacity != null && (
                     <span className="rounded-lg border border-border bg-secondary/60 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
-                      {basic.venue.capacity.toLocaleString("tr-TR")} kişilik
+                      {basic.venue.capacity.toLocaleString(locale === "en" ? "en-US" : "tr-TR")} {t("team.capacitySuffix")}
                     </span>
                   )}
                 </div>
@@ -874,7 +886,7 @@ function TeamPanelInner({
             <button
               type="button"
               onClick={closeTeam}
-              aria-label="Kapat"
+              aria-label={t("common.close")}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-border/60 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               <X className="h-4 w-4" />
@@ -884,14 +896,14 @@ function TeamPanelInner({
           {/* Season meta bar */}
           {basic && (
             <div className="relative flex items-center gap-3 border-b border-border/60 bg-secondary/40 px-5 py-2">
-              <span className="text-[10px] uppercase tracking-[0.15em] font-bold text-muted-foreground/85">Sezon</span>
+              <span className="text-[10px] uppercase tracking-[0.15em] font-bold text-muted-foreground/85">{t("team.stadium") ? t("league.season") : t("league.season")}</span>
               <span className="rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-black text-primary">
                 {basic.currentSeason}/{String(basic.currentSeason + 1).slice(2)}
               </span>
               {formatMarketValueEur(basic.marketValueEur) && (
                 <>
                   <span className="text-[10px] uppercase tracking-[0.15em] font-bold text-muted-foreground/85">
-                    Kadro Değeri
+                    {t("team.squadValue")}
                   </span>
                   <span className="rounded-lg border border-border bg-secondary px-2 py-0.5 text-[11px] font-black text-foreground">
                     {formatMarketValueEur(basic.marketValueEur)}
@@ -907,14 +919,14 @@ function TeamPanelInner({
           {loading && (
             <div className="flex flex-col items-center justify-center gap-3 py-16">
               <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm font-medium text-muted-foreground">Takım bilgileri yükleniyor...</p>
+              <p className="text-sm font-medium text-muted-foreground">{t("team.teamDataLoading")}</p>
             </div>
           )}
 
           {error && (
             <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 py-12 text-center">
               <ShieldOff className="h-8 w-8 text-destructive/75" />
-              <p className="text-sm font-bold text-destructive">Veri alınamadı</p>
+              <p className="text-sm font-bold text-destructive">{t("league.dataFetchFailed")}</p>
               <p className="text-xs text-muted-foreground">{error}</p>
             </div>
           )}
@@ -927,7 +939,7 @@ function TeamPanelInner({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={basic.venue.image}
-                    alt={basic.venue.name ?? "Stadyum"}
+                    alt={basic.venue.name ?? t("team.stadium")}
                     className="w-full h-40 object-cover"
                   />
                   {basic.venue.name && (
@@ -941,7 +953,7 @@ function TeamPanelInner({
                       </div>
                       {basic.venue.capacity != null && (
                         <span className="shrink-0 rounded-lg border border-border bg-secondary px-2 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
-                          {basic.venue.capacity.toLocaleString("tr-TR")} kişi
+                          {basic.venue.capacity.toLocaleString(locale === "en" ? "en-US" : "tr-TR")} {t("team.capacitySuffixShort")}
                         </span>
                       )}
                     </div>
