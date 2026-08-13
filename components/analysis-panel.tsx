@@ -41,6 +41,7 @@ import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { MatchVoteBar } from "@/components/match-vote-bar"
 import { MatchShareActions } from "@/components/match-share-actions"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/contexts/language-context"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -102,18 +103,19 @@ export function AnalysisPanel({
   const showPrediction = isPredictable || hasPrediction
 
   const { home, away, league } = fixture
+  const { t } = useLanguage()
 
   // Sekmeler yan yana sıralanır; panel açıldığında ilk sekme (Maç Olayları)
   // otomatik olarak kendi verisini çeker, diğerleri sadece tıklandığında.
   const tabs: PanelTabItem[] = [
-    { key: "events", label: "Maç Olayları", icon: <Activity className="h-3.5 w-3.5" /> },
-    { key: "playerStats", label: "Oyuncu Performansları", icon: <Star className="h-3.5 w-3.5" /> },
-    { key: "statistics", label: "Maç İstatistikleri", icon: <BarChart3 className="h-3.5 w-3.5" /> },
-    { key: "lineups", label: "Kadrolar", icon: <Users className="h-3.5 w-3.5" /> },
-    { key: "standings", label: "Puan Durumu", icon: <Shield className="h-3.5 w-3.5" /> },
-    { key: "teamStats", label: "Sezon İstatistikleri", icon: <TrendingUp className="h-3.5 w-3.5" /> },
-    { key: "h2h", label: "Karşılıklı Maçlar", icon: <Swords className="h-3.5 w-3.5" /> },
-    { key: "injuries", label: "Sakatlık / Ceza", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+    { key: "events", label: t("analysis.tabEvents"), icon: <Activity className="h-3.5 w-3.5" /> },
+    { key: "playerStats", label: t("analysis.tabPlayerStats"), icon: <Star className="h-3.5 w-3.5" /> },
+    { key: "statistics", label: t("analysis.tabStatistics"), icon: <BarChart3 className="h-3.5 w-3.5" /> },
+    { key: "lineups", label: t("analysis.tabLineups"), icon: <Users className="h-3.5 w-3.5" /> },
+    { key: "standings", label: t("analysis.tabStandings"), icon: <Shield className="h-3.5 w-3.5" /> },
+    { key: "teamStats", label: t("analysis.tabTeamStats"), icon: <TrendingUp className="h-3.5 w-3.5" /> },
+    { key: "h2h", label: t("analysis.tabH2H"), icon: <Swords className="h-3.5 w-3.5" /> },
+    { key: "injuries", label: t("analysis.tabInjuries"), icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   ]
   const [activeTab, setActiveTab] = useState(tabs[0].key)
 
@@ -186,12 +188,13 @@ export function AnalysisPanel({
 // ---------------------------------------------------------------------------
 
 function MatchHeader({ fixture }: { fixture: Fixture }) {
+  const { t } = useLanguage()
   const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
   const isLive = LIVE_STATUSES.has(fixture.statusShort)
   const homeGoals = fixture.goalsHome
   const awayGoals = fixture.goalsAway
   const hasScore = homeGoals != null && awayGoals != null
-  const statusTr = translateStatus(fixture.statusShort, fixture.elapsed, fixture.elapsedExtra)
+  const statusTr = translateStatus(t, fixture.statusShort, fixture.elapsed, fixture.elapsedExtra)
 
   return (
     <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
@@ -279,30 +282,35 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
 // Status label — Türkçe çeviri + canlı maçlarda dakika
 // ---------------------------------------------------------------------------
 
-function translateStatus(short: string, elapsed: number | null, elapsedExtra?: number | null): string {
+function translateStatus(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  short: string,
+  elapsed: number | null,
+  elapsedExtra?: number | null,
+): string {
   const min = typeof elapsed === "number"
     ? (elapsedExtra != null && elapsedExtra > 0 ? `${elapsed}+${elapsedExtra}'` : `${elapsed}'`)
     : null
   switch (short) {
-    case "1H": return min ?? "1. Yarı"
-    case "2H": return min ?? "2. Yarı"
-    case "ET": return min ? `${min} (Uzatma)` : "Uzatma"
-    case "HT": return "Devre Arası"
-    case "BT": return "Devre Arası"
-    case "P":  return "Penaltılar"
-    case "LIVE": return min ?? "Canlı"
-    case "FT":  return "MS"
-    case "AET": return "MS (Uzatma)"
-    case "PEN": return "MS (Pen.)"
-    case "NS":  return "Başlamadı"
-    case "TBD": return "Saat Belirsiz"
-    case "PST": return "Ertelendi"
-    case "CANC": return "İptal"
-    case "ABD": return "Tatil"
-    case "SUSP": return "Askıya Alındı"
-    case "INT": return "Ara"
-    case "AWD": return "Hükmen"
-    case "WO":  return "Hükmen"
+    case "1H": return min ?? t("matchStatus.1H")
+    case "2H": return min ?? t("matchStatus.2H")
+    case "ET": return min ? `${min} (${t("matchStatus.ET")})` : t("matchStatus.ET")
+    case "HT": return t("matchStatus.HT")
+    case "BT": return t("matchStatus.BT")
+    case "P":  return t("matchStatus.P")
+    case "LIVE": return min ?? t("matchStatus.LIVE")
+    case "FT":  return t("matchStatus.FT")
+    case "AET": return t("matchStatus.AET")
+    case "PEN": return t("matchStatus.PEN")
+    case "NS":  return t("matchStatus.NS")
+    case "TBD": return t("matchStatus.TBD")
+    case "PST": return t("matchStatus.PST")
+    case "CANC": return t("matchStatus.CANC")
+    case "ABD": return t("matchStatus.ABD")
+    case "SUSP": return t("matchStatus.SUSP")
+    case "INT": return t("matchStatus.INT")
+    case "AWD": return t("matchStatus.AWD")
+    case "WO":  return t("matchStatus.WO")
     default:    return short
   }
 }
@@ -378,19 +386,21 @@ function SectionShell({ active, children }: {
 }
 
 function SectionLoading({ label }: { label: string }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
-      <p className="text-xs font-medium text-muted-foreground">{label} yükleniyor...</p>
+      <p className="text-xs font-medium text-muted-foreground">{t("analysis.loadingSuffix", { label })}</p>
     </div>
   )
 }
 
 function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <AlertTriangle className="h-5 w-5 text-destructive/85" />
-      <p className="text-xs font-bold text-destructive">Veri alınamadı</p>
+      <p className="text-xs font-bold text-destructive">{t("analysis.errorTitle")}</p>
       {error && <p className="text-[11px] text-muted-foreground">{error}</p>}
       <button
         type="button"
@@ -398,17 +408,18 @@ function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: 
         className="mt-1 flex items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-secondary/70"
       >
         <RotateCw className="h-3 w-3" />
-        Tekrar dene
+        {t("common.retry")}
       </button>
     </div>
   )
 }
 
 function SectionEmptyState({ label }: { label: string }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <Inbox className="h-5 w-5 text-muted-foreground/65" />
-      <p className="text-xs text-muted-foreground">Bu maç için {label} bulunamadı.</p>
+      <p className="text-xs text-muted-foreground">{t("analysis.emptyFor", { label })}</p>
     </div>
   )
 }
@@ -418,42 +429,44 @@ function SectionEmptyState({ label }: { label: string }) {
 // ---------------------------------------------------------------------------
 
 function EventsSection({ fixtureId, homeName, active }: { fixtureId: number; homeName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLazySection<MatchEvent[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=events`,
     active,
   )
   return (
     <SectionShell active={active}>
-      {status === "loading" && <SectionLoading label="Maç olayları" />}
+      {status === "loading" && <SectionLoading label={t("analysis.loadingEvents")} />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-      {status === "empty" && <SectionEmptyState label="maç olayı" />}
+      {status === "empty" && <SectionEmptyState label={t("analysis.emptyEvents")} />}
       {status === "success" && data && <EventsList events={data} homeName={homeName} />}
     </SectionShell>
   )
 }
 
-const EVENT_DETAIL_TR: Record<string, string> = {
-  "Normal Goal": "Normal Gol",
-  "Own Goal": "Kendi Kalesine",
-  "Penalty": "Penaltı",
-  "Missed Penalty": "Kaçırılan Penaltı",
-  "Yellow Card": "Sarı Kart",
-  "Red Card": "Kırmızı Kart",
-  "Yellow Red Card": "İkinci Sarı Kart",
-  "Substitution 1": "Oyuncu Değişikliği",
-  "Substitution 2": "Oyuncu Değişikliği",
-  "Substitution 3": "Oyuncu Değişikliği",
-  "Substitution 4": "Oyuncu Değişikliği",
-  "Substitution 5": "Oyuncu Değişikliği",
-  "Substitution 6": "Oyuncu Değişikliği",
-  "Goal cancelled": "Gol İptal",
-  "Penalty confirmed": "Penaltı Onaylandı",
-  "Penalty cancelled": "Penaltı İptal",
-  "Card upgrade": "Kart Artırımı",
+const EVENT_DETAIL_KEY: Record<string, string> = {
+  "Normal Goal": "normalGoal",
+  "Own Goal": "ownGoal",
+  "Penalty": "penalty",
+  "Missed Penalty": "missedPenalty",
+  "Yellow Card": "yellowCard",
+  "Red Card": "redCard",
+  "Yellow Red Card": "yellowRedCard",
+  "Substitution 1": "substitution",
+  "Substitution 2": "substitution",
+  "Substitution 3": "substitution",
+  "Substitution 4": "substitution",
+  "Substitution 5": "substitution",
+  "Substitution 6": "substitution",
+  "Goal cancelled": "goalCancelled",
+  "Penalty confirmed": "penaltyConfirmed",
+  "Penalty cancelled": "penaltyCancelled",
+  "Card upgrade": "cardUpgrade",
 }
 
-function translateDetail(detail: string): string {
-  return EVENT_DETAIL_TR[detail] ?? detail
+function translateDetail(t: (key: string) => string, detail: string): string {
+  const key = EVENT_DETAIL_KEY[detail]
+  return key ? t(`analysis.eventDetail.${key}`) : detail
 }
 
 function eventIcon(type: string, detail: string): { bg: string; text: string; symbol: string } {
@@ -482,6 +495,7 @@ function SubstitutionIcon() {
 }
 
 function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: string }) {
+  const { t } = useLanguage()
   const sorted = [...events].sort((a, b) => a.minute - b.minute)
   return (
     <ul className="flex flex-col gap-0.5">
@@ -489,7 +503,7 @@ function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: stri
         const isHome = ev.team === homeName
         const isSubst = ev.type === "subst"
         const { bg, text, symbol } = eventIcon(ev.type, ev.detail)
-        const detailTr = translateDetail(ev.detail)
+        const detailTr = translateDetail(t, ev.detail)
         return (
           <li key={i} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${isHome ? "" : "flex-row-reverse"}`}>
             <span className="w-8 shrink-0 text-center text-[11px] font-bold tabular-nums text-muted-foreground">
@@ -537,7 +551,7 @@ function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: stri
                   )}
                   {ev.assist && (
                     <span className="truncate text-[10px] text-muted-foreground">
-                      Asist:{" "}
+                      {t("analysis.assist")}:{" "}
                       {ev.assistId ? (
                         <PlayerButton player={{ id: ev.assistId, name: ev.assist, photo: null }} className="hover:text-primary">
                           {ev.assist}
@@ -571,15 +585,16 @@ function PlayerStatsSection({
   away: { id: number; name: string; logo: string }
   active: boolean
 }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLazySection<FixturePlayerStat[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=playerStats`,
     active,
   )
   return (
     <SectionShell active={active}>
-      {status === "loading" && <SectionLoading label="Oyuncu performansları" />}
+      {status === "loading" && <SectionLoading label={t("analysis.loadingPlayerStats")} />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-      {status === "empty" && <SectionEmptyState label="oyuncu performans verisi" />}
+      {status === "empty" && <SectionEmptyState label={t("analysis.emptyPlayerStats")} />}
       {status === "success" && data && (
         <PlayerStatsTable
           home={{ team: home, players: data.filter((p) => p.teamId === home.id) }}
@@ -597,6 +612,7 @@ function PlayerStatsTable({
   home: { team: { id: number; name: string; logo: string }; players: FixturePlayerStat[] }
   away: { team: { id: number; name: string; logo: string }; players: FixturePlayerStat[] }
 }) {
+  const { t } = useLanguage()
   const [tab, setTab] = useState<"home" | "away">("home")
   const active = tab === "home" ? home : away
   // Sort: starters first (by minutes desc), then subs
@@ -630,17 +646,17 @@ function PlayerStatsTable({
         <table className="w-full min-w-[540px] text-xs">
           <thead>
             <tr className="border-b border-border/60">
-              <th className="pb-2 pl-1 text-left font-semibold text-muted-foreground min-w-[130px]">Oyuncu</th>
-              <th className="pb-2 text-center font-semibold text-muted-foreground w-9">Dk</th>
-              <th className="pb-2 text-center font-semibold text-amber-500 w-9" title="Puan">Pn</th>
-              <th className="pb-2 text-center font-semibold text-primary w-9" title="Gol">G</th>
-              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Asist">A</th>
-              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Şut">Şt</th>
-              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="İsabetli Şut">İŞ</th>
-              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Pas">Ps</th>
-              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Dripling">Dr</th>
-              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title="Müdahale">Md</th>
-              <th className="pb-2 text-center font-semibold text-muted-foreground w-8" title="Kart">Kt</th>
+              <th className="pb-2 pl-1 text-left font-semibold text-muted-foreground min-w-[130px]">{t("analysis.colPlayer")}</th>
+              <th className="pb-2 text-center font-semibold text-muted-foreground w-9">{t("analysis.colMinutes")}</th>
+              <th className="pb-2 text-center font-semibold text-amber-500 w-9" title={t("analysis.colRatingTitle")}>{t("analysis.colRating")}</th>
+              <th className="pb-2 text-center font-semibold text-primary w-9" title={t("analysis.colGoalsTitle")}>{t("analysis.colGoals")}</th>
+              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title={t("analysis.colAssistsTitle")}>{t("analysis.colAssists")}</th>
+              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title={t("analysis.colShotsTitle")}>{t("analysis.colShots")}</th>
+              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title={t("analysis.colShotsOnTitle")}>{t("analysis.colShotsOn")}</th>
+              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title={t("analysis.colPassesTitle")}>{t("analysis.colPasses")}</th>
+              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title={t("analysis.colDribblesTitle")}>{t("analysis.colDribbles")}</th>
+              <th className="pb-2 text-center font-semibold text-muted-foreground w-9" title={t("analysis.colTacklesTitle")}>{t("analysis.colTackles")}</th>
+              <th className="pb-2 text-center font-semibold text-muted-foreground w-8" title={t("analysis.colCardsTitle")}>{t("analysis.colCards")}</th>
             </tr>
           </thead>
           <tbody>
@@ -675,7 +691,7 @@ function PlayerStatsTable({
                         </span>
                         <span className="text-[10px] text-muted-foreground/75">
                           {p.player.pos ?? ""}
-                          {p.substitute ? " · Yedek" : ""}
+                          {p.substitute ? t("analysis.substituteSuffix") : ""}
                         </span>
                       </div>
                     </div>
@@ -691,9 +707,9 @@ function PlayerStatsTable({
                   <td className="py-2 text-center tabular-nums text-muted-foreground">{p.tackles ?? "���"}</td>
                   <td className="py-2 text-center">
                     {p.redCard ? (
-                      <span className="inline-block h-3.5 w-2.5 rounded-sm bg-destructive" title="Kırmızı Kart" />
+                      <span className="inline-block h-3.5 w-2.5 rounded-sm bg-destructive" title={t("analysis.redCard")} />
                     ) : p.yellowCard ? (
-                      <span className="inline-block h-3.5 w-2.5 rounded-sm bg-yellow-400" title="Sarı Kart" />
+                      <span className="inline-block h-3.5 w-2.5 rounded-sm bg-yellow-400" title={t("analysis.yellowCard")} />
                     ) : (
                       <span className="text-muted-foreground/50">—</span>
                     )}
@@ -712,33 +728,34 @@ function PlayerStatsTable({
 // Statistics
 // ---------------------------------------------------------------------------
 
-const STAT_TYPE_TR: Record<string, string> = {
-  "Shots on Goal": "İsabetli Şut",
-  "Shots off Goal": "İsabetsiz Şut",
-  "Total Shots": "Toplam Şut",
-  "Blocked Shots": "Engellenen Şut",
-  "Shots insidebox": "Ceza Sahası İçi Şut",
-  "Shots outsidebox": "Ceza Sahası Dışı Şut",
-  "Fouls": "Faul",
-  "Corner Kicks": "Korner",
-  "Offsides": "Ofsayt",
-  "Ball Possession": "Top Hakimiyeti",
-  "Yellow Cards": "Sarı Kart",
-  "Red Cards": "Kırmızı Kart",
-  "Goalkeeper Saves": "Kurtarış",
-  "Total passes": "Toplam Pas",
-  "Passes accurate": "İsabetli Pas",
-  "Passes %": "Pas İsabeti",
-  "expected_goals": "Beklenen Gol (xG)",
-  "Expected Goals": "Beklenen Gol (xG)",
-  "goals_prevented": "Kurtarılan Gol",
-  "Penalty Kicks": "Penaltı",
+const STAT_TYPE_KEY: Record<string, string> = {
+  "Shots on Goal": "shotsOnGoal",
+  "Shots off Goal": "shotsOffGoal",
+  "Total Shots": "totalShots",
+  "Blocked Shots": "blockedShots",
+  "Shots insidebox": "shotsInsideBox",
+  "Shots outsidebox": "shotsOutsideBox",
+  "Fouls": "fouls",
+  "Corner Kicks": "cornerKicks",
+  "Offsides": "offsides",
+  "Ball Possession": "ballPossession",
+  "Yellow Cards": "yellowCards",
+  "Red Cards": "redCards",
+  "Goalkeeper Saves": "goalkeeperSaves",
+  "Total passes": "totalPasses",
+  "Passes accurate": "passesAccurate",
+  "Passes %": "passesPercent",
+  "expected_goals": "expectedGoals",
+  "Expected Goals": "expectedGoals",
+  "goals_prevented": "goalsPrevented",
+  "Penalty Kicks": "penaltyKicks",
 }
 
 const HIDE_IF_BOTH_EMPTY = new Set(["expected_goals", "Expected Goals", "goals_prevented", "Goals Prevented"])
 
-function translateStat(type: string): string {
-  return STAT_TYPE_TR[type] ?? type
+function translateStat(t: (key: string) => string, type: string): string {
+  const key = STAT_TYPE_KEY[type]
+  return key ? t(`analysis.statType.${key}`) : type
 }
 
 function StatisticsSection({
@@ -752,21 +769,23 @@ function StatisticsSection({
   awayName: string
   active: boolean
 }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLazySection<StatItem[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=statistics`,
     active,
   )
   return (
     <SectionShell active={active}>
-      {status === "loading" && <SectionLoading label="Maç istatistikleri" />}
+      {status === "loading" && <SectionLoading label={t("analysis.loadingStatistics")} />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-      {status === "empty" && <SectionEmptyState label="maç istatistiği" />}
+      {status === "empty" && <SectionEmptyState label={t("analysis.emptyStatistics")} />}
       {status === "success" && data && <StatsList stats={data} homeName={homeName} awayName={awayName} />}
     </SectionShell>
   )
 }
 
 function StatsList({ stats, homeName, awayName }: { stats: StatItem[]; homeName: string; awayName: string }) {
+  const { t } = useLanguage()
   const toNum = (v: string | number | null) =>
     typeof v === "string" ? Number.parseFloat(v.replace("%", "")) : (v ?? 0)
 
@@ -793,7 +812,7 @@ function StatsList({ stats, homeName, awayName }: { stats: StatItem[]; homeName:
           <div key={i} className="flex flex-col gap-1 py-1.5">
             <div className="flex items-center justify-between gap-2">
               <span className="w-10 text-left text-xs font-bold tabular-nums text-foreground">{s.home ?? "—"}</span>
-              <span className="flex-1 text-center text-[11px] text-muted-foreground">{translateStat(s.type)}</span>
+              <span className="flex-1 text-center text-[11px] text-muted-foreground">{translateStat(t, s.type)}</span>
               <span className="w-10 text-right text-xs font-bold tabular-nums text-foreground">{s.away ?? "—"}</span>
             </div>
             <div className="flex h-1 w-full overflow-hidden rounded-full bg-secondary">
@@ -822,15 +841,16 @@ function LineupsSection({
   away: TeamInfo
   active: boolean
 }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLazySection<TeamLineup[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=lineups`,
     active,
   )
   return (
     <SectionShell active={active}>
-      {status === "loading" && <SectionLoading label="Kadrolar" />}
+      {status === "loading" && <SectionLoading label={t("analysis.loadingLineups")} />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-      {status === "empty" && <SectionEmptyState label="kadro" />}
+      {status === "empty" && <SectionEmptyState label={t("analysis.emptyLineups")} />}
       {status === "success" && data && <LineupsView lineups={data} home={home} away={away} />}
     </SectionShell>
   )
@@ -918,12 +938,13 @@ function LineupsView({ lineups, home, away }: { lineups: TeamLineup[]; home: Tea
 
 /** Geçerli grid verisi olmayan istisnai durumlar için eski, basit liste görünümü. */
 function LegacyLineupCard({ lineup: l }: { lineup: TeamLineup }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-secondary/20 p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-bold text-foreground">{l.team}</span>
-          {l.coach && <span className="text-[11px] text-muted-foreground">TD: {l.coach}</span>}
+          {l.coach && <span className="text-[11px] text-muted-foreground">{t("analysis.coachPrefix")}: {l.coach}</span>}
         </div>
         {l.formation && (
           <span className="rounded-lg border border-border bg-card px-2 py-0.5 text-[11px] font-mono font-bold text-muted-foreground">
@@ -934,7 +955,7 @@ function LegacyLineupCard({ lineup: l }: { lineup: TeamLineup }) {
 
       {l.startXI.length > 0 && (
         <div>
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-primary">İlk 11</p>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-primary">{t("analysis.startingXI")}</p>
           <ol className="grid grid-cols-2 gap-x-3 gap-y-1.5">
             {l.startXI.map((p, idx) => (
               <PlayerLineupRow key={idx} player={p} isStarter />
@@ -945,7 +966,7 @@ function LegacyLineupCard({ lineup: l }: { lineup: TeamLineup }) {
 
       {l.substitutes.length > 0 && (
         <div>
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">Yedekler</p>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">{t("analysis.substitutes")}</p>
           <ol className="grid grid-cols-2 gap-x-3 gap-y-1.5">
             {l.substitutes.map((p, idx) => (
               <PlayerLineupRow key={idx} player={p} isStarter={false} />
@@ -1039,6 +1060,7 @@ function TeamFormationHeader({
   lineup: TeamLineup
   align: "left"
 }) {
+  const { t } = useLanguage()
   return (
     <div className={cn("flex items-center gap-2 px-1", align === "left" && "justify-between")}>
       <div className="flex items-center gap-2">
@@ -1048,7 +1070,7 @@ function TeamFormationHeader({
         ) : null}
         <div className="flex flex-col leading-tight">
           <span className="text-xs font-bold text-foreground">{team.name}</span>
-          {lineup.coach && <span className="text-[10px] text-muted-foreground">TD: {lineup.coach}</span>}
+          {lineup.coach && <span className="text-[10px] text-muted-foreground">{t("analysis.coachPrefix")}: {lineup.coach}</span>}
         </div>
       </div>
       {lineup.formation && (
@@ -1182,6 +1204,7 @@ function BenchRow({
 }
 
 function BenchColumn({ team, subs, side }: { team: TeamInfo; subs: LineupPlayer[]; side: "home" | "away" }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col gap-1.5">
       <div className="mb-0.5 flex items-center gap-1.5 border-b border-border/60 pb-1.5">
@@ -1190,7 +1213,7 @@ function BenchColumn({ team, subs, side }: { team: TeamInfo; subs: LineupPlayer[
           <img src={team.logo || "/placeholder.svg"} alt="" className="h-4 w-4 object-contain"  width={16} height={16} loading="lazy" decoding="async"/>
         ) : null}
         <span className="truncate text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
-          Yedekler
+          {t("analysis.substitutes")}
         </span>
       </div>
       <ol className="flex flex-col gap-1">
@@ -1238,36 +1261,38 @@ function StandingsSection({
   awayId: number
   active: boolean
 }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLazySection<StandingRow[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=standings&leagueId=${leagueId}&season=${season}&homeId=${homeId}&awayId=${awayId}`,
     active,
   )
   return (
     <SectionShell active={active}>
-      {status === "loading" && <SectionLoading label="Puan durumu" />}
+      {status === "loading" && <SectionLoading label={t("analysis.loadingStandings")} />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-      {status === "empty" && <SectionEmptyState label="puan durumu" />}
+      {status === "empty" && <SectionEmptyState label={t("analysis.emptyStandings")} />}
       {status === "success" && data && <StandingsTable standings={data} homeId={homeId} awayId={awayId} />}
     </SectionShell>
   )
 }
 
 function StandingsTable({ standings, homeId, awayId }: { standings: StandingRow[]; homeId: number; awayId: number }) {
+  const { t } = useLanguage()
   return (
     <div className="overflow-x-auto -mx-1">
       <table className="w-full min-w-[480px] text-xs">
         <thead>
           <tr className="border-b border-border/60">
             <th className="pb-2 pl-1 text-left font-semibold text-muted-foreground w-6">#</th>
-            <th className="pb-2 text-left font-semibold text-muted-foreground">Takım</th>
-            <th className="pb-2 text-center font-semibold text-muted-foreground w-8">O</th>
-            <th className="pb-2 text-center font-semibold text-primary w-8">G</th>
-            <th className="pb-2 text-center font-semibold text-muted-foreground w-8">B</th>
-            <th className="pb-2 text-center font-semibold text-destructive w-8">M</th>
-            <th className="pb-2 text-center font-semibold text-muted-foreground w-8">AG</th>
-            <th className="pb-2 text-center font-semibold text-muted-foreground w-8">YG</th>
-            <th className="pb-2 text-center font-semibold text-foreground w-8">P</th>
-            <th className="pb-2 text-left font-semibold text-muted-foreground">Son 5</th>
+            <th className="pb-2 text-left font-semibold text-muted-foreground">{t("analysis.standTeam")}</th>
+            <th className="pb-2 text-center font-semibold text-muted-foreground w-8">{t("analysis.standPlayed")}</th>
+            <th className="pb-2 text-center font-semibold text-primary w-8">{t("analysis.standWin")}</th>
+            <th className="pb-2 text-center font-semibold text-muted-foreground w-8">{t("analysis.standDraw")}</th>
+            <th className="pb-2 text-center font-semibold text-destructive w-8">{t("analysis.standLose")}</th>
+            <th className="pb-2 text-center font-semibold text-muted-foreground w-8">{t("analysis.standGoalsFor")}</th>
+            <th className="pb-2 text-center font-semibold text-muted-foreground w-8">{t("analysis.standGoalsAgainst")}</th>
+            <th className="pb-2 text-center font-semibold text-foreground w-8">{t("analysis.standPoints")}</th>
+            <th className="pb-2 text-left font-semibold text-muted-foreground">{t("analysis.standLast5")}</th>
           </tr>
         </thead>
         <tbody>
@@ -1325,16 +1350,17 @@ function TeamStatsSection({
     `/api/analyze/section?fixtureId=${fixtureId}&section=teamStats&leagueId=${leagueId}&season=${season}` +
     `&homeId=${home.id}&homeName=${encodeURIComponent(home.name)}&homeLogo=${encodeURIComponent(home.logo)}` +
     `&awayId=${away.id}&awayName=${encodeURIComponent(away.name)}&awayLogo=${encodeURIComponent(away.logo)}`
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLazySection<{ homeStats: TeamSeasonStats | null; awayStats: TeamSeasonStats | null }>(url, active)
   return (
     <SectionShell active={active}>
-      {status === "loading" && <SectionLoading label="Sezon istatistikleri" />}
+      {status === "loading" && <SectionLoading label={t("analysis.loadingTeamStats")} />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-      {status === "empty" && <SectionEmptyState label="sezon istatistiği" />}
+      {status === "empty" && <SectionEmptyState label={t("analysis.emptyTeamStats")} />}
       {status === "success" && data && (
         <div className="grid gap-3 sm:grid-cols-2">
-          {data.homeStats && <TeamStatsCard stats={data.homeStats} label="Ev Sahibi" />}
-          {data.awayStats && <TeamStatsCard stats={data.awayStats} label="Deplasman" />}
+          {data.homeStats && <TeamStatsCard stats={data.homeStats} label={t("analysis.homeSide")} />}
+          {data.awayStats && <TeamStatsCard stats={data.awayStats} label={t("analysis.awaySide")} />}
         </div>
       )}
     </SectionShell>
@@ -1342,6 +1368,7 @@ function TeamStatsSection({
 }
 
 function TeamStatsCard({ stats, label }: { stats: TeamSeasonStats; label: string }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-secondary/20 p-4">
       <div className="flex items-center justify-between gap-2">
@@ -1356,27 +1383,27 @@ function TeamStatsCard({ stats, label }: { stats: TeamSeasonStats; label: string
         </span>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-muted-foreground">Son Form</span>
+        <span className="text-[11px] text-muted-foreground">{t("analysis.recentForm")}</span>
         <FormBadge form={stats.formString} />
       </div>
       <div className="grid grid-cols-3 gap-1.5">
-        <StatCell label="Oynanan" value={stats.played} />
-        <StatCell label="Att. Ort." value={stats.goalsForAvg.toFixed(1)} />
-        <StatCell label="Yed. Ort." value={stats.goalsAgainstAvg.toFixed(1)} />
-        <StatCell label="Galibiyet" value={stats.wins} accent="text-primary" />
-        <StatCell label="Beraberlik" value={stats.draws} />
-        <StatCell label="Mağlubiyet" value={stats.losses} accent="text-destructive" />
-        <StatCell label="Gol Yok" value={stats.cleanSheets} />
-        <StatCell label="Skorsuz" value={stats.failedToScore} />
+        <StatCell label={t("analysis.statPlayed")} value={stats.played} />
+        <StatCell label={t("analysis.statGoalsForAvg")} value={stats.goalsForAvg.toFixed(1)} />
+        <StatCell label={t("analysis.statGoalsAgainstAvg")} value={stats.goalsAgainstAvg.toFixed(1)} />
+        <StatCell label={t("analysis.statWins")} value={stats.wins} accent="text-primary" />
+        <StatCell label={t("analysis.statDraws")} value={stats.draws} />
+        <StatCell label={t("analysis.statLosses")} value={stats.losses} accent="text-destructive" />
+        <StatCell label={t("analysis.statCleanSheets")} value={stats.cleanSheets} />
+        <StatCell label={t("analysis.statFailedToScore")} value={stats.failedToScore} />
       </div>
       {stats.recent.length > 0 && (
         <div>
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">Son Maçlar</p>
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">{t("analysis.recentMatches")}</p>
           <ul className="flex flex-col gap-1">
             {stats.recent.map((g, i) => (
               <li key={i} className="flex items-center justify-between gap-2 rounded-lg border border-border/40 bg-card px-2.5 py-1.5 text-xs">
                 <span className="shrink-0 tabular-nums text-muted-foreground text-[10px]">{g.date.slice(0, 10)}</span>
-                <span className="min-w-0 flex-1 truncate text-center text-foreground">vs {g.opponent}</span>
+                <span className="min-w-0 flex-1 truncate text-center text-foreground">{t("analysis.vsPrefix")} {g.opponent}</span>
                 <span className="shrink-0 tabular-nums font-bold text-foreground">{g.scored}-{g.conceded}</span>
                 <ResultBadge result={g.result} />
               </li>
@@ -1398,10 +1425,11 @@ function StatCell({ label, value, accent }: { label: string; value: string | num
 }
 
 function ResultBadge({ result }: { result: "W" | "D" | "L" }) {
+  const { t } = useLanguage()
   const map = {
-    W: { label: "G", cls: "bg-primary/15 text-primary border-primary/20" },
-    D: { label: "B", cls: "bg-secondary text-muted-foreground border-border/60" },
-    L: { label: "M", cls: "bg-destructive/15 text-destructive border-destructive/20" },
+    W: { label: t("analysis.resultWin"), cls: "bg-primary/15 text-primary border-primary/20" },
+    D: { label: t("analysis.resultDraw"), cls: "bg-secondary text-muted-foreground border-border/60" },
+    L: { label: t("analysis.resultLoss"), cls: "bg-destructive/15 text-destructive border-destructive/20" },
   }
   const { label, cls } = map[result]
   return (
@@ -1430,15 +1458,16 @@ function H2HSection({
   awayName: string
   active: boolean
 }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLazySection<FormGame[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=h2h&homeId=${homeId}&awayId=${awayId}`,
     active,
   )
   return (
     <SectionShell active={active}>
-      {status === "loading" && <SectionLoading label="Karşılıklı maçlar" />}
+      {status === "loading" && <SectionLoading label={t("analysis.loadingH2H")} />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-      {status === "empty" && <SectionEmptyState label="karşılıklı maç" />}
+      {status === "empty" && <SectionEmptyState label={t("analysis.emptyH2H")} />}
       {status === "success" && data && (
         <H2HList h2h={data} homeId={homeId} awayId={awayId} homeName={homeName} awayName={awayName} />
       )}
@@ -1465,6 +1494,7 @@ function H2HList({
   // `g.home` / `g.homeTeam` ile tekrar bir "ev sahibi mi" kontrolü yapmaya
   // gerek yok; yapılırsa deplasmanda oynanan maçlarda kazanan taraf ters
   // gösterilir.
+  const { t } = useLanguage()
   const homeWins = h2h.filter((g) => g.result === "W").length
   const draws = h2h.filter((g) => g.result === "D").length
   const awayWins = h2h.filter((g) => g.result === "L").length
@@ -1475,7 +1505,7 @@ function H2HList({
       <div className="rounded-xl border border-border/60 bg-secondary/30 p-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-semibold truncate max-w-[35%]">{homeName}</span>
-          <span className="text-[10px] text-muted-foreground">{h2h.length} maç</span>
+          <span className="text-[10px] text-muted-foreground">{t("analysis.matchesShort", { count: h2h.length })}</span>
           <span className="text-[11px] font-semibold truncate max-w-[35%] text-right">{awayName}</span>
         </div>
         <div className="flex items-center gap-1">
@@ -1484,9 +1514,9 @@ function H2HList({
           <div className="flex h-2 rounded-full bg-accent transition-all" style={{ width: `${awayWins / h2h.length * 100}%`, minWidth: awayWins > 0 ? "8px" : "0" }} />
         </div>
         <div className="flex items-center justify-between mt-1.5">
-          <span className="text-xs font-black text-primary tabular-nums">{homeWins}G</span>
-          <span className="text-xs font-semibold text-muted-foreground tabular-nums">{draws}B</span>
-          <span className="text-xs font-black text-accent tabular-nums">{awayWins}G</span>
+          <span className="text-xs font-black text-primary tabular-nums">{homeWins}{t("analysis.resultWin")}</span>
+          <span className="text-xs font-semibold text-muted-foreground tabular-nums">{draws}{t("analysis.resultDraw")}</span>
+          <span className="text-xs font-black text-accent tabular-nums">{awayWins}{t("analysis.resultWin")}</span>
         </div>
       </div>
 
@@ -1524,28 +1554,30 @@ function H2HList({
 // Injuries
 // ---------------------------------------------------------------------------
 
-const INJURY_TYPE_TR: Record<string, string> = {
-  "Missing Fixture": "Maçta Yok",
-  "Questionable": "Şüpheli",
-  "Out": "Dışarıda",
+const INJURY_TYPE_KEY: Record<string, string> = {
+  "Missing Fixture": "missingFixture",
+  "Questionable": "questionable",
+  "Out": "out",
 }
 
 function InjuriesSection({ fixtureId, active }: { fixtureId: number; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data, error, retry } = useLazySection<InjuryItem[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=injuries`,
     active,
   )
   return (
     <SectionShell active={active}>
-      {status === "loading" && <SectionLoading label="Sakatlık / ceza bilgisi" />}
+      {status === "loading" && <SectionLoading label={t("analysis.loadingInjuries")} />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-      {status === "empty" && <SectionEmptyState label="sakatlık / ceza kaydı" />}
+      {status === "empty" && <SectionEmptyState label={t("analysis.emptyInjuries")} />}
       {status === "success" && data && <InjuryList injuries={data} />}
     </SectionShell>
   )
 }
 
 function InjuryList({ injuries }: { injuries: InjuryItem[] }) {
+  const { t } = useLanguage()
   const byTeam = injuries.reduce<Record<string, InjuryItem[]>>((acc, item) => {
     if (!acc[item.team]) acc[item.team] = []
     acc[item.team].push(item)
@@ -1575,7 +1607,7 @@ function InjuryList({ injuries }: { injuries: InjuryItem[] }) {
                 <div className="flex shrink-0 items-center gap-1.5">
                   {item.type && (
                     <span className="rounded-full border border-border/60 bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                      {INJURY_TYPE_TR[item.type] ?? item.type}
+                      {INJURY_TYPE_KEY[item.type] ? t(`analysis.injuryType.${INJURY_TYPE_KEY[item.type]}`) : item.type}
                     </span>
                   )}
                   {item.reason && (
@@ -1615,9 +1647,10 @@ function ModelVoteRow({
   homeName: string
   awayName: string
 }) {
+  const { t } = useLanguage()
   const { short, colorCls } = modelLabel(vote.model)
   const winnerLabel =
-    vote.winner === "home" ? homeName : vote.winner === "away" ? awayName : "Beraberlik"
+    vote.winner === "home" ? homeName : vote.winner === "away" ? awayName : t("analysis.draw")
 
   return (
     <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-secondary/20 px-3 py-2">
@@ -1642,7 +1675,7 @@ function ModelVoteRow({
             ? "border-primary/25 bg-primary/8 text-primary"
             : "border-border/60 bg-secondary/60 text-muted-foreground",
         )}>
-          {vote.btts ? "KG Var" : "KG Yok"}
+          {vote.btts ? t("analysis.predictionBttsShortYes") : t("analysis.predictionBttsShortNo")}
         </span>
         <span className={cn(
           "rounded-full border px-1.5 py-0.5 text-[9px] font-semibold",
@@ -1650,10 +1683,10 @@ function ModelVoteRow({
             ? "border-primary/25 bg-primary/8 text-primary"
             : "border-border/60 bg-secondary/60 text-muted-foreground",
         )}>
-          {vote.overUnder === "over" ? "2.5 Üst" : "2.5 Alt"}
+          {vote.overUnder === "over" ? t("analysis.predictionOverShort") : t("analysis.predictionUnderShort")}
         </span>
         <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">
-          %{vote.confidence}
+          {t("analysis.percentValue", { n: vote.confidence })}
         </span>
       </div>
     </div>
@@ -1673,6 +1706,7 @@ function PredictionCard({
   awayName: string
   onPredict?: () => void
 }) {
+  const { t } = useLanguage()
   const [showVotes, setShowVotes] = useState(false)
 
   if (isLoading) {
@@ -1680,9 +1714,9 @@ function PredictionCard({
       <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-4">
         <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-primary" />
         <div>
-          <p className="text-xs font-semibold text-foreground">AI tahminleri hazırlanıyor...</p>
+          <p className="text-xs font-semibold text-foreground">{t("analysis.predictionPreparing")}</p>
           <p className="text-[11px] text-muted-foreground">
-            GPT-5.6 Terra, Gemini 3.6 Flash ve Grok 4.5 paralel olarak analiz yapıyor
+            {t("analysis.predictionPreparingSub")}
           </p>
         </div>
       </div>
@@ -1697,8 +1731,8 @@ function PredictionCard({
             <Sparkles className="h-3.5 w-3.5" />
           </span>
           <div>
-            <p className="text-xs font-semibold text-foreground">AI Ensemble Tahmini</p>
-            <p className="text-[11px] text-muted-foreground">GPT-5.6 Terra · Gemini 3.6 Flash · Grok 4.5</p>
+            <p className="text-xs font-semibold text-foreground">{t("analysis.predictionTitle")}</p>
+            <p className="text-[11px] text-muted-foreground">{t("analysis.predictionModelsSubtitle")}</p>
           </div>
         </div>
         {onPredict && (
@@ -1707,7 +1741,7 @@ function PredictionCard({
             onClick={onPredict}
             className="shrink-0 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-all hover:bg-primary/20 active:scale-95"
           >
-            Tahmin Al
+            {t("analysis.predictionGetButton")}
           </button>
         )}
       </div>
@@ -1716,10 +1750,10 @@ function PredictionCard({
 
   const winnerLabel =
     prediction.winner === "home"
-      ? `${homeName} kazanır`
+      ? t("analysis.predictionWinsSuffix", { team: homeName })
       : prediction.winner === "away"
-        ? `${awayName} kazanır`
-        : "Beraberlik"
+        ? t("analysis.predictionWinsSuffix", { team: awayName })
+        : t("analysis.draw")
 
   const confidenceColor =
     prediction.confidence >= 70
@@ -1737,14 +1771,14 @@ function PredictionCard({
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
           <Sparkles className="h-3.5 w-3.5" />
         </span>
-        <span className="text-sm font-semibold text-foreground">AI Ensemble Tahmini</span>
+        <span className="text-sm font-semibold text-foreground">{t("analysis.predictionTitle")}</span>
         {modelCount > 0 && (
           <span className="rounded-full border border-primary/20 bg-primary/8 px-2 py-0.5 text-[10px] font-bold text-primary">
-            {modelCount} model
+            {t("analysis.predictionModelCountBadge", { count: modelCount })}
           </span>
         )}
         <span className="ml-auto rounded-full border border-border/60 bg-secondary px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
-          Gün sonuna kadar geçerli
+          {t("analysis.predictionValidUntil")}
         </span>
       </div>
 
@@ -1753,7 +1787,7 @@ function PredictionCard({
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col gap-0.5">
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Ağırlıklı Tahmini Skor
+              {t("analysis.predictionWeightedScore")}
             </span>
             <div className="flex items-baseline gap-1.5">
               <span className="text-3xl font-black tabular-nums text-foreground">{prediction.homeScore}</span>
@@ -1766,7 +1800,7 @@ function PredictionCard({
               {winnerLabel}
             </span>
             <span className={`text-[11px] font-semibold tabular-nums ${confidenceColor}`}>
-              %{prediction.confidence} güven
+              {t("analysis.predictionConfidence", { n: prediction.confidence })}
             </span>
           </div>
         </div>
@@ -1779,7 +1813,7 @@ function PredictionCard({
               ? "border-primary/25 bg-primary/8 text-primary"
               : "border-border/60 bg-secondary text-muted-foreground",
           )}>
-            {prediction.btts ? "İki takım da atar" : "Tek taraflı gol"}
+            {prediction.btts ? t("analysis.predictionBttsYes") : t("analysis.predictionBttsNo")}
           </span>
           <span className={cn(
             "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold",
@@ -1787,7 +1821,7 @@ function PredictionCard({
               ? "border-primary/25 bg-primary/8 text-primary"
               : "border-border/60 bg-secondary text-muted-foreground",
           )}>
-            {prediction.overUnder === "over" ? "2.5 Üstü" : "2.5 Altı"}
+            {prediction.overUnder === "over" ? t("analysis.predictionOverLabel") : t("analysis.predictionUnderLabel")}
           </span>
         </div>
 
@@ -1814,7 +1848,7 @@ function PredictionCard({
               onClick={() => setShowVotes((v) => !v)}
               className="flex w-full items-center justify-between text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
             >
-              <span>Model tahminlerini göster ({modelCount} model)</span>
+              <span>{t("analysis.predictionShowVotes", { count: modelCount })}</span>
               {showVotes ? (
                 <ChevronUp className="h-3.5 w-3.5" />
               ) : (
