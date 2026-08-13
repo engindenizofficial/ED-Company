@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useLanguage } from "@/contexts/language-context"
 import { resetAllMarketValueData } from "@/app/actions/market-value-cron"
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,7 @@ import { resetAllMarketValueData } from "@/app/actions/market-value-cron"
 // ---------------------------------------------------------------------------
 
 export function MarketValueDangerZone() {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +43,7 @@ export function MarketValueDangerZone() {
         await resetAllMarketValueData()
         window.location.reload()
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Silme işlemi başarısız oldu.")
+        setError(err instanceof Error ? err.message : t("admin.dangerZone.deleteFailedDefault"))
       }
     })
   }
@@ -51,12 +53,9 @@ export function MarketValueDangerZone() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm font-semibold text-destructive">
           <Trash2 className="size-4" />
-          Tehlikeli Bölge
+          {t("admin.dangerZone.heading")}
         </CardTitle>
-        <CardDescription>
-          Tüm piyasa değeri verilerini (takım/oyuncu değerleri, onay/red listesi ve tarama geçmişi) kalıcı olarak
-          siler. Bu işlem geri alınamaz — bir sonraki tarama her şeyi sıfırdan yeniden eşleştirir.
-        </CardDescription>
+        <CardDescription>{t("admin.dangerZone.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <AlertDialog open={open} onOpenChange={setOpen}>
@@ -64,22 +63,18 @@ export function MarketValueDangerZone() {
             render={
               <Button variant="destructive" size="sm">
                 <Trash2 data-icon="inline-start" />
-                Tümünü Sıfırla
+                {t("admin.dangerZone.resetAll")}
               </Button>
             }
           />
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Tüm piyasa değeri verileri silinsin mi?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Bu işlem şunları kalıcı olarak siler: tüm takım ve oyuncu piyasa değerleri (onaylanmış/reddedilmiş
-                eşleşmeler dahil), onay/red gözden geçirme listesi ve haftalık tarama döngüsü geçmişi. Bu işlem geri
-                alınamaz.
-              </AlertDialogDescription>
+              <AlertDialogTitle>{t("admin.dangerZone.confirmTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>{t("admin.dangerZone.confirmDescription")}</AlertDialogDescription>
             </AlertDialogHeader>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isPending}>Vazgeç</AlertDialogCancel>
+              <AlertDialogCancel disabled={isPending}>{t("admin.dangerZone.cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 disabled={isPending}
                 onClick={(e) => {
@@ -93,7 +88,7 @@ export function MarketValueDangerZone() {
                 ) : (
                   <Trash2 data-icon="inline-start" />
                 )}
-                Evet, tümünü sil
+                {t("admin.dangerZone.confirmDelete")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

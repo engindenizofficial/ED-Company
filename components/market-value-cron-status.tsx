@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Loader2, PlayCircle, RotateCcw, Timer } fr
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useLanguage } from "@/contexts/language-context"
 import {
   resumeMarketValueCronNow,
   triggerMarketValueScanNow,
@@ -24,15 +25,19 @@ import {
 // ilerleyen bir döngü varsa ikinci bir tanesi başlatılmaz.
 // ---------------------------------------------------------------------------
 
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })
-}
-
 export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRunStatus | null }) {
+  const { locale, t } = useLanguage()
   const [status, setStatus] = useState(initialStatus)
   const [isResuming, startResumeTransition] = useTransition()
   const [isScanning, startScanTransition] = useTransition()
   const [message, setMessage] = useState<string | null>(null)
+
+  function formatDateTime(iso: string): string {
+    return new Date(iso).toLocaleString(locale === "tr" ? "tr-TR" : "en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    })
+  }
 
   const isBroken = status !== null && status.status === "running" && status.isStale
   const isHealthyRunning = status !== null && status.status === "running" && !status.isStale
@@ -42,9 +47,9 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
     startResumeTransition(async () => {
       const result = await resumeMarketValueCronNow()
       if (result.triggered) {
-        setMessage("Devam ettirme tetiklendi — birkaç saniye içinde ilerlemeye başlayacak.")
+        setMessage(t("admin.cron.resumeTriggered"))
       } else {
-        setMessage(result.reason ?? "Devam ettirilemedi.")
+        setMessage(result.reason ?? t("admin.cron.resumeFailedDefault"))
       }
     })
   }
@@ -54,9 +59,9 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
     startScanTransition(async () => {
       const result = await triggerMarketValueScanNow()
       if (result.triggered) {
-        setMessage("Tarama tetiklendi — birkaç saniye içinde ilerlemeye başlayacak, bu kartı yenileyerek takip edebilirsiniz.")
+        setMessage(t("admin.cron.scanTriggered"))
       } else {
-        setMessage(result.reason ?? "Tarama tetiklenemedi.")
+        setMessage(result.reason ?? t("admin.cron.scanFailedDefault"))
       }
     })
   }
@@ -74,7 +79,7 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
           ) : (
             <CheckCircle2 className="size-4 text-muted-foreground" />
           )}
-          Piyasa değeri senkron durumu
+          {t("admin.cron.heading")}
         </CardTitle>
         <Button
           size="sm"
@@ -88,43 +93,49 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
           ) : (
             <PlayCircle data-icon="inline-start" />
           )}
-          Şimdi Tara
+          {t("admin.cron.scanNow")}
         </Button>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {status === null ? (
-          <p className="text-sm text-muted-foreground">
-            Henüz hiç tarama çalıştırılmadı. Haftalık otomatik taramayı beklemek istemiyorsanız &quot;Şimdi Tara&quot;
-            butonuyla hemen başlatabilirsiniz.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("admin.cron.neverRun")}</p>
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Badge variant={isBroken ? "destructive" : "outline"}>
-                {status.status === "running" ? (isBroken ? "Zincir kırıldı" : "Çalışıyor") : "Tamamlandı"}
+                {status.status === "running"
+                  ? isBroken
+                    ? t("admin.cron.statusBroken")
+                    : t("admin.cron.statusRunning")
+                  : t("admin.cron.statusCompleted")}
               </Badge>
               <span className="text-muted-foreground">
-                {status.currentLeagueIndex}/{status.totalLeagues} lig işlendi
+                {t("admin.cron.leaguesProcessed", {
+                  current: status.currentLeagueIndex,
+                  total: status.totalLeagues,
+                })}
               </span>
               {status.hadErrors && (
                 <Badge variant="secondary" className="gap-1">
                   <Timer className="size-3" />
-                  {status.failedLeagueIds.length} lig başarısız
+                  {t("admin.cron.leaguesFailed", { count: status.failedLeagueIds.length })}
                 </Badge>
               )}
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Döngü başlangıcı: {formatDateTime(status.runStartedAt)} · Son heartbeat:{" "}
-              {formatDateTime(status.heartbeatAt)}
+              {t("admin.cron.cycleStart", {
+                date: formatDateTime(status.runStartedAt),
+                heartbeat: formatDateTime(status.heartbeatAt),
+              })}
             </p>
 
             {isBroken && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-destructive">
-                  Zincir {Math.round((Date.now() - new Date(status.heartbeatAt).getTime()) / 60000)} dakikadır
-                  ilerlemedi. Otomatik bir devam ettirme yapılmaz — devam etmesi için aşağıdaki butonla manuel olarak
-                  tetiklemeniz gerekir.
+                  {t("admin.cron.brokenWarning", {
+                    minutes: Math.round((Date.now() - new Date(status.heartbeatAt).getTime()) / 60000),
+                  })}
                 </p>
                 <Button size="sm" variant="outline" disabled={isResuming} onClick={handleResume} className="shrink-0">
                   {isResuming ? (
@@ -132,7 +143,7 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
                   ) : (
                     <RotateCcw data-icon="inline-start" />
                   )}
-                  Devam Ettir
+                  {t("admin.cron.resume")}
                 </Button>
               </div>
             )}

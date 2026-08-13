@@ -5,6 +5,7 @@ import { Check, Download, LoaderCircle, Share2 } from "lucide-react"
 import type { Fixture, MatchPrediction } from "@/lib/types"
 import { MatchSharePoster } from "./match-share-poster"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/contexts/language-context"
 
 // ---------------------------------------------------------------------------
 // MatchShareActions — "Paylaş" ve "İndir" butonları. Görünmez (ekran dışı)
@@ -33,6 +34,7 @@ export function MatchShareActions({
   fixture: Fixture
   prediction: MatchPrediction
 }) {
+  const { t } = useLanguage()
   const posterRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<Status>("idle")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -40,13 +42,13 @@ export function MatchShareActions({
   const shareSucceeded = status === "shared"
 
   async function renderPoster(): Promise<Blob> {
-    if (!posterRef.current) throw new Error("Kart hazırlanamadı")
+    if (!posterRef.current) throw new Error(t("matchShare.errorPrepareFailed"))
     const { toBlob } = await import("html-to-image")
     const blob = await toBlob(posterRef.current, {
       pixelRatio: 2,
       backgroundColor: "#f4f5f7",
     })
-    if (!blob) throw new Error("Görsel oluşturulamadı")
+    if (!blob) throw new Error(t("matchShare.errorImageFailed"))
     return blob
   }
 
@@ -70,7 +72,7 @@ export function MatchShareActions({
       setStatus("downloaded")
       setTimeout(() => setStatus("idle"), 1800)
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Kart indirilemedi")
+      setErrorMsg(err instanceof Error ? err.message : t("matchShare.errorDownloadFailed"))
       setStatus("idle")
     }
   }
@@ -79,14 +81,14 @@ export function MatchShareActions({
     setErrorMsg(null)
     setStatus("sharing")
 
-    const shareText = `${fixture.home.name} - ${fixture.away.name} | AI Tahmini: ${prediction.homeScore}-${prediction.awayScore} · edcompanyofficial.com`
+    const shareText = `${fixture.home.name} - ${fixture.away.name} | ${t("matchShare.shareTextPrediction")}: ${prediction.homeScore}-${prediction.awayScore} · edcompanyofficial.com`
     const hasNavigatorShare = typeof navigator !== "undefined" && typeof navigator.share === "function"
 
     let blob: Blob
     try {
       blob = await renderPoster()
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Kart hazırlanamadı")
+      setErrorMsg(err instanceof Error ? err.message : t("matchShare.errorPrepareFailed"))
       setStatus("idle")
       return
     }
@@ -106,7 +108,7 @@ export function MatchShareActions({
         try {
           await navigator.share({
             files: [file],
-            title: "ED Analytics — AI Maç Tahmini",
+            title: t("matchShare.shareTitle"),
             text: shareText,
           })
           setStatus("shared")
@@ -124,9 +126,9 @@ export function MatchShareActions({
       // 2) Dosya paylaşımı desteklenmiyor: en azından metin/link paylaşımını dene,
       // görseli de kullanıcı cihazına indir ki manuel olarak eklenebilsin.
       try {
-        await navigator.share({ title: "ED Analytics — AI Maç Tahmini", text: shareText })
+        await navigator.share({ title: t("matchShare.shareTitle"), text: shareText })
         triggerDownload(blob)
-        setErrorMsg("Görsel paylaşımı bu tarayıcıda desteklenmiyor, kart ayrıca cihazınıza indirildi.")
+        setErrorMsg(t("matchShare.errorShareFileUnsupported"))
         setStatus("idle")
         return
       } catch (err) {
@@ -140,7 +142,7 @@ export function MatchShareActions({
 
     // 3) Web Share API hiç yok veya tüm denemeler başarısız oldu: kartı indir.
     triggerDownload(blob)
-    setErrorMsg("Bu tarayıcı doğrudan paylaşımı desteklemiyor, kart cihazınıza indirildi. Sosyal medya uygulamasından manuel olarak ekleyebilirsiniz.")
+    setErrorMsg(t("matchShare.errorShareUnsupported"))
     setStatus("idle")
   }
 
@@ -160,7 +162,7 @@ export function MatchShareActions({
           ) : (
             <Share2 className="h-3.5 w-3.5" />
           )}
-          {shareSucceeded ? "Paylaşıldı" : "Paylaş"}
+          {shareSucceeded ? t("matchShare.shared") : t("matchShare.button")}
         </button>
         <button
           type="button"
@@ -180,7 +182,7 @@ export function MatchShareActions({
           ) : (
             <Download className="h-3.5 w-3.5" />
           )}
-          {status === "downloaded" ? "İndirildi" : "İndir"}
+          {status === "downloaded" ? t("matchShare.downloaded") : t("matchShare.download")}
         </button>
       </div>
 

@@ -4,6 +4,7 @@ import { Check, Users } from "lucide-react"
 import { useEffect, useState } from "react"
 import useSWR from "swr"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/contexts/language-context"
 import type { VoteChoice, VoteState } from "@/lib/types"
 
 const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((res) => res.json() as Promise<VoteState>)
@@ -22,6 +23,7 @@ export function MatchVoteBar({
   homeName: string
   awayName: string
 }) {
+  const { locale, t } = useLanguage()
   const { data, mutate } = useSWR<VoteState>(`/api/vote?fixtureId=${fixtureId}`, fetcher, {
     revalidateOnFocus: false,
   })
@@ -89,12 +91,12 @@ export function MatchVoteBar({
     <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
       <div className="flex items-center gap-2 px-4 pt-3">
         <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Sence Kim Kazanır?
+          {t("matchVote.prompt")}
         </span>
         {hasVoted && (
           <span className="ml-auto flex items-center gap-1 text-[11px] font-medium text-muted-foreground tabular-nums">
             <Users className="h-3 w-3" />
-            {state.total.toLocaleString("tr-TR")} oy
+            {t("matchVote.votes", { count: state.total.toLocaleString(locale === "tr" ? "tr-TR" : "en-US") })}
           </span>
         )}
       </div>
@@ -109,7 +111,7 @@ export function MatchVoteBar({
               className="border-primary/30 hover:bg-primary/10 hover:border-primary/50"
             />
             <VoteButton
-              label="Berabere"
+              label={t("matchVote.drawOption")}
               onClick={() => vote("draw")}
               disabled={pending}
               className="border-border hover:bg-secondary hover:border-muted-foreground/40"
@@ -154,7 +156,7 @@ export function MatchVoteBar({
                 activeClassName="border-primary/50 bg-primary/12"
               />
               <VoteLabel
-                label="Berabere"
+                label={t("matchVote.drawOption")}
                 active={state.myVote === "draw"}
                 tone="text-foreground"
                 activeClassName="border-foreground/30 bg-foreground/8"
@@ -231,6 +233,7 @@ function VoteLabel({
   tone: string
   activeClassName: string
 }) {
+  const { t } = useLanguage()
   return (
     <div
       className={cn(
@@ -244,7 +247,7 @@ function VoteLabel({
       >
         {label}
       </span>
-      {active && <span className="sr-only">(senin oyun)</span>}
+      {active && <span className="sr-only">{t("matchVote.yourVoteSrOnly")}</span>}
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatMarketValueEur } from "@/lib/market-value-format"
+import { useLanguage } from "@/contexts/language-context"
 import {
   approveReviewEntry,
   backfillReviewQueueCountriesBatch,
@@ -33,15 +34,14 @@ export interface ReviewQueueItem {
 type Status = ReviewQueueItem["status"]
 type EntityType = ReviewQueueItem["entityType"]
 
-const STATUS_LABEL: Record<Status, string> = {
-  pending: "Bekleyen",
-  approved: "Onaylanan",
-  rejected: "Reddedilen",
+type TFn = (key: string, vars?: Record<string, string | number>) => string
+
+function statusLabel(t: TFn, status: Status): string {
+  return t(`admin.review.status${status.charAt(0).toUpperCase()}${status.slice(1)}`)
 }
 
-const ENTITY_TYPE_LABEL: Record<EntityType, string> = {
-  team: "Takımlar",
-  player: "Oyuncular",
+function entityTypeLabel(t: TFn, entityType: EntityType): string {
+  return t(`admin.review.entity${entityType.charAt(0).toUpperCase()}${entityType.slice(1)}s`)
 }
 
 const ENTITY_TYPE_ICON: Record<EntityType, typeof Users> = {
@@ -57,6 +57,7 @@ function confidenceVariant(score: number): "default" | "secondary" | "destructiv
 }
 
 export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) {
+  const { t } = useLanguage()
   const [statusById, setStatusById] = useState<Record<string, Status>>(
     () => Object.fromEntries(items.map((item) => [item.id, item.status])),
   )
@@ -93,7 +94,7 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
           done = result.done
         }
       } catch (err) {
-        setBackfillError(err instanceof Error ? err.message : "Ülke bilgileri doldurulurken bir hata oluştu.")
+        setBackfillError(err instanceof Error ? err.message : t("admin.review.backfillErrorDefault"))
       } finally {
         setIsBackfilling(false)
       }
@@ -138,11 +139,8 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
             <ShieldAlert className="size-5" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-balance">Piyasa Değeri Manuel Kontrolü</h1>
-            <p className="text-sm text-muted-foreground text-pretty">
-              Otomatik eşleştirmenin güven skoru eşiğin altında kaldığı takım ve oyuncu adayları. Onayladığınızda
-              aday, piyasa değeri tablosuna işlenir; reddettiğinizde ilgili kayıt boş bırakılır.
-            </p>
+            <h1 className="text-lg font-bold tracking-tight text-balance">{t("admin.review.heading")}</h1>
+            <p className="text-sm text-muted-foreground text-pretty">{t("admin.review.description")}</p>
           </div>
         </div>
 
@@ -154,12 +152,12 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
               ) : (
                 <Globe data-icon="inline-start" />
               )}
-              Ülkeleri Doldur
+              {t("admin.review.fillCountries")}
             </Button>
             <p className="text-xs text-muted-foreground">
               {isBackfilling
-                ? `${backfillDone} kayıt dolduruldu, devam ediyor…`
-                : `${missingCountryCount} bekleyen kayıtta ülke bilgisi eksik`}
+                ? t("admin.review.backfillProgress", { count: backfillDone })
+                : t("admin.review.backfillMissing", { count: missingCountryCount })}
             </p>
             {backfillError && <p className="text-xs text-destructive">{backfillError}</p>}
           </div>
@@ -174,7 +172,7 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
             return (
               <TabsTrigger key={entityType} value={entityType}>
                 <Icon data-icon="inline-start" />
-                {ENTITY_TYPE_LABEL[entityType]}
+                {entityTypeLabel(t, entityType)}
                 {pendingCount > 0 && (
                   <Badge variant="secondary" className="ml-1.5">
                     {pendingCount}
@@ -193,6 +191,7 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
               isPending={isPending}
               pendingId={pendingId}
               onResolve={resolve}
+              t={t}
             />
           </TabsContent>
         ))}
@@ -213,19 +212,21 @@ function StatusTabsPanel({
   isPending,
   pendingId,
   onResolve,
+  t,
 }: {
   entityType: EntityType
   grouped: Record<Status, ReviewQueueItem[]>
   isPending: boolean
   pendingId: string | null
   onResolve: (id: string, next: Status) => void
+  t: TFn
 }) {
   return (
     <Tabs defaultValue="pending">
       <TabsList>
         {(["pending", "approved", "rejected"] as const).map((status) => (
           <TabsTrigger key={status} value={status}>
-            {STATUS_LABEL[status]}
+            {statusLabel(t, status)}
             <Badge variant="secondary" className="ml-1.5">
               {grouped[status].length}
             </Badge>
@@ -241,11 +242,13 @@ function StatusTabsPanel({
                 <EmptyMedia variant="icon">
                   <ShieldAlert />
                 </EmptyMedia>
-                <EmptyTitle>Kayıt yok</EmptyTitle>
+                <EmptyTitle>{t("admin.review.emptyTitle")}</EmptyTitle>
                 <EmptyDescription>
                   {status === "pending"
-                    ? `Şu anda gözden geçirilmeyi bekleyen bir ${entityType === "team" ? "takım" : "oyuncu"} eşleşmesi yok.`
-                    : `${STATUS_LABEL[status]} durumunda bir kayıt bulunmuyor.`}
+                    ? t("admin.review.emptyPendingDescription", {
+                        entity: entityType === "team" ? t("admin.review.entityTeam") : t("admin.review.entityPlayer"),
+                      })
+                    : t("admin.review.emptyStatusDescription", { status: statusLabel(t, status) })}
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
@@ -253,20 +256,24 @@ function StatusTabsPanel({
             <Card>
               <CardHeader className="sr-only">
                 <CardTitle>
-                  {STATUS_LABEL[status]} {ENTITY_TYPE_LABEL[entityType].toLowerCase()}
+                  {statusLabel(t, status)} {entityTypeLabel(t, entityType).toLowerCase()}
                 </CardTitle>
-                <CardDescription>{ENTITY_TYPE_LABEL[entityType]} eşleştirme adayları</CardDescription>
+                <CardDescription>
+                  {t("admin.review.matchingCandidatesDescription", { entity: entityTypeLabel(t, entityType) })}
+                </CardDescription>
               </CardHeader>
               <CardContent className="px-0 sm:px-4">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>API-Football</TableHead>
-                        <TableHead>Transfermarkt adayı</TableHead>
-                        <TableHead>Değer</TableHead>
-                        <TableHead>Güven</TableHead>
-                        {status === "pending" && <TableHead className="text-right">Aksiyon</TableHead>}
+                        <TableHead>{t("admin.review.colApiFootball")}</TableHead>
+                        <TableHead>{t("admin.review.colTransfermarktCandidate")}</TableHead>
+                        <TableHead>{t("admin.review.colValue")}</TableHead>
+                        <TableHead>{t("admin.review.colConfidence")}</TableHead>
+                        {status === "pending" && (
+                          <TableHead className="text-right">{t("admin.review.colAction")}</TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -307,7 +314,7 @@ function StatusTabsPanel({
                                     ) : (
                                       <X data-icon="inline-start" />
                                     )}
-                                    Reddet
+                                    {t("admin.reject")}
                                   </Button>
                                   <Button size="sm" disabled={busy} onClick={() => onResolve(item.id, "approved")}>
                                     {busy ? (
@@ -315,7 +322,7 @@ function StatusTabsPanel({
                                     ) : (
                                       <Check data-icon="inline-start" />
                                     )}
-                                    Onayla
+                                    {t("admin.approve")}
                                   </Button>
                                 </div>
                               </TableCell>

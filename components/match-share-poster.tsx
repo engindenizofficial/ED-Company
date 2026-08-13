@@ -3,6 +3,7 @@
 import { forwardRef } from "react"
 import { Sparkles } from "lucide-react"
 import type { Fixture, MatchPrediction } from "@/lib/types"
+import { useLanguage } from "@/contexts/language-context"
 
 // ---------------------------------------------------------------------------
 // MatchSharePoster — sosyal medyada paylaşılabilir, afiş kalitesinde PNG
@@ -36,35 +37,42 @@ const PALETTE = {
   accent: "#3b5fe0",
 }
 
-function winnerLabel(prediction: MatchPrediction, homeName: string, awayName: string): string {
-  if (prediction.winner === "home") return `${homeName} kazanır`
-  if (prediction.winner === "away") return `${awayName} kazanır`
-  return "Beraberlik"
+function winnerLabel(
+  prediction: MatchPrediction,
+  homeName: string,
+  awayName: string,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
+  if (prediction.winner === "home") return t("matchShare.winnerWins", { team: homeName })
+  if (prediction.winner === "away") return t("matchShare.winnerWins", { team: awayName })
+  return t("matchShare.draw")
 }
 
 export const MatchSharePoster = forwardRef<
   HTMLDivElement,
   { fixture: Fixture; prediction: MatchPrediction }
 >(function MatchSharePoster({ fixture, prediction }, ref) {
+  const { locale, t } = useLanguage()
+  const dateLocale = locale === "tr" ? "tr-TR" : "en-US"
   const { home, away, league } = fixture
-  const winner = winnerLabel(prediction, home.name, away.name)
+  const winner = winnerLabel(prediction, home.name, away.name, t)
   const factors = prediction.keyFactors.slice(0, 2)
   const generatedAt = new Date(prediction.cachedAt || fixture.date)
-  const generatedDate = generatedAt.toLocaleDateString("tr-TR", {
+  const generatedDate = generatedAt.toLocaleDateString(dateLocale, {
     day: "2-digit",
     month: "long",
     year: "numeric",
   })
-  const generatedTime = generatedAt.toLocaleTimeString("tr-TR", {
+  const generatedTime = generatedAt.toLocaleTimeString(dateLocale, {
     hour: "2-digit",
     minute: "2-digit",
   })
   const kickoffAt = new Date(fixture.date)
-  const kickoffDate = kickoffAt.toLocaleDateString("tr-TR", {
+  const kickoffDate = kickoffAt.toLocaleDateString(dateLocale, {
     day: "2-digit",
     month: "long",
   })
-  const kickoffTime = kickoffAt.toLocaleTimeString("tr-TR", {
+  const kickoffTime = kickoffAt.toLocaleTimeString(dateLocale, {
     hour: "2-digit",
     minute: "2-digit",
   })
@@ -220,7 +228,7 @@ export const MatchSharePoster = forwardRef<
               textTransform: "uppercase",
             }}
           >
-            Yapay Zekanın Tahmini
+            {t("matchShare.predictionLabel")}
           </span>
 
           <div
@@ -270,7 +278,7 @@ export const MatchSharePoster = forwardRef<
               padding: "18px 32px",
             }}
           >
-            <span style={{ fontSize: 17, fontWeight: 600, color: PALETTE.muted }}>Doğruluk Oranı</span>
+            <span style={{ fontSize: 17, fontWeight: 600, color: PALETTE.muted }}>{t("matchShare.confidenceLabel")}</span>
             <span
               style={{
                 fontFamily: "var(--font-mono), 'Geist Mono', ui-monospace, monospace",
@@ -295,7 +303,7 @@ export const MatchSharePoster = forwardRef<
               color: PALETTE.mutedSoft,
             }}
           >
-            AI Analiz Gerekçesi
+            {t("matchShare.analysisLabel")}
           </span>
           {factors.length > 0 ? (
             factors.map((factor, i) => (
@@ -358,7 +366,7 @@ export const MatchSharePoster = forwardRef<
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
             <span style={{ fontSize: 15, fontWeight: 600, color: PALETTE.mutedSoft }}>{generatedDate}</span>
             <span style={{ fontSize: 13, fontWeight: 500, color: PALETTE.mutedSoft }}>
-              Tahmin oluşturuldu · {generatedTime}
+              {t("matchShare.generatedAt", { time: generatedTime })}
             </span>
           </div>
         </div>

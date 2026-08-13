@@ -11,7 +11,7 @@ import { MarketValueDangerZone } from "@/components/market-value-danger-zone"
 import { getMarketValueCronStatus } from "@/app/actions/market-value-cron"
 
 export const metadata = {
-  title: "Piyasa Değeri Kontrolü — ED Company",
+  title: "Market Value Review — ED Company",
 }
 
 export const dynamic = "force-dynamic"
