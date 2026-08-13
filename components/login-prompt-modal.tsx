@@ -4,6 +4,7 @@ import { KeyRound, UserPlus, X } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
+import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 
 // Global açma fonksiyonu — NavTabs'tan çağrılabilir
 let _openLoginModal: (() => void) | null = null
@@ -20,6 +21,8 @@ export function LoginPromptModal() {
   function handleDismiss() {
     setVisible(false)
   }
+
+  useCloseOnBackButton(visible, handleDismiss)
 
   if (!visible) return null
 

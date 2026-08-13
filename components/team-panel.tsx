@@ -21,6 +21,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTeamPanel } from "@/contexts/team-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
+import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { PlayerButton } from "@/components/player-panel"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
@@ -796,9 +797,10 @@ function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direc
 export function TeamPanel() {
   const { panel, closeTeam } = useTeamPanel()
   useBodyScrollLock(!!panel)
+  useCloseOnBackButton(!!panel, closeTeam)
   if (!panel) return null
   return <TeamPanelInner key={panel.team.id} closeTeam={closeTeam} panel={panel} />
-}
+  }
 
 function TeamPanelInner({
   panel,

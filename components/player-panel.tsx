@@ -24,6 +24,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react"
 import { usePlayerPanel } from "@/contexts/player-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
+import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 import { toTurkishCountry } from "@/lib/tr-aliases"
@@ -706,6 +707,7 @@ function SidelinedSection({ playerId, playerName, active }: { playerId: number; 
 export function PlayerPanel() {
   const { panel, closePlayer } = usePlayerPanel()
   useBodyScrollLock(!!panel)
+  useCloseOnBackButton(!!panel, closePlayer)
   if (!panel) return null
   return <PlayerPanelInner key={panel.player.id} closePlayer={closePlayer} panel={panel} />
 }

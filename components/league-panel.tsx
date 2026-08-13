@@ -18,6 +18,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useLeaguePanel, type LeaguePanelState } from "@/contexts/league-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
+import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { PlayerButton } from "@/components/player-panel"
 import { TeamButton } from "@/components/team-panel"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
@@ -665,6 +666,7 @@ function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: n
 export function LeaguePanel() {
   const { panel, closeLeague } = useLeaguePanel()
   useBodyScrollLock(!!panel)
+  useCloseOnBackButton(!!panel, closeLeague)
   if (!panel) return null
   return <LeaguePanelInner key={panel.league.id} closeLeague={closeLeague} panel={panel} />
 }
