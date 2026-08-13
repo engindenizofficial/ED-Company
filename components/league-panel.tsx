@@ -23,7 +23,7 @@ import { PlayerButton } from "@/components/player-panel"
 import { TeamButton } from "@/components/team-panel"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
-import { toTurkishCountry } from "@/lib/tr-aliases"
+import { toDisplayCountry } from "@/lib/tr-aliases"
 import { formatMarketValueEur } from "@/lib/market-value-format"
 import { useLanguage } from "@/contexts/language-context"
 import type {
@@ -107,6 +107,7 @@ interface SectionState<T> {
 }
 
 function useLeagueSection<T>(leagueId: number, section: string, open: boolean) {
+  const { t } = useLanguage()
   const [state, setState] = useState<SectionState<T>>({ status: "idle", data: null, error: null })
   // "hasLoadedRef" isteğin tamamlanıp tamamlanmadığını takip eder. React 18/19
   // geliştirme modunda (Strict Mode) her effect mount->unmount->mount şeklinde
@@ -125,7 +126,7 @@ function useLeagueSection<T>(leagueId: number, section: string, open: boolean) {
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => null)
-          throw new Error(body?.error ?? `Sunucu hatası: ${res.status}`)
+          throw new Error(body?.error ?? t("common.serverErrorWithStatus", { status: res.status }))
         }
         return res.json() as Promise<{ data: T | null }>
       })
@@ -137,7 +138,7 @@ function useLeagueSection<T>(leagueId: number, section: string, open: boolean) {
       .catch((err) => {
         if (cancelled) return
         hasLoadedRef.current = true
-        setState({ status: "error", data: null, error: err instanceof Error ? err.message : "Bir hata oluştu" })
+        setState({ status: "error", data: null, error: err instanceof Error ? err.message : t("common.unexpectedError") })
       })
     return () => {
       cancelled = true
@@ -360,7 +361,7 @@ function TopScorersSection({ leagueId, leagueName, active }: { leagueId: number;
                     <th className="pb-2 pr-3 font-semibold">{t("league.player")}</th>
                     <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.team")}>T</th>
                     <th className="px-1.5 pb-2 text-center font-semibold" title={t("games.title")}>G</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Asist">A</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("analysis.colAssistsTitle")}>A</th>
                     <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.matchAbbr")}>M</th>
                     <th className="pl-1.5 pb-2 text-center font-semibold" title={t("league.avgAbbr")}>{t("league.avgAbbr")}</th>
                   </tr>
@@ -421,7 +422,7 @@ function TopAssistsSection({ leagueId, leagueName, active }: { leagueId: number;
                     <th className="w-6 pb-2 pr-2 font-semibold">#</th>
                     <th className="pb-2 pr-3 font-semibold">{t("league.player")}</th>
                     <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.team")}>T</th>
-                    <th className="px-1.5 pb-2 text-center font-semibold" title="Asist">A</th>
+                    <th className="px-1.5 pb-2 text-center font-semibold" title={t("analysis.colAssistsTitle")}>A</th>
                     <th className="px-1.5 pb-2 text-center font-semibold" title={t("games.title")}>G</th>
                     <th className="px-1.5 pb-2 text-center font-semibold" title={t("league.matchAbbr")}>M</th>
                     <th className="pl-1.5 pb-2 text-center font-semibold" title={t("league.avgAbbr")}>{t("league.avgAbbr")}</th>
@@ -690,7 +691,7 @@ function LeaguePanelInner({
   panel: LeaguePanelState
   closeLeague: () => void
 }) {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const { league, basic, loading, error } = panel
 
   const tabs: PanelTabItem[] = [
@@ -735,7 +736,7 @@ function LeaguePanelInner({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={league.flagUrl} alt="" className="h-3 w-4 rounded-[2px] object-cover" width={16} height={12} loading="lazy" decoding="async" />
               )}
-              <p className="text-xs text-muted-foreground">{toTurkishCountry(league.country)}</p>
+              <p className="text-xs text-muted-foreground">{toDisplayCountry(league.country, locale)}</p>
             </div>
           </div>
           <button

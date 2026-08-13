@@ -27,8 +27,9 @@ import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
-import { toTurkishCountry } from "@/lib/tr-aliases"
+import { toDisplayCountry } from "@/lib/tr-aliases"
 import { formatMarketValueEur } from "@/lib/market-value-format"
+import { useLanguage } from "@/contexts/language-context"
 import type {
   PlayerProfile,
   PlayerSeasonStats,
@@ -40,13 +41,6 @@ import type {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-const POS_LABEL: Record<string, string> = {
-  Goalkeeper: "Kaleci",
-  Defender: "Defans",
-  Midfielder: "Orta Saha",
-  Attacker: "Forvet",
-}
 
 // ---------------------------------------------------------------------------
 // Sekme verisi çekimi — her sekme yalnızca kendisi açıldığında (open=true)
@@ -62,6 +56,7 @@ interface SectionState<T> {
 }
 
 function usePlayerSection<T>(playerId: number, section: string, open: boolean) {
+  const { t } = useLanguage()
   const [state, setState] = useState<SectionState<T>>({ status: "idle", data: null, error: null })
   // "hasLoadedRef" isteğin tamamlanıp tamamlanmadığını takip eder. React 18/19
   // geliştirme modunda (Strict Mode) her effect mount->unmount->mount şeklinde
@@ -80,7 +75,7 @@ function usePlayerSection<T>(playerId: number, section: string, open: boolean) {
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => null)
-          throw new Error(body?.error ?? `Sunucu hatası: ${res.status}`)
+          throw new Error(body?.error ?? t("common.serverErrorWithStatus", { status: res.status }))
         }
         return res.json() as Promise<{ data: T | null }>
       })
@@ -92,7 +87,7 @@ function usePlayerSection<T>(playerId: number, section: string, open: boolean) {
       .catch((err) => {
         if (cancelled) return
         hasLoadedRef.current = true
-        setState({ status: "error", data: null, error: err instanceof Error ? err.message : "Bir hata oluştu" })
+        setState({ status: "error", data: null, error: err instanceof Error ? err.message : t("common.unexpectedError") })
       })
     return () => {
       cancelled = true
@@ -107,19 +102,21 @@ function usePlayerSection<T>(playerId: number, section: string, open: boolean) {
 }
 
 function SectionLoading({ label }: { label: string }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
-      <p className="text-xs font-medium text-muted-foreground">{label} yükleniyor...</p>
+      <p className="text-xs font-medium text-muted-foreground">{label} {t("playerPanel.loadingSuffix")}</p>
     </div>
   )
 }
 
 function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <AlertTriangle className="h-5 w-5 text-destructive/85" />
-      <p className="text-xs font-bold text-destructive">Veri alınamadı</p>
+      <p className="text-xs font-bold text-destructive">{t("playerPanel.errorTitle")}</p>
       {error && <p className="text-[11px] text-muted-foreground">{error}</p>}
       <button
         type="button"
@@ -127,18 +124,19 @@ function SectionErrorState({ error, onRetry }: { error: string | null; onRetry: 
         className="mt-1 flex items-center gap-1.5 rounded-lg border border-border bg-secondary px-3 py-1.5 text-[11px] font-semibold text-foreground transition-colors hover:bg-secondary/70"
       >
         <RotateCw className="h-3 w-3" />
-        Tekrar dene
+        {t("playerPanel.retry")}
       </button>
     </div>
   )
 }
 
 function SectionEmptyState({ playerName, label }: { playerName: string; label: string }) {
+  const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
       <Inbox className="h-5 w-5 text-muted-foreground/65" />
       <p className="text-xs text-muted-foreground">
-        {playerName} için {label} bulunamadı.
+        {t("playerPanel.emptyFor", { name: playerName, label })}
       </p>
     </div>
   )
@@ -165,6 +163,8 @@ function StatRow({ label, value, sub }: { label: string; value: string; sub?: st
 // ---------------------------------------------------------------------------
 
 function SeasonStatsSection({ playerId, playerName, active }: { playerId: number; playerName: string; active: boolean }) {
+  const { t, locale } = useLanguage()
+  const numberLocale = locale === "en" ? "en-US" : "tr-TR"
   const [selectedIdx, setSelectedIdx] = useState(0)
   const { status, data: stats, error, retry } = usePlayerSection<PlayerSeasonStats[]>(playerId, "stats", active)
 
@@ -203,9 +203,9 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Sezon istatistikleri" />}
+          {status === "loading" && <SectionLoading label={t("team.seasonStats")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState playerName={playerName} label="sezon istatistiği verisi" />}
+          {status === "empty" && <SectionEmptyState playerName={playerName} label={t("playerPanel.seasonStatsData")} />}
           {status === "success" && s && (
             <>
               {/* Season selector */}
@@ -252,7 +252,7 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
                 {rating != null && (
                   <div className="flex flex-col items-center rounded-xl border border-border/60 bg-secondary/30 px-3 py-2">
                     <span className="text-lg font-black tabular-nums text-primary">{rating.toFixed(1)}</span>
-                    <span className="text-[9px] text-muted-foreground">Rating</span>
+                    <span className="text-[9px] text-muted-foreground">{t("playerPanel.rating")}</span>
                   </div>
                 )}
               </div>
@@ -260,10 +260,10 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
               {/* Key stats grid */}
               <div className="mb-4 grid grid-cols-4 gap-2">
                 {[
-                  { label: "Gol", value: goals, color: "text-primary" },
-                  { label: "Asist", value: assists, color: "text-foreground" },
-                  { label: "Maç", value: appearances, color: "text-foreground" },
-                  { label: "İlk 11", value: lineups, color: "text-muted-foreground" },
+                  { label: t("playerPanel.goals"), value: goals, color: "text-primary" },
+                  { label: t("playerPanel.assists"), value: assists, color: "text-foreground" },
+                  { label: t("playerPanel.matches"), value: appearances, color: "text-foreground" },
+                  { label: t("playerPanel.startingXI"), value: lineups, color: "text-muted-foreground" },
                 ].map(({ label, value, color }) => (
                   <div
                     key={label}
@@ -277,52 +277,52 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
 
               {/* Detailed stats rows */}
               <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
-                <StatRow label="Oynanan dakika" value={`${minutes.toLocaleString("tr-TR")} dk`} />
+                <StatRow label={t("playerPanel.minutesPlayed")} value={`${minutes.toLocaleString(numberLocale)} ${t("playerPanel.minutesSuffix")}`} />
                 {shotsTotal > 0 && (
                   <StatRow
-                    label="Şut / İsabetli"
+                    label={t("playerPanel.shotsTotalOn")}
                     value={`${shotsTotal} / ${shotsOn}`}
-                    sub={shotsTotal > 0 ? `${Math.round((shotsOn / shotsTotal) * 100)}% isabet` : undefined}
+                    sub={shotsTotal > 0 ? `${Math.round((shotsOn / shotsTotal) * 100)}${t("playerPanel.accuracySuffix")}` : undefined}
                   />
                 )}
                 {passesTotal > 0 && (
                   <StatRow
-                    label="Pas"
-                    value={passesTotal.toLocaleString("tr-TR")}
+                    label={t("playerPanel.passes")}
+                    value={passesTotal.toLocaleString(numberLocale)}
                     sub={[
-                      passAccuracy != null ? `${passAccuracy.toFixed(0)}% isabet` : null,
-                      passesKey > 0 ? `${passesKey} kilit pas` : null,
+                      passAccuracy != null ? `${passAccuracy.toFixed(0)}${t("playerPanel.accuracySuffix")}` : null,
+                      passesKey > 0 ? `${passesKey} ${t("playerPanel.keyPassSuffix")}` : null,
                     ].filter(Boolean).join(" · ") || undefined}
                   />
                 )}
                 {tacklesTotal > 0 && (
                   <StatRow
-                    label="Top kapma"
+                    label={t("playerPanel.tackles")}
                     value={tacklesTotal.toString()}
                     sub={[
-                      interceptions > 0 ? `${interceptions} müdahale` : null,
-                      blockedShots > 0 ? `${blockedShots} blok` : null,
+                      interceptions > 0 ? `${interceptions} ${t("playerPanel.interceptionSuffix")}` : null,
+                      blockedShots > 0 ? `${blockedShots} ${t("playerPanel.blockedShotSuffix")}` : null,
                     ].filter(Boolean).join(" · ") || undefined}
                   />
                 )}
                 {duelsTotal > 0 && (
                   <StatRow
-                    label="İkili mücadele"
+                    label={t("playerPanel.duels")}
                     value={`${duelsWon} / ${duelsTotal}`}
-                    sub={duelsTotal > 0 ? `${Math.round((duelsWon / duelsTotal) * 100)}% kazanıldı` : undefined}
+                    sub={duelsTotal > 0 ? `${Math.round((duelsWon / duelsTotal) * 100)}${t("playerPanel.wonSuffix")}` : undefined}
                   />
                 )}
                 {dribblesAttempted > 0 && (
                   <StatRow
-                    label="Dribling"
+                    label={t("playerPanel.dribbles")}
                     value={`${dribblesSuccess} / ${dribblesAttempted}`}
-                    sub={dribblesAttempted > 0 ? `${Math.round((dribblesSuccess / dribblesAttempted) * 100)}% başarı` : undefined}
+                    sub={dribblesAttempted > 0 ? `${Math.round((dribblesSuccess / dribblesAttempted) * 100)}${t("playerPanel.successSuffix")}` : undefined}
                   />
                 )}
                 {(foulsDrawn > 0 || foulsCommitted > 0) && (
-                  <StatRow label="Faul kazanıldı / yapıldı" value={`${foulsDrawn} / ${foulsCommitted}`} />
+                  <StatRow label={t("playerPanel.foulsDrawnCommitted")} value={`${foulsDrawn} / ${foulsCommitted}`} />
                 )}
-                {offsides > 0 && <StatRow label="Ofsayt" value={offsides.toString()} />}
+                {offsides > 0 && <StatRow label={t("playerPanel.offsides")} value={offsides.toString()} />}
               </div>
 
               {/* Cards */}
@@ -332,7 +332,7 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
                     <div className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-secondary/30 px-2.5 py-1.5">
                       <span className="inline-block h-3.5 w-2.5 rounded-[2px] bg-yellow-400" />
                       <span className="text-xs font-black tabular-nums text-foreground">{yellow}</span>
-                      <span className="text-[10px] text-muted-foreground">Sarı</span>
+                      <span className="text-[10px] text-muted-foreground">{t("playerPanel.yellowCard")}</span>
                     </div>
                   )}
                   {yellowRed > 0 && (
@@ -342,14 +342,14 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
                         <span className="inline-block h-3.5 w-2 rounded-[2px] bg-red-500" />
                       </span>
                       <span className="text-xs font-black tabular-nums text-foreground">{yellowRed}</span>
-                      <span className="text-[10px] text-muted-foreground">Sarı-kırmızı</span>
+                      <span className="text-[10px] text-muted-foreground">{t("playerPanel.yellowRedCard")}</span>
                     </div>
                   )}
                   {red > 0 && (
                     <div className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-secondary/30 px-2.5 py-1.5">
                       <span className="inline-block h-3.5 w-2.5 rounded-[2px] bg-red-500" />
                       <span className="text-xs font-black tabular-nums text-foreground">{red}</span>
-                      <span className="text-[10px] text-muted-foreground">Kırmızı</span>
+                      <span className="text-[10px] text-muted-foreground">{t("playerPanel.redCard")}</span>
                     </div>
                   )}
                 </div>
@@ -359,13 +359,13 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
               {(penaltyScored > 0 || penaltyMissed > 0 || penaltyWon > 0 || penaltySaved > 0) && (
                 <div className="mt-3 rounded-xl border border-border/60 bg-secondary/20">
                   <p className="border-b border-border/60 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Penaltı
+                    {t("playerPanel.penalty")}
                   </p>
                   <div className="flex flex-col divide-y divide-border/60">
-                    {penaltyScored > 0 && <StatRow label="Gol" value={penaltyScored.toString()} />}
-                    {penaltyMissed > 0 && <StatRow label="Kaçırılan" value={penaltyMissed.toString()} />}
-                    {penaltyWon > 0 && <StatRow label="Kazanılan" value={penaltyWon.toString()} />}
-                    {penaltySaved > 0 && <StatRow label="Kurtarılan" value={penaltySaved.toString()} />}
+                    {penaltyScored > 0 && <StatRow label={t("playerPanel.goals")} value={penaltyScored.toString()} />}
+                    {penaltyMissed > 0 && <StatRow label={t("playerPanel.penaltyMissed")} value={penaltyMissed.toString()} />}
+                    {penaltyWon > 0 && <StatRow label={t("playerPanel.penaltyWon")} value={penaltyWon.toString()} />}
+                    {penaltySaved > 0 && <StatRow label={t("playerPanel.penaltySaved")} value={penaltySaved.toString()} />}
                   </div>
                 </div>
               )}

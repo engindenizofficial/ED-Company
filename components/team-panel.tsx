@@ -526,9 +526,9 @@ function TopScorersSection({ teamId, teamName, active }: { teamId: number; teamN
                   <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
                     <th className="pb-2 pr-2 font-semibold w-6">#</th>
                     <th className="pb-2 pr-3 font-semibold">{t("team.player")}</th>
-                    <th className="pb-2 px-1.5 font-semibold text-center" title="Gol">G</th>
-                    <th className="pb-2 px-1.5 font-semibold text-center" title="Asist">A</th>
-                    <th className="pb-2 px-1.5 font-semibold text-center" title="Maç">M</th>
+                    <th className="pb-2 px-1.5 font-semibold text-center" title={t("analysis.colGoalsTitle")}>G</th>
+                    <th className="pb-2 px-1.5 font-semibold text-center" title={t("analysis.colAssistsTitle")}>A</th>
+                    <th className="pb-2 px-1.5 font-semibold text-center" title={t("team.playedMatches")}>M</th>
                     <th className="pb-2 px-1.5 font-semibold text-center" title={t("team.points")}>{t("team.points")}</th>
                     <th className="pb-2 px-1.5 font-semibold text-center" title={t("team.yellowCard")}>🟨</th>
                     <th className="pb-2 pl-1.5 font-semibold text-center" title={t("team.redCard")}>🟥</th>
