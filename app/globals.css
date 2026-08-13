@@ -98,46 +98,61 @@
   --pitch-line: oklch(0.98 0.01 150 / 55%);
 }
 
-/* Dark theme */
+/* Dark theme — "stadium under floodlights": a cool, deep charcoal-teal night
+   rather than a flat near-black, with clearly stepped elevation layers
+   (background < surface-1 < card < popover/surface-2) so panels read as
+   physically lifted instead of blending into the page. */
 .dark {
   color-scheme: dark;
-  --background: oklch(0.12 0.015 250);
-  --foreground: oklch(0.95 0.008 240);
-  --card: oklch(0.16 0.018 250);
-  --card-foreground: oklch(0.95 0.008 240);
-  --popover: oklch(0.16 0.018 250);
-  --popover-foreground: oklch(0.95 0.008 240);
-  --primary: oklch(0.7 0.19 152);
-  --primary-foreground: oklch(0.12 0.02 160);
-  --secondary: oklch(0.2 0.02 250);
-  --secondary-foreground: oklch(0.92 0.008 240);
-  --muted: oklch(0.2 0.018 250);
-  --muted-foreground: oklch(0.68 0.015 245);
-  --accent: oklch(0.65 0.17 255);
+  --background: oklch(0.08 0.016 235);
+  --foreground: oklch(0.96 0.006 235);
+  --card: oklch(0.19 0.024 235);
+  --card-foreground: oklch(0.96 0.006 235);
+  --popover: oklch(0.23 0.027 235);
+  --popover-foreground: oklch(0.96 0.006 235);
+  --primary: oklch(0.68 0.17 150);
+  --primary-foreground: oklch(0.1 0.02 155);
+  --secondary: oklch(0.245 0.024 235);
+  --secondary-foreground: oklch(0.93 0.006 235);
+  --muted: oklch(0.23 0.022 235);
+  --muted-foreground: oklch(0.72 0.015 235);
+  --accent: oklch(0.66 0.16 255);
   --accent-foreground: oklch(0.98 0.005 250);
-  --destructive: oklch(0.62 0.22 25);
+  --destructive: oklch(0.63 0.21 25);
   --destructive-foreground: oklch(0.99 0.005 25);
-  --border: oklch(0.24 0.02 250);
-  --input: oklch(0.24 0.02 250);
-  --ring: oklch(0.7 0.19 152);
-  --brand-from: oklch(0.74 0.2 152);
-  --brand-to: oklch(0.65 0.18 255);
-  --surface-1: oklch(0.18 0.02 250);
-  --surface-2: oklch(0.22 0.022 250);
-  --live-color: oklch(0.62 0.22 25);
-  --chart-1: oklch(0.7 0.19 152);
-  --chart-2: oklch(0.65 0.17 255);
-  --chart-3: oklch(0.62 0.22 25);
-  --chart-4: oklch(0.5 0.02 245);
-  --chart-5: oklch(0.36 0.02 245);
-  --sidebar: oklch(0.14 0.016 250);
-  --sidebar-foreground: oklch(0.95 0.008 240);
-  --sidebar-primary: oklch(0.7 0.19 152);
-  --sidebar-primary-foreground: oklch(0.12 0.02 160);
-  --sidebar-accent: oklch(0.2 0.02 250);
-  --sidebar-accent-foreground: oklch(0.92 0.008 240);
-  --sidebar-border: oklch(0.24 0.02 250);
-  --sidebar-ring: oklch(0.7 0.19 152);
+  --border: oklch(0.34 0.03 235);
+  --input: oklch(0.34 0.03 235);
+  --ring: oklch(0.68 0.17 150);
+  --brand-from: oklch(0.72 0.18 150);
+  --brand-to: oklch(0.64 0.17 255);
+  --surface-1: oklch(0.11 0.018 235);
+  --surface-2: oklch(0.28 0.028 235);
+  --live-color: oklch(0.63 0.21 25);
+  --chart-1: oklch(0.68 0.17 150);
+  --chart-2: oklch(0.66 0.16 255);
+  --chart-3: oklch(0.63 0.21 25);
+  --chart-4: oklch(0.52 0.02 235);
+  --chart-5: oklch(0.38 0.02 235);
+  --sidebar: oklch(0.1 0.018 235);
+  --sidebar-foreground: oklch(0.96 0.006 235);
+  --sidebar-primary: oklch(0.68 0.17 150);
+  --sidebar-primary-foreground: oklch(0.1 0.02 155);
+  --sidebar-accent: oklch(0.245 0.024 235);
+  --sidebar-accent-foreground: oklch(0.93 0.006 235);
+  --sidebar-border: oklch(0.34 0.03 235);
+  --sidebar-ring: oklch(0.68 0.17 150);
+}
+
+/* Elevation: in the near-black dark theme, borders alone read too flat to
+   separate a card from the page. A hairline top highlight + soft contact
+   shadow simulates a physically raised panel under overhead light —
+   functional depth cue, not decoration. Skipped inside the game arena,
+   which already has its own lighting treatment. */
+.dark :is([data-slot="card"], [data-slot="popover-content"], [data-slot="dropdown-menu-content"], [data-slot="dialog-content"]):not(.arena-scope *) {
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in oklch, white 6%, transparent),
+    0 1px 3px 0 color-mix(in oklch, black 45%, transparent),
+    0 8px 24px -8px color-mix(in oklch, black 55%, transparent);
 }
 
 /* ---------------------------------------------------------------------- */
