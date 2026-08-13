@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useFavorites } from "@/contexts/favorites-context"
 import type { TeamSearchResult } from "@/app/api/teams/search/route"
 import type { LeagueSearchResult } from "@/app/api/leagues/search/route"
-import { toTurkishCountry } from "@/lib/tr-aliases"
+import { toDisplayCountry } from "@/lib/tr-aliases"
+import { useLanguage } from "@/contexts/language-context"
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value)
@@ -21,6 +22,7 @@ function useDebounce<T>(value: T, delay: number): T {
  * Tek fark: bir sonuca tıklandığında takım/lig paneli açılmaz, favorilere eklenir.
  */
 export function FavoriteSearchBar() {
+  const { t, locale } = useLanguage()
   const { addFavorite, isFavorite } = useFavorites()
 
   const [query, setQuery] = useState("")
@@ -151,7 +153,7 @@ export function FavoriteSearchBar() {
           onFocus={() => {
             if (teamResults.length > 0 || leagueResults.length > 0) setOpen(true)
           }}
-          placeholder="Takım veya lig ara..."
+          placeholder={t("search.favoritePlaceholder")}
           className="
             w-full rounded-xl border bg-secondary/50 py-2.5 pl-10 pr-10
             text-sm font-medium text-foreground outline-none
@@ -161,7 +163,7 @@ export function FavoriteSearchBar() {
             focus:border-primary/60 focus:bg-card focus:shadow-sm
             [&::-webkit-search-cancel-button]:hidden
           "
-          aria-label="Favorilere eklemek için takım veya lig ara"
+          aria-label={t("search.favoriteSearchAria")}
           aria-expanded={isActive}
           aria-haspopup="listbox"
           autoComplete="off"
@@ -172,7 +174,7 @@ export function FavoriteSearchBar() {
             type="button"
             onClick={handleClear}
             className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-full bg-border/60 text-muted-foreground transition-all hover:bg-border hover:text-foreground"
-            aria-label="Aramayı temizle"
+            aria-label={t("search.clear")}
           >
             <X className="h-3 w-3" />
           </button>
@@ -182,15 +184,13 @@ export function FavoriteSearchBar() {
       {isActive && (
         <div
           role="listbox"
-          aria-label="Arama sonuçları"
+          aria-label={t("search.results")}
           className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-border/60 bg-card/98 shadow-2xl backdrop-blur-xl"
         >
           {!hasAnyResults && !loading ? (
             <div className="flex flex-col items-center gap-1.5 px-4 py-8 text-center">
               <Search className="h-5 w-5 text-muted-foreground/50" />
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">{`"${query}"`}</span> için sonuç bulunamadı
-              </p>
+              <p className="text-xs text-muted-foreground">{t("search.noResultsFor", { query })}</p>
             </div>
           ) : (
             <ul className="flex max-h-80 flex-col overflow-y-auto py-1.5">
@@ -198,7 +198,7 @@ export function FavoriteSearchBar() {
                 <>
                   <li className="flex items-center gap-2 px-3.5 py-2">
                     <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
-                      Takımlar
+                      {t("search.teams")}
                     </span>
                     <span className="h-px flex-1 bg-border/50" />
                     <span className="text-[10px] tabular-nums text-muted-foreground/60">{teamResults.length}</span>
@@ -234,7 +234,7 @@ export function FavoriteSearchBar() {
                               )}
                               <span className="truncate text-[11px] text-muted-foreground/85">
                                 {r.leagueName}
-                                {r.country ? ` · ${toTurkishCountry(r.country)}` : ""}
+                                {r.country ? ` · ${toDisplayCountry(r.country, locale)}` : ""}
                               </span>
                             </div>
                           </div>
@@ -256,7 +256,7 @@ export function FavoriteSearchBar() {
                 <>
                   <li className={`flex items-center gap-2 px-3.5 py-2${hasTeams ? " mt-1 border-t border-border/40 pt-3" : ""}`}>
                     <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
-                      Ligler
+                      {t("search.leagues")}
                     </span>
                     <span className="h-px flex-1 bg-border/50" />
                     <span className="text-[10px] tabular-nums text-muted-foreground/60">{leagueResults.length}</span>
@@ -291,7 +291,7 @@ export function FavoriteSearchBar() {
                                 <img src={r.flagUrl} alt="" className="h-3 w-4 rounded-sm object-cover opacity-80" width={16} height={12} loading="lazy" decoding="async" />
                               )}
                               <span className="truncate text-[11px] text-muted-foreground/85">
-                                {toTurkishCountry(r.country)}
+                                {toDisplayCountry(r.country, locale)}
                               </span>
                             </div>
                           </div>

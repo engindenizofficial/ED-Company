@@ -292,7 +292,7 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
                     sub={[
                       passAccuracy != null ? `${passAccuracy.toFixed(0)}${t("playerPanel.accuracySuffix")}` : null,
                       passesKey > 0 ? `${passesKey} ${t("playerPanel.keyPassSuffix")}` : null,
-                    ].filter(Boolean).join(" · ") || undefined}
+                    ].filter(Boolean).join(" �� ") || undefined}
                   />
                 )}
                 {tacklesTotal > 0 && (
@@ -382,6 +382,8 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
 // ---------------------------------------------------------------------------
 
 function CareerSummarySection({ playerId, playerName, active }: { playerId: number; playerName: string; active: boolean }) {
+  const { t, locale } = useLanguage()
+  const numberLocale = locale === "en" ? "en-US" : "tr-TR"
   const { status, data: stats, error, retry } = usePlayerSection<PlayerSeasonStats[]>(playerId, "stats", active)
 
   const totals = (stats ?? []).reduce(
@@ -402,19 +404,19 @@ function CareerSummarySection({ playerId, playerName, active }: { playerId: numb
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Kariyer özeti" />}
+          {status === "loading" && <SectionLoading label={t("playerPanel.careerSummaryLoading")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
           {(status === "empty" || (status === "success" && !hasEnoughSeasons)) && (
-            <SectionEmptyState playerName={playerName} label="yeterli kariyer verisi" />
+            <SectionEmptyState playerName={playerName} label={t("playerPanel.insufficientCareerData")} />
           )}
           {status === "success" && stats && hasEnoughSeasons && (
             <>
               {/* Totals */}
               <div className="mb-4 grid grid-cols-3 gap-2">
                 {[
-                  { label: "Toplam Gol", value: totals.goals, color: "text-primary" },
-                  { label: "Toplam Asist", value: totals.assists, color: "text-foreground" },
-                  { label: "Toplam Maç", value: totals.appearances, color: "text-foreground" },
+                  { label: t("playerPanel.totalGoals"), value: totals.goals, color: "text-primary" },
+                  { label: t("playerPanel.totalAssists"), value: totals.assists, color: "text-foreground" },
+                  { label: t("playerPanel.totalMatches"), value: totals.appearances, color: "text-foreground" },
                 ].map(({ label, value, color }) => (
                   <div
                     key={label}
@@ -427,14 +429,14 @@ function CareerSummarySection({ playerId, playerName, active }: { playerId: numb
               </div>
 
               <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
-                <StatRow label="Toplam dakika" value={`${totals.minutes.toLocaleString("tr-TR")} dk`} />
+                <StatRow label={t("playerPanel.totalMinutes")} value={`${totals.minutes.toLocaleString(numberLocale)} ${t("playerPanel.minutesSuffix")}`} />
                 <StatRow
-                  label="Maç başı gol"
+                  label={t("playerPanel.goalsPerMatch")}
                   value={totals.appearances > 0 ? (totals.goals / totals.appearances).toFixed(2) : "–"}
                 />
                 {(totals.yellow > 0 || totals.red > 0) && (
                   <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
-                    <span className="text-muted-foreground">Kartlar</span>
+                    <span className="text-muted-foreground">{t("playerPanel.cards")}</span>
                     <div className="flex items-center gap-2">
                       {totals.yellow > 0 && (
                         <div className="flex items-center gap-1">
@@ -458,11 +460,11 @@ function CareerSummarySection({ playerId, playerName, active }: { playerId: numb
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-border text-left text-[10px] text-muted-foreground">
-                      <th className="pb-1.5 pr-2 font-semibold">Sezon</th>
-                      <th className="pb-1.5 pr-2 font-semibold">Takım</th>
-                      <th className="pb-1.5 px-2 text-center font-semibold" title="Maç">M</th>
-                      <th className="pb-1.5 px-2 text-center font-semibold" title="Gol">G</th>
-                      <th className="pb-1.5 pl-2 text-center font-semibold" title="Asist">A</th>
+                      <th className="pb-1.5 pr-2 font-semibold">{t("playerPanel.season")}</th>
+                      <th className="pb-1.5 pr-2 font-semibold">{t("playerPanel.team")}</th>
+                      <th className="pb-1.5 px-2 text-center font-semibold" title={t("playerPanel.matches")}>{t("playerPanel.matches").charAt(0)}</th>
+                      <th className="pb-1.5 px-2 text-center font-semibold" title={t("playerPanel.goals")}>{t("playerPanel.goals").charAt(0)}</th>
+                      <th className="pb-1.5 pl-2 text-center font-semibold" title={t("playerPanel.assists")}>{t("playerPanel.assists").charAt(0)}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -509,6 +511,7 @@ function CareerSummarySection({ playerId, playerName, active }: { playerId: numb
 // ---------------------------------------------------------------------------
 
 function TrophiesSection({ playerId, playerName, active }: { playerId: number; playerName: string; active: boolean }) {
+  const { t, locale } = useLanguage()
   const { status, data: trophies, error, retry } = usePlayerSection<TrophyType[]>(playerId, "trophies", active)
 
   const won = (trophies ?? []).filter((t) => t.place === "Winner")
@@ -521,26 +524,26 @@ function TrophiesSection({ playerId, playerName, active }: { playerId: number; p
     <section className="flex flex-col gap-1">
       {active && (
         <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card p-4">
-          {status === "loading" && <SectionLoading label="Kupa ve şampiyonluklar" />}
+          {status === "loading" && <SectionLoading label={t("playerPanel.trophiesLoading")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState playerName={playerName} label="kupa/şampiyonluk verisi" />}
+          {status === "empty" && <SectionEmptyState playerName={playerName} label={t("playerPanel.trophiesData")} />}
           {status === "success" && trophies && (
             <>
               {won.length > 0 && (
                 <div>
                   <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    <Trophy className="h-3 w-3 text-primary" /> Şampiyonluklar ({won.length})
+                    <Trophy className="h-3 w-3 text-primary" /> {t("playerPanel.champions")} ({won.length})
                   </p>
                   <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
-                    {won.map((t, i) => (
+                    {won.map((tr, i) => (
                       <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-semibold text-foreground">{t.league}</span>
-                          {t.country && (
-                            <span className="text-[10px] text-muted-foreground">{toTurkishCountry(t.country)}</span>
+                          <span className="font-semibold text-foreground">{tr.league}</span>
+                          {tr.country && (
+                            <span className="text-[10px] text-muted-foreground">{toDisplayCountry(tr.country, locale)}</span>
                           )}
                         </div>
-                        <span className="shrink-0 tabular-nums text-muted-foreground">{t.season}</span>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">{tr.season}</span>
                       </div>
                     ))}
                   </div>
@@ -549,18 +552,18 @@ function TrophiesSection({ playerId, playerName, active }: { playerId: number; p
               {runnerUp.length > 0 && (
                 <div>
                   <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    <Medal className="h-3 w-3" /> İkinciler ({runnerUp.length})
+                    <Medal className="h-3 w-3" /> {t("playerPanel.runnersUp")} ({runnerUp.length})
                   </p>
                   <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
-                    {runnerUp.map((t, i) => (
+                    {runnerUp.map((tr, i) => (
                       <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-semibold text-foreground">{t.league}</span>
-                          {t.country && (
-                            <span className="text-[10px] text-muted-foreground">{toTurkishCountry(t.country)}</span>
+                          <span className="font-semibold text-foreground">{tr.league}</span>
+                          {tr.country && (
+                            <span className="text-[10px] text-muted-foreground">{toDisplayCountry(tr.country, locale)}</span>
                           )}
                         </div>
-                        <span className="shrink-0 tabular-nums text-muted-foreground">{t.season}</span>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">{tr.season}</span>
                       </div>
                     ))}
                   </div>
@@ -569,18 +572,18 @@ function TrophiesSection({ playerId, playerName, active }: { playerId: number; p
               {other.length > 0 && (
                 <div>
                   <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    <Award className="h-3 w-3" /> Diğer ({other.length})
+                    <Award className="h-3 w-3" /> {t("playerPanel.other")} ({other.length})
                   </p>
                   <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60 bg-secondary/20">
-                    {other.map((t, i) => (
+                    {other.map((tr, i) => (
                       <div key={i} className="flex items-center justify-between px-3 py-2 text-xs">
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-semibold text-foreground">{t.league}</span>
+                          <span className="font-semibold text-foreground">{tr.league}</span>
                           <span className="text-[10px] text-muted-foreground">
-                            {t.place}{t.country ? ` · ${toTurkishCountry(t.country)}` : ""}
+                            {tr.place}{tr.country ? ` · ${toDisplayCountry(tr.country, locale)}` : ""}
                           </span>
                         </div>
-                        <span className="shrink-0 tabular-nums text-muted-foreground">{t.season}</span>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">{tr.season}</span>
                       </div>
                     ))}
                   </div>
@@ -599,15 +602,16 @@ function TrophiesSection({ playerId, playerName, active }: { playerId: number; p
 // ---------------------------------------------------------------------------
 
 function TransfersSection({ playerId, playerName, active }: { playerId: number; playerName: string; active: boolean }) {
+  const { t } = useLanguage()
   const { status, data: transfers, error, retry } = usePlayerSection<Transfer[]>(playerId, "transfers", active)
 
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card">
-          {status === "loading" && <SectionLoading label="Transfer geçmişi" />}
+          {status === "loading" && <SectionLoading label={t("playerPanel.transfersLoading")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState playerName={playerName} label="transfer geçmişi verisi" />}
+          {status === "empty" && <SectionEmptyState playerName={playerName} label={t("playerPanel.transfersData")} />}
           {status === "success" && transfers && (
             <div className="flex flex-col divide-y divide-border/60">
               {transfers.map((t, i) => (
@@ -649,28 +653,29 @@ function TransfersSection({ playerId, playerName, active }: { playerId: number; 
 // Sidelined Section
 // ---------------------------------------------------------------------------
 
-function formatSidelinedDate(d: string | null): string {
+function formatSidelinedDate(d: string | null, locale: string): string {
   if (!d) return "?"
-  return new Date(d).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })
+  return new Date(d).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", { day: "2-digit", month: "short", year: "numeric" })
 }
 
-function sidelinedDurationDays(start: string | null, end: string | null): string | null {
+function sidelinedDurationDays(start: string | null, end: string | null): number | null {
   if (!start || !end) return null
   const diff = Math.round((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24))
   if (diff < 0) return null
-  return `${diff} gün`
+  return diff
 }
 
 function SidelinedSection({ playerId, playerName, active }: { playerId: number; playerName: string; active: boolean }) {
+  const { t, locale } = useLanguage()
   const { status, data: sidelined, error, retry } = usePlayerSection<SidelinedEntry[]>(playerId, "sidelined", active)
 
   return (
     <section className="flex flex-col gap-1">
       {active && (
         <div className="rounded-2xl border border-border/70 bg-card">
-          {status === "loading" && <SectionLoading label="Sakatlık / ceza geçmişi" />}
+          {status === "loading" && <SectionLoading label={t("playerPanel.sidelinedLoading")} />}
           {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
-          {status === "empty" && <SectionEmptyState playerName={playerName} label="sakatlık/ceza verisi" />}
+          {status === "empty" && <SectionEmptyState playerName={playerName} label={t("playerPanel.sidelinedData")} />}
           {status === "success" && sidelined && (
             <div className="flex flex-col divide-y divide-border/60">
               {sidelined.map((s, i) => {
@@ -680,13 +685,13 @@ function SidelinedSection({ playerId, playerName, active }: { playerId: number; 
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="truncate font-semibold text-foreground">{s.type}</span>
                       <span className="text-[10px] text-muted-foreground">
-                        {formatSidelinedDate(s.start)}
-                        {s.end ? ` – ${formatSidelinedDate(s.end)}` : " – devam"}
+                        {formatSidelinedDate(s.start, locale)}
+                        {s.end ? ` – ${formatSidelinedDate(s.end, locale)}` : ` – ${t("playerPanel.ongoing")}`}
                       </span>
                     </div>
-                    {dur && (
+                    {dur != null && (
                       <span className="shrink-0 rounded-full border border-border bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                        {dur}
+                        {dur} {t("playerPanel.daysSuffix")}
                       </span>
                     )}
                   </div>
@@ -719,14 +724,19 @@ function PlayerPanelInner({
   panel: { player: { id: number; name: string; photo: string | null }; profile: PlayerProfile | null; loading: boolean; error: string | null }
   closePlayer: () => void
 }) {
+  const { t, locale } = useLanguage()
   const { player, profile, loading, error } = panel
 
+  const POS_LABEL: Record<string, string> = {
+    Goalkeeper: t("team.goalkeeper"), Defender: t("team.defender"), Midfielder: t("team.midfielder"), Attacker: t("team.attacker"),
+  }
+
   const tabs: PanelTabItem[] = [
-    { key: "stats", label: "Sezon İstatistikleri", icon: <Activity className="h-3.5 w-3.5" /> },
-    { key: "career", label: "Kariyer Özeti", icon: <Star className="h-3.5 w-3.5" /> },
-    { key: "trophies", label: "Kupa ve Şampiyonluklar", icon: <Trophy className="h-3.5 w-3.5" /> },
-    { key: "transfers", label: "Transfer Geçmişi", icon: <ArrowLeftRight className="h-3.5 w-3.5" /> },
-    { key: "sidelined", label: "Sakatlık / Ceza Geçmişi", icon: <ShieldAlert className="h-3.5 w-3.5" /> },
+    { key: "stats", label: t("playerPanel.tabStats"), icon: <Activity className="h-3.5 w-3.5" /> },
+    { key: "career", label: t("playerPanel.tabCareer"), icon: <Star className="h-3.5 w-3.5" /> },
+    { key: "trophies", label: t("playerPanel.tabTrophies"), icon: <Trophy className="h-3.5 w-3.5" /> },
+    { key: "transfers", label: t("playerPanel.tabTransfers"), icon: <ArrowLeftRight className="h-3.5 w-3.5" /> },
+    { key: "sidelined", label: t("playerPanel.tabSidelined"), icon: <ShieldAlert className="h-3.5 w-3.5" /> },
   ]
   const [activeTab, setActiveTab] = useState(tabs[0].key)
 
@@ -735,7 +745,7 @@ function PlayerPanelInner({
       className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
-      aria-label={`${player.name} oyuncu bilgileri`}
+      aria-label={`${player.name} ${t("playerPanel.playerInfoLabel")}`}
     >
       <div className="flex h-full w-full flex-col overflow-hidden">
 
@@ -762,7 +772,7 @@ function PlayerPanelInner({
                 {profile.nationality && (
                   <span className="flex items-center gap-1">
                     <Flag className="h-3 w-3" />
-                    {toTurkishCountry(profile.nationality)}
+                    {toDisplayCountry(profile.nationality, locale)}
                   </span>
                 )}
                 {profile.age && (
@@ -770,10 +780,10 @@ function PlayerPanelInner({
                     <span className="text-border">·</span>
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {profile.age} yaş
+                      {profile.age} {t("playerPanel.ageSuffix")}
                       {profile.birthDate && (
                         <span className="text-muted-foreground/75">
-                          ({new Date(profile.birthDate).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" })})
+                          ({new Date(profile.birthDate).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", { day: "2-digit", month: "short", year: "numeric" })})
                         </span>
                       )}
                     </span>
@@ -804,7 +814,7 @@ function PlayerPanelInner({
                 )}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">{loading ? "Yükleniyor..." : ""}</p>
+              <p className="text-xs text-muted-foreground">{loading ? t("playerPanel.loading") : ""}</p>
             )}
             {profile && (profile.height || profile.weight || profile.birthPlace) && (
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
@@ -828,7 +838,7 @@ function PlayerPanelInner({
                     {(profile.height || profile.weight) && <span className="text-border">·</span>}
                     <span>
                       {profile.birthPlace}
-                      {profile.birthCountry ? `, ${toTurkishCountry(profile.birthCountry)}` : ""}
+                      {profile.birthCountry ? `, ${toDisplayCountry(profile.birthCountry, locale)}` : ""}
                     </span>
                   </>
                 )}
@@ -838,7 +848,7 @@ function PlayerPanelInner({
           <button
             type="button"
             onClick={closePlayer}
-            aria-label="Kapat"
+            aria-label={t("playerPanel.close")}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -869,7 +879,7 @@ function PlayerPanelInner({
             )}
             {profile.injured && (
               <span className="ml-auto rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive">
-                Sakatlanmış
+                {t("playerPanel.injured")}
               </span>
             )}
           </div>
@@ -880,14 +890,14 @@ function PlayerPanelInner({
           {loading && (
             <div className="flex flex-col items-center justify-center gap-3 py-16">
               <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Oyuncu bilgileri yükleniyor...</p>
+              <p className="text-sm text-muted-foreground">{t("playerPanel.loading")}</p>
             </div>
           )}
 
           {error && (
             <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 py-12 text-center">
               <UserRoundX className="h-8 w-8 text-destructive/75" />
-              <p className="text-sm font-semibold text-destructive">Veri alınamadı</p>
+              <p className="text-sm font-semibold text-destructive">{t("playerPanel.errorTitle")}</p>
               <p className="text-xs text-muted-foreground">{error}</p>
             </div>
           )}
