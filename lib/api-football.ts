@@ -20,38 +20,15 @@ import type {
 } from "./types"
 import { toTurkishCountry } from "./tr-aliases"
 import { apiFootballFetch, safeApiFootballFetch } from "./api-football-client"
+import { FEATURED_LEAGUE_IDS } from "./leagues"
 
 // ---------------------------------------------------------------------------
-// Featured leagues — same order as the search bar (TOP_LEAGUES in leagues/search/route.ts)
-// Leagues in this list that have fixtures on a given day appear first,
-// in this exact order. All other leagues follow sorted by kick-off time.
+// Featured leagues — tek kaynak lib/leagues.ts'de tanımlı. Bu diziye buradan
+// erişilir ki maç listesi sıralaması, arama kutusu (TOP_LEAGUES) ve
+// Transfermarkt cron'u (SCRAPABLE_LEAGUE_IDS) hep aynı listeden türesin.
+// Yeni bir lig eklemek/çıkarmak için lib/leagues.ts'i güncelle.
 // ---------------------------------------------------------------------------
-export const FEATURED_LEAGUE_IDS: number[] = [
-  2,   // Champions League
-  3,   // Europa League
-  848, // Conference League
-  531, // UEFA Super Cup
-  39,  // Premier League
-  140, // La Liga
-  135, // Serie A
-  78,  // Bundesliga
-  61,  // Ligue 1
-  94,  // Primeira Liga
-  203, // Süper Lig
-  88,  // Eredivisie
-  235, // Premier Liga (Russia)
-  144, // Jupiler Pro League
-  197, // Super League (Greece)
-  333, // Ukrainian Premier League
-  345, // Czech Liga
-  119, // Superliga (Denmark)
-  179, // Scottish Premiership
-  106, // Ekstraklasa
-  103, // Eliteserien
-  218, // Bundesliga (Austria)
-  207, // Super League (Switzerland)
-  286, // Super Liga (Serbia)
-]
+export { FEATURED_LEAGUE_IDS }
 
 /** Returns the priority rank for a league: 0 = highest (first in list), Infinity = not featured. */
 function featuredRank(leagueId: number): number {
