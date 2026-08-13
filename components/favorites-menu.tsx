@@ -45,10 +45,13 @@ import { ThemeColorPicker } from "@/components/theme-color-picker"
 import { requestAccountDeletion } from "@/app/actions/account"
 import { isAdminEmail } from "@/lib/admin"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/contexts/language-context"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
 type PanelView = "menu" | "favorites" | "theme" | "account"
 
 export function FavoritesMenu() {
+  const { t } = useLanguage()
   const { data: session } = useSession()
   const router = useRouter()
   const { openTeam } = useTeamPanel()
@@ -89,7 +92,7 @@ export function FavoritesMenu() {
       const { email } = await requestAccountDeletion()
       setDeleteSentTo(email)
     } catch {
-      setDeleteError("Bir şeyler ters gitti. Lütfen daha sonra tekrar deneyin.")
+      setDeleteError(t("common.error"))
     } finally {
       setSendingDelete(false)
     }
@@ -147,7 +150,7 @@ export function FavoritesMenu() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Menüyü aç"
+        aria-label={t("menu.openMenu")}
         className="flex items-center justify-center rounded-lg p-2 -ml-1 text-foreground/90 transition-colors hover:bg-secondary hover:text-foreground"
       >
         <Menu className="h-5 w-5" />
@@ -167,7 +170,7 @@ export function FavoritesMenu() {
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Kullanıcı menüsü"
+            aria-label={t("menu.userMenu")}
             className="absolute left-0 top-0 flex h-full w-[86vw] max-w-[360px] animate-in slide-in-from-left flex-col border-r border-border/60 bg-background shadow-2xl duration-200"
           >
             {/* Header */}
@@ -176,7 +179,7 @@ export function FavoritesMenu() {
                 <button
                   type="button"
                   onClick={() => setView("menu")}
-                  aria-label="Geri"
+                  aria-label={t("common.back")}
                   className="flex items-center justify-center rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -184,17 +187,18 @@ export function FavoritesMenu() {
               ) : null}
               <span className="flex-1 text-sm font-bold text-foreground">
                 {view === "favorites"
-                  ? "Favorilerim"
+                  ? t("menu.myFavorites")
                   : view === "theme"
-                    ? "Tema Rengi"
+                    ? t("menu.themeColor")
                     : view === "account"
-                      ? "Hesabım"
-                      : "Menü"}
+                      ? t("menu.myAccount")
+                      : t("menu.title")}
               </span>
+              {view === "menu" ? <LanguageSwitcher /> : null}
               <button
                 type="button"
                 onClick={close}
-                aria-label="Menüyü kapat"
+                aria-label={t("menu.closeMenu")}
                 className="flex items-center justify-center rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
                 <X className="h-4 w-4" />
@@ -215,7 +219,7 @@ export function FavoritesMenu() {
                       <User className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-sm font-semibold text-foreground">Hesabım</span>
+                      <span className="truncate text-sm font-semibold text-foreground">{t("menu.myAccount")}</span>
                       <span className="truncate text-[11px] text-muted-foreground">{session.user.name}</span>
                     </div>
                     <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
@@ -232,7 +236,7 @@ export function FavoritesMenu() {
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
                       <ShieldCheck className="h-4 w-4 text-primary" />
                     </div>
-                    <span className="flex-1 text-sm font-semibold text-foreground">Yönetim Paneli</span>
+                    <span className="flex-1 text-sm font-semibold text-foreground">{t("menu.adminPanel")}</span>
                     <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
                   </Link>
                 ) : null}
@@ -246,7 +250,7 @@ export function FavoritesMenu() {
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
                     <Star className="h-4 w-4 text-primary" />
                   </div>
-                  <span className="flex-1 text-sm font-semibold text-foreground">Favorilerim</span>
+                  <span className="flex-1 text-sm font-semibold text-foreground">{t("menu.myFavorites")}</span>
                   {favorites.length > 0 ? (
                     <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
                       {favorites.length}
@@ -264,7 +268,7 @@ export function FavoritesMenu() {
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
                     <Palette className="h-4 w-4 text-primary" />
                   </div>
-                  <span className="flex-1 text-sm font-semibold text-foreground">Tema Rengi</span>
+                  <span className="flex-1 text-sm font-semibold text-foreground">{t("menu.themeColor")}</span>
                   <span
                     aria-hidden="true"
                     className="h-4 w-4 shrink-0 rounded-full ring-1 ring-border"
@@ -284,7 +288,7 @@ export function FavoritesMenu() {
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
                       <LogOut className="h-4 w-4 text-destructive" />
                     </div>
-                    <span className="text-sm font-semibold text-destructive">Çıkış Yap</span>
+                    <span className="text-sm font-semibold text-destructive">{t("menu.signOut")}</span>
                   </button>
                 ) : (
                   <Link
@@ -295,7 +299,7 @@ export function FavoritesMenu() {
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
                       <KeyRound className="h-4 w-4 text-primary" />
                     </div>
-                    <span className="text-sm font-semibold text-foreground">Giriş Yap</span>
+                    <span className="text-sm font-semibold text-foreground">{t("menu.signIn")}</span>
                   </Link>
                 )}
               </div>
@@ -307,17 +311,16 @@ export function FavoritesMenu() {
                   <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-2">
                       <TriangleAlert className="h-4 w-4 shrink-0 text-destructive" />
-                      <span className="text-sm font-bold text-foreground">Hesabımı Sil</span>
+                      <span className="text-sm font-bold text-foreground">{t("menu.deleteAccount")}</span>
                     </div>
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      Hesabınızı sildiğinizde profil bilgileriniz, favori takım/liglerinizi ve tüm tahmin
-                      geçmişiniz kalıcı olarak silinir.
+                      {t("menu.deleteAccountDesc1")}
                     </p>
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      Bu işlem geri alınamaz. Devam etmek için e-posta adresinize bir onay linki göndereceğiz.
+                      {t("menu.deleteAccountDesc2")}
                     </p>
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      E-postadaki linke tıkladığınız anda hesabınız kalıcı olarak silinir.
+                      {t("menu.deleteAccountDesc3")}
                     </p>
                   </div>
 
@@ -325,7 +328,7 @@ export function FavoritesMenu() {
                     <div className="flex items-center gap-2.5 rounded-xl bg-secondary px-3 py-2.5">
                       <Mail className="h-4 w-4 shrink-0 text-primary" />
                       <p className="text-xs leading-relaxed text-foreground">
-                        <span className="font-semibold">{deleteSentTo}</span> adresine silme linki gönderildi.
+                        <span className="font-semibold">{deleteSentTo}</span> {t("menu.deleteAccountSentTo")}
                       </p>
                     </div>
                   ) : (
@@ -335,7 +338,7 @@ export function FavoritesMenu() {
                       disabled={sendingDelete}
                       className="flex items-center justify-center rounded-xl bg-destructive px-4 py-2.5 text-sm font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50"
                     >
-                      {sendingDelete ? "Gönderiliyor..." : "Hesabımı Sil"}
+                      {sendingDelete ? t("menu.deleteAccountSending") : t("menu.deleteAccount")}
                     </button>
                   )}
 
@@ -351,7 +354,7 @@ export function FavoritesMenu() {
                     <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border/60 px-4 py-8 text-center">
                       <Star className="h-5 w-5 text-muted-foreground/50" />
                       <p className="text-xs text-muted-foreground">
-                        Henüz favori eklemediniz. Yukarıdan takım veya lig arayın.
+                        {t("menu.noFavoritesYet")}
                       </p>
                     </div>
                   ) : (
@@ -395,6 +398,7 @@ function SortableFavoriteRow({
   onSelect: () => void
   onRemove: () => void
 }) {
+  const { t } = useLanguage()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: favorite.id,
   })
@@ -418,7 +422,7 @@ function SortableFavoriteRow({
         type="button"
         {...attributes}
         {...listeners}
-        aria-label="Sürükleyerek sıralamayı değiştir"
+        aria-label={t("menu.dragToReorder")}
         className="flex h-8 w-6 shrink-0 cursor-grab touch-none select-none items-center justify-center text-muted-foreground/65 hover:text-muted-foreground active:cursor-grabbing"
       >
         <GripVertical className="h-4 w-4" />
@@ -448,7 +452,7 @@ function SortableFavoriteRow({
       <button
         type="button"
         onClick={onRemove}
-        aria-label={`${favorite.name} favorilerden kaldır`}
+        aria-label={`${favorite.name} ${t("menu.removeFromFavorites")}`}
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/65 transition-colors hover:bg-destructive/10 hover:text-destructive"
       >
         <Trash2 className="h-3.5 w-3.5" />

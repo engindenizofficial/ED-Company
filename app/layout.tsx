@@ -13,6 +13,7 @@ import { PlayerPanel } from '@/components/player-panel'
 import { PanelRouteGuard } from '@/components/panel-route-guard'
 import { FavoritesProvider } from '@/contexts/favorites-context'
 import { ThemeColorProvider } from '@/contexts/theme-color-context'
+import { LanguageProvider } from '@/contexts/language-context'
 import './globals.css'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
@@ -86,23 +87,25 @@ export default function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark');}var a=localStorage.getItem('ed-accent-color');if(a&&a!=='green'){document.documentElement.setAttribute('data-accent',a);}}catch(e){}})();`,
           }}
         />
-        <ThemeColorProvider>
-          <LeagueProvider>
-            <TeamProvider>
-              <PlayerProvider>
-                <FavoritesProvider>
-                  <PanelRouteGuard />
-                  <NavTabs />
-                  <LoginPromptModal />
-                  {children}
-                  <TeamPanel />
-                  <LeaguePanel />
-                  <PlayerPanel />
-                </FavoritesProvider>
-              </PlayerProvider>
-            </TeamProvider>
-          </LeagueProvider>
-        </ThemeColorProvider>
+        <LanguageProvider>
+          <ThemeColorProvider>
+            <LeagueProvider>
+              <TeamProvider>
+                <PlayerProvider>
+                  <FavoritesProvider>
+                    <PanelRouteGuard />
+                    <NavTabs />
+                    <LoginPromptModal />
+                    {children}
+                    <TeamPanel />
+                    <LeaguePanel />
+                    <PlayerPanel />
+                  </FavoritesProvider>
+                </PlayerProvider>
+              </TeamProvider>
+            </LeagueProvider>
+          </ThemeColorProvider>
+        </LanguageProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

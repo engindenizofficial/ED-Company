@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
+import { useLanguage } from "@/contexts/language-context"
 
 // Global açma fonksiyonu — NavTabs'tan çağrılabilir
 let _openLoginModal: (() => void) | null = null
@@ -13,6 +14,7 @@ export function openLoginModal() {
 }
 
 export function LoginPromptModal() {
+  const { t } = useLanguage()
   const [visible, setVisible] = useState(false)
 
   // Global fonksiyonu bağla
@@ -46,7 +48,7 @@ export function LoginPromptModal() {
         <button
           onClick={handleDismiss}
           className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Kapat"
+          aria-label={t("common.close")}
         >
           <X className="h-4 w-4" />
         </button>
@@ -58,10 +60,10 @@ export function LoginPromptModal() {
 
         {/* Başlık */}
         <h2 className="text-center text-base font-bold text-foreground mb-1">
-          ED Analytics&apos;e Hoş Geldin
+          {t("loginPrompt.title")}
         </h2>
         <p className="text-center text-sm text-muted-foreground mb-6">
-          Giriş yaparak tahminlerini takip edebilir, başarı geçmişine ulaşabilirsin.
+          {t("loginPrompt.subtitle")}
         </p>
 
         {/* Butonlar */}
@@ -72,7 +74,7 @@ export function LoginPromptModal() {
             className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
           >
             <KeyRound className="h-4 w-4" />
-            Giriş Yap
+            {t("loginPrompt.signIn")}
           </Link>
           <Link
             href="/sign-up"
@@ -80,13 +82,13 @@ export function LoginPromptModal() {
             className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold border border-border/60 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
           >
             <UserPlus className="h-4 w-4" />
-            Hesap Oluştur
+            {t("loginPrompt.createAccount")}
           </Link>
           <button
             onClick={handleDismiss}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
           >
-            Şimdilik devam et
+            {t("loginPrompt.continueForNow")}
           </button>
         </div>
       </div>

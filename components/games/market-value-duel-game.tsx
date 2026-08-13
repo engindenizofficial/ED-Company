@@ -6,41 +6,44 @@ import { Flame, Gauge, RotateCcw, Skull, Sparkles, Swords, Trophy, Volume2, Volu
 import { cn } from "@/lib/utils"
 import { DuelPlayerCard } from "@/components/games/duel-player-card"
 import { useSoundEffects } from "@/lib/games/use-sound-effects"
+import { useLanguage } from "@/contexts/language-context"
 import type { DuelDifficulty, DuelPlayer, DuelResult, DuelRound } from "@/lib/games/market-value-duel"
 
 type Phase = "select-difficulty" | "loading" | "playing" | "revealed" | "error"
 
-const DIFFICULTIES: {
-  id: DuelDifficulty
-  label: string
-  desc: string
-  icon: typeof Gauge
-  accent: string
-}[] = [
-  {
-    id: "easy",
-    label: "Kolay",
-    desc: "Herkesin bildiği süperstarlar",
-    icon: Sparkles,
-    accent: "text-emerald-400 ring-emerald-400/30 bg-emerald-500/10",
-  },
-  {
-    id: "normal",
-    label: "Normal",
-    desc: "Futbolseverin bildiği isimler",
-    icon: Gauge,
-    accent: "text-amber-400 ring-amber-400/30 bg-amber-500/10",
-  },
-  {
-    id: "hard",
-    label: "Zor",
-    desc: "Sadece fanatiklerin bileceği isimler",
-    icon: Skull,
-    accent: "text-rose-400 ring-rose-400/30 bg-rose-500/10",
-  },
-]
-
 export function MarketValueDuelGame() {
+  const { t } = useLanguage()
+
+  const DIFFICULTIES: {
+    id: DuelDifficulty
+    label: string
+    desc: string
+    icon: typeof Gauge
+    accent: string
+  }[] = [
+    {
+      id: "easy",
+      label: t("duel.easy"),
+      desc: t("duel.easyDesc"),
+      icon: Sparkles,
+      accent: "text-emerald-400 ring-emerald-400/30 bg-emerald-500/10",
+    },
+    {
+      id: "normal",
+      label: t("duel.normal"),
+      desc: t("duel.normalDesc"),
+      icon: Gauge,
+      accent: "text-amber-400 ring-amber-400/30 bg-amber-500/10",
+    },
+    {
+      id: "hard",
+      label: t("duel.hard"),
+      desc: t("duel.hardDesc"),
+      icon: Skull,
+      accent: "text-rose-400 ring-rose-400/30 bg-rose-500/10",
+    },
+  ]
+
   const [phase, setPhase] = useState<Phase>("select-difficulty")
   const [difficulty, setDifficulty] = useState<DuelDifficulty | null>(null)
   const [round, setRound] = useState<DuelRound | null>(null)
@@ -73,7 +76,7 @@ export function MarketValueDuelGame() {
         })
         if (!res.ok) {
           const data = await res.json().catch(() => null)
-          setErrorMsg(data?.error ?? "Oyun yüklenemedi.")
+          setErrorMsg(data?.error ?? t("duel.loadFailed"))
           setPhase("error")
           return
         }
@@ -83,13 +86,13 @@ export function MarketValueDuelGame() {
         if (hasPlayedRef.current) play("newRound")
         hasPlayedRef.current = true
       } catch {
-        setErrorMsg("Bağlantı hatası. Lütfen tekrar deneyin.")
+        setErrorMsg(t("duel.connectionError"))
         setPhase("error")
       } finally {
         loadingRef.current = false
       }
     },
-    [play],
+    [play, t],
   )
 
   const handleSelectDifficulty = useCallback(
@@ -118,7 +121,7 @@ export function MarketValueDuelGame() {
           cache: "no-store",
         })
         if (!res.ok) {
-          setErrorMsg("Sonuç alınamadı.")
+          setErrorMsg(t("duel.resultFailed"))
           setPhase("error")
           return
         }
@@ -145,11 +148,11 @@ export function MarketValueDuelGame() {
           setStreak(0)
         }
       } catch {
-        setErrorMsg("Sonuç alınamadı.")
+        setErrorMsg(t("duel.resultFailed"))
         setPhase("error")
       }
     },
-    [round, phase, play],
+    [round, phase, play, t],
   )
 
   const handleNext = useCallback(() => {
@@ -182,11 +185,10 @@ export function MarketValueDuelGame() {
             <Swords className="h-6 w-6" />
           </div>
           <h2 className="text-xl font-black uppercase italic tracking-tight text-foreground">
-            Zorluk Seç
+            {t("duel.chooseDifficulty")}
           </h2>
           <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-            Arenaya hangi seviyeden gireceksin? Seçim seni bekleyen rakiplerin tanınırlığını
-            belirler.
+            {t("duel.chooseDifficultyDesc")}
           </p>
         </div>
 
@@ -259,7 +261,7 @@ export function MarketValueDuelGame() {
           >
             <div className="flex items-center gap-1.5 rounded-full border border-orange-400/40 bg-orange-500/15 px-5 py-2 text-orange-300 shadow-[0_0_30px_-5px_rgba(249,115,22,0.6)] backdrop-blur-sm">
               <Zap className="h-4 w-4 fill-orange-300" />
-              <span className="text-sm font-black italic tracking-wide">{comboPop}x KOMBO!</span>
+              <span className="text-sm font-black italic tracking-wide">{t("duel.combo", { count: comboPop })}</span>
             </div>
           </motion.div>
         )}
@@ -274,7 +276,7 @@ export function MarketValueDuelGame() {
             <Trophy className="h-4.5 w-4.5" />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Skor</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("duel.score")}</span>
             <motion.span
               key={score}
               initial={{ scale: 1.3 }}
@@ -296,7 +298,7 @@ export function MarketValueDuelGame() {
                 "hidden items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide ring-1 transition-opacity hover:opacity-80 sm:flex",
                 currentDifficultyMeta.accent,
               )}
-              aria-label="Zorluk seviyesini değiştir"
+              aria-label={t("duel.changeDifficulty")}
             >
               <currentDifficultyMeta.icon className="h-3 w-3" />
               {currentDifficultyMeta.label}
@@ -306,7 +308,7 @@ export function MarketValueDuelGame() {
             type="button"
             onClick={toggleMuted}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            aria-label={muted ? "Sesi aç" : "Sesi kapat"}
+            aria-label={muted ? t("duel.muteOn") : t("duel.muteOff")}
             aria-pressed={muted}
           >
             {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
@@ -315,16 +317,16 @@ export function MarketValueDuelGame() {
             type="button"
             onClick={handleRestart}
             className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            aria-label="Oyunu yeniden başlat"
+            aria-label={t("duel.restartAria")}
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Sıfırla</span>
+            <span className="hidden sm:inline">{t("duel.restart")}</span>
           </button>
         </div>
 
         <div className="relative flex items-center gap-2.5">
           <div className="flex flex-col items-end leading-tight">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Seri</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("duel.streak")}</span>
             <span
               className={cn(
                 "text-lg font-black tabular-nums transition-colors",
@@ -347,7 +349,7 @@ export function MarketValueDuelGame() {
 
       {bestStreak > 0 && (
         <p className="-mt-2 text-center text-xs text-muted-foreground">
-          En iyi serin: <span className="font-bold text-foreground">{bestStreak}</span>
+          {t("duel.bestStreak")} <span className="font-bold text-foreground">{bestStreak}</span>
         </p>
       )}
 
@@ -373,7 +375,7 @@ export function MarketValueDuelGame() {
                 </div>
               </div>
               <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Rakipler ringe çıkıyor
+                {t("duel.opponentsEntering")}
               </span>
             </motion.div>
           )}
@@ -392,7 +394,7 @@ export function MarketValueDuelGame() {
                 onClick={handleNext}
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
               >
-                Tekrar Dene
+                {t("duel.tryAgain")}
               </button>
             </motion.div>
           )}
@@ -411,7 +413,7 @@ export function MarketValueDuelGame() {
                   transition={{ duration: 2.2, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
                   className="text-balance text-center text-sm font-bold uppercase tracking-wide text-muted-foreground"
                 >
-                  Piyasa değeri daha yüksek olan futbolcuyu seç
+                  {t("duel.pickHigherValue")}
                 </motion.p>
               )}
 
@@ -476,7 +478,7 @@ export function MarketValueDuelGame() {
                       onClick={handleNext}
                       className="rounded-full bg-primary px-7 py-2.5 text-sm font-black uppercase tracking-wide text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95"
                     >
-                      Sıradaki Rakip
+                      {t("duel.nextOpponent")}
                     </button>
                   </motion.div>
                 )}

@@ -9,6 +9,7 @@ import { SuccessPanel } from "@/components/success-panel"
 import { TeamSearchBar } from "@/components/team-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useFavorites } from "@/contexts/favorites-context"
+import { useLanguage } from "@/contexts/language-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import type { Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
@@ -17,8 +18,8 @@ function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
 }
 
-function formatDateLabel(iso: string): string {
-  return new Date(iso + "T12:00:00").toLocaleDateString("tr-TR", {
+function formatDateLabel(iso: string, locale: string): string {
+  return new Date(iso + "T12:00:00").toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -39,6 +40,7 @@ function actualWinner(homeGoals: number, awayGoals: number): "home" | "away" | "
 export default function Page() {
   const date = todayTR()
   const { favorites } = useFavorites()
+  const { t, locale } = useLanguage()
   const [selected, setSelected] = useState<Fixture | null>(null)
 
   const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(null)
@@ -379,15 +381,15 @@ export default function Page() {
             <div className="flex items-center gap-3">
               <div className="flex flex-col">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  Günün Maçları
+                  {t("home.todayMatches")}
                 </span>
                 <h1 className="text-sm font-bold capitalize text-foreground leading-tight">
-                  {formatDateLabel(date)}
+                  {formatDateLabel(date, locale)}
                 </h1>
               </div>
               {!fixturesLoading && (
                 <span className="rounded-full border border-border bg-card px-2.5 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
-                  {fixtures.length} maç
+                  {t("home.matchesCount", { count: fixtures.length })}
                 </span>
               )}
             </div>
@@ -413,11 +415,11 @@ export default function Page() {
         {fixturesLoading ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card py-16 text-sm text-muted-foreground">
             <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
-            <span className="text-xs font-medium tracking-wide">Maçlar yükleniyor</span>
+            <span className="text-xs font-medium tracking-wide">{t("home.loadingMatches")}</span>
           </div>
         ) : fixtures.length === 0 ? (
           <div className="rounded-2xl border border-border/60 bg-card px-4 py-16 text-center text-sm text-muted-foreground">
-            Bu tarihte planlanmış maç bulunamadı.
+            {t("home.noMatchesToday")}
           </div>
         ) : (
           <FixtureList
@@ -435,7 +437,7 @@ export default function Page() {
           className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
           role="dialog"
           aria-modal="true"
-          aria-label={`${selected.home.name} - ${selected.away.name} maç analizi`}
+          aria-label={`${selected.home.name} - ${selected.away.name} ${t("home.matchAnalysis")}`}
         >
           {/* Top bar */}
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
@@ -448,7 +450,7 @@ export default function Page() {
             <button
               type="button"
               onClick={() => setSelected(null)}
-              aria-label="Kapat"
+              aria-label={t("common.close")}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               <X className="h-4 w-4" />

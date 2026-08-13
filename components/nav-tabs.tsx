@@ -6,22 +6,25 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useSession } from "@/lib/auth-client"
 import { FavoritesMenu } from "@/components/favorites-menu"
+import { LanguageSwitcher } from "@/components/language-switcher"
 import { isAdminEmail } from "@/lib/admin"
-
-const tabs = [
-  { href: "/", label: "Maçlar", icon: CalendarDays },
-  { href: "/oyunlar", label: "Oyunlar", icon: Gamepad2 },
-]
+import { useLanguage } from "@/contexts/language-context"
 
 export function NavTabs() {
   const pathname = usePathname()
   const { data: session } = useSession()
   const isAdmin = isAdminEmail(session?.user?.email)
+  const { t } = useLanguage()
+
+  const tabs = [
+    { href: "/", label: t("nav.matches"), icon: CalendarDays },
+    { href: "/oyunlar", label: t("nav.games"), icon: Gamepad2 },
+  ]
 
   return (
     <nav
       className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-md"
-      aria-label="Ana navigasyon"
+      aria-label={t("nav.ariaLabel")}
     >
       <div className="mx-auto flex max-w-4xl items-center justify-between px-5">
         {/* Hamburger (sadece giriş yapmış kullanıcılar) + Logo sol */}
@@ -30,7 +33,7 @@ export function NavTabs() {
           <Link
             href="/"
             className="select-none text-[13px] font-black tracking-[0.18em] uppercase"
-            aria-label="Ana ekrana dön"
+            aria-label={t("nav.backToHome")}
           >
             <span className="brand-gradient bg-clip-text text-transparent">ED</span>
             <span className="text-foreground/50 mx-1">/</span>
@@ -79,7 +82,7 @@ export function NavTabs() {
                 </span>
                 {isAdmin && (
                   <span className="brand-gradient bg-clip-text text-transparent text-[10px] font-black tracking-[0.15em] uppercase">
-                    Admin
+                    {t("nav.admin")}
                   </span>
                 )}
               </span>
@@ -90,17 +93,20 @@ export function NavTabs() {
                   className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
                 >
                   <KeyRound className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Giriş</span>
+                  <span className="hidden sm:inline">{t("nav.signIn")}</span>
                 </Link>
                 <Link
                   href="/sign-up"
                   className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Kayıt Ol</span>
+                  <span className="hidden sm:inline">{t("nav.signUp")}</span>
                 </Link>
               </>
             )}
+            <div className="ml-1.5 hidden sm:block">
+              <LanguageSwitcher />
+            </div>
           </div>
         </div>
       </div>

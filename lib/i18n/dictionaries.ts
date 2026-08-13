@@ -1,0 +1,346 @@
+export type Locale = "tr" | "en"
+
+export const LOCALES: Locale[] = ["tr", "en"]
+export const DEFAULT_LOCALE: Locale = "tr"
+
+// Basit, iç içe (nested) sözlük yapısı. Anahtarlar nokta notasyonuyla
+// çözülür (örn. "nav.matches"). Değerler içinde {{degisken}} kalıpları
+// interpolate edilir.
+export const dictionaries: Record<Locale, Record<string, unknown>> = {
+  tr: {
+    common: {
+      close: "Kapat",
+      back: "Geri",
+      loading: "Yükleniyor...",
+      error: "Bir şeyler ters gitti. Lütfen daha sonra tekrar deneyin.",
+      unexpectedError: "Beklenmedik bir hata oluştu.",
+      or: "veya",
+      cancel: "İptal",
+      save: "Kaydet",
+      confirm: "Onayla",
+      continue: "Devam et",
+      retry: "Tekrar dene",
+    },
+    language: {
+      label: "Dil",
+      turkish: "Türkçe",
+      english: "İngilizce",
+      switchTo: "{{lang}} diline geç",
+    },
+    nav: {
+      ariaLabel: "Ana navigasyon",
+      matches: "Maçlar",
+      games: "Oyunlar",
+      admin: "Admin",
+      signIn: "Giriş",
+      signUp: "Kayıt Ol",
+      backToHome: "Ana ekrana dön",
+    },
+    theme: {
+      toLight: "Açık temaya geç",
+      toDark: "Koyu temaya geç",
+      light: "Açık tema",
+      dark: "Koyu tema",
+    },
+    menu: {
+      openMenu: "Menüyü aç",
+      closeMenu: "Menüyü kapat",
+      userMenu: "Kullanıcı menüsü",
+      title: "Menü",
+      myAccount: "Hesabım",
+      myFavorites: "Favorilerim",
+      themeColor: "Tema Rengi",
+      adminPanel: "Yönetim Paneli",
+      signOut: "Çıkış Yap",
+      signIn: "Giriş Yap",
+      deleteAccount: "Hesabımı Sil",
+      deleteAccountDesc1:
+        "Hesabınızı sildiğinizde profil bilgileriniz, favori takım/liglerinizi ve tüm tahmin geçmişiniz kalıcı olarak silinir.",
+      deleteAccountDesc2:
+        "Bu işlem geri alınamaz. Devam etmek için e-posta adresinize bir onay linki göndereceğiz.",
+      deleteAccountDesc3: "E-postadaki linke tıkladığınız anda hesabınız kalıcı olarak silinir.",
+      deleteAccountSentTo: "adresine silme linki gönderildi.",
+      deleteAccountSending: "Gönderiliyor...",
+      noFavoritesYet: "Henüz favori eklemediniz. Yukarıdan takım veya lig arayın.",
+      dragToReorder: "Sürükleyerek sıralamayı değiştir",
+      removeFromFavorites: "favorilerden kaldır",
+    },
+    loginPrompt: {
+      title: "ED Analytics'e Hoş Geldin",
+      subtitle: "Giriş yaparak tahminlerini takip edebilir, başarı geçmişine ulaşabilirsin.",
+      signIn: "Giriş Yap",
+      createAccount: "Hesap Oluştur",
+      continueForNow: "Şimdilik devam et",
+    },
+    home: {
+      todayMatches: "Günün Maçları",
+      matchesCount: "{{count}} maç",
+      loadingMatches: "Maçlar yükleniyor",
+      noMatchesToday: "Bu tarihte planlanmış maç bulunamadı.",
+      matchAnalysis: "maç analizi",
+    },
+    games: {
+      testYourKnowledge: "Bilgini Test Et",
+      title: "Oyunlar",
+      subtitle:
+        "Futbol dünyasına dair bilginizi ölçen mini oyunlar. İlk oyun: piyasa değeri sezgin ne kadar iyi?",
+      marketValueDuel: "Piyasa Değeri Düellosu",
+      marketValueDuelDesc:
+        "İki futbolcudan hangisinin piyasa değeri daha yüksek? Sezgini test et, seriyi bozma.",
+      enterArena: "Arenaya Gir",
+      comingSoon: "Yakında",
+      comingSoonDesc: "Yeni oyunlar üzerinde çalışıyoruz. Takipte kalın.",
+      preparing: "Hazırlanıyor",
+    },
+    duel: {
+      pageSubtitle: "Değeri yüksek olanı seç. Seriyi bozma, arenayı domine et.",
+      chooseDifficulty: "Zorluk Seç",
+      chooseDifficultyDesc:
+        "Arenaya hangi seviyeden gireceksin? Seçim seni bekleyen rakiplerin tanınırlığını belirler.",
+      easy: "Kolay",
+      easyDesc: "Herkesin bildiği süperstarlar",
+      normal: "Normal",
+      normalDesc: "Futbolseverin bildiği isimler",
+      hard: "Zor",
+      hardDesc: "Sadece fanatiklerin bileceği isimler",
+      score: "Skor",
+      streak: "Seri",
+      bestStreak: "En iyi serin:",
+      changeDifficulty: "Zorluk seviyesini değiştir",
+      muteOn: "Sesi aç",
+      muteOff: "Sesi kapat",
+      restart: "Sıfırla",
+      restartAria: "Oyunu yeniden başlat",
+      opponentsEntering: "Rakipler ringe çıkıyor",
+      loadFailed: "Oyun yüklenemedi.",
+      connectionError: "Bağlantı hatası. Lütfen tekrar deneyin.",
+      resultFailed: "Sonuç alınamadı.",
+      tryAgain: "Tekrar Dene",
+      pickHigherValue: "Piyasa değeri daha yüksek olan futbolcuyu seç",
+      nextOpponent: "Sıradaki Rakip",
+      combo: "{{count}}x KOMBO!",
+      unknown: "Bilinmiyor",
+      hiddenValue: "??? €",
+    },
+    auth: {
+      appName: "ED Company",
+      createAccount: "Hesap oluştur",
+      signInToAccount: "Hesabına giriş yap",
+      continueWithGoogle: "Google ile Giriş Yap",
+      signUpWithGoogle: "Google ile Kayıt Ol",
+      redirecting: "Yönlendiriliyor...",
+      fullName: "Ad Soyad",
+      fullNamePlaceholder: "Adın Soyadın",
+      email: "E-posta",
+      emailPlaceholder: "ornek@mail.com",
+      password: "Şifre",
+      signingUp: "Kaydediliyor...",
+      signingIn: "Giriş yapılıyor...",
+      signUp: "Kayıt Ol",
+      signIn: "Giriş Yap",
+      alreadyHaveAccount: "Zaten hesabın var mı?",
+      noAccount: "Hesabın yok mu?",
+      continueWithoutSignIn: "Giriş yapmadan devam et",
+      verifyEmailTitle: "E-postanı Doğrula",
+      verifyEmailSentTo: "adresine doğrulama linki gönderdik.",
+      checkSpam: "Spam klasörünü de kontrol etmeyi unutma.",
+      alreadyVerified: "Zaten doğruladın mı?",
+      enterOtpTitle: "Doğrulama kodu girin",
+      otpSentTo: "adresine 6 haneli kod gönderdik.",
+      verifyAndSignIn: "Doğrula ve Giriş Yap",
+      verifying: "Doğrulanıyor...",
+      didntGetCode: "Kod gelmedi mi?",
+      resend: "Tekrar gönder",
+      goBack: "Geri dön",
+      popupBlocked: "Google penceresi açılamadı. Tarayıcınızın pop-up engelleyicisini kontrol edin.",
+      googleConnectFailed: "Google ile bağlantı kurulamadı.",
+      sessionNotDetected:
+        "Google girişi tamamlandı ama oturum bu sekmede algılanamadı. Lütfen sayfayı yenileyip tekrar deneyin.",
+      signUpError: "Kayıt sırasında bir hata oluştu.",
+      wrongCredentials: "E-posta veya şifre hatalı.",
+      otpSendFailed: "Doğrulama kodu gönderilemedi. Tekrar deneyin.",
+      otpIncomplete: "Lütfen 6 haneli kodu eksiksiz girin.",
+      otpInvalid: "Kod hatalı veya süresi dolmuş.",
+    },
+  },
+  en: {
+    common: {
+      close: "Close",
+      back: "Back",
+      loading: "Loading...",
+      error: "Something went wrong. Please try again later.",
+      unexpectedError: "An unexpected error occurred.",
+      or: "or",
+      cancel: "Cancel",
+      save: "Save",
+      confirm: "Confirm",
+      continue: "Continue",
+      retry: "Retry",
+    },
+    language: {
+      label: "Language",
+      turkish: "Turkish",
+      english: "English",
+      switchTo: "Switch to {{lang}}",
+    },
+    nav: {
+      ariaLabel: "Main navigation",
+      matches: "Matches",
+      games: "Games",
+      admin: "Admin",
+      signIn: "Sign In",
+      signUp: "Sign Up",
+      backToHome: "Back to home",
+    },
+    theme: {
+      toLight: "Switch to light theme",
+      toDark: "Switch to dark theme",
+      light: "Light theme",
+      dark: "Dark theme",
+    },
+    menu: {
+      openMenu: "Open menu",
+      closeMenu: "Close menu",
+      userMenu: "User menu",
+      title: "Menu",
+      myAccount: "My Account",
+      myFavorites: "My Favorites",
+      themeColor: "Theme Color",
+      adminPanel: "Admin Panel",
+      signOut: "Sign Out",
+      signIn: "Sign In",
+      deleteAccount: "Delete My Account",
+      deleteAccountDesc1:
+        "Deleting your account permanently removes your profile info, favorite teams/leagues, and your entire prediction history.",
+      deleteAccountDesc2:
+        "This action cannot be undone. We'll send a confirmation link to your email to continue.",
+      deleteAccountDesc3: "Your account is permanently deleted the moment you click the link in the email.",
+      deleteAccountSentTo: "A deletion link was sent to",
+      deleteAccountSending: "Sending...",
+      noFavoritesYet: "You haven't added any favorites yet. Search for a team or league above.",
+      dragToReorder: "Drag to reorder",
+      removeFromFavorites: "remove from favorites",
+    },
+    loginPrompt: {
+      title: "Welcome to ED Analytics",
+      subtitle: "Sign in to track your predictions and access your success history.",
+      signIn: "Sign In",
+      createAccount: "Create Account",
+      continueForNow: "Continue for now",
+    },
+    home: {
+      todayMatches: "Today's Matches",
+      matchesCount: "{{count}} matches",
+      loadingMatches: "Loading matches",
+      noMatchesToday: "No matches scheduled for this date.",
+      matchAnalysis: "match analysis",
+    },
+    games: {
+      testYourKnowledge: "Test Your Knowledge",
+      title: "Games",
+      subtitle:
+        "Mini games that test your knowledge of the football world. First game: how good is your market value intuition?",
+      marketValueDuel: "Market Value Duel",
+      marketValueDuelDesc:
+        "Which of two players has the higher market value? Test your instincts, keep your streak alive.",
+      enterArena: "Enter the Arena",
+      comingSoon: "Coming Soon",
+      comingSoonDesc: "We're working on new games. Stay tuned.",
+      preparing: "In the works",
+    },
+    duel: {
+      pageSubtitle: "Pick the one worth more. Keep your streak alive, own the arena.",
+      chooseDifficulty: "Choose Difficulty",
+      chooseDifficultyDesc: "Which level will you enter the arena at? Your choice sets how well-known the opponents are.",
+      easy: "Easy",
+      easyDesc: "Superstars everyone knows",
+      normal: "Normal",
+      normalDesc: "Names any football fan would know",
+      hard: "Hard",
+      hardDesc: "Names only true fanatics would know",
+      score: "Score",
+      streak: "Streak",
+      bestStreak: "Best streak:",
+      changeDifficulty: "Change difficulty level",
+      muteOn: "Unmute",
+      muteOff: "Mute",
+      restart: "Restart",
+      restartAria: "Restart the game",
+      opponentsEntering: "Opponents entering the ring",
+      loadFailed: "Couldn't load the game.",
+      connectionError: "Connection error. Please try again.",
+      resultFailed: "Couldn't get the result.",
+      tryAgain: "Try Again",
+      pickHigherValue: "Pick the player with the higher market value",
+      nextOpponent: "Next Opponent",
+      combo: "{{count}}x COMBO!",
+      unknown: "Unknown",
+      hiddenValue: "??? €",
+    },
+    auth: {
+      appName: "ED Company",
+      createAccount: "Create an account",
+      signInToAccount: "Sign in to your account",
+      continueWithGoogle: "Continue with Google",
+      signUpWithGoogle: "Sign up with Google",
+      redirecting: "Redirecting...",
+      fullName: "Full Name",
+      fullNamePlaceholder: "Your full name",
+      email: "Email",
+      emailPlaceholder: "you@example.com",
+      password: "Password",
+      signingUp: "Signing up...",
+      signingIn: "Signing in...",
+      signUp: "Sign Up",
+      signIn: "Sign In",
+      alreadyHaveAccount: "Already have an account?",
+      noAccount: "Don't have an account?",
+      continueWithoutSignIn: "Continue without signing in",
+      verifyEmailTitle: "Verify Your Email",
+      verifyEmailSentTo: "We sent a verification link to",
+      checkSpam: "Don't forget to check your spam folder.",
+      alreadyVerified: "Already verified?",
+      enterOtpTitle: "Enter verification code",
+      otpSentTo: "We sent a 6-digit code to",
+      verifyAndSignIn: "Verify and Sign In",
+      verifying: "Verifying...",
+      didntGetCode: "Didn't get the code?",
+      resend: "Resend",
+      goBack: "Go back",
+      popupBlocked: "Couldn't open the Google window. Please check your browser's pop-up blocker.",
+      googleConnectFailed: "Couldn't connect with Google.",
+      sessionNotDetected:
+        "Google sign-in completed but the session wasn't detected in this tab. Please refresh the page and try again.",
+      signUpError: "An error occurred during sign up.",
+      wrongCredentials: "Incorrect email or password.",
+      otpSendFailed: "Couldn't send the verification code. Please try again.",
+      otpIncomplete: "Please enter the full 6-digit code.",
+      otpInvalid: "Invalid or expired code.",
+    },
+  },
+}
+
+function getPath(obj: Record<string, unknown>, path: string): unknown {
+  return path.split(".").reduce<unknown>((acc, key) => {
+    if (acc && typeof acc === "object" && key in (acc as Record<string, unknown>)) {
+      return (acc as Record<string, unknown>)[key]
+    }
+    return undefined
+  }, obj)
+}
+
+export function translate(locale: Locale, key: string, vars?: Record<string, string | number>): string {
+  const dict = dictionaries[locale] ?? dictionaries[DEFAULT_LOCALE]
+  let value = getPath(dict, key)
+  if (typeof value !== "string") {
+    const fallback = getPath(dictionaries[DEFAULT_LOCALE], key)
+    value = typeof fallback === "string" ? fallback : key
+  }
+  let result = value as string
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) {
+      result = result.replaceAll(`{{${k}}}`, String(v))
+    }
+  }
+  return result
+}

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react"
 import { Check, MapPin, Shield, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMarketValueEur } from "@/lib/market-value-format"
+import { useLanguage } from "@/contexts/language-context"
 import type { DuelPlayer } from "@/lib/games/market-value-duel"
 
 interface DuelPlayerCardProps {
@@ -27,6 +28,7 @@ export function DuelPlayerCard({
   disabled,
   onPick,
 }: DuelPlayerCardProps) {
+  const { t } = useLanguage()
   const formattedValue = formatMarketValueEur(value)
 
   return (
