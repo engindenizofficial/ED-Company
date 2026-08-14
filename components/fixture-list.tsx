@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Clock, Star } from "lucide-react"
 import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
@@ -66,6 +67,31 @@ function isLive(short: string): boolean {
 
 function statusLabel(short: string, t: (key: string) => string): string {
   return t(`matchStatus.${short}`)
+}
+
+/**
+ * Lig başlığındaki küçük logo dairesi. Logo URL'si yüklenemezse (404 vb.)
+ * tarayıcının kırık resim ikonu (siyah soru işareti) göstermesini engellemek
+ * için daire tamamen kaldırılır.
+ */
+function LeagueLogo({ logo }: { logo: string }) {
+  const [failed, setFailed] = useState(false)
+  if (!logo || failed) return null
+  return (
+    // Bazı lig logoları (özellikle tek renkli/çizgi logolar) şeffaf arka
+    // planla gelir ve siyah öğeler koyu temada arka planla aynı renge
+    // karışıp kaybolur. Sabit beyaz bir zemin, temadan bağımsız olarak
+    // her zaman kontrast sağlar.
+    <span className="flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full bg-white p-[3px] shadow-sm ring-1 ring-border/40">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={logo || "/placeholder.svg"}
+        alt=""
+        className="h-full w-full object-contain"
+        onError={() => setFailed(true)}
+      />
+    </span>
+  )
 }
 
 function liveText(f: Fixture, t: (key: string) => string): string {
@@ -253,16 +279,7 @@ export function FixtureList({
         <div key={group.key} className="flex flex-col gap-1.5">
           {/* League header */}
           <div className="flex items-center gap-2 px-1 pb-1">
-            {group.logo ? (
-              // Bazı lig logoları (özellikle tek renkli/çizgi logolar) şeffaf arka
-              // planla gelir ve siyah öğeler koyu temada arka planla aynı renge
-              // karışıp kaybolur. Sabit beyaz bir zemin, temadan bağımsız olarak
-              // her zaman kontrast sağlar.
-              <span className="flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full bg-white p-[3px] shadow-sm ring-1 ring-border/40">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={group.logo || "/placeholder.svg"} alt="" className="h-full w-full object-contain" />
-              </span>
-            ) : null}
+            <LeagueLogo logo={group.logo} />
             <LeagueButton
               league={{ id: group.id, name: group.name, logo: group.logo, country: group.country, flagUrl: null }}
               className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-primary"
@@ -414,12 +431,25 @@ function TeamRow({
   isFavorite: boolean
   onToggleFavorite: () => void
 }) {
+  const [logoFailed, setLogoFailed] = useState(false)
+
   return (
     <div className="flex items-center gap-2.5">
-      {logo ? (
+      {logo && !logoFailed ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={logo || "/placeholder.svg"} alt="" className="h-5 w-5 shrink-0 object-contain" width={20} height={20} loading="lazy" decoding="async" />
+        <img
+          src={logo || "/placeholder.svg"}
+          alt=""
+          className="h-5 w-5 shrink-0 object-contain"
+          width={20}
+          height={20}
+          loading="lazy"
+          decoding="async"
+          onError={() => setLogoFailed(true)}
+        />
       ) : (
+        // Logo URL'si boş veya yüklenemediyse (kırık resim ikonu görünmesin diye)
+        // sabit bir yer tutucu daire gösterilir.
         <div className="h-5 w-5 shrink-0 rounded-full bg-secondary" />
       )}
       <div className="flex min-w-0 flex-1 items-center gap-1">
