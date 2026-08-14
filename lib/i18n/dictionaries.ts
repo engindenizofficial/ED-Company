@@ -715,9 +715,11 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       },
       signIn: {
         title: "Giriş Yap — ED Company",
+        description: "ED Company hesabınıza giriş yapın; favori takımlarınızı, liglerinizi ve maç tahminlerini takip edin.",
       },
       signUp: {
         title: "Kayıt Ol — ED Company",
+        description: "Ücretsiz ED Company hesabı oluşturun; favori takımlarınızı, liglerinizi ve maç tahminlerini takip edin.",
       },
     },
   },
@@ -1427,9 +1429,11 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       },
       signIn: {
         title: "Sign In — ED Company",
+        description: "Sign in to your ED Company account to follow your favorite teams, leagues, and match predictions.",
       },
       signUp: {
         title: "Sign Up — ED Company",
+        description: "Create a free ED Company account to follow your favorite teams, leagues, and match predictions.",
       },
     },
   },

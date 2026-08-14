@@ -8,8 +8,18 @@ import { translate } from '@/lib/i18n/dictionaries'
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getServerLocale()
+  const title = translate(locale, 'meta.signUp.title')
+  const description = translate(locale, 'meta.signUp.description')
   return {
-    title: translate(locale, 'meta.signUp.title'),
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'website',
+      images: [{ url: '/opengraph-image.png', width: 1200, height: 630 }],
+    },
+    twitter: { card: 'summary_large_image', title, description, images: ['/opengraph-image.png'] },
   }
 }
 
