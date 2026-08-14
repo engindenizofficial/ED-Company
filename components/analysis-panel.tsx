@@ -19,6 +19,7 @@ import {
   Users,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import type {
   Fixture,
   FixturePlayerStat,
@@ -352,7 +353,7 @@ interface SectionState<T> {
   error: string | null
 }
 
-function useLazySection<T>(url: string, open: boolean) {
+function useLazySection<T>(url: string, open: boolean, autoRefresh = false) {
   const { t } = useLanguage()
   const [state, setState] = useState<SectionState<T>>({ status: "idle", data: null, error: null })
   // "hasLoadedRef" isteğin tamamlanıp tamamlanmadığını takip eder. React 18/19
@@ -363,11 +364,24 @@ function useLazySection<T>(url: string, open: boolean) {
   // verecek şekilde yapıyoruz — aksi halde ikinci (gerçek) mount hiç istek
   // başlatmaz ve arayüz sonsuza kadar "yükleniyor" durumunda kalır.
   const hasLoadedRef = useRef(false)
-
+  // Component unmount olduktan (panel/sekme kapandıktan) sonra gelen bir
+  // ağ cevabının artık ilgisiz olduğu state'e yazılmasını önler.
+  const isMountedRef = useRef(true)
   useEffect(() => {
-    if (!open || hasLoadedRef.current) return
-    let cancelled = false
-    setState({ status: "loading", data: null, error: null })
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  // silent=false: ilk yükleme, "yükleniyor" spinner'ı gösterir.
+  // silent=true: otomatik arka plan yenilemesi, ekranı spinner'a düşürmeden
+  // veriyi sessizce günceller; hata olursa da (ör. geçici ağ hatası) mevcut
+  // veriyi ekranda tutar, kullanıcıyı aniden hata ekranına düşürmez.
+  const fetchSection = useCallback((silent: boolean) => {
+    if (!silent) {
+      setState({ status: "loading", data: null, error: null })
+    }
     fetch(url, { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) {
@@ -377,28 +391,45 @@ function useLazySection<T>(url: string, open: boolean) {
         return res.json() as Promise<{ data: T | null }>
       })
       .then((json) => {
-        if (cancelled) return
+        if (!isMountedRef.current) return
         hasLoadedRef.current = true
         setState({ status: json.data === null ? "empty" : "success", data: json.data, error: null })
       })
       .catch((err) => {
-        if (cancelled) return
+        if (!isMountedRef.current) return
         hasLoadedRef.current = true
-        setState({
-          status: "error",
-          data: null,
-          error: err instanceof Error ? err.message : t("common.unexpectedError"),
-        })
+        setState((prev) =>
+          silent && prev.status === "success"
+            ? prev
+            : {
+                status: "error",
+                data: null,
+                error: err instanceof Error ? err.message : t("common.unexpectedError"),
+              },
+        )
       })
-    return () => {
-      cancelled = true
-    }
-  }, [open, url])
+  }, [url, t])
+
+  // İlk açılış: bölüm daha önce hiç yüklenmediyse bir kez veri çek.
+  useEffect(() => {
+    if (!open || hasLoadedRef.current) return
+    fetchSection(false)
+  }, [open, fetchSection])
+
+  // Otomatik yenileme (ortak 3 kural, bkz. useAutoRefresh): sadece bu sekme
+  // aktifken (open=true) çalışır — 1) etkinleştiğinde hemen (ama ilk yükleme
+  // üstteki effect tarafından zaten yapıldığından burada atlanır), 2) sekme
+  // görünürken 30 saniyede bir, 3) sekmeye geri dönüldüğünde hemen. İlk yükleme
+  // tamamlandıktan sonraki tüm tetiklemeler sessiz (spinner göstermeden) çalışır.
+  useAutoRefresh(() => {
+    if (!open || !hasLoadedRef.current) return
+    fetchSection(true)
+  }, autoRefresh && open)
 
   const retry = useCallback(() => {
     hasLoadedRef.current = false
-    setState({ status: "idle", data: null, error: null })
-  }, [])
+    fetchSection(false)
+  }, [fetchSection])
   return { ...state, retry }
 }
 
@@ -462,6 +493,7 @@ function EventsSection({ fixtureId, homeName, active }: { fixtureId: number; hom
   const { status, data, error, retry } = useLazySection<MatchEvent[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=events`,
     active,
+    true,
   )
   return (
     <SectionShell active={active}>
@@ -618,6 +650,7 @@ function PlayerStatsSection({
   const { status, data, error, retry } = useLazySection<FixturePlayerStat[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=playerStats`,
     active,
+    true,
   )
   return (
     <SectionShell active={active}>
@@ -802,6 +835,7 @@ function StatisticsSection({
   const { status, data, error, retry } = useLazySection<StatItem[]>(
     `/api/analyze/section?fixtureId=${fixtureId}&section=statistics`,
     active,
+    true,
   )
   return (
     <SectionShell active={active}>

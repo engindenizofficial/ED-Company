@@ -10,6 +10,7 @@ import { TeamSearchBar } from "@/components/team-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useFavorites } from "@/contexts/favorites-context"
 import { useLanguage } from "@/contexts/language-context"
+import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import type { Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
@@ -309,53 +310,28 @@ export default function Page() {
     }
   }, [loadFixtures, loadPredictionResults])
 
-  // Yenileme yaşam döngüsü — tek bir effect, 3 net kural:
-  // 1) Sayfa ilk açıldığında bir kez otomatik yenilenir (handleRefresh burada tek
-  //    seferliğine tetiklenir; önceden ayrı bir "ilk yükleme" effect'i de vardı ve
-  //    bu effect de mount anında hemen çalıştığı için ikisi aynı anda, birbiriyle
-  //    yarışan iki farklı fetch başlatıyordu — bu artık tek çağrıya indirildi).
+  // Yenileme yaşam döngüsü — ortak `useAutoRefresh` hook'undaki 3 kural:
+  // 1) Sayfa ilk açıldığında bir kez otomatik yenilenir.
   // 2) Sekme görünürken 30 saniyede bir otomatik yenilenir.
-  // 3) Sekme arka plana geçince interval durur; kullanıcı sekmeye geri
-  //    döndüğünde hemen bir kez daha yenilenir ve interval yeniden başlar.
+  // 3) Sekme arka plana geçince durur; kullanıcı sekmeye geri döndüğünde
+  //    hemen bir kez daha yenilenir ve döngü yeniden başlar.
+  // Aynı hook, canlı maç panelindeki skor/dakika ile maç olayları / oyuncu
+  // performansları / maç istatistikleri sekmelerinde de kullanılıyor.
+  useAutoRefresh(handleRefresh, true)
+
+  // Fikstür listesi her yenilendiğinde, o an açık olan maç paneli (varsa)
+  // da aynı listeden gelen en güncel fixture nesnesiyle senkronize edilir.
+  // Bunu yapmazsak "selected" ilk tıklandığı andaki skor/dakika bilgisinde
+  // donuk kalır — panel açıkken 30 saniyelik otomatik yenilemeler fixturesData'yı
+  // güncellese de panelin kendi state'i hiç güncellenmezdi.
   useEffect(() => {
-    const AUTO_REFRESH_MS = 30_000
-    let intervalId: ReturnType<typeof setInterval> | null = null
-
-    const startInterval = () => {
-      if (intervalId) return
-      intervalId = setInterval(() => {
-        if (document.visibilityState === "visible") {
-          handleRefresh()
-        }
-      }, AUTO_REFRESH_MS)
-    }
-
-    const stopInterval = () => {
-      if (!intervalId) return
-      clearInterval(intervalId)
-      intervalId = null
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        handleRefresh()
-        startInterval()
-      } else {
-        stopInterval()
-      }
-    }
-
-    // 1) İlk yükleme — mount anında tek sefer.
-    handleRefresh()
-    startInterval()
-
-    document.addEventListener("visibilitychange", handleVisibilityChange)
-
-    return () => {
-      stopInterval()
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
-    }
-  }, [handleRefresh])
+    if (!fixturesData) return
+    setSelected((cur) => {
+      if (!cur) return cur
+      const updated = fixturesData.fixtures?.find((f) => f.id === cur.id)
+      return updated ?? cur
+    })
+  }, [fixturesData])
 
   useBodyScrollLock(!!selected)
   useCloseOnBackButton(!!selected, () => setSelected(null))
