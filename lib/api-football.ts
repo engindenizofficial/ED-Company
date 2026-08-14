@@ -156,12 +156,35 @@ function isExcludedLeague(leagueName: string): boolean {
 // oynadığı kupa maçları), TAKIM ADLARI genelde kadın/alt yaş kategorisini
 // açıkça belirtir. Bu yüzden lig adı temiz görünse bile ev sahibi/misafir
 // takım adlarını da aynı desenlerle kontrol ediyoruz — çift güvenlik katmanı.
+//
+// API-Football, karma (kadın+erkek) ligler içinde (örn. "WK-League",
+// "Toppserien", "Queensland NPL" gibi lig adı hiçbir kadın/gençlik ibaresi
+// taşımayan turnuvalarda) kadın takımlarının adının SONUNA kısaltılmış
+// " W" ekler (örn. "Seoul W", "Bodø / Glimt W", "Vålerenga W") ve rezerv/B
+// takımlarının adının sonuna " II" veya " B" ekler (örn. "Brisbane Roar II",
+// "Barcelona B"). Bu son ekler lig adında hiç görünmediği için ayrıca takım
+// adının sonunu da kontrol etmemiz gerekiyor.
+const WOMEN_TEAM_SUFFIX_PATTERN = /\bw$/i
+const RESERVE_TEAM_SUFFIX_PATTERN = /\b(ii|b)$/i
+
+function hasWomenTeamSuffix(name: string): boolean {
+  return WOMEN_TEAM_SUFFIX_PATTERN.test(name.trim())
+}
+
+function hasReserveTeamSuffix(name: string): boolean {
+  return RESERVE_TEAM_SUFFIX_PATTERN.test(name.trim())
+}
+
 function isExcludedByTeamNames(homeName: string, awayName: string): boolean {
   return (
     isWomensLeague(homeName) ||
     isWomensLeague(awayName) ||
     isYouthOrReserveLeague(homeName) ||
-    isYouthOrReserveLeague(awayName)
+    isYouthOrReserveLeague(awayName) ||
+    hasWomenTeamSuffix(homeName) ||
+    hasWomenTeamSuffix(awayName) ||
+    hasReserveTeamSuffix(homeName) ||
+    hasReserveTeamSuffix(awayName)
   )
 }
 
