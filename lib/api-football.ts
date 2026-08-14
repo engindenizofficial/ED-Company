@@ -3,6 +3,7 @@ import type {
   FixturePlayerStat,
   FormGame,
   InjuryItem,
+  LeagueBasicInfo,
   LineupPlayer,
   LiveMatchData,
   MatchEvent,
@@ -11,6 +12,7 @@ import type {
   SquadPlayer,
   StandingRow,
   StatItem,
+  TeamBasicInfo,
   TeamInfo,
   TeamLineup,
   TeamSeasonStats,
@@ -20,7 +22,17 @@ import type {
 } from "./types"
 import { toTurkishCountry } from "./tr-aliases"
 import { apiFootballFetch, safeApiFootballFetch } from "./api-football-client"
+import { getPlayerMarketValue, getTeamMarketValue } from "./market-values"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
+
+// Sezon geçişi (Ağustos) TR takvimine göre kabul edilir — panel header
+// endpoint'leri (/api/player, /api/team, /api/league) VE bunların dinamik
+// route karşılıkları (/oyuncu, /takim, /lig — SEO/paylaşım için) aynı tanımı
+// kullanır ki hangi sezonun "güncel" sayıldığı her yerde birebir tutarlı olsun.
+export function currentSeason(): number {
+  const now = new Date()
+  return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
+}
 
 // ---------------------------------------------------------------------------
 // Featured leagues — tek kaynak lib/leagues.ts'de tanımlı. Bu diziye buradan
@@ -224,6 +236,97 @@ export async function getFixtureById(id: number): Promise<Fixture | null> {
   const raw = await apiFetch<RawFixture>("/fixtures", { id }, 30)
   if (raw.length === 0) return null
   return mapFixture(raw[0])
+}
+
+// ---------------------------------------------------------------------------
+// Panel header ("basic info") — /api/player, /api/team, /api/league hafif
+// endpoint'leri VE bunların dinamik route karşılıkları (/oyuncu/[id],
+// /takim/[id], /lig/[id]) aynı veriyi tek bir yerden okusun diye burada
+// toplandı. Diğer tüm panel verisi (istatistik, kadro, transferler vb.)
+// hâlâ ayrı /section endpoint'lerinden, sekmeye tıklanınca çekiliyor.
+// ---------------------------------------------------------------------------
+
+export async function getPlayerBasicProfile(playerId: number): Promise<PlayerProfile | null> {
+  const season = currentSeason()
+  const playerRaw = await safeApiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
+  if (!playerRaw || playerRaw.length === 0) return null
+
+  const entry = playerRaw[0]
+  const p = entry.player ?? {}
+  const currentStats = entry.statistics?.[0] ?? {}
+
+  const marketValue = p.id ? await getPlayerMarketValue(p.id).catch(() => null) : null
+
+  return {
+    id: p.id ?? 0,
+    name: p.name ?? "",
+    firstname: p.firstname ?? "",
+    lastname: p.lastname ?? "",
+    age: calculateAge(p.birth?.date, p.age),
+    birthDate: p.birth?.date ?? null,
+    birthPlace: p.birth?.place ?? null,
+    birthCountry: p.birth?.country ?? null,
+    nationality: p.nationality ?? null,
+    height: p.height ?? null,
+    weight: p.weight ?? null,
+    photo: p.photo ?? null,
+    position: currentStats.games?.position ?? null,
+    number: currentStats.games?.number ?? null,
+    injured: p.injured ?? false,
+    team: currentStats.team
+      ? { id: currentStats.team.id, name: currentStats.team.name, logo: currentStats.team.logo ?? "" }
+      : null,
+    league: currentStats.league
+      ? {
+          id: currentStats.league.id,
+          name: currentStats.league.name,
+          country: toTurkishCountry(currentStats.league.country),
+          logo: currentStats.league.logo ?? "",
+          season: currentStats.league.season,
+        }
+      : null,
+    marketValueEur: marketValue?.matchStatus === "matched" ? marketValue.valueEur : null,
+  }
+}
+
+export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | null> {
+  const teamRaw = await safeApiFootballFetch<any>("/teams", { id: teamId }, { cache: "no-store" })
+  if (!teamRaw || teamRaw.length === 0) return null
+
+  const rawTeam = teamRaw[0]
+  const team: TeamInfo = { id: rawTeam.team.id, name: rawTeam.team.name, logo: rawTeam.team.logo }
+
+  const marketValue = await getTeamMarketValue(teamId).catch(() => null)
+
+  return {
+    team,
+    venue: {
+      name: rawTeam.venue?.name ?? null,
+      city: rawTeam.venue?.city ?? null,
+      capacity: rawTeam.venue?.capacity ?? null,
+      image: rawTeam.venue?.image ?? null,
+    },
+    currentSeason: currentSeason(),
+    marketValueEur: marketValue?.matchStatus === "matched" ? marketValue.totalValueEur : null,
+  }
+}
+
+export async function getLeagueBasicInfo(leagueId: number): Promise<LeagueBasicInfo | null> {
+  const season = currentSeason()
+  const leagueRaw = await safeApiFootballFetch<any>("/leagues", { id: leagueId, season }, { cache: "no-store" })
+  if (!leagueRaw || leagueRaw.length === 0) return null
+
+  const rawLeague = leagueRaw[0]
+  return {
+    league: {
+      id: rawLeague.league?.id ?? leagueId,
+      name: rawLeague.league?.name ?? "",
+      country: toTurkishCountry(rawLeague.country?.name ?? ""),
+      logo: rawLeague.league?.logo ?? "",
+      flagUrl: rawLeague.country?.flag ?? null,
+    },
+    season,
+  }
 }
 
 // ---------------------------------------------------------------------------

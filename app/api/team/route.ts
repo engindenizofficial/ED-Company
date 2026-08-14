@@ -1,12 +1,27 @@
 import { NextResponse } from "next/server"
-import { safeApiFootballFetch } from "@/lib/api-football-client"
-import { getTeamMarketValue } from "@/lib/market-values"
-import type { TeamBasicInfo, TeamInfo } from "@/lib/types"
+import { getTeamBasicInfo } from "@/lib/api-football"
 
 export const dynamic = "force-dynamic"
 
-function apiFetch<T>(path: string, params: Record<string, string | number>): Promise<T[]> {
-  return safeApiFootballFetch<T>(path, params, { cache: "no-store" })
+// Panel açıldığında sadece bu hafif endpoint çağrılır (header için isim/logo/stadyum).
+// Diğer tüm bölümler (istatistik, kadro, transferler vb.) kendi sekmesine
+// tıklanana kadar hiç istek atmaz — bkz. /api/team/section.
+// Not: /takim/[id] dinamik route'u (paylaşılabilir URL) aynı verinin
+// server-side karşılığını lib/api-football.ts'deki getTeamBasicInfo
+// üzerinden okur — mantık iki kere yazılmaz.
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const teamId = Number(searchParams.get("teamId"))
+  if (!teamId || isNaN(teamId)) {
+    return NextResponse.json({ error: "missingTeamId" }, { status: 400 })
+  }
+
+  const payload = await getTeamBasicInfo(teamId)
+  if (!payload) {
+    return NextResponse.json({ error: "teamNotFound" }, { status: 404 })
+  }
+
+  return NextResponse.json(payload)
 }
 
 function currentSeason(): number {

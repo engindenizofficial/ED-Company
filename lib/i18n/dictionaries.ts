@@ -410,7 +410,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       predictionPreparing: "AI tahminleri hazırlanıyor...",
       predictionPreparingSub: "GPT-5.6 Terra, Gemini 3.6 Flash ve Grok 4.5 paralel olarak analiz yapıyor",
       predictionTitle: "AI Ensemble Tahmini",
-      predictionModelsSubtitle: "GPT-5.6 Terra · Gemini 3.6 Flash · Grok 4.5",
+      predictionModelsSubtitle: "GPT-5.6 Terra · Gemini 3.6 Flash �� Grok 4.5",
       predictionGetButton: "Tahmin Al",
       predictionWinsSuffix: "{{team}} kazanır",
       predictionValidUntil: "Gün sonuna kadar geçerli",
@@ -693,6 +693,22 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       marketValueDuel: {
         title: "Piyasa Değeri Düellosu | ED Company",
         description: "İki futbolcudan hangisinin piyasa değeri daha yüksek? Sezgini test et.",
+      },
+      player: {
+        title: "{{name}} | ED Company",
+        description: "{{name}} istatistikleri, kariyer özeti, transferleri ve daha fazlası ED Company'de.",
+      },
+      team: {
+        title: "{{name}} | ED Company",
+        description: "{{name}} kadrosu, sezon istatistikleri, transferleri ve daha fazlası ED Company'de.",
+      },
+      league: {
+        title: "{{name}} | ED Company",
+        description: "{{name}} puan durumu, gol krallığı, maçları ve daha fazlası ED Company'de.",
+      },
+      match: {
+        title: "{{home}} - {{away}} | ED Company",
+        description: "{{home}} - {{away}} maç analizi, kadrolar, istatistikler ve AI tahmini ED Company'de.",
       },
       admin: {
         title: "Piyasa Değeri Kontrolü — ED Company",
@@ -1389,6 +1405,22 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       marketValueDuel: {
         title: "Market Value Duel | ED Company",
         description: "Which of these two players has the higher market value? Test your instincts.",
+      },
+      player: {
+        title: "{{name}} | ED Company",
+        description: "{{name}} stats, career summary, transfers, and more on ED Company.",
+      },
+      team: {
+        title: "{{name}} | ED Company",
+        description: "{{name}} squad, season stats, transfers, and more on ED Company.",
+      },
+      league: {
+        title: "{{name}} | ED Company",
+        description: "{{name}} standings, top scorers, fixtures, and more on ED Company.",
+      },
+      match: {
+        title: "{{home}} - {{away}} | ED Company",
+        description: "{{home}} - {{away}} match analysis, lineups, stats, and AI prediction on ED Company.",
       },
       admin: {
         title: "Market Value Review — ED Company",

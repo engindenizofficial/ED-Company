@@ -56,11 +56,16 @@ function ensureListener() {
   })
 }
 
-function pushPanel(onPop: () => void): number {
+function pushPanel(onPop: () => void, url?: string): number {
   ensureListener()
   const id = ++nextId
   if (typeof window !== "undefined") {
-    window.history.pushState({ __panel: true, __panelId: id }, "")
+    // url verildiyse (örn. "/oyuncu/123") adres çubuğu da güncellenir —
+    // böylece panel paylaşılabilir/yenilenebilir bir bağlantıya sahip olur.
+    // Next.js App Router, native pushState/replaceState çağrılarını
+    // usePathname() üzerinden algılar; bu yüzden bu URL değişikliği ayrı bir
+    // sayfa render'ı TETİKLEMEZ, sadece adres çubuğunu günceller.
+    window.history.pushState({ __panel: true, __panelId: id }, "", url)
   }
   stack.push({ id, onPop })
   return id
@@ -95,10 +100,17 @@ function popPanel(id: number, closedByBack: boolean) {
 /**
  * @param isOpen Panel/modal şu an ekranda mı?
  * @param onClose Panel'i kapatan fonksiyon (geri tuşuna basıldığında çağrılır)
+ * @param url Panel açıkken adres çubuğunda gösterilecek paylaşılabilir URL
+ *   (örn. "/oyuncu/123"). Verilmezse adres çubuğu değişmez (eski davranış).
  */
-export function useCloseOnBackButton(isOpen: boolean, onClose: () => void) {
+export function useCloseOnBackButton(isOpen: boolean, onClose: () => void, url?: string) {
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+
+  // url her render'da değişebileceği için (örn. panel state'i yeni veriyle
+  // güncellenince) ref'te tutup sadece isOpen false->true geçişinde okuyoruz.
+  const urlRef = useRef(url)
+  urlRef.current = url
 
   const idRef = useRef<number | null>(null)
   const closedByBackRef = useRef(false)
@@ -115,7 +127,7 @@ export function useCloseOnBackButton(isOpen: boolean, onClose: () => void) {
       idRef.current = pushPanel(() => {
         closedByBackRef.current = true
         onCloseRef.current()
-      })
+      }, urlRef.current)
     }
     return () => {
       if (idRef.current !== null) {

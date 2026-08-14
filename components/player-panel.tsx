@@ -713,7 +713,7 @@ function SidelinedSection({ playerId, playerName, active }: { playerId: number; 
 export function PlayerPanel() {
   const { panel, closePlayer } = usePlayerPanel()
   useBodyScrollLock(!!panel)
-  useCloseOnBackButton(!!panel, closePlayer)
+  useCloseOnBackButton(!!panel, closePlayer, panel ? `/oyuncu/${panel.player.id}` : undefined)
   if (!panel) return null
   return <PlayerPanelInner key={panel.player.id} closePlayer={closePlayer} panel={panel} />
 }

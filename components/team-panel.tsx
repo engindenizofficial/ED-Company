@@ -811,7 +811,7 @@ function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direc
 export function TeamPanel() {
   const { panel, closeTeam } = useTeamPanel()
   useBodyScrollLock(!!panel)
-  useCloseOnBackButton(!!panel, closeTeam)
+  useCloseOnBackButton(!!panel, closeTeam, panel ? `/takim/${panel.team.id}` : undefined)
   if (!panel) return null
   return <TeamPanelInner key={panel.team.id} closeTeam={closeTeam} panel={panel} />
   }
