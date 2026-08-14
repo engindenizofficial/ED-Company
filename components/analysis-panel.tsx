@@ -877,11 +877,66 @@ function LineupsSection({
   )
   return (
     <SectionShell active={active}>
-      {status === "loading" && <SectionLoading label={t("analysis.loadingLineups")} />}
+      {/* Genel "spinner + kısa metin" yükleme durumu yerine, gerçek saha
+          görselleştirmesiyle yaklaşık aynı yüksekliğe sahip bir iskelet
+          gösteriyoruz. Aksi halde küçük bir spinner alanından aniden çok
+          daha uzun bir sahaya geçildiğinde sayfa altındaki içerik sertçe
+          aşağı kayıyor / "zıplıyor" gibi hissettiriyordu. */}
+      {status === "loading" && <LineupsSkeleton />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
       {status === "empty" && <SectionEmptyState label={t("analysis.emptyLineups")} />}
       {status === "success" && data && <LineupsView lineups={data} home={home} away={away} />}
     </SectionShell>
+  )
+}
+
+/** Saha + kadro görselleştirmesinin yaklaşık yüksekliğinde iskelet — ani içerik sıçramasını önler. */
+function LineupsSkeleton() {
+  return (
+    <div className="flex flex-col gap-4" aria-hidden="true">
+      <div className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-card p-2.5 shadow-sm">
+        {/* Away header skeleton */}
+        <div className="flex items-center justify-between gap-2 px-1">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-5 shrink-0 animate-pulse rounded-full bg-secondary" />
+            <div className="h-3 w-24 animate-pulse rounded bg-secondary" />
+          </div>
+          <div className="h-4 w-10 animate-pulse rounded-md bg-secondary" />
+        </div>
+
+        {/* Pitch skeleton — gerçek FormationPitch ile aynı aspect-ratio */}
+        <div
+          className="relative w-full animate-pulse overflow-hidden rounded-xl bg-secondary/50 shadow-inner ring-1 ring-black/10"
+          style={{ aspectRatio: "68 / 100" }}
+        />
+
+        {/* Home header skeleton */}
+        <div className="flex items-center justify-between gap-2 px-1">
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-5 shrink-0 animate-pulse rounded-full bg-secondary" />
+            <div className="h-3 w-24 animate-pulse rounded bg-secondary" />
+          </div>
+          <div className="h-4 w-10 animate-pulse rounded-md bg-secondary" />
+        </div>
+      </div>
+
+      {/* Bench skeleton */}
+      <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/60 bg-secondary/20 p-3">
+        {[0, 1].map((col) => (
+          <div key={col} className="flex flex-col gap-1.5">
+            <div className="mb-0.5 h-3 w-16 animate-pulse rounded bg-secondary border-b border-border/60 pb-1.5" />
+            <div className="flex flex-col gap-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <div className="h-5 w-5 shrink-0 animate-pulse rounded-full bg-secondary" />
+                  <div className="h-3 flex-1 animate-pulse rounded bg-secondary" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -1165,7 +1220,7 @@ function PlayerPitchIcon({
   const avatar = (
     <div
       className={cn(
-        "relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full shadow-md ring-2",
+        "relative flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full shadow-md ring-2 sm:h-8 sm:w-8",
         side === "home" ? "ring-card" : "ring-accent",
       )}
     >
@@ -1180,7 +1235,7 @@ function PlayerPitchIcon({
       ) : (
         <span
           className={cn(
-            "flex h-full w-full items-center justify-center text-[11px] font-bold tabular-nums",
+            "flex h-full w-full items-center justify-center text-[9px] font-bold tabular-nums sm:text-[11px]",
             side === "home" ? "bg-card text-foreground" : "bg-accent text-accent-foreground",
           )}
         >
@@ -1192,7 +1247,7 @@ function PlayerPitchIcon({
 
   return (
     <div
-      className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
+      className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5 sm:gap-1"
       style={{ left: `${leftPct}%`, top: `${topPct}%` }}
     >
       {player.id ? (
@@ -1202,7 +1257,10 @@ function PlayerPitchIcon({
       ) : (
         avatar
       )}
-      <span className="max-w-[68px] truncate rounded-full bg-card/90 px-1.5 py-0.5 text-[9px] font-semibold text-foreground shadow-sm backdrop-blur-sm">
+      {/* Mobilde saha daha dar olduğundan bitişik oyuncuların adları üst üste
+          biniyordu — rozeti dar ekranlarda küçültüp daha az yer kaplatıyoruz,
+          geniş ekranlarda (sm:) eski boyutuna dönüyor. */}
+      <span className="max-w-[40px] truncate rounded-full bg-card/90 px-1 py-0.5 text-[7px] font-semibold text-foreground shadow-sm backdrop-blur-sm sm:max-w-[68px] sm:px-1.5 sm:text-[9px]">
         {player.name.split(" ").pop()}
       </span>
     </div>
