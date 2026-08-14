@@ -1,12 +1,57 @@
 "use client"
 
-import { Clock, LoaderCircle } from "lucide-react"
-import { GeminiLogo } from "@/components/gemini-logo"
+import { Clock, Star } from "lucide-react"
+import { TeamButton } from "@/components/team-panel"
+import { LeagueButton } from "@/components/league-panel"
 import { cn } from "@/lib/utils"
-import type { FixtureWithPrediction } from "@/lib/types"
+import { toDisplayCountry } from "@/lib/tr-aliases"
+import { useFavorites } from "@/contexts/favorites-context"
+import { useLanguage } from "@/contexts/language-context"
+import type { Locale } from "@/lib/i18n/dictionaries"
+import type { Fixture } from "@/lib/types"
+import type { FavoriteItem } from "@/contexts/favorites-context"
 
-function kickoff(iso: string): string {
-  return new Date(iso).toLocaleTimeString("tr-TR", {
+/** Ana ekranda takım/lig satırlarında kullanılan içi boş/dolu yıldız butonu. */
+function FavoriteStarButton({
+  active,
+  label,
+  onToggle,
+  size = "sm",
+}: {
+  active: boolean
+  label: string
+  onToggle: () => void
+  size?: "sm" | "xs"
+}) {
+  const { t } = useLanguage()
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onToggle()
+      }}
+      aria-pressed={active}
+      aria-label={
+        active
+          ? t("fixtureList.removeFromFavorites", { name: label })
+          : t("fixtureList.addToFavorites", { name: label })
+      }
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:text-primary",
+        size === "sm" ? "h-6 w-6" : "h-5 w-5",
+      )}
+    >
+      <Star
+        className={cn(size === "sm" ? "h-4 w-4" : "h-3.5 w-3.5", active && "fill-primary text-primary")}
+      />
+    </button>
+  )
+}
+
+function kickoff(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleTimeString(locale === "tr" ? "tr-TR" : "en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Europe/Istanbul",
@@ -19,57 +64,27 @@ function isLive(short: string): boolean {
   return LIVE_STATUSES.has(short)
 }
 
-function statusLabel(short: string): string {
-  switch (short) {
-    case "FT":
-      return "MS"
-    case "AET":
-      return "MS (uzatma)"
-    case "PEN":
-      return "MS (pen.)"
-    case "HT":
-      return "İY"
-    case "1H":
-      return "1. Yarı"
-    case "2H":
-      return "2. Yarı"
-    case "ET":
-      return "Uzatma"
-    case "BT":
-      return "Devre arası"
-    case "P":
-      return "Penaltılar"
-    case "SUSP":
-      return "Durduruldu"
-    case "INT":
-      return "Ara verildi"
-    case "PST":
-      return "Ertelendi"
-    case "CANC":
-      return "İptal"
-    case "ABD":
-      return "Tatil edildi"
-    case "TBD":
-      return "Belirsiz"
-    case "NS":
-      return "Başlamadı"
-    default:
-      return short
+function statusLabel(short: string, t: (key: string) => string): string {
+  return t(`matchStatus.${short}`)
+}
+
+function liveText(f: Fixture, t: (key: string) => string): string {
+  if (f.statusShort === "HT") return t("matchStatus.HT")
+  if (f.statusShort === "BT") return t("matchStatus.BT")
+  if (f.statusShort === "P") return t("matchStatus.P")
+  if (typeof f.elapsed === "number") {
+    if (f.elapsedExtra != null && f.elapsedExtra > 0) {
+      return `${f.elapsed}+${f.elapsedExtra}'`
+    }
+    return `${f.elapsed}'`
   }
+  return statusLabel(f.statusShort, t)
 }
 
-function liveText(f: FixtureWithPrediction): string {
-  if (f.statusShort === "HT") return "İY"
-  if (f.statusShort === "BT") return "Devre arası"
-  if (f.statusShort === "P") return "Penaltılar"
-  if (typeof f.elapsed === "number") return `${f.elapsed}'`
-  return statusLabel(f.statusShort)
-}
-
-function groupByLeague(fixtures: FixtureWithPrediction[]) {
+function groupByLeague(fixtures: Fixture[]) {
   const groups = new Map<
     number,
-    { id: number; name: string; country: string; logo: string; items: FixtureWithPrediction[] }
+    { id: number; name: string; country: string; logo: string; items: Fixture[] }
   >()
   for (const f of fixtures) {
     const key = f.league.id
@@ -87,151 +102,338 @@ function groupByLeague(fixtures: FixtureWithPrediction[]) {
   return Array.from(groups.values())
 }
 
+/** Ekranda gösterilecek tek bir blok (lig grubu ya da favori takım için ayrılmış mini blok). */
+interface RenderGroup {
+  key: string
+  id: number
+  name: string
+  country: string
+  logo: string
+  items: Fixture[]
+  /** 0 = favori lig (en üstte), 1 = favori takım için ayrılan blok, 2 = normal sıradaki lig. */
+  tier: 0 | 1 | 2
+  rank: number
+  order: number
+}
+
+function sortFixturesByFavoriteTeam(fixtures: Fixture[], teamPosition: Map<number, number>): Fixture[] {
+  if (teamPosition.size === 0) return fixtures
+
+  const rankOf = (f: Fixture): number => {
+    const homeRank = teamPosition.get(f.home.id)
+    const awayRank = teamPosition.get(f.away.id)
+    if (homeRank === undefined && awayRank === undefined) return Number.POSITIVE_INFINITY
+    if (homeRank === undefined) return awayRank!
+    if (awayRank === undefined) return homeRank
+    return Math.min(homeRank, awayRank)
+  }
+
+  return fixtures
+    .map((f, index) => ({ f, rank: rankOf(f), index }))
+    .sort((a, b) => (a.rank !== b.rank ? a.rank - b.rank : a.index - b.index))
+    .map((entry) => entry.f)
+}
+
+/**
+ * Görüntülenecek blokları oluşturur:
+ * - Favori bir lig ise: tüm lig bloğu en üste çıkar (içindeki favori takımın
+ *   maçı da o blok içinde en üstte gösterilir).
+ * - Favori olmayan bir ligde favori bir takımın maçı varsa: SADECE o maç(lar)
+ *   ayrı, "{lig adı}" başlıklı yeni bir blok olarak en üste (favori liglerin
+ *   altına) taşınır. Aynı ligin diğer maçları kendi orijinal konumunda,
+ *   ayrı bir blok olarak kalır.
+ * - Favorisi olmayan ligler kendi orijinal sırasında değişmeden kalır.
+ */
+function buildRenderGroups(
+  fixtures: Fixture[],
+  favorites: FavoriteItem[],
+): RenderGroup[] {
+  const leaguePosition = new Map<number, number>()
+  const teamPosition = new Map<number, number>()
+  for (const fav of favorites) {
+    if (fav.type === "league") leaguePosition.set(fav.itemId, fav.position)
+    else teamPosition.set(fav.itemId, fav.position)
+  }
+
+  const baseGroups = groupByLeague(fixtures)
+  const renderGroups: RenderGroup[] = []
+
+  baseGroups.forEach((group, order) => {
+    const leagueRank = leaguePosition.get(group.id)
+
+    if (leagueRank !== undefined) {
+      // Lig favorilendi: tüm blok en üste çıkar, içindeki favori takım en üstte gösterilir.
+      renderGroups.push({
+        key: `league-${group.id}`,
+        id: group.id,
+        name: group.name,
+        country: group.country,
+        logo: group.logo,
+        items: sortFixturesByFavoriteTeam(group.items, teamPosition),
+        tier: 0,
+        rank: leagueRank,
+        order,
+      })
+      return
+    }
+
+    // Lig favori değil: favori takımın maçlarını ayrı bir bloğa çıkar.
+    const pinned: Fixture[] = []
+    const rest: Fixture[] = []
+    for (const f of group.items) {
+      const isFavoriteTeamMatch = teamPosition.has(f.home.id) || teamPosition.has(f.away.id)
+      if (isFavoriteTeamMatch) pinned.push(f)
+      else rest.push(f)
+    }
+
+    if (pinned.length > 0) {
+      const pinnedRank = Math.min(
+        ...pinned.map((f) =>
+          Math.min(teamPosition.get(f.home.id) ?? Number.POSITIVE_INFINITY, teamPosition.get(f.away.id) ?? Number.POSITIVE_INFINITY),
+        ),
+      )
+      renderGroups.push({
+        key: `team-pin-${group.id}`,
+        id: group.id,
+        name: group.name,
+        country: group.country,
+        logo: group.logo,
+        items: sortFixturesByFavoriteTeam(pinned, teamPosition),
+        tier: 1,
+        rank: pinnedRank,
+        order,
+      })
+    }
+
+    if (rest.length > 0) {
+      renderGroups.push({
+        key: `league-${group.id}`,
+        id: group.id,
+        name: group.name,
+        country: group.country,
+        logo: group.logo,
+        items: rest,
+        tier: 2,
+        rank: Number.POSITIVE_INFINITY,
+        order,
+      })
+    }
+  })
+
+  return renderGroups.sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier - b.tier
+    if (a.tier === 2) return a.order - b.order
+    return a.rank !== b.rank ? a.rank - b.rank : a.order - b.order
+  })
+}
+
 export function FixtureList({
   fixtures,
   selectedId,
-  pendingIds,
   onSelect,
-  renderExpanded,
+  favorites = [],
 }: {
-  fixtures: FixtureWithPrediction[]
+  fixtures: Fixture[]
   selectedId: number | null
-  pendingIds: Set<number>
-  onSelect: (f: FixtureWithPrediction) => void
-  renderExpanded: (f: FixtureWithPrediction) => React.ReactNode
+  onSelect: (f: Fixture) => void
+  favorites?: FavoriteItem[]
 }) {
-  const groups = groupByLeague(fixtures)
+  const { isFavorite, toggleFavorite } = useFavorites()
+  const { t, locale } = useLanguage()
+  const groups = buildRenderGroups(fixtures, favorites)
+
+  const leagueFavoriteIds = new Set(favorites.filter((f) => f.type === "league").map((f) => f.itemId))
+  const teamFavoriteIds = new Set(favorites.filter((f) => f.type === "team").map((f) => f.itemId))
 
   return (
-    <div className="flex flex-col gap-5">
-      {groups.map((group) => (
-        <div key={group.id} className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 px-1">
+    <div className="flex flex-col gap-6">
+      {groups.map((group) => {
+        const leagueIsFavorite = leagueFavoriteIds.has(group.id)
+        return (
+        <div key={group.key} className="flex flex-col gap-1.5">
+          {/* League header */}
+          <div className="flex items-center gap-2 px-1 pb-1">
             {group.logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={group.logo || "/placeholder.svg"} alt="" className="h-4 w-4 object-contain" />
+              // Bazı lig logoları (özellikle tek renkli/çizgi logolar) şeffaf arka
+              // planla gelir ve siyah öğeler koyu temada arka planla aynı renge
+              // karışıp kaybolur. Sabit beyaz bir zemin, temadan bağımsız olarak
+              // her zaman kontrast sağlar.
+              <span className="flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full bg-white p-[3px] shadow-sm ring-1 ring-border/40">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={group.logo || "/placeholder.svg"} alt="" className="h-full w-full object-contain" />
+              </span>
             ) : null}
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <LeagueButton
+              league={{ id: group.id, name: group.name, logo: group.logo, country: group.country, flagUrl: null }}
+              className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-primary"
+            >
               {group.name}
-              <span className="ml-1.5 font-normal text-muted-foreground/70">{group.country}</span>
-            </h3>
+              <span className="ml-1.5 font-normal opacity-60">{toDisplayCountry(group.country, locale)}</span>
+            </LeagueButton>
+            <FavoriteStarButton
+              active={leagueIsFavorite}
+              label={group.name}
+              size="xs"
+              onToggle={() =>
+                toggleFavorite({
+                  type: "league",
+                  itemId: group.id,
+                  name: group.name,
+                  logo: group.logo,
+                  country: group.country,
+                  flagUrl: null,
+                })
+              }
+            />
+            <div className="ml-auto h-px flex-1 bg-border/60" />
+            <span className="text-[10px] tabular-nums text-muted-foreground/65">{group.items.length}</span>
           </div>
-          <ul className="flex flex-col gap-1.5">
+
+          {/* Fixture cards */}
+          <ul className="flex flex-col gap-1">
             {group.items.map((f) => {
               const active = f.id === selectedId
               const live = isLive(f.statusShort)
               const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
-              const pending = pendingIds.has(f.id)
               return (
                 <li key={f.id}>
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => onSelect(f)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        onSelect(f)
+                      }
+                    }}
                     aria-pressed={active}
                     className={cn(
-                      "w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
+                      "group w-full cursor-pointer rounded-xl border px-4 py-3 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       active
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-card hover:border-primary/40 hover:bg-secondary",
+                        ? "border-primary/60 bg-primary/[0.07] shadow-sm"
+                        : "border-border/70 bg-card hover:border-border hover:bg-card/80",
                     )}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <TeamRow name={f.home.name} logo={f.home.logo} goals={f.goalsHome} played={played} />
-                        <TeamRow name={f.away.name} logo={f.away.logo} goals={f.goalsAway} played={played} />
+                    <div className="flex items-center gap-4">
+                      {/* Teams column */}
+                      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                        <TeamRow
+                          id={f.home.id}
+                          name={f.home.name}
+                          logo={f.home.logo}
+                          goals={f.goalsHome}
+                          played={played}
+                          isFavorite={teamFavoriteIds.has(f.home.id)}
+                          onToggleFavorite={() =>
+                            toggleFavorite({
+                              type: "team",
+                              itemId: f.home.id,
+                              name: f.home.name,
+                              logo: f.home.logo,
+                              country: null,
+                              flagUrl: null,
+                            })
+                          }
+                        />
+                        <TeamRow
+                          id={f.away.id}
+                          name={f.away.name}
+                          logo={f.away.logo}
+                          goals={f.goalsAway}
+                          played={played}
+                          isFavorite={teamFavoriteIds.has(f.away.id)}
+                          onToggleFavorite={() =>
+                            toggleFavorite({
+                              type: "team",
+                              itemId: f.away.id,
+                              name: f.away.name,
+                              logo: f.away.logo,
+                              country: null,
+                              flagUrl: null,
+                            })
+                          }
+                        />
                       </div>
 
-                      {/* Gemini score prediction — visible without opening the card */}
-                      <PredictionChip fixture={f} pending={pending} />
+                      {/* Divider */}
+                      <div className="h-9 w-px bg-border/50" />
 
-                      <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1 tabular-nums">
-                          <Clock className="h-3 w-3" />
-                          {kickoff(f.date)}
-                        </span>
+                      {/* Status column */}
+                      <div className="flex w-16 shrink-0 flex-col items-center gap-1">
                         {live ? (
-                          <span className="flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-destructive">
-                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
-                            {liveText(f)}
-                          </span>
+                          <>
+                            <span className="flex items-center gap-1 text-[10px] font-bold tabular-nums text-destructive">
+                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
+                              {t("matchStatus.liveBadge")}
+                            </span>
+                            <span className="text-[11px] font-semibold tabular-nums text-foreground">{liveText(f, t)}</span>
+                          </>
                         ) : played ? (
-                          <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium">
-                            {statusLabel(f.statusShort)}
-                          </span>
-                        ) : null}
+                          <>
+                            <span className="text-[10px] font-medium text-muted-foreground/75">{t("matchStatus.completed")}</span>
+                            <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{statusLabel(f.statusShort, t)}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-[10px] text-muted-foreground/75">{t("matchStatus.kickoffLabel")}</span>
+                            <span className="flex items-center gap-1 text-[13px] font-bold tabular-nums text-foreground">
+                              <Clock className="h-3 w-3 text-muted-foreground" />
+                              {kickoff(f.date, locale)}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
-                  </button>
-                  {active ? (
-                    <div className="animate-in fade-in slide-in-from-top-2 duration-300 mt-1.5 rounded-lg border border-primary/30 bg-card p-4">
-                      {renderExpanded(f)}
-                    </div>
-                  ) : null}
+                  </div>
                 </li>
               )
             })}
           </ul>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
 
-/** The Gemini score prediction shown directly on the card. */
-function PredictionChip({ fixture, pending }: { fixture: FixtureWithPrediction; pending: boolean }) {
-  const score = fixture.predictedScore
-
-  if (score) {
-    return (
-      <div
-        className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-1"
-        title="Gemini skor tahmini"
-      >
-        <div className="flex items-center gap-1 text-sm font-bold tabular-nums text-foreground">
-          <GeminiLogo className="h-3 w-3" />
-          <span>
-            {score.home}-{score.away}
-          </span>
-        </div>
-        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Tahmin</span>
-      </div>
-    )
-  }
-
-  if (pending) {
-    return (
-      <div className="flex shrink-0 flex-col items-center gap-0.5 rounded-lg border border-border bg-secondary px-2.5 py-1">
-        <div className="flex items-center gap-1 text-muted-foreground">
-          <GeminiLogo className="h-3 w-3" />
-          <LoaderCircle className="h-3 w-3 animate-spin" />
-        </div>
-        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Tahmin</span>
-      </div>
-    )
-  }
-
-  return null
-}
-
 function TeamRow({
+  id,
   name,
   logo,
   goals,
   played,
+  isFavorite,
+  onToggleFavorite,
 }: {
+  id: number
   name: string
   logo: string
   goals: number | null
   played: boolean
+  isFavorite: boolean
+  onToggleFavorite: () => void
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2.5">
       {logo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={logo || "/placeholder.svg"} alt="" className="h-4 w-4 shrink-0 object-contain" />
+        <img src={logo || "/placeholder.svg"} alt="" className="h-5 w-5 shrink-0 object-contain" width={20} height={20} loading="lazy" decoding="async" />
+      ) : (
+        <div className="h-5 w-5 shrink-0 rounded-full bg-secondary" />
+      )}
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        <TeamButton
+          team={{ id, name, logo }}
+          className="min-w-0 shrink truncate text-sm font-semibold text-foreground hover:text-primary transition-colors"
+        >
+          {name}
+        </TeamButton>
+        <FavoriteStarButton active={isFavorite} label={name} size="xs" onToggle={onToggleFavorite} />
+      </div>
+      {played ? (
+        <span className="ml-auto text-base font-black tabular-nums text-foreground">{goals ?? 0}</span>
       ) : null}
-      <span className="truncate text-sm font-medium text-foreground">{name}</span>
-      {played ? <span className="ml-auto text-sm font-bold tabular-nums text-foreground">{goals}</span> : null}
     </div>
   )
 }

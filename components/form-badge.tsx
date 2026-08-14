@@ -1,8 +1,11 @@
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/contexts/language-context"
 
 export function FormBadge({ form }: { form: string }) {
+  const { t } = useLanguage()
+
   if (!form) {
-    return <span className="text-xs text-muted-foreground">Veri yok</span>
+    return <span className="text-xs text-muted-foreground">{t("formBadge.noData")}</span>
   }
   return (
     <div className="flex items-center gap-1">
@@ -15,9 +18,9 @@ export function FormBadge({ form }: { form: string }) {
             r === "D" && "bg-muted text-muted-foreground",
             r === "L" && "bg-destructive text-primary-foreground",
           )}
-          title={r === "W" ? "Galibiyet" : r === "D" ? "Beraberlik" : "Mağlubiyet"}
+          title={r === "W" ? t("formBadge.win") : r === "D" ? t("formBadge.draw") : t("formBadge.loss")}
         >
-          {r === "W" ? "G" : r === "D" ? "B" : "M"}
+          {r === "W" ? t("formBadge.winLetter") : r === "D" ? t("formBadge.drawLetter") : t("formBadge.lossLetter")}
         </span>
       ))}
     </div>

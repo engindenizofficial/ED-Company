@@ -1,64 +1,51 @@
 import { NextResponse } from "next/server"
 import { getFixturesByDate } from "@/lib/api-football"
-import { getCachedFixtures, getLockedPredictionsMap, setCachedFixtures } from "@/lib/redis"
-import type { Fixture, FixturesResponse, FixtureWithPrediction } from "@/lib/types"
+import { getCachedFixtures, setCachedFixtures } from "@/lib/redis"
+import type { Fixture, FixturesResponse } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
 
+// Türkiye saatiyle bugünün tarihini döndürür (YYYY-MM-DD).
+function todayTR(): string {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const date = searchParams.get("date") ?? new Date().toISOString().slice(0, 10)
+  const date = todayTR()
   const refresh = searchParams.get("refresh") === "1"
 
-  try {
-    // Base fixture list: use the shared Redis copy unless the user explicitly
-    // asked for a live refresh. This is what stops every visitor from hitting
-    // API-Football — the first fetch fills Redis, everyone else reuses it.
-    let baseFixtures: Fixture[] | null = null
-    let cachedAt = Date.now()
-
-    if (!refresh) {
+  // Yenile butonuna basılmadıysa cache'den döndür
+  if (!refresh) {
+    try {
       const cached = await getCachedFixtures(date)
-      if (cached) {
-        baseFixtures = cached.fixtures
-        cachedAt = cached.cachedAt
-      }
+      if (cached) return NextResponse.json(cached)
+    } catch {
+      // Redis erişim hatası, devam et
     }
+  }
 
-    if (!baseFixtures) {
-      baseFixtures = await getFixturesByDate(date)
-      cachedAt = Date.now()
-    }
-
-    // Always overlay the latest LOCKED Gemini predictions so newly generated
-    // score predictions appear on cards without regenerating anything.
-    const predMap = await getLockedPredictionsMap(baseFixtures.map((f) => f.id))
-    const fixtures: FixtureWithPrediction[] = baseFixtures.map((f) => {
-      const pred = predMap.get(f.id)
-      return {
-        ...f,
-        predictedScore: pred ? pred.score : null,
-        predictedWinner: pred ? pred.winner : null,
-      }
-    })
-
-    const payload: FixturesResponse = { date, fixtures, cachedAt }
-    // Persist the raw base list (without predictions layered so it stays small).
-    await setCachedFixtures(date, { date, fixtures: fixtures.map(stripPrediction), cachedAt })
-
+  // API'den taze veri çek. refresh=1 ise Next.js fetch cache'ini VE
+  // api-football-client'taki bellek içi cache'i atlayarak gerçekten taze
+  // veri garantiler (aksi halde "yenile" 2 dakikaya kadar bayat veri
+  // döndürebiliyordu).
+  try {
+    const fixtures: Fixture[] = await getFixturesByDate(date, refresh)
+    const payload: FixturesResponse = { date, fixtures, cachedAt: Date.now() }
+    await setCachedFixtures(date, payload)
     return NextResponse.json(payload)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Bilinmeyen hata"
     console.log("[v0] fixtures API failed:", message)
 
-    // Fall back to whatever we last saved so users still see real data.
-    const cached = await getCachedFixtures(date)
-    if (cached) return NextResponse.json({ ...cached, stale: true })
+    // API başarısız olursa eski cache'i döndür
+    try {
+      const cached = await getCachedFixtures(date)
+      if (cached) return NextResponse.json({ ...cached, stale: true })
+    } catch {
+      // ignore
+    }
 
     return NextResponse.json({ error: message }, { status: 502 })
   }
-}
-
-function stripPrediction(f: FixtureWithPrediction): FixtureWithPrediction {
-  return { ...f, predictedScore: null, predictedWinner: null }
 }
