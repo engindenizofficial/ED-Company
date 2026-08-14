@@ -4,11 +4,18 @@ import type { MetadataRoute } from 'next'
 import { db } from '@/lib/db'
 import { teamMarketValue, playerMarketValue } from '@/lib/db/schema'
 import { FEATURED_LEAGUE_IDS } from '@/lib/leagues'
-import { getFixturesByDate } from '@/lib/api-football'
+import { getFixturesByDate, getSquad } from '@/lib/api-football'
+import type { Fixture } from '@/lib/types'
 
 // Sitemap her istekte değil, saatte bir yeniden üretilir — maç/lig/takım/oyuncu
 // sayısı arttıkça her ziyarette DB + API-Football sorgusu yapmamak için.
 export const revalidate = 3600
+
+// Bugün maçı olan, 24 lig kapsamı dışındaki takımların kadrosu tek tek
+// getSquad() ile çekiliyor (yüzlerce ekstra takım olabilir). Diğer ağır
+// cron rotalarıyla (app/api/cron/*) aynı 300s bütçesi veriliyor ki soğuk
+// cache'te (saatlik yenilemenin ilk isteği) zaman aşımına uğramasın.
+export const maxDuration = 300
 
 const baseURL =
   process.env.BETTER_AUTH_URL ??
@@ -69,7 +76,8 @@ function getRouteMeta(route: string) {
 }
 
 /**
- * Sadece bugünün fikstürlerinin /mac/[id] rotaları.
+ * Bugünün tüm fikstürleri (dünyadaki her lig, sadece bugün) — tek seferde
+ * çekilip mac/lig/takim/oyuncu rotalarının hepsi bundan türetilir.
  *
  * Not: Sitede şu an sadece bugünün maçları (ana sayfadaki todayTR()) iç
  * linkle erişilebilir durumda — dün/önceki gün ve yarın/sonraki günler
@@ -80,29 +88,80 @@ function getRouteMeta(route: string) {
  * eklenirse, bu fonksiyon geçmiş/gelecek günleri de kapsayacak şekilde
  * genişletilebilir.
  */
-async function getMatchRoutes(): Promise<string[]> {
+async function getTodayFixtures(): Promise<Fixture[]> {
   // Türkiye saatiyle bugün — app/api/fixtures/route.ts'teki todayTR() ile
   // aynı mantık, ana sayfada gösterilen tarihle birebir eşleşsin.
   const todayTR = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Istanbul' })
-  const fixtures = await getFixturesByDate(todayTR)
+  return getFixturesByDate(todayTR)
+}
+
+function getMatchRoutes(fixtures: Fixture[]): string[] {
   return [...new Set(fixtures.map((fixture) => fixture.id))].map((id) => `/mac/${id}`)
 }
 
-/** Öne çıkan 24 ligin /lig/[id] rotaları — tek kaynak: lib/leagues.ts. */
-function getLeagueRoutes(): string[] {
-  return FEATURED_LEAGUE_IDS.map((id) => `/lig/${id}`)
+/**
+ * Öne çıkan 24 lig (lib/leagues.ts) + bugün en az bir maçı olan diğer
+ * ligler (getFixturesByDate dünyadaki her ligi döndürür, sadece featured
+ * olanları değil) — ana sayfadan gerçekten erişilebilen tüm lig sayfaları.
+ */
+function getLeagueRoutes(fixtures: Fixture[]): string[] {
+  const ids = new Set<number>(FEATURED_LEAGUE_IDS)
+  for (const fixture of fixtures) ids.add(fixture.league.id)
+  return [...ids].map((id) => `/lig/${id}`)
 }
 
-/** Piyasa değeri tablolarında eşleşmiş tüm takımların /takim/[id] rotaları. */
-async function getTeamRoutes(): Promise<string[]> {
+/** Piyasa değeri tablosundaki 24 lig takım id'leri — DB'ye tek seferde sorulur. */
+async function getDbTeamIds(): Promise<Set<number>> {
   const rows = await db.select({ teamId: teamMarketValue.teamId }).from(teamMarketValue)
-  return [...new Set(rows.map((row) => row.teamId))].map((id) => `/takim/${id}`)
+  return new Set(rows.map((row) => row.teamId))
 }
 
-/** Piyasa değeri tablolarında eşleşmiş tüm oyuncuların /oyuncu/[id] rotaları. */
-async function getPlayerRoutes(): Promise<string[]> {
+/** Piyasa değeri tablosundaki 24 lig oyuncu id'leri — DB'ye tek seferde sorulur. */
+async function getDbPlayerIds(): Promise<Set<number>> {
   const rows = await db.select({ playerId: playerMarketValue.playerId }).from(playerMarketValue)
-  return [...new Set(rows.map((row) => row.playerId))].map((id) => `/oyuncu/${id}`)
+  return new Set(rows.map((row) => row.playerId))
+}
+
+/**
+ * 24 ligdeki tüm takımlar (piyasa değeri tablosu — Transfermarkt cron'u bu
+ * ligleri kapsıyor) + bugün en az bir maçı olan diğer takımlar.
+ */
+function getTeamRoutes(fixtures: Fixture[], dbTeamIds: Set<number>): string[] {
+  const ids = new Set(dbTeamIds)
+  for (const fixture of fixtures) {
+    ids.add(fixture.home.id)
+    ids.add(fixture.away.id)
+  }
+  return [...ids].map((id) => `/takim/${id}`)
+}
+
+/**
+ * 24 ligdeki tüm oyuncular (piyasa değeri tablosu — 326 takımın kadrosunun
+ * tamamı zaten burada) + bugün maçı olan ama 24 lig kapsamı dışındaki
+ * takımların kadroları. Sadece bu "ekstra" takımlar için getSquad() çağrılır
+ * — 24 ligdeki takımlar için zaten DB'de veri var, tekrar API'ye gidilmez.
+ * getSquad zaten rate-limit korumalı (eş zamanlı istek sınırı + cache),
+ * bu yüzden burada ekstra bir throttling gerekmiyor.
+ */
+async function getPlayerRoutes(
+  fixtures: Fixture[],
+  dbTeamIds: Set<number>,
+  dbPlayerIds: Set<number>,
+): Promise<string[]> {
+  const extraTeamIds = new Set<number>()
+  for (const fixture of fixtures) {
+    if (!dbTeamIds.has(fixture.home.id)) extraTeamIds.add(fixture.home.id)
+    if (!dbTeamIds.has(fixture.away.id)) extraTeamIds.add(fixture.away.id)
+  }
+
+  const ids = new Set(dbPlayerIds)
+  const squads = await Promise.all([...extraTeamIds].map((teamId) => getSquad(teamId)))
+  for (const squad of squads) {
+    for (const player of squad) {
+      if (player.id) ids.add(player.id)
+    }
+  }
+  return [...ids].map((id) => `/oyuncu/${id}`)
 }
 
 function isPrivateSegment(segment: string) {
@@ -158,14 +217,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .map((route) => (route === '/' ? '/' : route.replace(/\/$/, '')))
     .filter((route) => !isExcluded(route))
 
-  // Her kaynak birbirinden bağımsız — biri (örn. API-Football geçici olarak
-  // erişilemez) başarısız olursa diğerleri sitemap'i boş bırakmasın.
-  const [matchRoutes, teamRoutes, playerRoutes] = await Promise.all([
-    getMatchRoutes().catch(() => []),
-    getTeamRoutes().catch(() => []),
-    getPlayerRoutes().catch(() => []),
+  // Bugünün fikstürleri tek seferde çekilir — mac/lig/takim/oyuncu rotalarının
+  // hepsi aynı veriden türetildiği için API-Football'a tekrar tekrar gidilmez.
+  // Başarısız olursa (API geçici erişilemez) boş dizle devam edilir; bu durumda
+  // lig/takım/oyuncu rotaları sadece 24 lig/DB kapsamına geri düşer, sitemap
+  // boş kalmaz.
+  const fixtures = await getTodayFixtures().catch(() => [] as Fixture[])
+
+  // DB sorguları da birbirinden bağımsız — biri başarısız olursa diğeri
+  // etkilenmez, ilgili rotalar sadece "bugünün ekstra takımları/oyuncuları"na
+  // geri düşer.
+  const [dbTeamIds, dbPlayerIds] = await Promise.all([
+    getDbTeamIds().catch(() => new Set<number>()),
+    getDbPlayerIds().catch(() => new Set<number>()),
   ])
-  const leagueRoutes = getLeagueRoutes()
+
+  const leagueRoutes = getLeagueRoutes(fixtures)
+  const teamRoutes = getTeamRoutes(fixtures, dbTeamIds)
+  const matchRoutes = getMatchRoutes(fixtures)
+  const playerRoutes = await getPlayerRoutes(fixtures, dbTeamIds, dbPlayerIds).catch(() => [] as string[])
 
   const routes = [...staticRoutes, ...leagueRoutes, ...teamRoutes, ...playerRoutes, ...matchRoutes]
     .filter((route, index, all) => all.indexOf(route) === index) // dedupe
