@@ -21,12 +21,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const teamId = Number(searchParams.get("teamId"))
   if (!teamId || isNaN(teamId)) {
-    return NextResponse.json({ error: "teamId gerekli." }, { status: 400 })
+    return NextResponse.json({ error: "missingTeamId" }, { status: 400 })
   }
 
   const teamRaw = await apiFetch<any>("/teams", { id: teamId })
   if (!teamRaw || teamRaw.length === 0) {
-    return NextResponse.json({ error: "Takım bulunamadı." }, { status: 404 })
+    return NextResponse.json({ error: "teamNotFound" }, { status: 404 })
   }
 
   const rawTeam = teamRaw[0]

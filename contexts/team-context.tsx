@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useState } from "react"
 import type { TeamBasicInfo, TeamInfo } from "@/lib/types"
+import { useLanguage } from "@/contexts/language-context"
 
 interface TeamPanelState {
   team: TeamInfo
@@ -23,6 +24,7 @@ const TeamContext = createContext<TeamContextValue | null>(null)
 
 export function TeamProvider({ children }: { children: React.ReactNode }) {
   const [panel, setPanel] = useState<TeamPanelState | null>(null)
+  const { t } = useLanguage()
 
   const openTeam = useCallback(async (team: TeamInfo) => {
     // Start loading immediately
@@ -30,14 +32,14 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const res = await fetch(`/api/team?teamId=${team.id}`, { cache: "no-store" })
-      if (!res.ok) throw new Error(`Sunucu hatası: ${res.status}`)
+      if (!res.ok) throw new Error(t("common.serverErrorWithStatus", { status: res.status }))
       const basic: TeamBasicInfo = await res.json()
       setPanel((prev) => (prev?.team.id === team.id ? { team, basic, loading: false, error: null } : prev))
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Bir hata oluştu"
+      const msg = err instanceof Error ? err.message : t("common.unexpectedError")
       setPanel((prev) => (prev?.team.id === team.id ? { team, basic: null, loading: false, error: msg } : prev))
     }
-  }, [])
+  }, [t])
 
   const closeTeam = useCallback(() => {
     setPanel(null)

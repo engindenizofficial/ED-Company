@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useState } from "react"
 import type { PlayerProfile } from "@/lib/types"
+import { useLanguage } from "@/contexts/language-context"
 
 export interface PlayerInfo {
   id: number
@@ -30,6 +31,7 @@ const PlayerContext = createContext<PlayerContextValue | null>(null)
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [panel, setPanel] = useState<PlayerPanelState | null>(null)
+  const { t } = useLanguage()
 
   const openPlayer = useCallback(async (player: PlayerInfo) => {
     // Start loading immediately
@@ -37,18 +39,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const res = await fetch(`/api/player?playerId=${player.id}`, { cache: "no-store" })
-      if (!res.ok) throw new Error(`Sunucu hatası: ${res.status}`)
+      if (!res.ok) throw new Error(t("common.serverErrorWithStatus", { status: res.status }))
       const profile: PlayerProfile = await res.json()
       setPanel((prev) =>
         prev?.player.id === player.id ? { player, profile, loading: false, error: null } : prev,
       )
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Bir hata oluştu"
+      const msg = err instanceof Error ? err.message : t("common.unexpectedError")
       setPanel((prev) =>
         prev?.player.id === player.id ? { player, profile: null, loading: false, error: msg } : prev,
       )
     }
-  }, [])
+  }, [t])
 
   const closePlayer = useCallback(() => {
     setPanel(null)

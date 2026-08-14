@@ -23,13 +23,13 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const playerId = Number(searchParams.get("playerId"))
   if (!playerId || isNaN(playerId)) {
-    return NextResponse.json({ error: "playerId gerekli." }, { status: 400 })
+    return NextResponse.json({ error: "missingPlayerId" }, { status: 400 })
   }
 
   const season = currentSeason()
   const playerRaw = await apiFetch<any>("/players", { id: playerId, season })
   if (!playerRaw || playerRaw.length === 0) {
-    return NextResponse.json({ error: "Oyuncu bulunamadı." }, { status: 404 })
+    return NextResponse.json({ error: "playerNotFound" }, { status: 404 })
   }
 
   const entry = playerRaw[0]

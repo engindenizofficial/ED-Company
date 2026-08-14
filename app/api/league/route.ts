@@ -21,13 +21,13 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const leagueId = Number(searchParams.get("leagueId"))
   if (!leagueId || isNaN(leagueId)) {
-    return NextResponse.json({ error: "leagueId gerekli." }, { status: 400 })
+    return NextResponse.json({ error: "missingLeagueId" }, { status: 400 })
   }
 
   const season = currentSeason()
   const leagueRaw = await apiFetch<any>("/leagues", { id: leagueId, season })
   if (!leagueRaw || leagueRaw.length === 0) {
-    return NextResponse.json({ error: "Lig bulunamadı." }, { status: 404 })
+    return NextResponse.json({ error: "leagueNotFound" }, { status: 404 })
   }
 
   const rawLeague = leagueRaw[0]

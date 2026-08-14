@@ -613,7 +613,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         scanFailedDefault: "Tarama tetiklenemedi.",
         neverRun:
           'Henüz hiç tarama çalıştırılmadı. Haftalık otomatik taramayı beklemek istemiyorsanız "Şimdi Tara" butonuyla hemen başlatabilirsiniz.',
-        statusBroken: "Zincir kırıldı",
+        statusBroken: "Zincir k��rıldı",
         statusRunning: "Çalışıyor",
         statusCompleted: "Tamamlandı",
         leaguesProcessed: "{{current}}/{{total}} lig işlendi",
@@ -659,6 +659,44 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         colValue: "Değer",
         colConfidence: "Güven",
         colAction: "Aksiyon",
+      },
+    },
+    apiErrors: {
+      invalidSection: "Geçersiz sekme.",
+      missingTeamId: "teamId gerekli.",
+      missingLeagueId: "leagueId gerekli.",
+      missingPlayerId: "playerId gerekli.",
+      missingFixtureId: "fixtureId gerekli.",
+      teamNotFound: "Takım bulunamadı.",
+      leagueNotFound: "Lig bulunamadı.",
+      playerNotFound: "Oyuncu bulunamadı.",
+      notEnoughPlayers: "Yeterli oyuncu verisi bulunamadı. Lütfen daha sonra tekrar deneyin.",
+      invalidRequest: "Geçersiz istek.",
+      roundExpired: "Tur geçersiz veya süresi dolmuş.",
+      internalError: "Sunucuda beklenmedik bir hata oluştu.",
+    },
+    meta: {
+      home: {
+        title: "ED Company",
+        description:
+          "Günün maçlarını AI Monte Carlo simülasyonuyla analiz eden ED Company motoru: skor tahmini, kazanma yüzdeleri ve taktiksel rapor.",
+      },
+      games: {
+        title: "Oyunlar | ED Company",
+        description: "Futbol bilginizi test edin: piyasa değeri düellosu ve daha fazlası.",
+      },
+      marketValueDuel: {
+        title: "Piyasa Değeri Düellosu | ED Company",
+        description: "İki futbolcudan hangisinin piyasa değeri daha yüksek? Sezgini test et.",
+      },
+      admin: {
+        title: "Piyasa Değeri Kontrolü — ED Company",
+      },
+      signIn: {
+        title: "Giriş Yap — ED Company",
+      },
+      signUp: {
+        title: "Kayıt Ol — ED Company",
       },
     },
   },
@@ -1312,6 +1350,44 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         colValue: "Value",
         colConfidence: "Confidence",
         colAction: "Action",
+      },
+    },
+    apiErrors: {
+      invalidSection: "Invalid section.",
+      missingTeamId: "teamId is required.",
+      missingLeagueId: "leagueId is required.",
+      missingPlayerId: "playerId is required.",
+      missingFixtureId: "fixtureId is required.",
+      teamNotFound: "Team not found.",
+      leagueNotFound: "League not found.",
+      playerNotFound: "Player not found.",
+      notEnoughPlayers: "Not enough player data available. Please try again later.",
+      invalidRequest: "Invalid request.",
+      roundExpired: "This round is invalid or has expired.",
+      internalError: "An unexpected server error occurred.",
+    },
+    meta: {
+      home: {
+        title: "ED Company",
+        description:
+          "The ED Company engine analyzes today's matches with an AI Monte Carlo simulation: score predictions, win probabilities, and a tactical report.",
+      },
+      games: {
+        title: "Games | ED Company",
+        description: "Test your football knowledge: the market value duel and more.",
+      },
+      marketValueDuel: {
+        title: "Market Value Duel | ED Company",
+        description: "Which of these two players has the higher market value? Test your instincts.",
+      },
+      admin: {
+        title: "Market Value Review — ED Company",
+      },
+      signIn: {
+        title: "Sign In — ED Company",
+      },
+      signUp: {
+        title: "Sign Up — ED Company",
       },
     },
   },

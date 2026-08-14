@@ -106,10 +106,10 @@ export async function GET(request: Request) {
   const section = searchParams.get("section") as Section | null
 
   if (!teamId || isNaN(teamId)) {
-    return NextResponse.json({ error: "teamId gerekli." }, { status: 400 })
+    return NextResponse.json({ error: "missingTeamId" }, { status: 400 })
   }
   if (!section || !VALID_SECTIONS.includes(section)) {
-    return NextResponse.json({ error: "Geçersiz sekme." }, { status: 400 })
+    return NextResponse.json({ error: "invalidSection" }, { status: 400 })
   }
 
   const season = currentSeason()
@@ -297,8 +297,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ data })
       }
     }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Bilinmeyen hata"
-    return NextResponse.json({ error: msg }, { status: 500 })
+  } catch {
+    return NextResponse.json({ error: "internalError" }, { status: 500 })
   }
 }

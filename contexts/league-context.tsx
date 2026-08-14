@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useState } from "react"
 import type { LeagueBasicInfo } from "@/lib/types"
+import { useLanguage } from "@/contexts/language-context"
 
 export interface LeagueInfo {
   id: number
@@ -31,6 +32,7 @@ const LeagueContext = createContext<LeagueContextValue | null>(null)
 
 export function LeagueProvider({ children }: { children: React.ReactNode }) {
   const [panel, setPanel] = useState<LeaguePanelState | null>(null)
+  const { t } = useLanguage()
 
   const openLeague = useCallback(async (league: LeagueInfo) => {
     // Start loading immediately
@@ -38,14 +40,14 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const res = await fetch(`/api/league?leagueId=${league.id}`, { cache: "no-store" })
-      if (!res.ok) throw new Error(`Sunucu hatası: ${res.status}`)
+      if (!res.ok) throw new Error(t("common.serverErrorWithStatus", { status: res.status }))
       const basic: LeagueBasicInfo = await res.json()
       setPanel((prev) => (prev?.league.id === league.id ? { league, basic, loading: false, error: null } : prev))
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Bir hata oluştu"
+      const msg = err instanceof Error ? err.message : t("common.unexpectedError")
       setPanel((prev) => (prev?.league.id === league.id ? { league, basic: null, loading: false, error: msg } : prev))
     }
-  }, [])
+  }, [t])
 
   const closeLeague = useCallback(() => {
     setPanel(null)
