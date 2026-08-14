@@ -119,12 +119,25 @@ function mapFixture(r: RawFixture): Fixture {
 // Fixtures
 // ---------------------------------------------------------------------------
 
+// API-Football, kadın liglerinin adında tutarlı biçimde "Women" (İngilizce
+// lig adı) geçirir; bazı ülkelerin yerel adlandırmalarında "Frauen" (Almanya,
+// genelde "Frauenliga" gibi bitişik yazılır — bu yüzden \bfrauen kelimenin
+// SONUNDA \b aramaz, aksi halde "Frauenliga" yakalanamaz) veya
+// "Femenina/Féminine" gibi varyantlar da görülebilir. Bu regex ile kadın
+// liglerini/kupalarını isimden tespit edip fikstür listesinden tamamen
+// çıkarıyoruz.
+const WOMEN_LEAGUE_PATTERN = /\bwomen\b|\bfrauen|\bfemenin[ao]\b|\bf[ée]minine?\b|\bwsl\b/i
+
+function isWomensLeague(leagueName: string): boolean {
+  return WOMEN_LEAGUE_PATTERN.test(leagueName)
+}
+
 export async function getFixturesByDate(date: string, forceRefresh = false): Promise<Fixture[]> {
   const MAX_FIXTURES = 200
 
   const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: "Europe/Istanbul" }, 120, forceRefresh)
 
-  const fixtures = raw.map(mapFixture)
+  const fixtures = raw.map(mapFixture).filter((f) => !isWomensLeague(f.league.name))
 
   // For non-featured leagues, compute each league's earliest kick-off time
   // so we can sort leagues as a whole block rather than interleaving matches.
