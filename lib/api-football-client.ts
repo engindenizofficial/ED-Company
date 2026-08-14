@@ -95,17 +95,24 @@ export async function apiFootballFetch<T>(
 ): Promise<T[]> {
   const key = cacheKey(path, params)
 
-  // 1. Taze bir cache girdisi varsa ağa hiç gitmeden onu döndür.
-  const cached = responseCache.get(key)
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.data as T[]
-  }
+  // "no-store" ile açıkça taze veri istendiyse bellek içi response cache'i
+  // ve devam eden isteklere binmeyi de atla — aksi halde bu katman, Next.js
+  // fetch cache'ini atlamamıza rağmen 90 saniyeye kadar bayat veri döndürebilir.
+  const bypassCache = options.cache === "no-store"
 
-  // 2. Aynı anahtar için zaten devam eden bir istek varsa ona binelim
-  // (aynı panelin aynı anda iki kez tetiklediği aynı çağrı tek ağ isteğine düşer).
-  const existing = inFlight.get(key)
-  if (existing) {
-    return existing as Promise<T[]>
+  if (!bypassCache) {
+    // 1. Taze bir cache girdisi varsa ağa hiç gitmeden onu döndür.
+    const cached = responseCache.get(key)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data as T[]
+    }
+
+    // 2. Aynı anahtar için zaten devam eden bir istek varsa ona binelim
+    // (aynı panelin aynı anda iki kez tetiklediği aynı çağrı tek ağ isteğine düşer).
+    const existing = inFlight.get(key)
+    if (existing) {
+      return existing as Promise<T[]>
+    }
   }
 
   const promise = doFetch<T>(path, params, options).then((data) => {
@@ -117,7 +124,9 @@ export async function apiFootballFetch<T>(
     throw err
   })
 
-  inFlight.set(key, promise)
+  if (!bypassCache) {
+    inFlight.set(key, promise)
+  }
   return promise
 }
 

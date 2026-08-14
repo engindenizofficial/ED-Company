@@ -25,9 +25,12 @@ export async function GET(request: Request) {
     }
   }
 
-  // API'den taze veri çek
+  // API'den taze veri çek. refresh=1 ise Next.js fetch cache'ini VE
+  // api-football-client'taki bellek içi cache'i atlayarak gerçekten taze
+  // veri garantiler (aksi halde "yenile" 2 dakikaya kadar bayat veri
+  // döndürebiliyordu).
   try {
-    const fixtures: Fixture[] = await getFixturesByDate(date)
+    const fixtures: Fixture[] = await getFixturesByDate(date, refresh)
     const payload: FixturesResponse = { date, fixtures, cachedAt: Date.now() }
     await setCachedFixtures(date, payload)
     return NextResponse.json(payload)

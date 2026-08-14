@@ -40,8 +40,12 @@ async function apiFetch<T>(
   path: string,
   params: Record<string, string | number>,
   revalidate = 60,
+  forceRefresh = false,
 ): Promise<T[]> {
-  return apiFootballFetch<T>(path, params, { revalidate })
+  // forceRefresh: Next.js fetch cache'ini VE api-football-client'taki bellek
+  // içi 90s cache'i atlayıp API-Football'dan her zaman taze veri çeker.
+  // Kullanıcı "yenile" dediğinde gerçekten yeni veri gelmesini garantiler.
+  return apiFootballFetch<T>(path, params, forceRefresh ? { cache: "no-store" } : { revalidate })
 }
 
 /** Best-effort fetch: returns [] instead of throwing so one dead endpoint
@@ -115,10 +119,10 @@ function mapFixture(r: RawFixture): Fixture {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-export async function getFixturesByDate(date: string): Promise<Fixture[]> {
+export async function getFixturesByDate(date: string, forceRefresh = false): Promise<Fixture[]> {
   const MAX_FIXTURES = 200
 
-  const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: "Europe/Istanbul" }, 120)
+  const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: "Europe/Istanbul" }, 120, forceRefresh)
 
   const fixtures = raw.map(mapFixture)
 
