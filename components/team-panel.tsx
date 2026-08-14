@@ -838,6 +838,20 @@ function TeamPanelInner({
   ]
   const [activeTab, setActiveTab] = useState(tabs[0].key)
 
+  // API-Football, gerçek bir stadyum fotoğrafı olmadığında 404 döndürmek yerine
+  // her zaman aynı 150x150 boyutundaki jenerik "image not available" görselini
+  // döndürüyor (gerçek fotoğraflar 600x450 JPEG). Bu yüzden `venue.image` alanı
+  // dolu olsa da içerik anlamlı olmayabilir. Görseli önce görünmez şekilde ön
+  // yükleyip boyutunu kontrol ediyoruz; sadece gerçek bir fotoğraf olduğu
+  // doğrulanınca görünür bölümü render ediyoruz — böylece hem placeholder hiç
+  // ekrana çıkmıyor hem de ileride gerçek fotoğraf eklenirse otomatik görünür.
+  const [venueImageStatus, setVenueImageStatus] = useState<"unknown" | "valid" | "invalid">("unknown")
+  const isPlaceholderVenueImage = (img: HTMLImageElement) =>
+    img.naturalWidth === 150 && img.naturalHeight === 150
+  useEffect(() => {
+    setVenueImageStatus("unknown")
+  }, [basic?.venue.image])
+
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
@@ -935,8 +949,24 @@ function TeamPanelInner({
 
           {!loading && !error && basic && (
             <div className="flex flex-col gap-2">
-              {/* Venue image — shown only if available */}
-              {basic.venue.image && (
+              {/* Placeholder olup olmadığını anlamak için görseli önce sessizce
+                  ön yüklüyoruz; sonuç belli olana kadar hiçbir şey render
+                  edilmiyor, böylece placeholder asla görünmüyor. */}
+              {basic.venue.image && venueImageStatus === "unknown" && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={basic.venue.image}
+                  alt=""
+                  className="hidden"
+                  onLoad={(e) => {
+                    setVenueImageStatus(isPlaceholderVenueImage(e.currentTarget) ? "invalid" : "valid")
+                  }}
+                  onError={() => setVenueImageStatus("invalid")}
+                />
+              )}
+
+              {/* Venue image — sadece gerçek bir fotoğraf olduğu doğrulanınca gösterilir. */}
+              {basic.venue.image && venueImageStatus === "valid" && (
                 <div className="overflow-hidden rounded-2xl border border-border/70">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
