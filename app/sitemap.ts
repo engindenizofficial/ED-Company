@@ -100,6 +100,30 @@ function getMatchRoutes(fixtures: Fixture[]): string[] {
 }
 
 /**
+ * Rota -> gerçek "son değişti" tarihi. Sadece elimizde gerçek bir sinyal
+ * olan rotalar için doldurulur (maç kickoff tarihi, DB updatedAt). Elimizde
+ * gerçek sinyal olmayan rotalar (bugün maçı olduğu için görünen ama DB dışı
+ * takım/oyuncu/lig) haritada YOK sayılır — Google'a sahte "az önce değişti"
+ * sinyali vermemek için lastModified boş bırakılır.
+ */
+function buildLastModifiedMap(
+  fixtures: Fixture[],
+  dbTeamRows: { teamId: number; updatedAt: Date }[],
+  dbPlayerRows: { playerId: number; updatedAt: Date }[],
+): Map<string, Date> {
+  const map = new Map<string, Date>()
+
+  for (const fixture of fixtures) {
+    const kickoff = new Date(fixture.date)
+    if (!Number.isNaN(kickoff.getTime())) map.set(`/mac/${fixture.id}`, kickoff)
+  }
+  for (const row of dbTeamRows) map.set(`/takim/${row.teamId}`, row.updatedAt)
+  for (const row of dbPlayerRows) map.set(`/oyuncu/${row.playerId}`, row.updatedAt)
+
+  return map
+}
+
+/**
  * Öne çıkan 24 lig (lib/leagues.ts) + bugün en az bir maçı olan diğer
  * ligler (getFixturesByDate dünyadaki her ligi döndürür, sadece featured
  * olanları değil) — ana sayfadan gerçekten erişilebilen tüm lig sayfaları.
@@ -110,16 +134,23 @@ function getLeagueRoutes(fixtures: Fixture[]): string[] {
   return [...ids].map((id) => `/lig/${id}`)
 }
 
-/** Piyasa değeri tablosundaki 24 lig takım id'leri — DB'ye tek seferde sorulur. */
-async function getDbTeamIds(): Promise<Set<number>> {
-  const rows = await db.select({ teamId: teamMarketValue.teamId }).from(teamMarketValue)
-  return new Set(rows.map((row) => row.teamId))
+/**
+ * Piyasa değeri tablosundaki 24 lig takım id'leri + updatedAt — DB'ye tek
+ * seferde sorulur. updatedAt, sitemap'te gerçek lastModified sinyali olarak
+ * kullanılır (sahte "her gün değişti" sinyali vermemek için).
+ */
+async function getDbTeamRows(): Promise<{ teamId: number; updatedAt: Date }[]> {
+  return db.select({ teamId: teamMarketValue.teamId, updatedAt: teamMarketValue.updatedAt }).from(teamMarketValue)
 }
 
-/** Piyasa değeri tablosundaki 24 lig oyuncu id'leri — DB'ye tek seferde sorulur. */
-async function getDbPlayerIds(): Promise<Set<number>> {
-  const rows = await db.select({ playerId: playerMarketValue.playerId }).from(playerMarketValue)
-  return new Set(rows.map((row) => row.playerId))
+/**
+ * Piyasa değeri tablosundaki 24 lig oyuncu id'leri + updatedAt — DB'ye tek
+ * seferde sorulur.
+ */
+async function getDbPlayerRows(): Promise<{ playerId: number; updatedAt: Date }[]> {
+  return db
+    .select({ playerId: playerMarketValue.playerId, updatedAt: playerMarketValue.updatedAt })
+    .from(playerMarketValue)
 }
 
 /**
@@ -210,9 +241,12 @@ function isExcluded(route: string) {
   return EXCLUDED_PREFIXES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`))
 }
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const now = new Date()
+// Statik sayfalar (ana sayfa hariç) için gerçek bir "değişti" sinyali yok —
+// bunlara her yenilemede "now" yazmak sahte tazelik sinyali olur, o yüzden
+// build/deploy anına sabitleniyor.
+const BUILD_TIME = new Date()
 
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes = findPageRoutes(APP_DIR)
     .map((route) => (route === '/' ? '/' : route.replace(/\/$/, '')))
     .filter((route) => !isExcluded(route))
@@ -227,10 +261,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // DB sorguları da birbirinden bağımsız — biri başarısız olursa diğeri
   // etkilenmez, ilgili rotalar sadece "bugünün ekstra takımları/oyuncuları"na
   // geri düşer.
-  const [dbTeamIds, dbPlayerIds] = await Promise.all([
-    getDbTeamIds().catch(() => new Set<number>()),
-    getDbPlayerIds().catch(() => new Set<number>()),
+  const [dbTeamRows, dbPlayerRows] = await Promise.all([
+    getDbTeamRows().catch(() => [] as { teamId: number; updatedAt: Date }[]),
+    getDbPlayerRows().catch(() => [] as { playerId: number; updatedAt: Date }[]),
   ])
+  const dbTeamIds = new Set(dbTeamRows.map((row) => row.teamId))
+  const dbPlayerIds = new Set(dbPlayerRows.map((row) => row.playerId))
 
   const leagueRoutes = getLeagueRoutes(fixtures)
   const teamRoutes = getTeamRoutes(fixtures, dbTeamIds)
@@ -241,11 +277,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .filter((route, index, all) => all.indexOf(route) === index) // dedupe
     .sort()
 
+  // Sadece elimizde gerçek bir sinyal olan rotalar için lastModified doldurulur
+  // (maç kickoff tarihi, DB updatedAt). Bugün maçı olduğu için görünen ama DB
+  // dışı takım/oyuncu/lig rotalarında bu bilgi yok — Google'a sahte "az önce
+  // değişti" sinyali vermemek için lastModified o rotalarda boş bırakılır.
+  const lastModifiedMap = buildLastModifiedMap(fixtures, dbTeamRows, dbPlayerRows)
+
   return routes.map((route) => {
     const { priority, changeFrequency } = getRouteMeta(route)
+    const lastModified = lastModifiedMap.get(route) ?? (route === '/' ? new Date() : BUILD_TIME)
     return {
       url: `${baseURL}${route}`,
-      lastModified: now,
+      lastModified,
       changeFrequency,
       priority,
     }
