@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import { getPlayerMarketValue } from "@/lib/market-values"
+import { calculateAge } from "@/lib/api-football"
 import type { PlayerProfile } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
     name: p.name ?? "",
     firstname: p.firstname ?? "",
     lastname: p.lastname ?? "",
-    age: p.age ?? null,
+    age: calculateAge(p.birth?.date, p.age),
     birthDate: p.birth?.date ?? null,
     birthPlace: p.birth?.place ?? null,
     birthCountry: p.birth?.country ?? null,

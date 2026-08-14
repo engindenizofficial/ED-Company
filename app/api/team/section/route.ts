@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import { getPlayerMarketValues } from "@/lib/market-values"
+import { calculateAge } from "@/lib/api-football"
 import type {
   Fixture,
   FormGame,
@@ -186,7 +187,7 @@ export async function GET(request: Request) {
           name: currentCoachRaw.name ?? "",
           photo: currentCoachRaw.photo ?? null,
           nationality: currentCoachRaw.nationality ?? null,
-          age: currentCoachRaw.age ?? null,
+          age: calculateAge(currentCoachRaw.birth?.date, currentCoachRaw.age),
           career: (currentCoachRaw.career ?? []).slice(-5).map((j: any) => ({
             team: { id: j.team?.id, name: j.team?.name ?? "", logo: j.team?.logo ?? "" },
             start: j.start ?? null,

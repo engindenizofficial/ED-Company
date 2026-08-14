@@ -36,6 +36,29 @@ function featuredRank(leagueId: number): number {
   return idx === -1 ? Infinity : idx
 }
 
+// API-Football'ın döndürdüğü `age` alanı GÜNCEL DEĞİL — sezon başında bir kez
+// hesaplanıp o sezon boyunca sabit kalıyor gibi görünüyor (canlı testte Messi,
+// Ronaldo, Neymar dahil kontrol edilen tüm oyuncularda 1 yaş eksik geldi).
+// Bunun yerine `birth.date` alanından BUGÜNE göre yaşı kendimiz hesaplıyoruz —
+// bu her zaman doğru ve güncel sonucu verir. Doğum tarihi yoksa API'nin
+// verdiği yaşa (varsa) geri düşülür, o da yoksa null döner.
+export function calculateAge(birthDate: string | null | undefined, fallbackAge?: number | null): number | null {
+  if (birthDate) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(birthDate)
+    if (match) {
+      const year = Number(match[1])
+      const month = Number(match[2])
+      const day = Number(match[3])
+      const now = new Date()
+      let age = now.getFullYear() - year
+      const hasHadBirthdayThisYear = now.getMonth() + 1 > month || (now.getMonth() + 1 === month && now.getDate() >= day)
+      if (!hasHadBirthdayThisYear) age--
+      if (Number.isFinite(age) && age >= 0) return age
+    }
+  }
+  return fallbackAge ?? null
+}
+
 async function apiFetch<T>(
   path: string,
   params: Record<string, string | number>,

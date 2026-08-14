@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { calculateAge } from "@/lib/api-football"
 
 export const dynamic = "force-dynamic"
 
@@ -80,7 +81,7 @@ async function searchPlayersInLeague(
         name: p.name ?? "",
         photo: p.photo ?? null,
         nationality: p.nationality ?? null,
-        age: p.age ?? null,
+        age: calculateAge(p.birth?.date, p.age),
         teamId: firstStat.team?.id ?? null,
         teamName: firstStat.team?.name ?? null,
         teamLogo: firstStat.team?.logo ?? null,
