@@ -291,12 +291,19 @@ export function FixtureList({
               const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
               return (
                 <li key={f.id}>
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => onSelect(f)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        onSelect(f)
+                      }
+                    }}
                     aria-pressed={active}
                     className={cn(
-                      "group w-full rounded-xl border px-4 py-3 text-left transition-all duration-150",
+                      "group w-full cursor-pointer rounded-xl border px-4 py-3 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       active
                         ? "border-primary/60 bg-primary/[0.07] shadow-sm"
                         : "border-border/70 bg-card hover:border-border hover:bg-card/80",
@@ -372,7 +379,7 @@ export function FixtureList({
                         )}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 </li>
               )
             })}
