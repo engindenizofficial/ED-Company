@@ -295,13 +295,13 @@ export function MarketValueDuelGame() {
               type="button"
               onClick={handleChangeDifficulty}
               className={cn(
-                "hidden items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide ring-1 transition-opacity hover:opacity-80 sm:flex",
+                "flex items-center gap-1 rounded-lg px-1.5 py-1.5 text-[10px] font-bold uppercase tracking-wide ring-1 transition-opacity hover:opacity-80 sm:px-2",
                 currentDifficultyMeta.accent,
               )}
               aria-label={t("duel.changeDifficulty")}
             >
               <currentDifficultyMeta.icon className="h-3 w-3" />
-              {currentDifficultyMeta.label}
+              <span className="hidden sm:inline">{currentDifficultyMeta.label}</span>
             </button>
           )}
           <button

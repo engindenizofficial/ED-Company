@@ -26,23 +26,25 @@ export function NavTabs() {
       className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-md"
       aria-label={t("nav.ariaLabel")}
     >
-      <div className="mx-auto flex max-w-4xl items-center justify-between px-5">
+      <div className="mx-auto flex max-w-4xl items-center justify-between gap-1 px-3 sm:px-5">
         {/* Hamburger (sadece giriş yapmış kullanıcılar) + Logo sol */}
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
           <FavoritesMenu />
           <Link
             href="/"
-            className="select-none text-[13px] font-black tracking-[0.18em] uppercase"
+            className="select-none whitespace-nowrap text-[12px] font-black tracking-[0.14em] uppercase sm:text-[13px] sm:tracking-[0.18em]"
             aria-label={t("nav.backToHome")}
           >
             <span className="brand-gradient bg-clip-text text-transparent">ED</span>
             <span className="text-foreground/50 mx-1">/</span>
-            <span className="text-foreground/75 font-semibold tracking-widest text-[11px]">ANALYTICS</span>
+            <span className="hidden text-foreground/75 font-semibold tracking-widest text-[11px] sm:inline">
+              ANALYTICS
+            </span>
           </Link>
         </div>
 
         {/* Sağ: Tabs + Auth */}
-        <div className="flex items-center gap-0">
+        <div className="flex min-w-0 items-center gap-0">
           {tabs.map(({ href, label, icon: Icon }) => {
             const active =
               href === "/"
@@ -57,7 +59,7 @@ export function NavTabs() {
                 key={href}
                 href={href}
                 className={cn(
-                  "relative flex items-center gap-1.5 px-4 py-3.5 text-xs font-semibold tracking-wide uppercase transition-colors",
+                  "relative flex items-center gap-1 px-2 py-3.5 text-[11px] font-semibold tracking-wide uppercase transition-colors sm:gap-1.5 sm:px-4 sm:text-xs",
                   active
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground",
@@ -65,7 +67,7 @@ export function NavTabs() {
                 aria-current={active ? "page" : undefined}
               >
                 <Icon className="h-3.5 w-3.5" />
-                {label}
+                <span>{label}</span>
                 {active && (
                   <span className="absolute bottom-0 left-0 right-0 h-[2px] brand-gradient rounded-full" />
                 )}
@@ -73,10 +75,10 @@ export function NavTabs() {
             )
           })}
 
-          {/* Auth butonları */}
-          <div className="ml-2 flex items-center gap-1.5 pl-2 border-l border-border/60">
+          {/* Auth butonları — mobilde yer kısıtlı olduğu için giriş/dil seçimi hamburger menüsüne taşınır */}
+          <div className="ml-1 hidden items-center gap-1.5 border-l border-border/60 pl-2 sm:ml-2 sm:flex sm:pl-2">
             {session?.user ? (
-              <span className="hidden sm:flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5">
                 <span className="text-[11px] text-muted-foreground font-medium whitespace-nowrap">
                   {session.user.name}
                 </span>
@@ -93,18 +95,18 @@ export function NavTabs() {
                   className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
                 >
                   <KeyRound className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{t("nav.signIn")}</span>
+                  <span>{t("nav.signIn")}</span>
                 </Link>
                 <Link
                   href="/sign-up"
                   className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{t("nav.signUp")}</span>
+                  <span>{t("nav.signUp")}</span>
                 </Link>
               </>
             )}
-            <div className="ml-1.5 hidden sm:block">
+            <div className="ml-1.5">
               <LanguageSwitcher />
             </div>
           </div>
