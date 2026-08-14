@@ -54,6 +54,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       adminPanel: "Yönetim Paneli",
       signOut: "Çıkış Yap",
       signIn: "Giriş Yap",
+      signUp: "Kayıt Ol",
       deleteAccount: "Hesabımı Sil",
       deleteAccountDesc1:
         "Hesabınızı sildiğinizde profil bilgileriniz, favori takım/liglerinizi ve tüm tahmin geçmişiniz kalıcı olarak silinir.",
@@ -751,6 +752,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       adminPanel: "Admin Panel",
       signOut: "Sign Out",
       signIn: "Sign In",
+      signUp: "Sign Up",
       deleteAccount: "Delete My Account",
       deleteAccountDesc1:
         "Deleting your account permanently removes your profile info, favorite teams/leagues, and your entire prediction history.",

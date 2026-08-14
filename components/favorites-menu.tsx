@@ -291,16 +291,28 @@ export function FavoritesMenu() {
                     <span className="text-sm font-semibold text-destructive">{t("menu.signOut")}</span>
                   </button>
                 ) : (
-                  <Link
-                    href="/sign-in"
-                    onClick={close}
-                    className="mt-auto flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
-                      <KeyRound className="h-4 w-4 text-primary" />
-                    </div>
-                    <span className="text-sm font-semibold text-foreground">{t("menu.signIn")}</span>
-                  </Link>
+                  <div className="mt-auto flex flex-col gap-1">
+                    <Link
+                      href="/sign-up"
+                      onClick={close}
+                      className="flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                      <span className="text-sm font-semibold text-foreground">{t("menu.signUp")}</span>
+                    </Link>
+                    <Link
+                      href="/sign-in"
+                      onClick={close}
+                      className="flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                        <KeyRound className="h-4 w-4 text-primary" />
+                      </div>
+                      <span className="text-sm font-semibold text-foreground">{t("menu.signIn")}</span>
+                    </Link>
+                  </div>
                 )}
               </div>
             ) : view === "theme" ? (
