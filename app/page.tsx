@@ -161,12 +161,6 @@ export default function Page() {
     )
   }, [])
 
-  // İlk yükleme
-  useEffect(() => {
-    loadFixtures(false)
-    loadPredictionResults()
-  }, [loadFixtures, loadPredictionResults])
-
   // Fikstürler yüklenince otomatik kontrol başlat
   useEffect(() => {
     if (!fixturesLoading && fixturesData) {
@@ -315,22 +309,25 @@ export default function Page() {
     }
   }, [loadFixtures, loadPredictionResults])
 
-  // Otomatik yenileme: yalnızca sekme görünürken (kullanıcı siteyi açık tutarken)
-  // düzenli aralıklarla veriyi tazele. Sekme arka plandaysa interval'ı durdur,
-  // kullanıcı sekmeye geri döndüğünde hemen bir kez daha yenile.
+  // Yenileme yaşam döngüsü — tek bir effect, 3 net kural:
+  // 1) Sayfa ilk açıldığında bir kez otomatik yenilenir (handleRefresh burada tek
+  //    seferliğine tetiklenir; önceden ayrı bir "ilk yükleme" effect'i de vardı ve
+  //    bu effect de mount anında hemen çalıştığı için ikisi aynı anda, birbiriyle
+  //    yarışan iki farklı fetch başlatıyordu — bu artık tek çağrıya indirildi).
+  // 2) Sekme görünürken 30 saniyede bir otomatik yenilenir.
+  // 3) Sekme arka plana geçince interval durur; kullanıcı sekmeye geri
+  //    döndüğünde hemen bir kez daha yenilenir ve interval yeniden başlar.
   useEffect(() => {
     const AUTO_REFRESH_MS = 30_000
     let intervalId: ReturnType<typeof setInterval> | null = null
 
-    const runRefresh = () => {
-      if (document.visibilityState === "visible") {
-        handleRefresh()
-      }
-    }
-
     const startInterval = () => {
       if (intervalId) return
-      intervalId = setInterval(runRefresh, AUTO_REFRESH_MS)
+      intervalId = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          handleRefresh()
+        }
+      }, AUTO_REFRESH_MS)
     }
 
     const stopInterval = () => {
@@ -341,19 +338,17 @@ export default function Page() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        runRefresh()
+        handleRefresh()
         startInterval()
       } else {
         stopInterval()
       }
     }
 
-    if (document.visibilityState === "visible") {
-      // Sayfa ilk açıldığında 30 saniye beklemeden hemen bir kez güncelle,
-      // sonrasında normal 30 saniyelik döngüye geç.
-      runRefresh()
-      startInterval()
-    }
+    // 1) İlk yükleme — mount anında tek sefer.
+    handleRefresh()
+    startInterval()
+
     document.addEventListener("visibilitychange", handleVisibilityChange)
 
     return () => {
