@@ -1535,6 +1535,14 @@ function H2HList({
           const awayGoals = g.homeTeam ? (g.home ? g.conceded : g.scored) : g.conceded
           const homeWon = homeGoals > awayGoals
           const awayWon = awayGoals > homeGoals
+          // Renk, o geçmiş maçta kimin evinde oynadığına değil, güncel fikstürdeki
+          // takım kimliğine göre atanmalı (özet çubuğuyla aynı: homeName = primary,
+          // awayName = accent). `g.home` burada "homeName bu geçmiş maçta evinde
+          // oynadı mı" anlamına geliyor, dolayısıyla sol/sağ pozisyonun hangi takıma
+          // ait olduğunu belirler.
+          const leftIsHomeName = g.home
+          const leftWinColor = leftIsHomeName ? "text-primary" : "text-accent"
+          const rightWinColor = leftIsHomeName ? "text-accent" : "text-primary"
           return (
             <li
               key={i}
@@ -1543,9 +1551,9 @@ function H2HList({
               <span className={cn("truncate text-xs", homeWon ? "font-bold text-foreground" : "text-muted-foreground")}>{displayHome}</span>
               <div className="flex items-center gap-1.5 shrink-0">
                 <span className="text-[10px] tabular-nums text-muted-foreground/75">{g.date.slice(0, 10)}</span>
-                <span className={cn("text-xs font-black tabular-nums", homeWon ? "text-primary" : "text-foreground")}>{homeGoals}</span>
+                <span className={cn("text-xs font-black tabular-nums", homeWon ? leftWinColor : "text-foreground")}>{homeGoals}</span>
                 <span className="text-muted-foreground/60 text-xs">-</span>
-                <span className={cn("text-xs font-black tabular-nums", awayWon ? "text-accent" : "text-foreground")}>{awayGoals}</span>
+                <span className={cn("text-xs font-black tabular-nums", awayWon ? rightWinColor : "text-foreground")}>{awayGoals}</span>
               </div>
               <span className={cn("truncate text-xs text-right", awayWon ? "font-bold text-foreground" : "text-muted-foreground")}>{displayAway}</span>
             </li>
