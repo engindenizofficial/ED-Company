@@ -68,30 +68,24 @@ function getRouteMeta(route: string) {
   return { priority: DEFAULT_PRIORITY, changeFrequency: DEFAULT_CHANGE_FREQUENCY }
 }
 
-/** Bugünden itibaren geriye/ileriye doğru YYYY-MM-DD tarih listesi üretir. */
-function dateRange(pastDays: number, futureDays: number): string[] {
-  const dates: string[] = []
-  const today = new Date()
-  for (let offset = -pastDays; offset <= futureDays; offset++) {
-    const d = new Date(today)
-    d.setDate(d.getDate() + offset)
-    dates.push(d.toISOString().slice(0, 10))
-  }
-  return dates
-}
-
-/** Son 2 gün + gelecek 5 gün içindeki tüm fikstürlerin /mac/[id] rotaları. */
+/**
+ * Sadece bugünün fikstürlerinin /mac/[id] rotaları.
+ *
+ * Not: Sitede şu an sadece bugünün maçları (ana sayfadaki todayTR()) iç
+ * linkle erişilebilir durumda — dün/önceki gün ve yarın/sonraki günler
+ * için site içi tarih navigasyonu yok. Sitemap'i sitenin gerçekten
+ * erişilebilir olduğu içerikle sınırlı tutmak için pencere kasıtlı olarak
+ * "bugün" ile sınırlandı (yetim sayfa oluşturmamak ve API-Football
+ * çağrılarını gereksiz büyütmemek için). Site içine tarih navigasyonu
+ * eklenirse, bu fonksiyon geçmiş/gelecek günleri de kapsayacak şekilde
+ * genişletilebilir.
+ */
 async function getMatchRoutes(): Promise<string[]> {
-  const dates = dateRange(2, 5)
-  const results = await Promise.allSettled(dates.map((date) => getFixturesByDate(date)))
-
-  const ids = new Set<number>()
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      for (const fixture of result.value) ids.add(fixture.id)
-    }
-  }
-  return [...ids].map((id) => `/mac/${id}`)
+  // Türkiye saatiyle bugün — app/api/fixtures/route.ts'teki todayTR() ile
+  // aynı mantık, ana sayfada gösterilen tarihle birebir eşleşsin.
+  const todayTR = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Istanbul' })
+  const fixtures = await getFixturesByDate(todayTR)
+  return [...new Set(fixtures.map((fixture) => fixture.id))].map((id) => `/mac/${id}`)
 }
 
 /** Öne çıkan 24 ligin /lig/[id] rotaları — tek kaynak: lib/leagues.ts. */
