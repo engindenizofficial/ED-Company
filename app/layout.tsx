@@ -23,17 +23,28 @@ const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono'
 
 const GA_MEASUREMENT_ID = 'G-HT84HW4PPM'
 
+const SITE_URL =
+  process.env.BETTER_AUTH_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : (process.env.V0_RUNTIME_URL ?? 'http://localhost:3000'))
+
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getServerLocale()
+  const title = translate(locale, 'meta.home.title')
+  const description = translate(locale, 'meta.home.description')
   return {
-    title: translate(locale, 'meta.home.title'),
-    description: translate(locale, 'meta.home.description'),
+    metadataBase: new URL(SITE_URL),
+    title,
+    description,
     generator: 'v0.app',
     manifest: '/manifest.json',
     appleWebApp: {
       capable: true,
       statusBarStyle: 'black-translucent',
-      title: translate(locale, 'meta.home.title'),
+      title,
     },
     icons: {
       icon: [
@@ -41,6 +52,20 @@ export async function generateMetadata(): Promise<Metadata> {
         { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
       ],
       apple: '/apple-touch-icon.png',
+    },
+    openGraph: {
+      title,
+      description,
+      siteName: 'ED Company',
+      locale: locale === 'tr' ? 'tr_TR' : 'en_US',
+      type: 'website',
+      images: [{ url: '/opengraph-image.png', width: 1200, height: 630, alt: title }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ['/opengraph-image.png'],
     },
   }
 }

@@ -15,9 +15,18 @@ export async function generateMetadata({ params }: LeaguePageProps): Promise<Met
   const locale = await getServerLocale()
   const info = await getLeagueBasicInfo(Number(id)).catch(() => null)
   const name = info?.league.name || "Lig"
+  const title = translate(locale, "meta.league.title", { name })
+  const description = translate(locale, "meta.league.description", { name })
   return {
-    title: translate(locale, "meta.league.title", { name }),
-    description: translate(locale, "meta.league.description", { name }),
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      images: info?.league.logo ? [{ url: info.league.logo }] : undefined,
+    },
+    twitter: { card: "summary_large_image", title, description },
   }
 }
 

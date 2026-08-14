@@ -16,9 +16,18 @@ export async function generateMetadata({ params }: MatchPageProps): Promise<Meta
   const fixture = await getFixtureById(Number(id)).catch(() => null)
   const home = fixture?.home.name || "Ev Sahibi"
   const away = fixture?.away.name || "Konuk"
+  const title = translate(locale, "meta.match.title", { home, away })
+  const description = translate(locale, "meta.match.description", { home, away })
   return {
-    title: translate(locale, "meta.match.title", { home, away }),
-    description: translate(locale, "meta.match.description", { home, away }),
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      images: [{ url: "/opengraph-image.png", width: 1200, height: 630 }],
+    },
+    twitter: { card: "summary_large_image", title, description, images: ["/opengraph-image.png"] },
   }
 }
 

@@ -15,9 +15,18 @@ export async function generateMetadata({ params }: PlayerPageProps): Promise<Met
   const locale = await getServerLocale()
   const profile = await getPlayerBasicProfile(Number(id)).catch(() => null)
   const name = profile?.name || "Oyuncu"
+  const title = translate(locale, "meta.player.title", { name })
+  const description = translate(locale, "meta.player.description", { name })
   return {
-    title: translate(locale, "meta.player.title", { name }),
-    description: translate(locale, "meta.player.description", { name }),
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      images: profile?.photo ? [{ url: profile.photo }] : undefined,
+    },
+    twitter: { card: "summary_large_image", title, description },
   }
 }
 
