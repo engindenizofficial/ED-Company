@@ -164,15 +164,26 @@ function isExcludedLeague(leagueName: string): boolean {
 // takımlarının adının sonuna " II" veya " B" ekler (örn. "Brisbane Roar II",
 // "Barcelona B"). Bu son ekler lig adında hiç görünmediği için ayrıca takım
 // adının sonunu da kontrol etmemiz gerekiyor.
-const WOMEN_TEAM_SUFFIX_PATTERN = /\bw$/i
-const RESERVE_TEAM_SUFFIX_PATTERN = /\b(ii|b)$/i
+//
+// ÖNEMLİ: Bunu regex \b (kelime sınırı) ile değil, son kelimeyi ayırıp TAM
+// eşleşme ile kontrol ediyoruz. JS'de \b varsayılan olarak yalnızca ASCII
+// harflerini "kelime karakteri" sayar; ó, ń, ć gibi aksanlı harfler kelime
+// karakteri sayılmadığından "Rzeszów", "Chorzów", "Czarnków" gibi gerçek
+// ERKEK takım adlarında bu harften önce sahte bir kelime sınırı oluşuyor ve
+// takım yanlışlıkla kadın takımı gibi görünüyordu. Son kelimeyi ayırıp birebir
+// karşılaştırmak bu sorunu tamamen ortadan kaldırıyor.
+function getLastToken(name: string): string {
+  const tokens = name.trim().split(/\s+/)
+  return (tokens[tokens.length - 1] || "").toLowerCase()
+}
 
 function hasWomenTeamSuffix(name: string): boolean {
-  return WOMEN_TEAM_SUFFIX_PATTERN.test(name.trim())
+  return getLastToken(name) === "w"
 }
 
 function hasReserveTeamSuffix(name: string): boolean {
-  return RESERVE_TEAM_SUFFIX_PATTERN.test(name.trim())
+  const lastToken = getLastToken(name)
+  return lastToken === "ii" || lastToken === "b"
 }
 
 function isExcludedByTeamNames(homeName: string, awayName: string): boolean {
