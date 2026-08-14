@@ -70,10 +70,16 @@ function formatH2H(h2h: LiveData["h2h"], homeName: string, awayName: string): st
   if (!h2h.length) return "Kafa kafaya geçmiş maç verisi yok."
   return h2h
     .slice(0, 5)
-    .map(
-      (g) =>
-        `${g.homeTeam ?? homeName} ${g.scored}-${g.conceded} ${g.awayTeam ?? awayName} (${new Date(g.date).toLocaleDateString("tr-TR")})`,
-    )
+    .map((g) => {
+      // `scored`/`conceded` her zaman güncel fikstürün ev sahibi takımının (homeName)
+      // bakış açısından raporlanır — o geçmiş maçta hangi tarafın evinde oynadığından
+      // bağımsız. `g.home` o geçmiş maçta homeName'in evinde oynayıp oynamadığını
+      // belirtir, dolayısıyla skorları gerçek ev sahibi/deplasman etiketine göre
+      // doğru sıraya koymak için bunu kontrol etmemiz gerekir.
+      const homeGoals = g.home ? g.scored : g.conceded
+      const awayGoals = g.home ? g.conceded : g.scored
+      return `${g.homeTeam ?? homeName} ${homeGoals}-${awayGoals} ${g.awayTeam ?? awayName} (${new Date(g.date).toLocaleDateString("tr-TR")})`
+    })
     .join(", ")
 }
 
