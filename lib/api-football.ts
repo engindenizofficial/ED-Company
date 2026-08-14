@@ -151,12 +151,28 @@ function isExcludedLeague(leagueName: string): boolean {
   return isWomensLeague(leagueName) || isYouthOrReserveLeague(leagueName)
 }
 
+// Lig adı genel olsa da (örn. "Friendlies", "International" gibi milli takım
+// U21/U23 maçları, veya "Barcelona Femenino" gibi kadın şubesi takımların
+// oynadığı kupa maçları), TAKIM ADLARI genelde kadın/alt yaş kategorisini
+// açıkça belirtir. Bu yüzden lig adı temiz görünse bile ev sahibi/misafir
+// takım adlarını da aynı desenlerle kontrol ediyoruz — çift güvenlik katmanı.
+function isExcludedByTeamNames(homeName: string, awayName: string): boolean {
+  return (
+    isWomensLeague(homeName) ||
+    isWomensLeague(awayName) ||
+    isYouthOrReserveLeague(homeName) ||
+    isYouthOrReserveLeague(awayName)
+  )
+}
+
 export async function getFixturesByDate(date: string, forceRefresh = false): Promise<Fixture[]> {
   const MAX_FIXTURES = 200
 
   const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: "Europe/Istanbul" }, 120, forceRefresh)
 
-  const fixtures = raw.map(mapFixture).filter((f) => !isExcludedLeague(f.league.name))
+  const fixtures = raw
+    .map(mapFixture)
+    .filter((f) => !isExcludedLeague(f.league.name) && !isExcludedByTeamNames(f.home.name, f.away.name))
 
   // For non-featured leagues, compute each league's earliest kick-off time
   // so we can sort leagues as a whole block rather than interleaving matches.
