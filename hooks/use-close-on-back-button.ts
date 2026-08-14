@@ -24,6 +24,10 @@ import { useEffect, useRef } from "react"
 interface StackEntry {
   id: number
   onPop: () => void
+  // true ise bu panel için AYRI bir history girdisi eklenmedi (bkz. pushPanel)
+  // — popPanel bu durumda history.back() çağırmamalı, aksi halde kullanıcıyı
+  // sitenin dışına ya da ilgisiz bir önceki sayfaya fırlatabilir.
+  noHistoryEntry?: boolean
 }
 
 const stack: StackEntry[] = []
@@ -59,22 +63,37 @@ function ensureListener() {
 function pushPanel(onPop: () => void, url?: string): number {
   ensureListener()
   const id = ++nextId
-  if (typeof window !== "undefined") {
+
+  // Adres çubuğu ZATEN bu URL'deyse (örn. /oyuncu/123 sayfası doğrudan
+  // ziyaret/yenilendi ve panel açılırken kendi URL'ini "push" etmeye
+  // çalışıyor) yeni bir history girdisi EKLEMİYORUZ. Aksi halde aynı URL'e
+  // sahip iki ayrı girdi oluşur ve X butonuyla kapatırken history.back()
+  // ikinci (bizim eklediğimiz) girdiden ilk (SSR yüklemesinin kendi) girdiye
+  // döner — ikisi de aynı URL olduğu için adres çubuğu hiç değişmemiş gibi
+  // görünür ve panel kapanmış boş bir sayfa kalır. Bu durumda URL'i geri
+  // "/" yapmak tamamen çağıran component'e (bkz. *-url-opener.tsx'teki
+  // router.replace) bırakılır.
+  const alreadyAtUrl = typeof window !== "undefined" && !!url && window.location.pathname === url
+  if (typeof window !== "undefined" && url && !alreadyAtUrl) {
     // url verildiyse (örn. "/oyuncu/123") adres çubuğu da güncellenir —
     // böylece panel paylaşılabilir/yenilenebilir bir bağlantıya sahip olur.
     // Next.js App Router, native pushState/replaceState çağrılarını
     // usePathname() üzerinden algılar; bu yüzden bu URL değişikliği ayrı bir
     // sayfa render'ı TETİKLEMEZ, sadece adres çubuğunu günceller.
     window.history.pushState({ __panel: true, __panelId: id }, "", url)
+  } else if (typeof window !== "undefined" && !alreadyAtUrl) {
+    window.history.pushState({ __panel: true, __panelId: id }, "")
   }
-  stack.push({ id, onPop })
+
+  stack.push({ id, onPop, noHistoryEntry: alreadyAtUrl })
   return id
 }
 
 function popPanel(id: number, closedByBack: boolean) {
   const idx = stack.findIndex((e) => e.id === id)
+  const entry = idx !== -1 ? stack[idx] : undefined
   if (idx !== -1) stack.splice(idx, 1)
-  if (closedByBack || typeof window === "undefined") return
+  if (closedByBack || entry?.noHistoryEntry || typeof window === "undefined") return
 
   // Panel geri tuşuyla değil de programatik olarak (X butonu, overlay
   // tıklama, ESC, sayfa geçişi vb.) kapatıldıysa, açılırken eklediğimiz

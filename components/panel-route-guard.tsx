@@ -5,17 +5,21 @@ import { usePathname } from "next/navigation"
 import { usePlayerPanel } from "@/contexts/player-context"
 import { useTeamPanel } from "@/contexts/team-context"
 import { useLeaguePanel } from "@/contexts/league-context"
-import { useMatchPanel } from "@/contexts/match-context"
 
-// Oyuncu/takım/lig/maç panelleri açıkken adres çubuğu bu desenlerden birine
+// Oyuncu/takım/lig panelleri açıkken adres çubuğu bu desenlerden birine
 // güncellenir (bkz. panel component'lerindeki useCloseOnBackButton çağrıları).
 // Pathname bu desenlerden birine uyuyorsa, değişikliğin sebebi panelin
 // KENDİSİ (açılışı ya da geri tuşuyla kapanışı) — bu durumda paneli tekrar
 // kapatmaya çalışmamalıyız, aksi halde panel açılır açılmaz kendini kapatır.
+// Not: maç paneli (/mac/[id]) bu panellerden farklı — kök layout'ta global
+// bir context'te değil, doğrudan app/page.tsx ve app/mac/[id]/page.tsx'in
+// paylaştığı HomeClient component'inin kendi local state'inde yaşıyor. Bu
+// yüzden burada "kapatılması" gereken ayrı bir maç paneli state'i yok; route
+// değişimi zaten HomeClient'i doğal şekilde yeniden mount/güncelle ediyor.
 const PANEL_URL_PATTERN = /^\/(oyuncu|takim|lig|mac)\/\d+$/
 
 /**
- * Oyuncu/takım/lig/maç panelleri kök layout'ta render edildiği için sayfa
+ * Oyuncu/takım/lig panelleri kök layout'ta render edildiği için sayfa
  * (route) değişse bile React state'te açık kalabiliyor — örneğin Ana
  * Sayfa'da bir takım kartı açıkken "Oyunlar" sekmesine geçildiğinde panel,
  * yeni sayfanın üzerinde açık kalıyordu. Bu hem kafa karıştırıcı hem de
@@ -30,7 +34,6 @@ export function PanelRouteGuard() {
   const { panel: playerPanel, closePlayer } = usePlayerPanel()
   const { panel: teamPanel, closeTeam } = useTeamPanel()
   const { panel: leaguePanel, closeLeague } = useLeaguePanel()
-  const { panel: matchPanel, closeMatch } = useMatchPanel()
   const prevPathnameRef = useRef(pathname)
 
   useEffect(() => {
@@ -40,7 +43,6 @@ export function PanelRouteGuard() {
     if (playerPanel) closePlayer()
     if (teamPanel) closeTeam()
     if (leaguePanel) closeLeague()
-    if (matchPanel) closeMatch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
