@@ -186,17 +186,56 @@ function hasReserveTeamSuffix(name: string): boolean {
   return lastToken === "ii" || lastToken === "b"
 }
 
+// GERÇEK ANA TAKIMLARIN YANLIŞLIKLA FİLTRELENMESİNİ ÖNLEME:
+// "juniors?", "youth", "primavera" gibi genel kelimeler bazı kulüplerin
+// resmi/tarihi isminin AYRILMAZ bir parçasıdır ve rezerv/gençlik takımı
+// anlamına gelmez. Örnekler (canlı API verisiyle doğrulandı):
+//   - "Boca Juniors" ve "Chacarita Juniors" (Arjantin) — dünyaca tanınan A takımlar
+//   - "Junior" (Kolombiya, Atlético Junior de Barranquilla) — A takım
+//   - "Primavera SP" (Brezilya, Esporte Clube Primavera) — A takım
+//   - "Qingdao Youth Island" (Çin) — resmi kulüp adı, gençlik takımı değil
+// Bu takımları asla filtrelememek için sabit bir istisna listesi tutuyoruz.
+const MAIN_TEAM_EXCEPTIONS = new Set(
+  [
+    "boca juniors",
+    "argentinos juniors",
+    "chacarita juniors",
+    "junior",
+    "atlético junior",
+    "atletico junior",
+    "primavera",
+    "primavera sp",
+    "qingdao youth island",
+    "newington youth",
+  ].map((n) => n.toLowerCase()),
+)
+
+function isKnownMainTeam(name: string): boolean {
+  return MAIN_TEAM_EXCEPTIONS.has(name.trim().toLowerCase())
+}
+
+// Takım adı bazlı gençlik/rezerv kontrolünü, lig adı kontrolünden daha DAR
+// tutuyoruz: "youth" ve "primavera" gibi belirsiz/genel kelimeleri buraya
+// dahil ETMİYORUZ (İtalya'nın "Primavera" ligi zaten LİG ADINDAN
+// yakalanıyor — bkz. isYouthOrReserveLeague — bu yüzden takım adında ayrıca
+// aramaya gerek yok, ve bu kelime "Primavera SP" gibi gerçek kulüp adlarını
+// yanlış yakalıyordu). "U15-U23", "Juniors/Juvenil", "Reserve(s)", "Nextgen"
+// hâlâ dahil çünkü bunlar takım adında göründüğünde neredeyse her zaman
+// gerçekten bir alt yaş/rezerv takımını işaret eder.
+const TEAM_YOUTH_RESERVE_PATTERN =
+  /\bu[ -]?1[5-9]\b|\bu[ -]?2[0-3]\b|\bjuniors?\b|\bjuvenil(es)?\b|\breserves?\b|\bnextgen\b/i
+
+function isYouthOrReserveTeamName(name: string): boolean {
+  return TEAM_YOUTH_RESERVE_PATTERN.test(name)
+}
+
+function isExcludedTeamName(name: string): boolean {
+  if (isKnownMainTeam(name)) return false
+  return isWomensLeague(name) || isYouthOrReserveTeamName(name) || hasWomenTeamSuffix(name) || hasReserveTeamSuffix(name)
+}
+
 function isExcludedByTeamNames(homeName: string, awayName: string): boolean {
-  return (
-    isWomensLeague(homeName) ||
-    isWomensLeague(awayName) ||
-    isYouthOrReserveLeague(homeName) ||
-    isYouthOrReserveLeague(awayName) ||
-    hasWomenTeamSuffix(homeName) ||
-    hasWomenTeamSuffix(awayName) ||
-    hasReserveTeamSuffix(homeName) ||
-    hasReserveTeamSuffix(awayName)
-  )
+  return isExcludedTeamName(homeName) || isExcludedTeamName(awayName)
 }
 
 export async function getFixturesByDate(date: string, forceRefresh = false): Promise<Fixture[]> {
