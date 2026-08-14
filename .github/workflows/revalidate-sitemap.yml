@@ -1,0 +1,32 @@
+name: Sitemap'i Günlük Yenile
+
+# ---------------------------------------------------------------------------
+# Bu workflow, Vercel'in kendi cron kotasını (Hobby planda proje başına
+# sınırlı) kullanmadan, /sitemap.xml cache'ini her gün TR saatiyle gece
+# yarısı hemen sonra tazeler. Böylece update-market-values (haftalık, Vercel
+# Cron) hakkı bundan hiç etkilenmez.
+#
+# app/api/cron/revalidate-sitemap route'unu çağırır; o route da
+# revalidatePath('/sitemap.xml') ile cache'i geçersiz kılar. Bu sayede gün
+# değiştiğinde, kimse siteye girmese bile sitemap'teki maçlar güncel olur.
+#
+# Gerekli GitHub repo secret'ları (Settings > Secrets and variables > Actions):
+#   SITE_URL     -> örn. https://example.com (sondaki / olmadan)
+#   CRON_SECRET  -> projedeki CRON_SECRET env var ile AYNI değer
+# ---------------------------------------------------------------------------
+
+on:
+  schedule:
+    # 21:05 UTC = 00:05 TR (Türkiye UTC+3, DST uygulamıyor)
+    - cron: "5 21 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  revalidate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: sitemap.xml cache'ini tazele
+        run: |
+          curl -sS -f \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/cron/revalidate-sitemap"
