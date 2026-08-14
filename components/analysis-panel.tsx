@@ -103,15 +103,24 @@ export function AnalysisPanel({
   const hasPrediction = !!(prediction)
   const showPrediction = isPredictable || hasPrediction
 
+  // Maç Olayları, Oyuncu Performansları ve Maç İstatistikleri sadece maç
+  // başladıktan sonra üretilen verilerdir. Henüz başlamamış bir maçta bu
+  // sekmeler boş/anlamsız içerik gösterdiği için hiç listelenmemeli.
+  const hasStarted = LIVE_OR_FINISHED.has(fixture.statusShort)
+
   const { home, away, league } = fixture
   const { t } = useLanguage()
 
-  // Sekmeler yan yana sıralanır; panel açıldığında ilk sekme (Maç Olayları)
-  // otomatik olarak kendi verisini çeker, diğerleri sadece tıklandığında.
+  // Sekmeler yan yana sıralanır; panel açıldığında ilk sekme otomatik
+  // kendi verisini çeker, diğerleri sadece tıklandığında.
   const tabs: PanelTabItem[] = [
-    { key: "events", label: t("analysis.tabEvents"), icon: <Activity className="h-3.5 w-3.5" /> },
-    { key: "playerStats", label: t("analysis.tabPlayerStats"), icon: <Star className="h-3.5 w-3.5" /> },
-    { key: "statistics", label: t("analysis.tabStatistics"), icon: <BarChart3 className="h-3.5 w-3.5" /> },
+    ...(hasStarted
+      ? [
+          { key: "events", label: t("analysis.tabEvents"), icon: <Activity className="h-3.5 w-3.5" /> },
+          { key: "playerStats", label: t("analysis.tabPlayerStats"), icon: <Star className="h-3.5 w-3.5" /> },
+          { key: "statistics", label: t("analysis.tabStatistics"), icon: <BarChart3 className="h-3.5 w-3.5" /> },
+        ]
+      : []),
     { key: "lineups", label: t("analysis.tabLineups"), icon: <Users className="h-3.5 w-3.5" /> },
     { key: "standings", label: t("analysis.tabStandings"), icon: <Shield className="h-3.5 w-3.5" /> },
     { key: "teamStats", label: t("analysis.tabTeamStats"), icon: <TrendingUp className="h-3.5 w-3.5" /> },
@@ -119,6 +128,16 @@ export function AnalysisPanel({
     { key: "injuries", label: t("analysis.tabInjuries"), icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   ]
   const [activeTab, setActiveTab] = useState(tabs[0].key)
+
+  // Maç sonradan başlarsa (canlıya geçerse) ve o ana kadar seçili sekme
+  // artık listede yoksa (örn. ilk sekme olan "lineups" hâlâ var olduğundan
+  // bu durum oluşmaz), güvenlik amacıyla ilk sekmeye geri dön.
+  useEffect(() => {
+    if (!tabs.some((tab) => tab.key === activeTab)) {
+      setActiveTab(tabs[0].key)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasStarted])
 
   return (
     <div className="flex flex-col gap-2">
@@ -146,14 +165,18 @@ export function AnalysisPanel({
 
       {/* Yan yana sekmeler — ilk sekme otomatik açılır, diğerleri sadece seçilince veri çeker */}
       <PanelTabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
-      <EventsSection fixtureId={fixture.id} homeName={home.name} active={activeTab === "events"} />
-      <PlayerStatsSection fixtureId={fixture.id} home={home} away={away} active={activeTab === "playerStats"} />
-      <StatisticsSection
-        fixtureId={fixture.id}
-        homeName={home.name}
-        awayName={away.name}
-        active={activeTab === "statistics"}
-      />
+      {hasStarted && (
+        <>
+          <EventsSection fixtureId={fixture.id} homeName={home.name} active={activeTab === "events"} />
+          <PlayerStatsSection fixtureId={fixture.id} home={home} away={away} active={activeTab === "playerStats"} />
+          <StatisticsSection
+            fixtureId={fixture.id}
+            homeName={home.name}
+            awayName={away.name}
+            active={activeTab === "statistics"}
+          />
+        </>
+      )}
       <LineupsSection fixtureId={fixture.id} home={home} away={away} active={activeTab === "lineups"} />
       <StandingsSection
         fixtureId={fixture.id}
