@@ -410,7 +410,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       predictionPreparing: "AI tahminleri hazırlanıyor...",
       predictionPreparingSub: "GPT-5.6 Terra, Gemini 3.6 Flash ve Grok 4.5 paralel olarak analiz yapıyor",
       predictionTitle: "AI Ensemble Tahmini",
-      predictionModelsSubtitle: "GPT-5.6 Terra · Gemini 3.6 Flash �� Grok 4.5",
+      predictionModelsSubtitle: "GPT-5.6 Terra · Gemini 3.6 Flash · Grok 4.5",
       predictionGetButton: "Tahmin Al",
       predictionWinsSuffix: "{{team}} kazanır",
       predictionValidUntil: "Gün sonuna kadar geçerli",
