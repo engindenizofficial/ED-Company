@@ -613,7 +613,11 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         scanFailedDefault: "Tarama tetiklenemedi.",
         neverRun:
           'Henüz hiç tarama çalıştırılmadı. Haftalık otomatik taramayı beklemek istemiyorsanız "Şimdi Tara" butonuyla hemen başlatabilirsiniz.',
-        statusBroken: "Zincir k��rıldı",
+        reasonNoActiveRun: "Devam eden bir döngü yok.",
+        reasonRunHealthy: "Döngü sağlıklı ilerliyor, henüz devam ettirmeye gerek yok.",
+        reasonTriggerFailed: "Tetikleme başarısız oldu.",
+        reasonScanAlreadyRunning: "Zaten devam eden bir tarama var, lütfen tamamlanmasını bekleyin.",
+        statusBroken: "Zincir kırıldı",
         statusRunning: "Çalışıyor",
         statusCompleted: "Tamamlandı",
         leaguesProcessed: "{{current}}/{{total}} lig işlendi",
@@ -1304,6 +1308,10 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         scanFailedDefault: "Could not trigger the scan.",
         neverRun:
           'No scan has been run yet. If you don\'t want to wait for the weekly automatic scan, you can start one right away with the "Scan Now" button.',
+        reasonNoActiveRun: "There is no run in progress.",
+        reasonRunHealthy: "The chain is progressing normally; no need to resume yet.",
+        reasonTriggerFailed: "Failed to trigger.",
+        reasonScanAlreadyRunning: "A scan is already in progress; please wait for it to finish.",
         statusBroken: "Chain broken",
         statusRunning: "Running",
         statusCompleted: "Completed",

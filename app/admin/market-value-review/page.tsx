@@ -1,5 +1,6 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import type { Metadata } from "next"
 import { desc } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
@@ -9,9 +10,14 @@ import { MarketValueReviewBoard, type ReviewQueueItem } from "@/components/marke
 import { MarketValueCronStatus } from "@/components/market-value-cron-status"
 import { MarketValueDangerZone } from "@/components/market-value-danger-zone"
 import { getMarketValueCronStatus } from "@/app/actions/market-value-cron"
+import { getServerLocale } from "@/lib/i18n/server-locale"
+import { translate } from "@/lib/i18n/dictionaries"
 
-export const metadata = {
-  title: "Piyasa Değeri Kontrolü — ED Company",
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getServerLocale()
+  return {
+    title: translate(locale, "meta.admin.title"),
+  }
 }
 
 export const dynamic = "force-dynamic"

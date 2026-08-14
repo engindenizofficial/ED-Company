@@ -1,10 +1,16 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
 import { auth } from '@/lib/auth'
 import { AuthForm } from '@/components/auth-form'
+import { getServerLocale } from '@/lib/i18n/server-locale'
+import { translate } from '@/lib/i18n/dictionaries'
 
-export const metadata = {
-  title: 'Kayıt Ol — ED Company',
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getServerLocale()
+  return {
+    title: translate(locale, 'meta.signUp.title'),
+  }
 }
 
 export default async function SignUpPage() {

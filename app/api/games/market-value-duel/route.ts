@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   const round = await createDuelRound(difficulty)
   if (!round) {
     return NextResponse.json(
-      { error: "Yeterli oyuncu verisi bulunamadı. Lütfen daha sonra tekrar deneyin." },
+      { error: "notEnoughPlayers" },
       { status: 503 },
     )
   }
@@ -30,12 +30,12 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   const token = body?.token
   if (!token || typeof token !== "string") {
-    return NextResponse.json({ error: "Geçersiz istek." }, { status: 400 })
+    return NextResponse.json({ error: "invalidRequest" }, { status: 400 })
   }
 
   const result = await resolveDuelRound(token)
   if (!result) {
-    return NextResponse.json({ error: "Tur geçersiz veya süresi dolmuş." }, { status: 400 })
+    return NextResponse.json({ error: "roundExpired" }, { status: 400 })
   }
 
   return NextResponse.json(result)

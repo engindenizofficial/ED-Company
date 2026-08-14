@@ -42,6 +42,20 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
   const isBroken = status !== null && status.status === "running" && status.isStale
   const isHealthyRunning = status !== null && status.status === "running" && !status.isStale
 
+  // Server action'lar artık ham metin yerine sabit "reason" kodları döndürüyor
+  // (örn. "noActiveRun"); burada aktif dile çeviriyoruz.
+  const REASON_KEYS: Record<string, string> = {
+    noActiveRun: "admin.cron.reasonNoActiveRun",
+    runHealthy: "admin.cron.reasonRunHealthy",
+    triggerFailed: "admin.cron.reasonTriggerFailed",
+    scanAlreadyRunning: "admin.cron.reasonScanAlreadyRunning",
+  }
+
+  function translateReason(reason: string | undefined, fallbackKey: string): string {
+    if (reason && REASON_KEYS[reason]) return t(REASON_KEYS[reason])
+    return t(fallbackKey)
+  }
+
   function handleResume() {
     setMessage(null)
     startResumeTransition(async () => {
@@ -49,7 +63,7 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
       if (result.triggered) {
         setMessage(t("admin.cron.resumeTriggered"))
       } else {
-        setMessage(result.reason ?? t("admin.cron.resumeFailedDefault"))
+        setMessage(translateReason(result.reason, "admin.cron.resumeFailedDefault"))
       }
     })
   }
@@ -61,7 +75,7 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
       if (result.triggered) {
         setMessage(t("admin.cron.scanTriggered"))
       } else {
-        setMessage(result.reason ?? t("admin.cron.scanFailedDefault"))
+        setMessage(translateReason(result.reason, "admin.cron.scanFailedDefault"))
       }
     })
   }

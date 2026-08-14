@@ -76,7 +76,7 @@ export function MarketValueDuelGame() {
         })
         if (!res.ok) {
           const data = await res.json().catch(() => null)
-          setErrorMsg(data?.error ?? t("duel.loadFailed"))
+          setErrorMsg(data?.error === "notEnoughPlayers" ? t("apiErrors.notEnoughPlayers") : t("duel.loadFailed"))
           setPhase("error")
           return
         }

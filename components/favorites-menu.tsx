@@ -51,7 +51,7 @@ import { LanguageSwitcher } from "@/components/language-switcher"
 type PanelView = "menu" | "favorites" | "theme" | "account"
 
 export function FavoritesMenu() {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const { data: session } = useSession()
   const router = useRouter()
   const { openTeam } = useTeamPanel()
@@ -89,14 +89,14 @@ export function FavoritesMenu() {
     setSendingDelete(true)
     setDeleteError(null)
     try {
-      const { email } = await requestAccountDeletion()
+      const { email } = await requestAccountDeletion(locale)
       setDeleteSentTo(email)
     } catch {
       setDeleteError(t("common.error"))
     } finally {
       setSendingDelete(false)
     }
-  }, [sendingDelete])
+  }, [sendingDelete, locale, t])
 
   const handleSignOut = useCallback(async () => {
     if (signingOut) return

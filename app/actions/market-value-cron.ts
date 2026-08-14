@@ -69,10 +69,10 @@ export async function resumeMarketValueCronNow(): Promise<{ triggered: boolean; 
 
   const run = await getLatestCronRun()
   if (!run || run.status !== "running") {
-    return { triggered: false, reason: "Devam eden bir döngü yok." }
+    return { triggered: false, reason: "noActiveRun" }
   }
   if (!isCronRunStale(run)) {
-    return { triggered: false, reason: "Döngü sağlıklı ilerliyor, henüz devam ettirmeye gerek yok." }
+    return { triggered: false, reason: "runHealthy" }
   }
 
   const secret = process.env.CRON_SECRET
@@ -94,7 +94,7 @@ export async function resumeMarketValueCronNow(): Promise<{ triggered: boolean; 
     })
   } catch (err) {
     console.error("[v0] Manuel devam ettirme tetiklenemedi:", err)
-    return { triggered: false, reason: "Tetikleme başarısız oldu." }
+    return { triggered: false, reason: "triggerFailed" }
   }
 
   revalidatePath(REVIEW_PATH)
@@ -119,7 +119,7 @@ export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean;
 
   const active = await getActiveCronRun()
   if (active && !isCronRunStale(active)) {
-    return { triggered: false, reason: "Zaten devam eden bir tarama var, lütfen tamamlanmasını bekleyin." }
+    return { triggered: false, reason: "scanAlreadyRunning" }
   }
 
   const secret = process.env.CRON_SECRET
@@ -141,7 +141,7 @@ export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean;
     })
   } catch (err) {
     console.error("[v0] Manuel tarama tetiklenemedi:", err)
-    return { triggered: false, reason: "Tetikleme başarısız oldu." }
+    return { triggered: false, reason: "triggerFailed" }
   }
 
   revalidatePath(REVIEW_PATH)

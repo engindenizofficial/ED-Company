@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import { formatMarketValueEur } from "@/lib/market-value-format"
 import { useLanguage } from "@/contexts/language-context"
+import { translateApiError } from "@/lib/i18n/api-error"
 import type {
   PlayerProfile,
   PlayerSeasonStats,
@@ -75,7 +76,7 @@ function usePlayerSection<T>(playerId: number, section: string, open: boolean) {
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => null)
-          throw new Error(body?.error ?? t("common.serverErrorWithStatus", { status: res.status }))
+          throw new Error(translateApiError(t, body?.error, res.status))
         }
         return res.json() as Promise<{ data: T | null }>
       })

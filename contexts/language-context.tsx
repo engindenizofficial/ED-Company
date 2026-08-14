@@ -23,8 +23,16 @@ function detectBrowserLocale(): Locale {
   return DEFAULT_LOCALE
 }
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE)
+export function LanguageProvider({
+  children,
+  initialLocale,
+}: {
+  children: ReactNode
+  /** Sunucuda `Accept-Language` başlığından çıkarılan dil; ilk boyamada
+   *  istemcinin varsayılan dile dönüp sonra değişmesini (flash) önler. */
+  initialLocale?: Locale
+}) {
+  const [locale, setLocaleState] = useState<Locale>(initialLocale ?? DEFAULT_LOCALE)
 
   useEffect(() => {
     try {
@@ -36,6 +44,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore
     }
+    // Kullanıcı daha önce manuel seçim yapmadıysa tarayıcı dilini kullan.
+    // initialLocale zaten sunucuda aynı mantıkla hesaplandığı için burada
+    // sadece istemci/sunucu farklılık ihtimaline karşı senkronize ediyoruz.
     setLocaleState(detectBrowserLocale())
   }, [])
 
