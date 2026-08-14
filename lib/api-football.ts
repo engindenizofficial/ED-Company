@@ -132,12 +132,31 @@ function isWomensLeague(leagueName: string): boolean {
   return WOMEN_LEAGUE_PATTERN.test(leagueName)
 }
 
+// U19/U21/U23 gibi alt yaş kategorileri (Youth League, Primavera vb.) ve
+// rezerv/B takım liglerini de aynı şekilde tamamen dışarıda tutuyoruz —
+// sadece ana takımların (A takım / senior) maçları listelenir.
+// "U-?1[5-9]" ve "U-?2[0-3]" hem "U19" hem "U-19" hem "U 19" yazımlarını
+// (kelime sınırı gerekmediği için bitişik de olsa, örn. "U19s") yakalar.
+// "Primavera" (İtalya), "Juvenil"/"Juniors" (İspanya/genel), "Nextgen"
+// (UEFA Gençlik Ligi eski adı) ve "Reserve(s)" de yaygın rezerv/gençlik
+// takım kalıplarıdır.
+const YOUTH_RESERVE_LEAGUE_PATTERN =
+  /\bu[ -]?1[5-9]\b|\bu[ -]?2[0-3]\b|\byouth\b|\bjuniors?\b|\bjuvenil(es)?\b|\bprimavera\b|\breserves?\b|\bnextgen\b/i
+
+function isYouthOrReserveLeague(leagueName: string): boolean {
+  return YOUTH_RESERVE_LEAGUE_PATTERN.test(leagueName)
+}
+
+function isExcludedLeague(leagueName: string): boolean {
+  return isWomensLeague(leagueName) || isYouthOrReserveLeague(leagueName)
+}
+
 export async function getFixturesByDate(date: string, forceRefresh = false): Promise<Fixture[]> {
   const MAX_FIXTURES = 200
 
   const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: "Europe/Istanbul" }, 120, forceRefresh)
 
-  const fixtures = raw.map(mapFixture).filter((f) => !isWomensLeague(f.league.name))
+  const fixtures = raw.map(mapFixture).filter((f) => !isExcludedLeague(f.league.name))
 
   // For non-featured leagues, compute each league's earliest kick-off time
   // so we can sort leagues as a whole block rather than interleaving matches.
