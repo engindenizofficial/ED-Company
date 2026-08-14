@@ -30,10 +30,27 @@ const stack: StackEntry[] = []
 let nextId = 0
 let listenerAttached = false
 
+// popPanel() bir paneli PROGRAMATİK olarak (X butonu, overlay tıklama vb.)
+// kapatırken, eklediğimiz sanal history girdisini temizlemek için kendi
+// history.back() çağrısını yapar (bkz. popPanel). Ama bu çağrı da tarayıcının
+// normal "geri tuşu" ile AYNI popstate olayını tetikler. Bu sayaç olmadan,
+// popstate dinleyicisi bunu kullanıcının gerçek geri tuşu basışı sanıp
+// stack'in (artık bizim panelimiz çıkarılmış olan) YENİ tepesindeki
+// -tamamen ilgisiz- bir alttaki paneli yanlışlıkla kapatıyordu (örn. Takım
+// panelinden açılan Oyuncu paneli X ile kapatılınca, altındaki Takım paneli
+// de kapanıyordu). Kendi history.back() çağrımızdan gelecek popstate
+// olaylarını burada sayıp yoksayarak, sadece gerçek kullanıcı geri tuşu
+// basışları stack'i etkiler.
+let ignoreNextPopstateCount = 0
+
 function ensureListener() {
   if (listenerAttached || typeof window === "undefined") return
   listenerAttached = true
   window.addEventListener("popstate", () => {
+    if (ignoreNextPopstateCount > 0) {
+      ignoreNextPopstateCount--
+      return
+    }
     const top = stack.pop()
     top?.onPop()
   })
@@ -41,10 +58,10 @@ function ensureListener() {
 
 function pushPanel(onPop: () => void): number {
   ensureListener()
-  if (typeof window !== "undefined") {
-    window.history.pushState({ __panel: true, __panelId: nextId + 1 }, "")
-  }
   const id = ++nextId
+  if (typeof window !== "undefined") {
+    window.history.pushState({ __panel: true, __panelId: id }, "")
+  }
   stack.push({ id, onPop })
   return id
 }
@@ -70,6 +87,7 @@ function popPanel(id: number, closedByBack: boolean) {
   // bizim panelimize ait olup olmadığını kontrol ediyoruz.
   const topState = window.history.state as { __panelId?: number } | null
   if (topState?.__panelId === id) {
+    ignoreNextPopstateCount++
     window.history.back()
   }
 }
