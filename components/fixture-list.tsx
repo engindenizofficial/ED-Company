@@ -254,8 +254,14 @@ export function FixtureList({
           {/* League header */}
           <div className="flex items-center gap-2 px-1 pb-1">
             {group.logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={group.logo || "/placeholder.svg"} alt="" className="h-[18px] w-[18px] object-contain opacity-90" />
+              // Bazı lig logoları (özellikle tek renkli/çizgi logolar) şeffaf arka
+              // planla gelir ve siyah öğeler koyu temada arka planla aynı renge
+              // karışıp kaybolur. Sabit beyaz bir zemin, temadan bağımsız olarak
+              // her zaman kontrast sağlar.
+              <span className="flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full bg-white p-[3px] shadow-sm ring-1 ring-border/40">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={group.logo || "/placeholder.svg"} alt="" className="h-full w-full object-contain" />
+              </span>
             ) : null}
             <LeagueButton
               league={{ id: group.id, name: group.name, logo: group.logo, country: group.country, flagUrl: null }}

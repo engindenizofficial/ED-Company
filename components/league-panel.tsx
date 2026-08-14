@@ -719,12 +719,16 @@ function LeaguePanelInner({
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-4 shrink-0">
           {league.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={league.logo}
-              alt={league.name}
-              className="h-12 w-12 shrink-0 object-contain drop-shadow-sm"
-              width={48} height={48} loading="lazy" decoding="async" />
+            // Tek renkli/çizgi lig logolarındaki siyah öğelerin koyu temada arka
+            // planla kaybolmaması için sabit beyaz bir zemin ekliyoruz.
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-border/40">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={league.logo}
+                alt={league.name}
+                className="h-full w-full object-contain"
+                width={48} height={48} loading="lazy" decoding="async" />
+            </div>
           ) : (
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-secondary border border-border">
               <Shield className="h-6 w-6 text-muted-foreground" />
