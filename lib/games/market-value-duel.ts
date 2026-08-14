@@ -171,33 +171,56 @@ async function enrichPlayer(playerId: number, fallbackName: string): Promise<Due
 const MAX_POOL_ROUNDS = 6
 const POOL_BATCH_SIZE = 6
 
-/** Yeni bir düello turu üretir: 2 rastgele (bilgisi TAM olan) oyuncu + imzalı tur jetonu. */
+/** Havuzda birbirinden farklı piyasa değerine sahip en az 2 oyuncu var mı? */
+function hasDistinctValues(pool: { valueEur: number }[]): boolean {
+  const first = pool[0]?.valueEur
+  return pool.some((p) => p.valueEur !== first)
+}
+
+/**
+ * Yeni bir düello turu üretir: 2 rastgele (bilgisi TAM olan) oyuncu + imzalı
+ * tur jetonu.
+ *
+ * Piyasa değeri BİREBİR AYNI olan iki oyuncu asla çift olarak seçilmez —
+ * "hangisi daha değerli" sorusunun tek/adil bir doğru cevabı olmadığı bir
+ * turu göstermek oyunu bozar (hangi kartı seçse "doğru" sayılabilirdi).
+ */
 export async function createDuelRound(difficulty: DuelDifficulty = "normal"): Promise<DuelRound | null> {
-  const valid: DuelPlayer[] = []
+  const valid: { player: DuelPlayer; valueEur: number }[] = []
   const triedIds: number[] = []
 
-  // Bilgisi eksik (fotoğraf/takım/ülke yok) oyuncuları eleyip havuzu
-  // kademeli olarak büyüterek en az 2 tam bilgili oyuncu bulana kadar dener.
-  for (let round = 0; round < MAX_POOL_ROUNDS && valid.length < 2; round++) {
+  // Bilgisi eksik (fotoğraf/takım/ülke yok) oyuncuları eleyip, aynı zamanda
+  // en az 2 FARKLI piyasa değeri bulana kadar havuzu kademeli olarak büyütür.
+  for (
+    let round = 0;
+    round < MAX_POOL_ROUNDS && (valid.length < 2 || !hasDistinctValues(valid));
+    round++
+  ) {
     const candidates = await pickRandomMatchedPlayers(POOL_BATCH_SIZE, difficulty, triedIds)
     if (candidates.length === 0) break
     triedIds.push(...candidates.map((c) => c.playerId))
 
     const enriched = await Promise.all(candidates.map((c) => enrichPlayer(c.playerId, c.playerName)))
-    for (const player of enriched) {
-      if (player) valid.push(player)
-    }
+    enriched.forEach((player, idx) => {
+      // valueEur, Drizzle'da numeric kolon olduğu için string olarak gelir
+      // (WHERE koşulu zaten null/0 olanları elediği için Number() güvenli).
+      if (player) valid.push({ player, valueEur: Number(candidates[idx].valueEur) })
+    })
   }
 
-  if (valid.length < 2) return null
+  if (valid.length < 2 || !hasDistinctValues(valid)) return null
 
-  // Havuzdan rastgele 2 farklı oyuncu seç.
+  // İlk oyuncuyu rastgele seç, ardından SADECE ondan farklı değere sahip
+  // oyuncular arasından ikinciyi seç — bu, berabere (adil olmayan) bir turun
+  // hiçbir zaman istemciye gönderilmediğini garanti eder.
   const i = Math.floor(Math.random() * valid.length)
-  let j = Math.floor(Math.random() * valid.length)
-  while (j === i) j = Math.floor(Math.random() * valid.length)
+  const differentIndices = valid
+    .map((_, idx) => idx)
+    .filter((idx) => valid[idx].valueEur !== valid[i].valueEur)
+  const j = differentIndices[Math.floor(Math.random() * differentIndices.length)]
 
-  const playerA = valid[i]
-  const playerB = valid[j]
+  const playerA = valid[i].player
+  const playerB = valid[j].player
 
   const token = signRoundToken([playerA.id, playerB.id])
   return { token, players: [playerA, playerB] }
