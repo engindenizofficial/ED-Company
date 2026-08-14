@@ -188,7 +188,7 @@ export function TeamSearchBar() {
               <p className="text-xs text-muted-foreground">{t("search.noResultsFor", { query })}</p>
             </div>
           ) : (
-            <ul className="flex flex-col py-1.5">
+            <ul className="flex max-h-80 flex-col overflow-y-auto py-1.5">
               {/* Teams */}
               {hasTeams && (
                 <>
