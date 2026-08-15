@@ -158,26 +158,68 @@ function mostMinutes(blocks: any[]): any | null {
 /**
  * API-Football'ın /players uç noktası "statistics" dizisinde, oyuncunun o
  * sezon forma giydiği HER turnuva için bir blok döner: kulüp ligi, kulüp
- * kupaları, Şampiyonlar Ligi VE varsa millî takım maçları (Dünya Kupası
- * eleme, Uluslar Ligi, hazırlık maçları vb.) hepsi ayrı bloklardır. Dizideki
- * SIRALAMA garanti değildir — özellikle oyuncu millî takımda oynadıktan
- * sonra API bu bloğu ilk sıraya alabiliyordu, bu da düello kartında kulüp
- * yerine millî takımın (ve dolayısıyla iki kez ülke bilgisinin) görünmesine
- * sebep oluyordu.
- *
- * ÖNEMLİ: `/players` uç noktasındaki "team" nesnesi `/teams` uç noktasının
- * aksine bir `national` bayrağı DÖNMÜYOR (test edildi — alan tamamen eksik).
- * Bu yüzden "millî takım bloklarını bir şekilde ele" gibi bir sezgisel
- * yöntem güvenilir değildir: sezon henüz başlamışken (kulüp maçı hiç
- * oynanmamışken) oyuncunun tek bloğu millî takım olabilir ve o blok yanlışlıkla
- * "kulüp" gibi gösterilir. Bunun yerine SADECE DB'de bildiğimiz GERÇEK kulüp
- * takım id'sine (knownTeamId) birebir eşleşen bloğu kabul ediyoruz — eşleşme
- * yoksa `enrichPlayer` bir önceki sezona bakar (bkz. altta), hâlâ yoksa
- * oyuncu tamamen elenir. Bu, "belki doğrudur" diye millî takımı göstermekten
- * daha güvenlidir.
+ * kupaları, Şampiyonlar Ligi VE varsa millî takım maçları hepsi ayrı
+ * bloklardır ve `team` nesnesinde bunu ayırt edecek bir bayrak YOKTUR (test
+ * edildi). Bu yüzden statistics dizisi TEK BAŞINA hangi takımın "gerçek
+ * kulüp" olduğunu asla güvenilir belirleyemez — SADECE zaten bildiğimiz bir
+ * takım id'sine (actualTeamId, bkz. resolveActualTeam) ait bloğu bulmak
+ * için kullanılır; en çok dakika aldığı blok seçilir (lig + kupa gibi
+ * birden fazla blok varsa).
  */
-function pickClubStatistics(statistics: any[], knownTeamId: number): any | null {
-  return mostMinutes(statistics.filter((s) => s?.team?.id === knownTeamId))
+function pickClubStatistics(statistics: any[], actualTeamId: number): any | null {
+  return mostMinutes(statistics.filter((s) => s?.team?.id === actualTeamId))
+}
+
+interface ResolvedTeam {
+  id: number
+  name: string | null
+  logo: string | null
+}
+
+/**
+ * Bir oyuncunun transfer geçmişinden (yani API-Football'ın /transfers uç
+ * noktasından), BUGÜNE kadar gerçekleşmiş en son transferin "in" (giriş)
+ * takımını — oyuncunun ŞU ANDA oynadığı gerçek kulübü — bulur.
+ *
+ * Bu, istatistik bloklarından çok daha güvenilir bir kaynaktır: transfer
+ * kaydı, o kulüpte henüz hiç maça çıkmamış olsa (örn. sezon arası yeni
+ * transfer) bile doğrudur — istatistik bloğu olmadığı için "veri yok"
+ * denip elenmesi gerekmez. Ayrıca "bir önceki sezona bak" gibi bir tahmine
+ * de ihtiyaç kalmaz: oyuncu transfer olduysa önceki sezonun takımı ZATEN
+ * yanlış olurdu, transfer kaydı ise ne zaman olursa olsun her zaman en
+ * güncel gerçek kulübü verir.
+ */
+function resolveTeamFromTransfers(transfersEntry: any, now: Date): ResolvedTeam | null {
+  const transfers: any[] = Array.isArray(transfersEntry?.transfers) ? transfersEntry.transfers : []
+  const pastTransfers = transfers.filter((t) => {
+    const inTeamId = t?.teams?.in?.id
+    if (typeof inTeamId !== "number") return false
+    const parsed = t?.date ? new Date(t.date) : null
+    return parsed !== null && !Number.isNaN(parsed.getTime()) && parsed.getTime() <= now.getTime()
+  })
+  if (pastTransfers.length === 0) return null
+
+  const latest = pastTransfers.reduce((best, current) =>
+    new Date(current.date).getTime() > new Date(best.date).getTime() ? current : best,
+  )
+  return {
+    id: latest.teams.in.id,
+    name: typeof latest.teams.in.name === "string" ? latest.teams.in.name : null,
+    logo: typeof latest.teams.in.logo === "string" ? latest.teams.in.logo : null,
+  }
+}
+
+/**
+ * Oyuncunun ŞU ANDA oynadığı gerçek kulübü belirler. Öncelik sırası:
+ * 1. Transfer geçmişindeki en son (bugüne kadarki) transfer — en güvenilir,
+ *    çünkü transfer olsa da olmasa da her zaman doğrudur.
+ * 2. Bulunamazsa (oyuncunun kayıtlı transferi yoksa — örn. altyapıdan çıkıp
+ *    hiç satılmamış), DB'deki (Transfermarkt eşleşmesi anındaki) bilinen
+ *    takıma geri düşülür; isim/logo bilgisi için istatistik bloklarına
+ *    bakılır (bkz. enrichPlayer).
+ */
+function resolveActualTeam(transfersEntry: any, knownTeamId: number): ResolvedTeam {
+  return resolveTeamFromTransfers(transfersEntry, new Date()) ?? { id: knownTeamId, name: null, logo: null }
 }
 
 /**
@@ -185,39 +227,44 @@ function pickClubStatistics(statistics: any[], knownTeamId: number): any | null 
  * çeker. Fotoğraf, takım veya ülke bilgisinden biri eksikse `null` döner — bu
  * oyuncu kart olarak asla gösterilmeyecek (yarım/eksik kart oyunu bozar).
  *
- * `knownTeamId`, oyuncunun DB'deki (Transfermarkt eşleşmesi anındaki) GERÇEK
- * kulüp takımıdır — API-Football'ın "statistics" dizisindeki hangi bloğun
- * kulübe, hangisinin millî takıma ait olduğunu ayırt etmek için kullanılır.
- *
- * Sezon başı döneminde (yeni sezon henüz başlamış / kulüp maçı oynanmamış)
- * oyuncunun o sezonki tek verisi millî takım maçları olabilir — bu durumda
- * GÜNCEL sezonda kulüp bloğu bulunamaz. Böyle bir durumda turu tamamen
- * elemek yerine ("yeterli oyuncu verisi bulunamadı" hatasının asıl kaynağı
- * buydu) BİR ÖNCEKİ sezonun kulüp istatistiğine bakıyoruz — oyuncunun
- * takımı gerçekten değişmediyse (DB'deki knownTeamId hâlâ geçerliyse) bu
- * neredeyse her zaman doğru sonucu verir.
+ * `knownTeamId`, oyuncunun DB'deki (Transfermarkt eşleşmesi anındaki)
+ * takımıdır — sadece transfer geçmişi bulunamazsa yedek olarak kullanılır.
  */
 async function enrichPlayer(playerId: number, fallbackName: string, knownTeamId: number): Promise<DuelPlayer | null> {
   const season = currentSeason()
-  const raw = await safeApiFootballFetch<any>("/players", { id: playerId, season })
-  const entry = raw[0]
+  const [playersRaw, transfersRaw] = await Promise.all([
+    safeApiFootballFetch<any>("/players", { id: playerId, season }),
+    safeApiFootballFetch<any>("/transfers", { player: playerId }),
+  ])
+  let entry = playersRaw[0]
   let p = entry?.player ?? {}
+
+  const actualTeam = resolveActualTeam(transfersRaw[0], knownTeamId)
+
   const currentSeasonStats: any[] = Array.isArray(entry?.statistics) ? entry.statistics : []
-  let stats = pickClubStatistics(currentSeasonStats, knownTeamId)
+  let stats = pickClubStatistics(currentSeasonStats, actualTeam.id)
 
   if (!stats) {
-    // Güncel sezonda kulüp bloğu yok — bir önceki sezona bak (sezon başı /
-    // transfer penceresi geçiş dönemi için).
+    // Güncel sezonda bu kulübe ait istatistik bloğu yok (örn. yeni transfer,
+    // henüz maça çıkmadı) — bir önceki sezona bak. Takım bilgisi zaten
+    // yukarıda transferden geldiği için burada asla eski/yanlış bir kulübe
+    // düşme riski yok; sadece pozisyon/isim/logo detaylarını tamamlamaya
+    // çalışıyoruz.
     const prevRaw = await safeApiFootballFetch<any>("/players", { id: playerId, season: season - 1 })
     const prevEntry = prevRaw[0]
-    if (!entry && prevEntry) p = prevEntry?.player ?? {}
+    if (!entry && prevEntry) {
+      entry = prevEntry
+      p = prevEntry?.player ?? {}
+    }
     const prevSeasonStats: any[] = Array.isArray(prevEntry?.statistics) ? prevEntry.statistics : []
-    stats = pickClubStatistics(prevSeasonStats, knownTeamId) ?? {}
+    stats = pickClubStatistics(prevSeasonStats, actualTeam.id) ?? {}
   }
 
   const photo: string | null = typeof p.photo === "string" && p.photo.trim().length > 0 ? p.photo : null
   const teamName: string | null =
-    stats.team && typeof stats.team.name === "string" && stats.team.name.trim().length > 0 ? stats.team.name : null
+    actualTeam.name ??
+    (stats.team && typeof stats.team.name === "string" && stats.team.name.trim().length > 0 ? stats.team.name : null)
+  const teamLogo: string | null = actualTeam.logo ?? stats.team?.logo ?? null
   const country: string | null = p.nationality ? toTurkishCountry(p.nationality) : null
   const name: string | null = typeof p.name === "string" && p.name.trim().length > 0 ? p.name : fallbackName || null
   const age: number | null = calculateAge(p.birth?.date, p.age)
@@ -231,7 +278,7 @@ async function enrichPlayer(playerId: number, fallbackName: string, knownTeamId:
     id: playerId,
     name,
     photo,
-    team: { name: teamName, logo: stats.team?.logo ?? null },
+    team: { name: teamName, logo: teamLogo },
     country,
     age,
     position,
