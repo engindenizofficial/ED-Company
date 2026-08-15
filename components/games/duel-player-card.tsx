@@ -1,7 +1,7 @@
 "use client"
 
 import { AnimatePresence, motion } from "motion/react"
-import { Check, MapPin, Shield, X } from "lucide-react"
+import { Calendar, Check, MapPin, Shield, Shirt, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMarketValueEur } from "@/lib/market-value-format"
 import { useLanguage } from "@/contexts/language-context"
@@ -30,6 +30,13 @@ export function DuelPlayerCard({
 }: DuelPlayerCardProps) {
   const { t } = useLanguage()
   const formattedValue = formatMarketValueEur(value)
+
+  const POS_LABEL: Record<string, string> = {
+    Goalkeeper: t("team.goalkeeper"),
+    Defender: t("team.defender"),
+    Midfielder: t("team.midfielder"),
+    Attacker: t("team.attacker"),
+  }
 
   return (
     <motion.button
@@ -157,6 +164,25 @@ export function DuelPlayerCard({
         <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground/90">
           <MapPin className="h-3 w-3" />
           <span>{player.country}</span>
+        </div>
+      )}
+
+      {/* Yaş & Mevki */}
+      {(player.age != null || player.position) && (
+        <div className="mt-1.5 flex items-center gap-2 text-[11px] font-semibold text-muted-foreground/90">
+          {player.age != null && (
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {player.age}
+            </span>
+          )}
+          {player.age != null && player.position && <span className="text-border">·</span>}
+          {player.position && (
+            <span className="flex items-center gap-1">
+              <Shirt className="h-3 w-3" />
+              {POS_LABEL[player.position] ?? player.position}
+            </span>
+          )}
         </div>
       )}
 

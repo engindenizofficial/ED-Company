@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { playerMarketValue, teamMarketValue } from "@/lib/db/schema"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
+import { calculateAge } from "@/lib/api-football"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import { getPlayerMarketValues } from "@/lib/market-values"
 
@@ -26,6 +27,9 @@ export interface DuelPlayer {
   photo: string | null
   team: { name: string; logo: string | null } | null
   country: string | null
+  age: number | null
+  /** API-Football ham pozisyon değeri: "Goalkeeper" | "Defender" | "Midfielder" | "Attacker" */
+  position: string | null
 }
 
 export interface DuelRound {
@@ -126,6 +130,10 @@ async function pickRandomMatchedPlayers(count: number, difficulty: DuelDifficult
       playerId: playerMarketValue.playerId,
       playerName: playerMarketValue.playerName,
       valueEur: playerMarketValue.valueEur,
+      // Bu oyuncunun eşleştirildiği anda oynadığı GERÇEK kulüp takımı — API-Football'ın
+      // /players uç noktasındaki "statistics" dizisinde hangi bloğun kulüp takımına ait
+      // olduğunu (millî takım bloklarından ayırt ederek) bulmak için kullanılır.
+      teamId: playerMarketValue.teamId,
     })
     .from(playerMarketValue)
     .innerJoin(teamMarketValue, sql`${teamMarketValue.teamId} = ${playerMarketValue.teamId}`)
@@ -139,22 +147,56 @@ async function pickRandomMatchedPlayers(count: number, difficulty: DuelDifficult
 }
 
 /**
- * API-Football'dan tek bir oyuncunun fotoğraf/takım/uyruk bilgisini çeker.
- * Fotoğraf, takım veya ülke bilgisinden biri eksikse `null` döner — bu
- * oyuncu kart olarak asla gösterilmeyecek (yarım/eksik kart oyunu bozar).
+ * API-Football'ın /players uç noktası "statistics" dizisinde, oyuncunun o
+ * sezon forma giydiği HER turnuva için bir blok döner: kulüp ligi, kulüp
+ * kupaları, Şampiyonlar Ligi VE varsa millî takım maçları (Dünya Kupası
+ * eleme, Uluslar Ligi, hazırlık maçları vb.) hepsi ayrı bloklardır. Dizideki
+ * SIRALAMA garanti değildir — özellikle oyuncu millî takımda oynadıktan
+ * sonra API bu bloğu ilk sıraya alabiliyordu, bu da düello kartında kulüp
+ * yerine millî takımın (ve dolayısıyla iki kez ülke bilgisinin) görünmesine
+ * sebep oluyordu.
+ *
+ * Bunu önlemek için: DB'de zaten bildiğimiz GERÇEK kulüp takım id'sine
+ * (knownTeamId — piyasa değeri eşleştirmesi anında oynadığı takım) sahip
+ * bloğu buluyoruz; o takıma ait birden fazla blok varsa (lig + kupa gibi) en
+ * çok dakika aldığı bloğu seçiyoruz. Bu blok aynı zamanda pozisyon bilgisini
+ * de doğru verir (millî takımdaki pozisyonu değil, kulübündeki pozisyonu).
  */
-async function enrichPlayer(playerId: number, fallbackName: string): Promise<DuelPlayer | null> {
+function pickClubStatistics(statistics: any[], knownTeamId: number): any | null {
+  const clubBlocks = statistics.filter((s) => s?.team?.id === knownTeamId)
+  if (clubBlocks.length === 0) return null
+  return clubBlocks.reduce((best, current) => {
+    const bestMinutes = best?.games?.minutes ?? 0
+    const currentMinutes = current?.games?.minutes ?? 0
+    return currentMinutes > bestMinutes ? current : best
+  })
+}
+
+/**
+ * API-Football'dan tek bir oyuncunun fotoğraf/takım/uyruk/yaş/mevki bilgisini
+ * çeker. Fotoğraf, takım veya ülke bilgisinden biri eksikse `null` döner — bu
+ * oyuncu kart olarak asla gösterilmeyecek (yarım/eksik kart oyunu bozar).
+ *
+ * `knownTeamId`, oyuncunun DB'deki (Transfermarkt eşleşmesi anındaki) GERÇEK
+ * kulüp takımıdır — API-Football'ın "statistics" dizisindeki hangi bloğun
+ * kulübe, hangisinin millî takıma ait olduğunu ayırt etmek için kullanılır.
+ */
+async function enrichPlayer(playerId: number, fallbackName: string, knownTeamId: number): Promise<DuelPlayer | null> {
   const season = currentSeason()
   const raw = await safeApiFootballFetch<any>("/players", { id: playerId, season })
   const entry = raw[0]
   const p = entry?.player ?? {}
-  const stats = entry?.statistics?.[0] ?? {}
+  const statistics: any[] = Array.isArray(entry?.statistics) ? entry.statistics : []
+  const stats = pickClubStatistics(statistics, knownTeamId) ?? {}
 
   const photo: string | null = typeof p.photo === "string" && p.photo.trim().length > 0 ? p.photo : null
   const teamName: string | null =
     stats.team && typeof stats.team.name === "string" && stats.team.name.trim().length > 0 ? stats.team.name : null
   const country: string | null = p.nationality ? toTurkishCountry(p.nationality) : null
   const name: string | null = typeof p.name === "string" && p.name.trim().length > 0 ? p.name : fallbackName || null
+  const age: number | null = calculateAge(p.birth?.date, p.age)
+  const position: string | null =
+    typeof stats.games?.position === "string" && stats.games.position.trim().length > 0 ? stats.games.position : null
 
   // Kart için gereken 4 alandan biri eksikse bu oyuncuyu tamamen ele.
   if (!photo || !teamName || !country || !name) return null
@@ -165,6 +207,8 @@ async function enrichPlayer(playerId: number, fallbackName: string): Promise<Due
     photo,
     team: { name: teamName, logo: stats.team?.logo ?? null },
     country,
+    age,
+    position,
   }
 }
 
@@ -200,7 +244,7 @@ export async function createDuelRound(difficulty: DuelDifficulty = "normal"): Pr
     if (candidates.length === 0) break
     triedIds.push(...candidates.map((c) => c.playerId))
 
-    const enriched = await Promise.all(candidates.map((c) => enrichPlayer(c.playerId, c.playerName)))
+    const enriched = await Promise.all(candidates.map((c) => enrichPlayer(c.playerId, c.playerName, c.teamId)))
     enriched.forEach((player, idx) => {
       // valueEur, Drizzle'da numeric kolon olduğu için string olarak gelir
       // (WHERE koşulu zaten null/0 olanları elediği için Number() güvenli).
