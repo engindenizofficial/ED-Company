@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server"
+import { headers } from "next/headers"
 import { generateObject } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { google } from "@ai-sdk/google"
 import { xai } from "@ai-sdk/xai"
 import { z } from "zod/v4"
 import { getFixtureById, getLiveMatchData } from "@/lib/api-football"
-import { getCachedPrediction, setCachedPrediction, deleteAllPredictions, addPendingPrediction } from "@/lib/redis"
+import {
+  getCachedPrediction,
+  setCachedPrediction,
+  deleteAllPredictions,
+  deletePredictionCompletely,
+  addPendingPrediction,
+} from "@/lib/redis"
+import { auth } from "@/lib/auth"
+import { isAdminEmail } from "@/lib/admin"
 import type { MatchPrediction, ModelVote } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -421,9 +430,29 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
 }
 
 // ---------------------------------------------------------------------------
-// DELETE /api/predict — tüm tahmin cache'ini temizler
+// DELETE /api/predict           — tüm tahmin cache'ini temizler (admin)
+// DELETE /api/predict?fixtureId=... — sadece o maçın tahminini, her yerden
+// (cache, bekleyen liste, günlük ve tüm zamanlar başarı paneli) siler.
+// Sadece admin e-postasıyla giriş yapmış kullanıcı çağırabilir.
 // ---------------------------------------------------------------------------
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!isAdminEmail(session?.user?.email)) {
+    return NextResponse.json({ error: "Yetkiniz yok." }, { status: 403 })
+  }
+
+  const { searchParams } = new URL(request.url)
+  const fixtureIdParam = searchParams.get("fixtureId")
+
+  if (fixtureIdParam) {
+    const fixtureId = Number(fixtureIdParam)
+    if (!fixtureId || isNaN(fixtureId)) {
+      return NextResponse.json({ error: "Geçersiz fixtureId." }, { status: 400 })
+    }
+    const ok = await deletePredictionCompletely(fixtureId)
+    return NextResponse.json({ ok })
+  }
+
   const deleted = await deleteAllPredictions()
   return NextResponse.json({ ok: true, deleted })
 }

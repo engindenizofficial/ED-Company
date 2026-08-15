@@ -14,6 +14,8 @@ import { useLanguage } from "@/contexts/language-context"
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
+import { useSession } from "@/lib/auth-client"
+import { isAdminEmail } from "@/lib/admin"
 import type { Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
 
 function todayTR(): string {
@@ -53,6 +55,8 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
   const router = useRouter()
   const { favorites } = useFavorites()
   const { t, locale } = useLanguage()
+  const { data: session } = useSession()
+  const isAdmin = isAdminEmail(session?.user?.email)
   const [selected, setSelected] = useState<Fixture | null>(null)
 
   const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(null)
@@ -222,6 +226,22 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
     } finally {
       setPredictionLoading(false)
     }
+  }, [selected])
+
+  // Admin "tahmini sil" butonu — tahmini cache'ten, bekleyen listeden ve
+  // başarı panelinden (günlük + tüm zamanlar) komple siler. Sadece admin
+  // e-postasıyla giriş yapılmışsa AnalysisPanel bu callback'i kullanıma açar.
+  const handleDeletePrediction = useCallback(async () => {
+    if (!selected) return
+    const res = await fetch(`/api/predict?fixtureId=${selected.id}`, {
+      method: "DELETE",
+      cache: "no-store",
+    })
+    if (!res.ok) throw new Error("Tahmin silinemedi")
+
+    setPrediction(null)
+    savedResultIds.current.delete(selected.id)
+    setPredictionResults((prev) => prev.filter((r) => r.fixtureId !== selected.id))
   }, [selected])
 
   // Tahmin hazır olduğunda, bitmiş maçlar için otomatik sonuç kaydet
@@ -490,6 +510,8 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
               prediction={prediction}
               predictionLoading={predictionLoading}
               onPredict={triggerPrediction}
+              isAdmin={isAdmin}
+              onDeletePrediction={handleDeletePrediction}
             />
           </div>
         </div>

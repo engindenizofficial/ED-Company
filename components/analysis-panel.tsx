@@ -15,10 +15,22 @@ import {
   Sparkles,
   Star,
   Swords,
+  Trash2,
   TrendingUp,
   Users,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import type {
   Fixture,
@@ -92,11 +104,17 @@ export function AnalysisPanel({
   prediction,
   predictionLoading,
   onPredict,
+  isAdmin,
+  onDeletePrediction,
 }: {
   fixture: Fixture
   prediction?: MatchPrediction | null
   predictionLoading?: boolean
   onPredict?: () => void
+  /** Sadece admin hesabında true — tahmini silme butonunu gösterir. */
+  isAdmin?: boolean
+  /** Admin, tahmini silme onayını verdiğinde çağrılır. */
+  onDeletePrediction?: () => Promise<void> | void
 }) {
   const LIVE_OR_FINISHED = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "FT", "AET", "PEN", "AWD", "WO"])
   const isPredictable = !LIVE_OR_FINISHED.has(fixture.statusShort)
@@ -156,6 +174,8 @@ export function AnalysisPanel({
           homeName={home.name}
           awayName={away.name}
           onPredict={isPredictable ? onPredict : undefined}
+          isAdmin={isAdmin}
+          onDelete={onDeletePrediction}
         />
       )}
 
@@ -1828,15 +1848,35 @@ function PredictionCard({
   homeName,
   awayName,
   onPredict,
+  isAdmin,
+  onDelete,
 }: {
   prediction: MatchPrediction | null
   isLoading: boolean
   homeName: string
   awayName: string
   onPredict?: () => void
+  isAdmin?: boolean
+  onDelete?: () => Promise<void> | void
 }) {
   const { t } = useLanguage()
   const [showVotes, setShowVotes] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDeleteConfirmed = useCallback(async () => {
+    if (!onDelete) return
+    setDeleting(true)
+    try {
+      await onDelete()
+      toast.success(t("analysis.predictionDeleteSuccess"))
+      setDeleteConfirmOpen(false)
+    } catch {
+      toast.error(t("analysis.predictionDeleteError"))
+    } finally {
+      setDeleting(false)
+    }
+  }, [onDelete, t])
 
   if (isLoading) {
     return (
@@ -1894,6 +1934,7 @@ function PredictionCard({
   const modelCount = prediction.modelVotes?.length ?? 0
 
   return (
+    <>
     <div className="rounded-2xl border border-primary/25 bg-card overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2.5 border-b border-border/60 bg-primary/5 px-4 py-3">
@@ -1906,9 +1947,22 @@ function PredictionCard({
             {t("analysis.predictionModelCountBadge", { count: modelCount })}
           </span>
         )}
-        <span className="ml-auto rounded-full border border-border/60 bg-secondary px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
-          {t("analysis.predictionValidUntil")}
-        </span>
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="rounded-full border border-border/60 bg-secondary px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+            {t("analysis.predictionValidUntil")}
+          </span>
+          {isAdmin && onDelete && (
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              aria-label={t("analysis.predictionDeleteButton")}
+              title={t("analysis.predictionDeleteButton")}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 px-4 py-4">
@@ -2001,5 +2055,32 @@ function PredictionCard({
         )}
       </div>
     </div>
+
+    {isAdmin && onDelete && (
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("analysis.predictionDeleteConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("analysis.predictionDeleteConfirmDesc")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleDeleteConfirmed()
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : t("analysis.predictionDeleteConfirmAction")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    )}
+    </>
   )
 }

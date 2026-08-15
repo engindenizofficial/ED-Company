@@ -134,6 +134,55 @@ export async function setCachedPrediction(fixtureId: number, data: MatchPredicti
   }
 }
 
+/**
+ * Tek bir tahmini HER YERDEN siler: tahmin cache'i, bekleyen tahminler
+ * listesi, tüm zamanlar başarı paneli kaydı ve her günün başarı paneli
+ * kaydı (ed:prediction-results:{date}). Admin "tahmini sil" butonu bunu
+ * çağırır — silme sonrası tahmin başarı panelinde de görünmemeli.
+ */
+export async function deletePredictionCompletely(fixtureId: number): Promise<boolean> {
+  if (!redis) return false
+  try {
+    // 1. Tahmin cache'i
+    await redis.del(K.prediction(fixtureId))
+
+    // 2. Bekleyen tahminler listesi
+    await removePendingPrediction(fixtureId)
+
+    // 3. Tüm zamanlar başarı paneli kaydı
+    const allTime = await getAllTimePredictionResults()
+    const filteredAllTime = allTime.filter((r) => r.fixtureId !== fixtureId)
+    if (filteredAllTime.length !== allTime.length) {
+      await redis.set(K.allTimePredictionResults(), filteredAllTime)
+    }
+
+    // 4. Her günün başarı paneli kaydı — ed:prediction-results:* taranır
+    let cursor = 0
+    const dailyKeys: string[] = []
+    do {
+      const [nextCursor, batch] = await redis.scan(cursor, { match: "ed:prediction-results:*", count: 100 })
+      cursor = Number(nextCursor)
+      dailyKeys.push(...batch)
+    } while (cursor !== 0)
+
+    for (const key of dailyKeys) {
+      // "ed:prediction-results:all" zaten yukarıda ayrıca temizlendi
+      if (key === K.allTimePredictionResults()) continue
+      const existing = await redis.get<PredictionResult[]>(key)
+      if (!existing || existing.length === 0) continue
+      const filtered = existing.filter((r) => r.fixtureId !== fixtureId)
+      if (filtered.length !== existing.length) {
+        await redis.set(key, filtered, { keepTtl: true })
+      }
+    }
+
+    return true
+  } catch (err) {
+    console.log("[v0] redis deletePredictionCompletely failed:", err instanceof Error ? err.message : err)
+    return false
+  }
+}
+
 /** ed:prediction:* ile eşleşen tüm tahmin key'lerini siler. */
 export async function deleteAllPredictions(): Promise<number> {
   if (!redis) return 0
