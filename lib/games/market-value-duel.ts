@@ -59,23 +59,40 @@ const ELITE_LEAGUE_IDS = [39, 140, 135, 78, 61]
 /** Elit ligler + Avrupa'da hâlâ genel bilinirliği olan orta seviye ligler. */
 const KNOWN_LEAGUE_IDS = [...ELITE_LEAGUE_IDS, 94, 203, 88, 144, 197, 179]
 
-function difficultyCondition(difficulty: DuelDifficulty) {
+/**
+ * `hasLeagueFilter` true ise (kullanıcı belirli ligler seçtiyse), zorluk
+ * koşulundan sabit "elit/bilinen lig" kısıtını ÇIKARIYORUZ ve sadece piyasa
+ * değeri eşiğini uyguluyoruz. Aksi halde bu iki koşul AND ile birleşiyor ve
+ * kullanıcı elit/bilinen listelerde olmayan bir ligi seçtiğinde (örn. "Kolay"
+ * zorluk + Süper Lig) sorgu HER ZAMAN boş dönerdi — "Yeterli oyuncu verisi
+ * bulunamadı" hatası sürekli tekrarlanırdı. Lig seçimi olmadığında davranış
+ * değişmez: zorluk hâlâ hem lige hem değere bakar.
+ */
+function difficultyCondition(difficulty: DuelDifficulty, hasLeagueFilter: boolean) {
   const eliteLeagues = sql.join(ELITE_LEAGUE_IDS, sql`, `)
   const knownLeagues = sql.join(KNOWN_LEAGUE_IDS, sql`, `)
 
   switch (difficulty) {
     case "easy":
-      // Herkesin bilebileceği: elit liglerde oynayan, süperstar seviyesinde
-      // (35M€ ve üzeri) oyuncular.
-      return sql`${teamMarketValue.leagueId} in (${eliteLeagues}) and ${playerMarketValue.valueEur} >= 35000000`
+      // Herkesin bilebileceği: süperstar seviyesinde (35M€ ve üzeri)
+      // oyuncular. Lig filtresi yoksa ayrıca elit liglerle sınırlandırılır.
+      return hasLeagueFilter
+        ? sql`${playerMarketValue.valueEur} >= 35000000`
+        : sql`${teamMarketValue.leagueId} in (${eliteLeagues}) and ${playerMarketValue.valueEur} >= 35000000`
     case "normal":
-      // Futbolla az çok ilgilenen birinin bilebileceği: bilinen liglerde
-      // oynayan, orta-üst düzey değere sahip oyuncular.
-      return sql`${teamMarketValue.leagueId} in (${knownLeagues}) and ${playerMarketValue.valueEur} >= 5000000 and ${playerMarketValue.valueEur} < 35000000`
+      // Futbolla az çok ilgilenen birinin bilebileceği: orta-üst düzey
+      // değere sahip oyuncular. Lig filtresi yoksa ayrıca bilinen liglerle
+      // sınırlandırılır.
+      return hasLeagueFilter
+        ? sql`${playerMarketValue.valueEur} >= 5000000 and ${playerMarketValue.valueEur} < 35000000`
+        : sql`${teamMarketValue.leagueId} in (${knownLeagues}) and ${playerMarketValue.valueEur} >= 5000000 and ${playerMarketValue.valueEur} < 35000000`
     case "hard":
-      // Sadece işin fanatiği olanların bileceği: küçük liglerde oynayan
-      // veya düşük piyasa değerine sahip oyuncular.
-      return sql`(${teamMarketValue.leagueId} not in (${knownLeagues}) or ${playerMarketValue.valueEur} < 5000000)`
+      // Sadece işin fanatiği olanların bileceği: düşük piyasa değerine
+      // sahip oyuncular. Lig filtresi yoksa ayrıca küçük ligleri de dahil
+      // eder (bilinen liglerde olmayan herkes).
+      return hasLeagueFilter
+        ? sql`${playerMarketValue.valueEur} < 5000000`
+        : sql`(${teamMarketValue.leagueId} not in (${knownLeagues}) or ${playerMarketValue.valueEur} < 5000000)`
   }
 }
 
@@ -166,7 +183,7 @@ async function pickRandomMatchedPlayers(
     .from(playerMarketValue)
     .innerJoin(teamMarketValue, sql`${teamMarketValue.teamId} = ${playerMarketValue.teamId}`)
     .where(
-      sql`${playerMarketValue.matchStatus} = 'matched' and ${playerMarketValue.valueEur} is not null and ${playerMarketValue.valueEur} > 0 and ${teamMarketValue.matchStatus} = 'matched' and (${difficultyCondition(difficulty)}) ${leagueCondition} ${exclude}`,
+      sql`${playerMarketValue.matchStatus} = 'matched' and ${playerMarketValue.valueEur} is not null and ${playerMarketValue.valueEur} > 0 and ${teamMarketValue.matchStatus} = 'matched' and (${difficultyCondition(difficulty, leagueFilter !== null)}) ${leagueCondition} ${exclude}`,
     )
     .orderBy(sql`random()`)
     .limit(count)
