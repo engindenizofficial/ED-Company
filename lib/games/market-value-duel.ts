@@ -146,6 +146,15 @@ async function pickRandomMatchedPlayers(count: number, difficulty: DuelDifficult
   return rows
 }
 
+function mostMinutes(blocks: any[]): any | null {
+  if (blocks.length === 0) return null
+  return blocks.reduce((best, current) => {
+    const bestMinutes = best?.games?.minutes ?? 0
+    const currentMinutes = current?.games?.minutes ?? 0
+    return currentMinutes > bestMinutes ? current : best
+  })
+}
+
 /**
  * API-Football'ın /players uç noktası "statistics" dizisinde, oyuncunun o
  * sezon forma giydiği HER turnuva için bir blok döner: kulüp ligi, kulüp
@@ -156,20 +165,19 @@ async function pickRandomMatchedPlayers(count: number, difficulty: DuelDifficult
  * yerine millî takımın (ve dolayısıyla iki kez ülke bilgisinin) görünmesine
  * sebep oluyordu.
  *
- * Bunu önlemek için: DB'de zaten bildiğimiz GERÇEK kulüp takım id'sine
- * (knownTeamId — piyasa değeri eşleştirmesi anında oynadığı takım) sahip
- * bloğu buluyoruz; o takıma ait birden fazla blok varsa (lig + kupa gibi) en
- * çok dakika aldığı bloğu seçiyoruz. Bu blok aynı zamanda pozisyon bilgisini
- * de doğru verir (millî takımdaki pozisyonu değil, kulübündeki pozisyonu).
+ * ÖNEMLİ: `/players` uç noktasındaki "team" nesnesi `/teams` uç noktasının
+ * aksine bir `national` bayrağı DÖNMÜYOR (test edildi — alan tamamen eksik).
+ * Bu yüzden "millî takım bloklarını bir şekilde ele" gibi bir sezgisel
+ * yöntem güvenilir değildir: sezon henüz başlamışken (kulüp maçı hiç
+ * oynanmamışken) oyuncunun tek bloğu millî takım olabilir ve o blok yanlışlıkla
+ * "kulüp" gibi gösterilir. Bunun yerine SADECE DB'de bildiğimiz GERÇEK kulüp
+ * takım id'sine (knownTeamId) birebir eşleşen bloğu kabul ediyoruz — eşleşme
+ * yoksa `enrichPlayer` bir önceki sezona bakar (bkz. altta), hâlâ yoksa
+ * oyuncu tamamen elenir. Bu, "belki doğrudur" diye millî takımı göstermekten
+ * daha güvenlidir.
  */
 function pickClubStatistics(statistics: any[], knownTeamId: number): any | null {
-  const clubBlocks = statistics.filter((s) => s?.team?.id === knownTeamId)
-  if (clubBlocks.length === 0) return null
-  return clubBlocks.reduce((best, current) => {
-    const bestMinutes = best?.games?.minutes ?? 0
-    const currentMinutes = current?.games?.minutes ?? 0
-    return currentMinutes > bestMinutes ? current : best
-  })
+  return mostMinutes(statistics.filter((s) => s?.team?.id === knownTeamId))
 }
 
 /**
@@ -180,14 +188,32 @@ function pickClubStatistics(statistics: any[], knownTeamId: number): any | null 
  * `knownTeamId`, oyuncunun DB'deki (Transfermarkt eşleşmesi anındaki) GERÇEK
  * kulüp takımıdır — API-Football'ın "statistics" dizisindeki hangi bloğun
  * kulübe, hangisinin millî takıma ait olduğunu ayırt etmek için kullanılır.
+ *
+ * Sezon başı döneminde (yeni sezon henüz başlamış / kulüp maçı oynanmamış)
+ * oyuncunun o sezonki tek verisi millî takım maçları olabilir — bu durumda
+ * GÜNCEL sezonda kulüp bloğu bulunamaz. Böyle bir durumda turu tamamen
+ * elemek yerine ("yeterli oyuncu verisi bulunamadı" hatasının asıl kaynağı
+ * buydu) BİR ÖNCEKİ sezonun kulüp istatistiğine bakıyoruz — oyuncunun
+ * takımı gerçekten değişmediyse (DB'deki knownTeamId hâlâ geçerliyse) bu
+ * neredeyse her zaman doğru sonucu verir.
  */
 async function enrichPlayer(playerId: number, fallbackName: string, knownTeamId: number): Promise<DuelPlayer | null> {
   const season = currentSeason()
   const raw = await safeApiFootballFetch<any>("/players", { id: playerId, season })
   const entry = raw[0]
-  const p = entry?.player ?? {}
-  const statistics: any[] = Array.isArray(entry?.statistics) ? entry.statistics : []
-  const stats = pickClubStatistics(statistics, knownTeamId) ?? {}
+  let p = entry?.player ?? {}
+  const currentSeasonStats: any[] = Array.isArray(entry?.statistics) ? entry.statistics : []
+  let stats = pickClubStatistics(currentSeasonStats, knownTeamId)
+
+  if (!stats) {
+    // Güncel sezonda kulüp bloğu yok — bir önceki sezona bak (sezon başı /
+    // transfer penceresi geçiş dönemi için).
+    const prevRaw = await safeApiFootballFetch<any>("/players", { id: playerId, season: season - 1 })
+    const prevEntry = prevRaw[0]
+    if (!entry && prevEntry) p = prevEntry?.player ?? {}
+    const prevSeasonStats: any[] = Array.isArray(prevEntry?.statistics) ? prevEntry.statistics : []
+    stats = pickClubStatistics(prevSeasonStats, knownTeamId) ?? {}
+  }
 
   const photo: string | null = typeof p.photo === "string" && p.photo.trim().length > 0 ? p.photo : null
   const teamName: string | null =
