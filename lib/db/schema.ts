@@ -179,39 +179,6 @@ export const marketValueReviewQueue = pgTable('market_value_review_queue', {
   resolvedAt: timestamp('resolvedAt'),
 })
 
-// ---------------------------------------------------------------------------
-// "Hakem Sen Ol" oyunu — gerçek maçlardan tartışmalı pozisyon senaryoları.
-// İçerik elle küratörlük ile (lib/games/referee-scenarios-seed.ts) eklenir,
-// hiçbir cron/otomatik işlem bu tabloya yazmaz.
-// ---------------------------------------------------------------------------
-
-/** Gerçek bir maçtan hakem kararı senaryosu — YouTube video + senaryoya özel şıklar. */
-export const refereeScenario = pgTable('referee_scenario', {
-  id: text('id').primaryKey(),
-  homeTeam: text('homeTeam').notNull(),
-  awayTeam: text('awayTeam').notNull(),
-  /** Gösterim amaçlı lig/turnuva adı, örn. "Premier Lig" */
-  competition: text('competition').notNull(),
-  /** Kısa gösterim metni, örn. "2022-23 sezonu" */
-  matchLabel: text('matchLabel').notNull(),
-  /** Olayın gerçekleştiği dakika (gösterim amaçlı) */
-  minute: integer('minute').notNull(),
-  /** Kısa senaryo açıklaması (TR) — pozisyonu tanıtır, sonucu spoiler etmez */
-  description: text('description').notNull(),
-  youtubeVideoId: text('youtubeVideoId').notNull(),
-  /** Videonun başlaması gereken saniye — pozisyona doğrudan atlamak için */
-  startSeconds: integer('startSeconds').notNull().default(0),
-  /** Senaryoya özel şıklar dizisi, örn. ["Penaltı", "Faul Yok", "Ofsayt"] (2-4 öğe) */
-  options: jsonb('options').notNull(),
-  /** `options` dizisindeki, hakemin gerçekte verdiği kararın index'i */
-  correctOptionIndex: integer('correctOptionIndex').notNull(),
-  /** Reveal sonrası gösterilen kural/karar açıklaması */
-  explanation: text('explanation').notNull(),
-  /** Video kaldırılırsa/hatalı bulunursa, silmeden devre dışı bırakmak için */
-  isActive: boolean('isActive').notNull().default(true),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-})
-
 /**
  * Haftalık 24 ligi zincirleme işleyen cron döngüsünün kalıcı durumu.
  * "Zincir kırıldığında hangi ligde kalındığı hiçbir yerde tutulmuyor" sorununu
