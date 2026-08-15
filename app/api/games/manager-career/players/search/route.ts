@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { calculateAge } from "@/lib/api-football"
+import { getSquad } from "@/lib/api-football"
 import { db } from "@/lib/db"
-import { playerMarketValue } from "@/lib/db/schema"
-import { inArray } from "drizzle-orm"
+import { playerMarketValue, teamMarketValue } from "@/lib/db/schema"
+import { and, eq, gt } from "drizzle-orm"
 import type { PlayerRole } from "@/lib/games/manager-career"
 import { PLAYER_ROLES } from "@/lib/games/manager-career"
 
 export const dynamic = "force-dynamic"
-
-const BASE_URL = "https://v3.football.api-sports.io"
-
-// En iyi 20 lig — takım/oyuncu aramasıyla birebir aynı liste.
-const TOP_LEAGUE_IDS = [
-  39, 140, 135, 78, 61, 203, 2, 3, 848, 88, 94, 144, 179, 197, 207, 235, 253, 262, 71, 128,
-]
 
 export interface ManagerPlayerSearchResult {
   id: number
@@ -29,69 +22,88 @@ export interface ManagerPlayerSearchResult {
   priceEur: number
 }
 
-function currentSeason(): number {
-  const now = new Date()
-  return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
-}
-
-interface RawPlayerHit {
-  id: number
-  name: string
-  photo: string | null
-  nationality: string | null
-  age: number | null
+interface CandidateRow {
+  playerId: number
+  playerName: string
+  teamId: number
   teamName: string | null
-  teamLogo: string | null
-  role: PlayerRole | null
+  valueEur: number
 }
 
-async function fetchPlayersForSeason(q: string, leagueId: number, season: number, key: string): Promise<RawPlayerHit[]> {
-  const params = new URLSearchParams({ search: q, league: String(leagueId), season: String(season) })
+// ---------------------------------------------------------------------------
+// Arama artık API-Football'a canlı bir "search" isteği ATMIYOR. Eski
+// yaklaşım her karakter için 20 ligin TAMAMINA paralel istek atıyordu; bu,
+// API-Football'ın dakikalık rate limit'ini anında aşıp isteklerin çoğunun
+// "Too many requests" ile boş dönmesine (ve dolayısıyla "oyuncuların çoğu
+// yokmuş gibi" görünmesine) sebep oluyordu.
+//
+// Yeni yaklaşım: piyasa değeri DB'sindeki (zaten scrape+eşleştirme ile
+// doldurulmuş, ~7-8 bin oyuncu kapsayan) satırlar TEK kaynak olarak
+// kullanılır — isim eşleştirmesi tamamen bizim tarafımızda, API çağrısı
+// gerektirmeden yapılır. Mevki (role) ve fotoğraf bilgisi için SADECE
+// eşleşen adayların takımlarına, takım başına BİR KEZ (ve 1 saat cache'li)
+// `/players/squads` isteği atılır — bu, aynı arama string'i için 20 istek
+// yerine genelde 1-5 istek anlamına gelir ve API-Football'ın kendi
+// response cache'i sayesinde tekrarlanan aramalar hiç dış istek yapmaz.
+// ---------------------------------------------------------------------------
 
-  const res = await fetch(`${BASE_URL}/players?${params}`, {
-    headers: { "x-apisports-key": key },
-    next: { revalidate: 3600 },
-  })
-  if (!res.ok) return []
-  const json = await res.json()
-  const entries: any[] = json.response ?? []
+let candidateCache: { rows: CandidateRow[]; fetchedAt: number } | null = null
+const CANDIDATE_CACHE_TTL_MS = 2 * 60 * 1000
 
-  return entries.map((entry) => {
-    const p = entry.player ?? {}
-    const firstStat = entry.statistics?.[0] ?? {}
-    const rawRole = firstStat.games?.position
-    const role: PlayerRole | null = PLAYER_ROLES.includes(rawRole) ? rawRole : null
-    return {
-      id: p.id ?? 0,
-      name: p.name ?? "",
-      photo: p.photo ?? null,
-      nationality: p.nationality ?? null,
-      age: calculateAge(p.birth?.date, p.age),
-      teamName: firstStat.team?.name ?? null,
-      teamLogo: firstStat.team?.logo ?? null,
-      role,
+async function getCandidateRows(): Promise<CandidateRow[]> {
+  if (candidateCache && Date.now() - candidateCache.fetchedAt < CANDIDATE_CACHE_TTL_MS) {
+    return candidateCache.rows
+  }
+
+  const rows = await db
+    .select({
+      playerId: playerMarketValue.playerId,
+      playerName: playerMarketValue.playerName,
+      teamId: playerMarketValue.teamId,
+      teamName: teamMarketValue.teamName,
+      valueEur: playerMarketValue.valueEur,
+    })
+    .from(playerMarketValue)
+    .leftJoin(teamMarketValue, eq(teamMarketValue.teamId, playerMarketValue.teamId))
+    .where(and(eq(playerMarketValue.matchStatus, "matched"), gt(playerMarketValue.valueEur, "0")))
+
+  const parsed: CandidateRow[] = rows.map((r) => ({
+    playerId: r.playerId,
+    playerName: r.playerName,
+    teamId: r.teamId,
+    teamName: r.teamName,
+    valueEur: Number(r.valueEur),
+  }))
+
+  candidateCache = { rows: parsed, fetchedAt: Date.now() }
+  return parsed
+}
+
+/** API-Football takım logosu, sabit URL şablonu — ekstra istek gerektirmez. */
+function teamLogoUrl(teamId: number): string {
+  return `https://media.api-sports.io/football/teams/${teamId}.png`
+}
+
+/** Aynı anda en fazla `size` kadar öğeyi işler — API-Football'a ani istek yığını (rate limit riski) göndermemek için. */
+async function mapWithConcurrency<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let next = 0
+  async function worker() {
+    while (next < items.length) {
+      const i = next++
+      results[i] = await fn(items[i])
     }
-  })
+  }
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker))
+  return results
 }
 
 /**
- * Bir ligde oyuncu arar. API-Football'ın en güncel sezonu henüz yayınlamadığı
- * dönemlerde (örn. yeni sezon henüz başlamamışken) `currentSeason()` boş
- * sonuç döndürebilir — bu durumda bir önceki sezona düşülür.
+ * Türkçe harfleri (ş,ç,ğ,ü,ö,ı,İ) VE genel Latin aksanlarını (é,í,á,ã,ê,ñ,ç...)
+ * sadeleştirir. Oyuncu isimleri Transfermarkt kaynaklı olduğundan çoğu
+ * (Mbappé, Vinícius, Müller vb.) aksanlı yazılıyor — kullanıcı aksansız
+ * yazdığında (Mbappe, Vinicius) da eşleşmesi için ikisi de gerekli.
  */
-async function searchPlayersInLeague(q: string, leagueId: number, season: number): Promise<RawPlayerHit[]> {
-  const key = process.env.API_FOOTBALL_KEY
-  if (!key) return []
-
-  try {
-    const current = await fetchPlayersForSeason(q, leagueId, season, key)
-    if (current.length > 0) return current
-    return await fetchPlayersForSeason(q, leagueId, season - 1, key)
-  } catch {
-    return []
-  }
-}
-
 function normalizeTR(s: string): string {
   return s
     .toLocaleLowerCase("tr-TR")
@@ -102,6 +114,8 @@ function normalizeTR(s: string): string {
     .replace(/ö/g, "o")
     .replace(/ı/g, "i")
     .replace(/İ/g, "i")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim()
 }
 
@@ -124,61 +138,63 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ results: [] })
   }
 
-  const season = currentSeason()
-
-  const perLeague = await Promise.all(TOP_LEAGUE_IDS.map((leagueId) => searchPlayersInLeague(q, leagueId, season)))
-
   const qNorm = normalizeTR(q)
-  const seen = new Set<number>()
-  const candidates: RawPlayerHit[] = []
+  const allCandidates = await getCandidateRows()
 
-  for (const leaguePlayers of perLeague) {
-    for (const p of leaguePlayers) {
-      if (!p.id || seen.has(p.id) || !p.role) continue
-      if (roleFilter && p.role !== roleFilter) continue
-      const nameNorm = normalizeTR(p.name)
-      if (!nameNorm.includes(qNorm)) continue
-      seen.add(p.id)
-      candidates.push(p)
-      if (candidates.length >= 40) break
-    }
-    if (candidates.length >= 40) break
-  }
+  const matches = allCandidates
+    .filter((c) => normalizeTR(c.playerName).includes(qNorm))
+    .sort((a, b) => {
+      const aStarts = normalizeTR(a.playerName).startsWith(qNorm)
+      const bStarts = normalizeTR(b.playerName).startsWith(qNorm)
+      if (aStarts !== bStarts) return aStarts ? -1 : 1
+      return b.valueEur - a.valueEur
+    })
+    .slice(0, 30)
 
-  if (candidates.length === 0) {
+  if (matches.length === 0) {
     return NextResponse.json({ results: [] })
   }
 
-  const valueRows = await db
-    .select({
-      playerId: playerMarketValue.playerId,
-      valueEur: playerMarketValue.valueEur,
-      matchStatus: playerMarketValue.matchStatus,
-    })
-    .from(playerMarketValue)
-    .where(inArray(playerMarketValue.playerId, candidates.map((c) => c.id)))
+  // Mevki bilgisi DB'de yok — eşleşen adayların takımlarına, takım başına
+  // BİR KEZ /players/squads isteği atılır (1 saat cache'li, düşük eşzamanlılık).
+  const uniqueTeamIds = Array.from(new Set(matches.map((m) => m.teamId)))
+  const squadEntries = await mapWithConcurrency(uniqueTeamIds, 4, async (teamId) => {
+    try {
+      return [teamId, await getSquad(teamId)] as const
+    } catch {
+      return [teamId, []] as const
+    }
+  })
 
-  const priceMap = new Map<number, number>()
-  for (const row of valueRows) {
-    if (row.matchStatus === "matched" && row.valueEur !== null && Number(row.valueEur) > 0) {
-      priceMap.set(row.playerId, Number(row.valueEur))
+  const roleByPlayerId = new Map<number, { role: PlayerRole; photo: string | null; age: number | null }>()
+  for (const [, squad] of squadEntries) {
+    for (const sp of squad) {
+      if (sp.pos && PLAYER_ROLES.includes(sp.pos as PlayerRole)) {
+        roleByPlayerId.set(sp.id, { role: sp.pos as PlayerRole, photo: sp.photo, age: sp.age })
+      }
     }
   }
 
-  const results: ManagerPlayerSearchResult[] = candidates
-    .filter((c) => priceMap.has(c.id))
+  const results: ManagerPlayerSearchResult[] = matches
+    .map((c) => {
+      const info = roleByPlayerId.get(c.playerId)
+      if (!info) return null
+      if (roleFilter && info.role !== roleFilter) return null
+      const result: ManagerPlayerSearchResult = {
+        id: c.playerId,
+        name: c.playerName,
+        photo: info.photo,
+        nationality: null,
+        age: info.age,
+        teamName: c.teamName,
+        teamLogo: teamLogoUrl(c.teamId),
+        role: info.role,
+        priceEur: c.valueEur,
+      }
+      return result
+    })
+    .filter((r): r is ManagerPlayerSearchResult => r !== null)
     .slice(0, 20)
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      photo: c.photo,
-      nationality: c.nationality,
-      age: c.age,
-      teamName: c.teamName,
-      teamLogo: c.teamLogo,
-      role: c.role as PlayerRole,
-      priceEur: priceMap.get(c.id) as number,
-    }))
 
   return NextResponse.json({ results })
 }
