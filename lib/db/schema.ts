@@ -165,7 +165,7 @@ export const marketValueReviewQueue = pgTable('market_value_review_queue', {
   /**
    * Ülke bilgisi için en az bir doldurma denemesi yapıldı mı? API-Football /
    * Transfermarkt kaynağında veri bulunamayınca entityCountry/candidateCountry
-   * null kalabilir ��� bu durumda bu alan olmadan satır her backfill turunda
+   * null kalabilir ���� bu durumda bu alan olmadan satır her backfill turunda
    * tekrar seçilip sonsuza kadar "işlenip" hiçbir zaman çözülmüyordu. Bu
    * bayrak true olduktan sonra satır backfill sorgusundan çıkar.
    */
@@ -207,4 +207,64 @@ export const marketValueCronRun = pgTable('market_value_cron_run', {
   heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+})
+
+// ---------------------------------------------------------------------------
+// "Kulübünü Kur" (menajer kariyeri) oyunu.
+// Kullanıcı zorluk + lig + logo + isim seçip 18 kişilik bir kadro kurar.
+// Her kullanıcının aynı anda tek bir kariyeri olur — yeniden oluşturma eski
+// kariyeri (ve kadrosunu) siler, bkz. lib/games/manager-career.ts.
+// ---------------------------------------------------------------------------
+
+/** Menajer kariyeri — bir kullanıcının kurduğu hayali kulüp. */
+export const managerCareer = pgTable('manager_career', {
+  id: text('id').primaryKey(),
+  userId: text('userId')
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  /** "easy" | "normal" | "hard" */
+  difficulty: text('difficulty').notNull(),
+  /** Başlangıç transfer bütçesi, tam euro (örn. 750000000) */
+  startingBudgetEur: numeric('startingBudgetEur', { precision: 14, scale: 2 }).notNull(),
+  /** Rakip takımların zorluk çarpanı, % (80/100/120) — ileride maç simülasyonunda kullanılacak */
+  opponentStrengthPercent: integer('opponentStrengthPercent').notNull(),
+  /** public/images/manager-logos/ altındaki dosya adı, örn. "logo-01.png" */
+  logoFile: text('logoFile').notNull(),
+  clubName: text('clubName').notNull(),
+  managerName: text('managerName').notNull(),
+  /** API-Football lig id'si — DUEL_SELECTABLE_LEAGUES içinden biri */
+  leagueId: integer('leagueId').notNull(),
+  /** Aktif diziliş, örn. "4-3-3" */
+  formation: text('formation').notNull().default('4-4-2'),
+  /** "building" (kadro kuruluyor) | "active" (kadro tamamlandı) */
+  status: text('status').notNull().default('building'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+})
+
+/** Bir menajer kariyerindeki tek bir kadro oyuncusu. */
+export const managerSquadPlayer = pgTable('manager_squad_player', {
+  id: text('id').primaryKey(),
+  careerId: text('careerId')
+    .notNull()
+    .references(() => managerCareer.id, { onDelete: 'cascade' }),
+  /** API-Football oyuncu id'si */
+  playerId: integer('playerId').notNull(),
+  playerName: text('playerName').notNull(),
+  photo: text('photo'),
+  /** Gerçek hayattaki (satın alma anındaki) kulübü — gösterim amaçlı */
+  realTeamName: text('realTeamName'),
+  realTeamLogo: text('realTeamLogo'),
+  /** Ham API-Football mevki kategorisi: "Goalkeeper" | "Defender" | "Midfielder" | "Attacker" */
+  position: text('position').notNull(),
+  /** Satın alma anındaki piyasa değeri, tam euro — bütçeden düşülen tutar budur */
+  priceEur: numeric('priceEur', { precision: 14, scale: 2 }).notNull(),
+  /** "starting" | "bench" */
+  role: text('role').notNull(),
+  /** role="starting" iken diziliş içindeki slot anahtarı (örn. "DEF-1"); bench için null */
+  slotKey: text('slotKey'),
+  /** role="bench" iken 0-6 arası sıra; starting için null */
+  benchIndex: integer('benchIndex'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
 })
