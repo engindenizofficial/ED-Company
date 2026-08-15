@@ -63,7 +63,9 @@ export function MarketValueDuelGame() {
 
   const [phase, setPhase] = useState<Phase>("select-difficulty")
   const [difficulty, setDifficulty] = useState<DuelDifficulty | null>(null)
-  const [selectedLeagueIds, setSelectedLeagueIds] = useState<Set<number>>(() => new Set(ALL_LEAGUE_IDS))
+  // Lig seçimi başta boştur — kullanıcı ya "Tüm Ligler"e basar ya da
+  // istediği ligleri tek tek seçer.
+  const [selectedLeagueIds, setSelectedLeagueIds] = useState<Set<number>>(() => new Set())
   const [round, setRound] = useState<DuelRound | null>(null)
   const [result, setResult] = useState<DuelResult | null>(null)
   const [pickedId, setPickedId] = useState<number | null>(null)
@@ -130,9 +132,6 @@ export function MarketValueDuelGame() {
     setSelectedLeagueIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) {
-        // En az bir lig seçili kalmalı — hepsi kaldırılırsa "hiçbir yerden
-        // oyuncu gelmiyor" durumuna düşülür.
-        if (next.size === 1) return next
         next.delete(id)
       } else {
         next.add(id)
@@ -146,7 +145,7 @@ export function MarketValueDuelGame() {
   }, [])
 
   const handleStartGame = useCallback(() => {
-    if (!difficulty) return
+    if (!difficulty || selectedLeagueIds.size === 0) return
     setScore(0)
     setStreak(0)
     setBestStreak(0)
@@ -346,7 +345,9 @@ export function MarketValueDuelGame() {
         </div>
 
         <p className="text-xs font-medium text-muted-foreground">
-          {t("duel.leaguesSelectedCount", { count: selectedLeagueIds.size })}
+          {selectedLeagueIds.size > 0
+            ? t("duel.leaguesSelectedCount", { count: selectedLeagueIds.size })
+            : t("duel.selectAtLeastOneLeague")}
         </p>
 
         <div className="flex items-center gap-3">
@@ -360,7 +361,8 @@ export function MarketValueDuelGame() {
           <button
             type="button"
             onClick={handleStartGame}
-            className="rounded-full bg-primary px-7 py-2.5 text-sm font-black uppercase tracking-wide text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95"
+            disabled={selectedLeagueIds.size === 0}
+            className="rounded-full bg-primary px-7 py-2.5 text-sm font-black uppercase tracking-wide text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
           >
             {t("duel.startGame")}
           </button>
