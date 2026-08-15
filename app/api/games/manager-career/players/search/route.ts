@@ -45,37 +45,48 @@ interface RawPlayerHit {
   role: PlayerRole | null
 }
 
+async function fetchPlayersForSeason(q: string, leagueId: number, season: number, key: string): Promise<RawPlayerHit[]> {
+  const params = new URLSearchParams({ search: q, league: String(leagueId), season: String(season) })
+
+  const res = await fetch(`${BASE_URL}/players?${params}`, {
+    headers: { "x-apisports-key": key },
+    next: { revalidate: 3600 },
+  })
+  if (!res.ok) return []
+  const json = await res.json()
+  const entries: any[] = json.response ?? []
+
+  return entries.map((entry) => {
+    const p = entry.player ?? {}
+    const firstStat = entry.statistics?.[0] ?? {}
+    const rawRole = firstStat.games?.position
+    const role: PlayerRole | null = PLAYER_ROLES.includes(rawRole) ? rawRole : null
+    return {
+      id: p.id ?? 0,
+      name: p.name ?? "",
+      photo: p.photo ?? null,
+      nationality: p.nationality ?? null,
+      age: calculateAge(p.birth?.date, p.age),
+      teamName: firstStat.team?.name ?? null,
+      teamLogo: firstStat.team?.logo ?? null,
+      role,
+    }
+  })
+}
+
+/**
+ * Bir ligde oyuncu arar. API-Football'ın en güncel sezonu henüz yayınlamadığı
+ * dönemlerde (örn. yeni sezon henüz başlamamışken) `currentSeason()` boş
+ * sonuç döndürebilir — bu durumda bir önceki sezona düşülür.
+ */
 async function searchPlayersInLeague(q: string, leagueId: number, season: number): Promise<RawPlayerHit[]> {
   const key = process.env.API_FOOTBALL_KEY
   if (!key) return []
 
-  const params = new URLSearchParams({ search: q, league: String(leagueId), season: String(season) })
-
   try {
-    const res = await fetch(`${BASE_URL}/players?${params}`, {
-      headers: { "x-apisports-key": key },
-      next: { revalidate: 3600 },
-    })
-    if (!res.ok) return []
-    const json = await res.json()
-    const entries: any[] = json.response ?? []
-
-    return entries.map((entry) => {
-      const p = entry.player ?? {}
-      const firstStat = entry.statistics?.[0] ?? {}
-      const rawRole = firstStat.games?.position
-      const role: PlayerRole | null = PLAYER_ROLES.includes(rawRole) ? rawRole : null
-      return {
-        id: p.id ?? 0,
-        name: p.name ?? "",
-        photo: p.photo ?? null,
-        nationality: p.nationality ?? null,
-        age: calculateAge(p.birth?.date, p.age),
-        teamName: firstStat.team?.name ?? null,
-        teamLogo: firstStat.team?.logo ?? null,
-        role,
-      }
-    })
+    const current = await fetchPlayersForSeason(q, leagueId, season, key)
+    if (current.length > 0) return current
+    return await fetchPlayersForSeason(q, leagueId, season - 1, key)
   } catch {
     return []
   }
