@@ -6,6 +6,7 @@ import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { calculateAge } from "@/lib/api-football"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import { getPlayerMarketValues } from "@/lib/market-values"
+import { DUEL_SELECTABLE_LEAGUE_IDS } from "@/lib/leagues"
 
 // ---------------------------------------------------------------------------
 // "Piyasa Değeri Düellosu" oyunu — sunucu tarafı yardımcıları.
@@ -78,6 +79,22 @@ function difficultyCondition(difficulty: DuelDifficulty) {
   }
 }
 
+/**
+ * Kullanıcının gönderdiği lig id listesini doğrular: sadece seçilebilir
+ * (ulusal) liglere ait, tekrarsız id'leri tutar. Geçersiz/bilinmeyen id'ler
+ * sessizce elenir. Sonuç boşsa (hiç geçerli id yoksa) `null` döner — bu,
+ * "filtre yok / tüm ligler" anlamına gelir, hatalı bir isteği tur oluşmadan
+ * elemek yerine güvenli bir şekilde tüm liglere geri düşürür.
+ */
+export function normalizeLeagueFilter(leagueIds: number[] | undefined): number[] | null {
+  if (!leagueIds || leagueIds.length === 0) return null
+  const valid = Array.from(new Set(leagueIds)).filter((id) => DUEL_SELECTABLE_LEAGUE_IDS.includes(id))
+  // Kullanıcı fiilen TÜM seçilebilir ligleri seçtiyse, filtre uygulamanın
+  // sorgu maliyeti dışında bir anlamı yok — ama zararı da yok, o yüzden
+  // sadece boş sonucu "filtre yok" olarak ele alıyoruz.
+  return valid.length > 0 ? valid : null
+}
+
 function currentSeason(): number {
   const now = new Date()
   return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
@@ -123,8 +140,19 @@ export function verifyRoundToken(token: string): [number, number] | null {
  * `count` adet farklı oyuncu seçer. Zorluk filtresi oyuncunun o anki takımının
  * ligine (team_market_value.leagueId) ve piyasa değerine bakar.
  */
-async function pickRandomMatchedPlayers(count: number, difficulty: DuelDifficulty, excludeIds: number[] = []) {
+async function pickRandomMatchedPlayers(
+  count: number,
+  difficulty: DuelDifficulty,
+  leagueFilter: number[] | null,
+  excludeIds: number[] = [],
+) {
   const exclude = excludeIds.length > 0 ? sql`and ${playerMarketValue.playerId} not in (${sql.join(excludeIds, sql`, `)})` : sql``
+  // Kullanıcı belirli ligler seçtiyse, oyuncunun o anki takımının ligine
+  // (teamMarketValue.leagueId) göre filtrele. Zorluk filtresiyle (elit/bilinen
+  // lig listeleri) AYRI ve EK bir koşuldur — "hard" zorluğunda küçük ligleri
+  // tercih eden mantık, kullanıcının seçtiği lig havuzunun İÇİNDE uygulanır.
+  const leagueCondition =
+    leagueFilter !== null ? sql`and ${teamMarketValue.leagueId} in (${sql.join(leagueFilter, sql`, `)})` : sql``
   const rows = await db
     .select({
       playerId: playerMarketValue.playerId,
@@ -138,7 +166,7 @@ async function pickRandomMatchedPlayers(count: number, difficulty: DuelDifficult
     .from(playerMarketValue)
     .innerJoin(teamMarketValue, sql`${teamMarketValue.teamId} = ${playerMarketValue.teamId}`)
     .where(
-      sql`${playerMarketValue.matchStatus} = 'matched' and ${playerMarketValue.valueEur} is not null and ${playerMarketValue.valueEur} > 0 and ${teamMarketValue.matchStatus} = 'matched' and (${difficultyCondition(difficulty)}) ${exclude}`,
+      sql`${playerMarketValue.matchStatus} = 'matched' and ${playerMarketValue.valueEur} is not null and ${playerMarketValue.valueEur} > 0 and ${teamMarketValue.matchStatus} = 'matched' and (${difficultyCondition(difficulty)}) ${leagueCondition} ${exclude}`,
     )
     .orderBy(sql`random()`)
     .limit(count)
@@ -302,7 +330,11 @@ function hasDistinctValues(pool: { valueEur: number }[]): boolean {
  * "hangisi daha değerli" sorusunun tek/adil bir doğru cevabı olmadığı bir
  * turu göstermek oyunu bozar (hangi kartı seçse "doğru" sayılabilirdi).
  */
-export async function createDuelRound(difficulty: DuelDifficulty = "normal"): Promise<DuelRound | null> {
+export async function createDuelRound(
+  difficulty: DuelDifficulty = "normal",
+  leagueIds?: number[],
+): Promise<DuelRound | null> {
+  const leagueFilter = normalizeLeagueFilter(leagueIds)
   const valid: { player: DuelPlayer; valueEur: number }[] = []
   const triedIds: number[] = []
 
@@ -313,7 +345,7 @@ export async function createDuelRound(difficulty: DuelDifficulty = "normal"): Pr
     round < MAX_POOL_ROUNDS && (valid.length < 2 || !hasDistinctValues(valid));
     round++
   ) {
-    const candidates = await pickRandomMatchedPlayers(POOL_BATCH_SIZE, difficulty, triedIds)
+    const candidates = await pickRandomMatchedPlayers(POOL_BATCH_SIZE, difficulty, leagueFilter, triedIds)
     if (candidates.length === 0) break
     triedIds.push(...candidates.map((c) => c.playerId))
 

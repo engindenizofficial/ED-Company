@@ -1,18 +1,35 @@
 "use client"
 
 import { AnimatePresence, motion } from "motion/react"
-import { useCallback, useRef, useState } from "react"
-import { Flame, Gauge, RotateCcw, Skull, Sparkles, Swords, Trophy, Volume2, VolumeX, Zap } from "lucide-react"
+import { useCallback, useMemo, useRef, useState } from "react"
+import {
+  Check,
+  Flame,
+  Gauge,
+  Globe2,
+  RotateCcw,
+  Skull,
+  Sparkles,
+  Swords,
+  Trophy,
+  Volume2,
+  VolumeX,
+  Zap,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DuelPlayerCard } from "@/components/games/duel-player-card"
 import { useSoundEffects } from "@/lib/games/use-sound-effects"
 import { useLanguage } from "@/contexts/language-context"
+import { DUEL_SELECTABLE_LEAGUES } from "@/lib/leagues"
+import { toDisplayCountry } from "@/lib/tr-aliases"
 import type { DuelDifficulty, DuelPlayer, DuelResult, DuelRound } from "@/lib/games/market-value-duel"
 
-type Phase = "select-difficulty" | "loading" | "playing" | "revealed" | "error"
+const ALL_LEAGUE_IDS = DUEL_SELECTABLE_LEAGUES.map((l) => l.id)
+
+type Phase = "select-difficulty" | "select-leagues" | "loading" | "playing" | "revealed" | "error"
 
 export function MarketValueDuelGame() {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
 
   const DIFFICULTIES: {
     id: DuelDifficulty
@@ -46,6 +63,7 @@ export function MarketValueDuelGame() {
 
   const [phase, setPhase] = useState<Phase>("select-difficulty")
   const [difficulty, setDifficulty] = useState<DuelDifficulty | null>(null)
+  const [selectedLeagueIds, setSelectedLeagueIds] = useState<Set<number>>(() => new Set(ALL_LEAGUE_IDS))
   const [round, setRound] = useState<DuelRound | null>(null)
   const [result, setResult] = useState<DuelResult | null>(null)
   const [pickedId, setPickedId] = useState<number | null>(null)
@@ -63,7 +81,7 @@ export function MarketValueDuelGame() {
   const hasPlayedRef = useRef(false)
 
   const loadRound = useCallback(
-    async (activeDifficulty: DuelDifficulty) => {
+    async (activeDifficulty: DuelDifficulty, activeLeagueIds: Set<number>) => {
       if (loadingRef.current) return
       loadingRef.current = true
       setPhase("loading")
@@ -71,9 +89,17 @@ export function MarketValueDuelGame() {
       setPickedId(null)
       setFlash(null)
       try {
-        const res = await fetch(`/api/games/market-value-duel?difficulty=${activeDifficulty}`, {
-          cache: "no-store",
-        })
+        // Kullanıcı TÜM seçilebilir ligleri seçtiyse "leagues" parametresini
+        // hiç göndermiyoruz — bu, filtresiz istek ile aynı sonucu verir ama
+        // sorguyu ve URL'i basit tutar.
+        const leaguesParam =
+          activeLeagueIds.size > 0 && activeLeagueIds.size < ALL_LEAGUE_IDS.length
+            ? `&leagues=${Array.from(activeLeagueIds).join(",")}`
+            : ""
+        const res = await fetch(
+          `/api/games/market-value-duel?difficulty=${activeDifficulty}${leaguesParam}`,
+          { cache: "no-store" },
+        )
         if (!res.ok) {
           const data = await res.json().catch(() => null)
           setErrorMsg(data?.error === "notEnoughPlayers" ? t("apiErrors.notEnoughPlayers") : t("duel.loadFailed"))
@@ -95,17 +121,38 @@ export function MarketValueDuelGame() {
     [play, t],
   )
 
-  const handleSelectDifficulty = useCallback(
-    (next: DuelDifficulty) => {
-      setDifficulty(next)
-      setScore(0)
-      setStreak(0)
-      setBestStreak(0)
-      hasPlayedRef.current = false
-      loadRound(next)
-    },
-    [loadRound],
-  )
+  const handleSelectDifficulty = useCallback((next: DuelDifficulty) => {
+    setDifficulty(next)
+    setPhase("select-leagues")
+  }, [])
+
+  const toggleLeague = useCallback((id: number) => {
+    setSelectedLeagueIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        // En az bir lig seçili kalmalı — hepsi kaldırılırsa "hiçbir yerden
+        // oyuncu gelmiyor" durumuna düşülür.
+        if (next.size === 1) return next
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }, [])
+
+  const selectAllLeagues = useCallback(() => {
+    setSelectedLeagueIds(new Set(ALL_LEAGUE_IDS))
+  }, [])
+
+  const handleStartGame = useCallback(() => {
+    if (!difficulty) return
+    setScore(0)
+    setStreak(0)
+    setBestStreak(0)
+    hasPlayedRef.current = false
+    loadRound(difficulty, selectedLeagueIds)
+  }, [loadRound, difficulty, selectedLeagueIds])
 
   const handlePick = useCallback(
     async (player: DuelPlayer) => {
@@ -156,14 +203,14 @@ export function MarketValueDuelGame() {
   )
 
   const handleNext = useCallback(() => {
-    if (difficulty) loadRound(difficulty)
-  }, [loadRound, difficulty])
+    if (difficulty) loadRound(difficulty, selectedLeagueIds)
+  }, [loadRound, difficulty, selectedLeagueIds])
 
   const handleRestart = useCallback(() => {
     setScore(0)
     setStreak(0)
-    if (difficulty) loadRound(difficulty)
-  }, [loadRound, difficulty])
+    if (difficulty) loadRound(difficulty, selectedLeagueIds)
+  }, [loadRound, difficulty, selectedLeagueIds])
 
   const handleChangeDifficulty = useCallback(() => {
     setDifficulty(null)
@@ -171,6 +218,13 @@ export function MarketValueDuelGame() {
     setResult(null)
     setPickedId(null)
     setPhase("select-difficulty")
+  }, [])
+
+  const handleChangeLeagues = useCallback(() => {
+    setRound(null)
+    setResult(null)
+    setPickedId(null)
+    setPhase("select-leagues")
   }, [])
 
   const revealed = phase === "revealed" && result !== null
@@ -222,6 +276,94 @@ export function MarketValueDuelGame() {
               </motion.button>
             )
           })}
+        </div>
+      </div>
+    )
+  }
+
+  if (phase === "select-leagues") {
+    const allSelected = selectedLeagueIds.size === ALL_LEAGUE_IDS.length
+
+    return (
+      <div className="flex min-h-[440px] flex-col items-center gap-6 py-6">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary ring-1 ring-primary/30">
+            <Globe2 className="h-6 w-6" />
+          </div>
+          <h2 className="text-xl font-black uppercase italic tracking-tight text-foreground">
+            {t("duel.chooseLeagues")}
+          </h2>
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+            {t("duel.chooseLeaguesDesc")}
+          </p>
+        </div>
+
+        <div className="flex w-full max-w-2xl flex-wrap justify-center gap-2">
+          <button
+            type="button"
+            onClick={selectAllLeagues}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold uppercase tracking-wide transition-colors",
+              allSelected
+                ? "border-primary bg-primary/15 text-primary"
+                : "border-border/60 bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground",
+            )}
+          >
+            {allSelected && <Check className="h-3.5 w-3.5" />}
+            {t("duel.allLeagues")}
+          </button>
+
+          {DUEL_SELECTABLE_LEAGUES.map((league) => {
+            const isSelected = selectedLeagueIds.has(league.id)
+            return (
+              <button
+                key={league.id}
+                type="button"
+                onClick={() => toggleLeague(league.id)}
+                aria-pressed={isSelected}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold transition-colors",
+                  isSelected
+                    ? "border-primary/50 bg-primary/10 text-foreground"
+                    : "border-border/60 bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={league.flagUrl}
+                  alt=""
+                  className="h-3 w-4 rounded-sm object-cover opacity-90"
+                  width={16}
+                  height={12}
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span>{league.name}</span>
+                <span className="text-muted-foreground/70">{toDisplayCountry(league.country, locale)}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        <p className="text-xs font-medium text-muted-foreground">
+          {t("duel.leaguesSelectedCount", { count: selectedLeagueIds.size })}
+        </p>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleChangeDifficulty}
+            className="rounded-full px-5 py-2.5 text-sm font-bold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {t("duel.back")}
+          </button>
+          <button
+            type="button"
+            onClick={handleStartGame}
+            className="rounded-full bg-primary px-7 py-2.5 text-sm font-black uppercase tracking-wide text-primary-foreground shadow-lg shadow-primary/30 transition-transform hover:scale-105 active:scale-95"
+          >
+            {t("duel.startGame")}
+          </button>
         </div>
       </div>
     )
