@@ -46,53 +46,37 @@ export interface DuelResult {
 export type DuelDifficulty = "easy" | "normal" | "hard"
 
 // ---------------------------------------------------------------------------
-// Zorluk seviyeleri — takımın oynadığı ligin "ünü" ve oyuncunun piyasa
-// değeri kombinasyonuna göre "ne kadar tanınır" olduğunu yaklaştırıyoruz.
-// Elimizde doğrudan bir popülerlik metriği yok, ama Avrupa'nın en büyük 5
-// liginde oynayan + çok yüksek değerli oyuncular herkesin tanıdığı
-// süperstarlardır; küçük liglerde oynayan / düşük değerli oyuncular ise
-// sadece işin ehli taraftarların bileceği isimlerdir.
+// Zorluk seviyeleri — SABİT euro eşikleri kullanmak yerine, geçerli oyuncu
+// HAVUZU içinde piyasa değerine göre YÜZDELİK DİLİM (percentile) kullanıyoruz:
+//
+//   - "easy"   → havuzdaki en değerli %20'lik dilim
+//   - "normal" → ortadaki %50'lik dilim (üstteki %20 ile alttaki %30 hariç)
+//   - "hard"   → en düşük değerli %30'luk dilim
+//
+// Sabit eşiklerin (örn. "35M€ ve üzeri") sorunu şuydu: kullanıcı büyük 5 lig
+// dışında bir lig seçtiğinde (örn. sadece Süper Lig), o eşiği geçen oyuncu
+// sayısı 1-2'ye düşebiliyordu — bu da hem "Yeterli oyuncu verisi bulunamadı"
+// hatasına hem de sürekli aynı 1-2 oyuncunun gelmesine yol açıyordu.
+// Yüzdelik dilim yaklaşımı, hangi lig(ler) seçilirse seçilsin havuzu HER ZAMAN
+// oranlı şekilde 3'e böler — böylece havuz küçük de olsa büyük de olsa her
+// zaman kabul edilebilir büyüklükte, çeşitliliği olan bir alt küme kalır.
 // ---------------------------------------------------------------------------
 
-/** İngiltere, İspanya, İtalya, Almanya, Fransa — en yüksek görünürlüklü 5 lig. */
-const ELITE_LEAGUE_IDS = [39, 140, 135, 78, 61]
-/** Elit ligler + Avrupa'da hâlâ genel bilinirliği olan orta seviye ligler. */
-const KNOWN_LEAGUE_IDS = [...ELITE_LEAGUE_IDS, 94, 203, 88, 144, 197, 179]
+interface PercentileRange {
+  /** percent_rank() > min (değer büyükten küçüğe sıralı; 0 = en değerli). */
+  min: number
+  /** percent_rank() <= max */
+  max: number
+}
 
-/**
- * `hasLeagueFilter` true ise (kullanıcı belirli ligler seçtiyse), zorluk
- * koşulundan sabit "elit/bilinen lig" kısıtını ÇIKARIYORUZ ve sadece piyasa
- * değeri eşiğini uyguluyoruz. Aksi halde bu iki koşul AND ile birleşiyor ve
- * kullanıcı elit/bilinen listelerde olmayan bir ligi seçtiğinde (örn. "Kolay"
- * zorluk + Süper Lig) sorgu HER ZAMAN boş dönerdi — "Yeterli oyuncu verisi
- * bulunamadı" hatası sürekli tekrarlanırdı. Lig seçimi olmadığında davranış
- * değişmez: zorluk hâlâ hem lige hem değere bakar.
- */
-function difficultyCondition(difficulty: DuelDifficulty, hasLeagueFilter: boolean) {
-  const eliteLeagues = sql.join(ELITE_LEAGUE_IDS, sql`, `)
-  const knownLeagues = sql.join(KNOWN_LEAGUE_IDS, sql`, `)
-
+function difficultyPercentileRange(difficulty: DuelDifficulty): PercentileRange {
   switch (difficulty) {
     case "easy":
-      // Herkesin bilebileceği: süperstar seviyesinde (35M€ ve üzeri)
-      // oyuncular. Lig filtresi yoksa ayrıca elit liglerle sınırlandırılır.
-      return hasLeagueFilter
-        ? sql`${playerMarketValue.valueEur} >= 35000000`
-        : sql`${teamMarketValue.leagueId} in (${eliteLeagues}) and ${playerMarketValue.valueEur} >= 35000000`
+      return { min: -1, max: 0.2 }
     case "normal":
-      // Futbolla az çok ilgilenen birinin bilebileceği: orta-üst düzey
-      // değere sahip oyuncular. Lig filtresi yoksa ayrıca bilinen liglerle
-      // sınırlandırılır.
-      return hasLeagueFilter
-        ? sql`${playerMarketValue.valueEur} >= 5000000 and ${playerMarketValue.valueEur} < 35000000`
-        : sql`${teamMarketValue.leagueId} in (${knownLeagues}) and ${playerMarketValue.valueEur} >= 5000000 and ${playerMarketValue.valueEur} < 35000000`
+      return { min: 0.2, max: 0.7 }
     case "hard":
-      // Sadece işin fanatiği olanların bileceği: düşük piyasa değerine
-      // sahip oyuncular. Lig filtresi yoksa ayrıca küçük ligleri de dahil
-      // eder (bilinen liglerde olmayan herkes).
-      return hasLeagueFilter
-        ? sql`${playerMarketValue.valueEur} < 5000000`
-        : sql`(${teamMarketValue.leagueId} not in (${knownLeagues}) or ${playerMarketValue.valueEur} < 5000000)`
+      return { min: 0.7, max: 2 }
   }
 }
 
@@ -157,38 +141,57 @@ export function verifyRoundToken(token: string): [number, number] | null {
  * `count` adet farklı oyuncu seçer. Zorluk filtresi oyuncunun o anki takımının
  * ligine (team_market_value.leagueId) ve piyasa değerine bakar.
  */
+interface PickedPlayerRow {
+  playerId: number
+  playerName: string
+  valueEur: string
+  teamId: number
+}
+
 async function pickRandomMatchedPlayers(
   count: number,
   difficulty: DuelDifficulty,
   leagueFilter: number[] | null,
   excludeIds: number[] = [],
 ) {
-  const exclude = excludeIds.length > 0 ? sql`and ${playerMarketValue.playerId} not in (${sql.join(excludeIds, sql`, `)})` : sql``
+  const exclude =
+    excludeIds.length > 0 ? sql`and "playerId" not in (${sql.join(excludeIds, sql`, `)})` : sql``
   // Kullanıcı belirli ligler seçtiyse, oyuncunun o anki takımının ligine
-  // (teamMarketValue.leagueId) göre filtrele. Zorluk filtresiyle (elit/bilinen
-  // lig listeleri) AYRI ve EK bir koşuldur — "hard" zorluğunda küçük ligleri
-  // tercih eden mantık, kullanıcının seçtiği lig havuzunun İÇİNDE uygulanır.
+  // (teamMarketValue.leagueId) göre filtrele. Bu, percentile hesaplanmadan
+  // ÖNCE havuza uygulanır — böylece "easy/normal/hard" dilimleri her zaman
+  // kullanıcının seçtiği lig havuzunun KENDİ içindeki oranlara göre belirlenir.
   const leagueCondition =
     leagueFilter !== null ? sql`and ${teamMarketValue.leagueId} in (${sql.join(leagueFilter, sql`, `)})` : sql``
-  const rows = await db
-    .select({
-      playerId: playerMarketValue.playerId,
-      playerName: playerMarketValue.playerName,
-      valueEur: playerMarketValue.valueEur,
-      // Bu oyuncunun eşleştirildiği anda oynadığı GERÇEK kulüp takımı — API-Football'ın
-      // /players uç noktasındaki "statistics" dizisinde hangi bloğun kulüp takımına ait
-      // olduğunu (millî takım bloklarından ayırt ederek) bulmak için kullanılır.
-      teamId: playerMarketValue.teamId,
-    })
-    .from(playerMarketValue)
-    .innerJoin(teamMarketValue, sql`${teamMarketValue.teamId} = ${playerMarketValue.teamId}`)
-    .where(
-      sql`${playerMarketValue.matchStatus} = 'matched' and ${playerMarketValue.valueEur} is not null and ${playerMarketValue.valueEur} > 0 and ${teamMarketValue.matchStatus} = 'matched' and (${difficultyCondition(difficulty, leagueFilter !== null)}) ${leagueCondition} ${exclude}`,
-    )
-    .orderBy(sql`random()`)
-    .limit(count)
+  const { min, max } = difficultyPercentileRange(difficulty)
 
-  return rows
+  // percent_rank() değeri 0 (en yüksek piyasa değeri) ile 1 (en düşük) arasında
+  // sıralar; havuzu SABİT euro eşikleri yerine ORANLI dilimlere bölmemizi
+  // sağlar, böylece hangi lig(ler) seçilse de dilim asla aşırı küçülmez.
+  const result = await db.execute(sql`
+    with pool as (
+      select
+        ${playerMarketValue.playerId} as "playerId",
+        ${playerMarketValue.playerName} as "playerName",
+        ${playerMarketValue.valueEur} as "valueEur",
+        ${playerMarketValue.teamId} as "teamId",
+        percent_rank() over (order by ${playerMarketValue.valueEur} desc) as "pctRank"
+      from ${playerMarketValue}
+      inner join ${teamMarketValue} on ${teamMarketValue.teamId} = ${playerMarketValue.teamId}
+      where ${playerMarketValue.matchStatus} = 'matched'
+        and ${playerMarketValue.valueEur} is not null
+        and ${playerMarketValue.valueEur} > 0
+        and ${teamMarketValue.matchStatus} = 'matched'
+        ${leagueCondition}
+    )
+    select "playerId", "playerName", "valueEur", "teamId"
+    from pool
+    where "pctRank" > ${min} and "pctRank" <= ${max}
+      ${exclude}
+    order by random()
+    limit ${count}
+  `)
+
+  return result.rows as unknown as PickedPlayerRow[]
 }
 
 function mostMinutes(blocks: any[]): any | null {
