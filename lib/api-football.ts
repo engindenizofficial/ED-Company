@@ -502,6 +502,32 @@ export async function getSquad(teamId: number): Promise<SquadPlayer[]> {
 }
 
 /**
+ * Bir oyuncunun mevkisini/fotoğrafını/yaşını, TAKIMIN kadro listesinden
+ * (`/players/squads`) DEĞİL, doğrudan oyuncunun kendi profilinden
+ * (`/players?id=...`) okur. Menajer kariyeri oyuncu aramasında, DB'deki
+ * piyasa değeri satırının `teamId`'si API-Football'ın güncel kadro
+ * listesiyle örtüşmediğinde (transfer, kiralık, listeye eklenmemiş vb.)
+ * `getSquad` o oyuncuyu hiç döndürmeyebilir — bu durumda arama sonucu
+ * tamamen düşer. Bu fonksiyon o oyuncular için tek-tek fallback sorgusu
+ * yapıp aramada kaybolmalarını önler.
+ */
+export async function getPlayerRoleAndPhoto(
+  playerId: number,
+): Promise<{ role: string | null; photo: string | null; age: number | null } | null> {
+  const season = currentSeason()
+  const raw = await safeApiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
+  if (!raw || raw.length === 0) return null
+  const entry = raw[0]
+  const p = entry.player ?? {}
+  const currentStats = entry.statistics?.[0] ?? {}
+  return {
+    role: currentStats.games?.position ?? null,
+    photo: p.photo ?? null,
+    age: calculateAge(p.birth?.date, p.age),
+  }
+}
+
+/**
  * Bir takımın API-Football'daki menşei ülkesini döndürür. SADECE piyasa
  * değeri manuel gözden geçirme kuyruğu (review queue) için kullanılır —
  * belirsiz eşleşmelerde admin'e Transfermarkt adayıyla karşılaştırma imkanı

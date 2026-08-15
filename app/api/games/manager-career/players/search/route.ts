@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSquad } from "@/lib/api-football"
+import { getSquad, getPlayerRoleAndPhoto } from "@/lib/api-football"
 import { db } from "@/lib/db"
 import { playerMarketValue, teamMarketValue } from "@/lib/db/schema"
 import { and, eq, gt } from "drizzle-orm"
@@ -188,6 +188,26 @@ export async function GET(req: NextRequest) {
     for (const sp of squad) {
       if (sp.pos && PLAYER_ROLES.includes(sp.pos as PlayerRole)) {
         roleByPlayerId.set(sp.id, { role: sp.pos as PlayerRole, photo: sp.photo, age: sp.age })
+      }
+    }
+  }
+
+  // DB'de piyasa değeriyle eşleşmiş ama takımının GÜNCEL kadro listesinde
+  // (transfer, kiralık, listeye eklenmemiş vb. nedenlerle) bulunamayan
+  // adaylar için oyuncunun kendi profilinden tek-tek fallback sorgusu
+  // yapılır — aksi halde bu oyuncular arama sonuçlarından tamamen kaybolur.
+  const missingIds = matches.map((m) => m.playerId).filter((id) => !roleByPlayerId.has(id))
+  if (missingIds.length > 0) {
+    const fallbackEntries = await mapWithConcurrency(missingIds, 4, async (playerId) => {
+      try {
+        return [playerId, await getPlayerRoleAndPhoto(playerId)] as const
+      } catch {
+        return [playerId, null] as const
+      }
+    })
+    for (const [playerId, info] of fallbackEntries) {
+      if (info?.role && PLAYER_ROLES.includes(info.role as PlayerRole)) {
+        roleByPlayerId.set(playerId, { role: info.role as PlayerRole, photo: info.photo, age: info.age })
       }
     }
   }
