@@ -140,8 +140,8 @@ export function MarketValueDuelGame() {
     })
   }, [])
 
-  const selectAllLeagues = useCallback(() => {
-    setSelectedLeagueIds(new Set(ALL_LEAGUE_IDS))
+  const toggleAllLeagues = useCallback(() => {
+    setSelectedLeagueIds((prev) => (prev.size === ALL_LEAGUE_IDS.length ? new Set() : new Set(ALL_LEAGUE_IDS)))
   }, [])
 
   const handleStartGame = useCallback(() => {
@@ -300,7 +300,7 @@ export function MarketValueDuelGame() {
         <div className="flex w-full max-w-2xl flex-wrap justify-center gap-2">
           <button
             type="button"
-            onClick={selectAllLeagues}
+                onClick={toggleAllLeagues}
             className={cn(
               "flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold uppercase tracking-wide transition-colors",
               allSelected
