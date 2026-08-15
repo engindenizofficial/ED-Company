@@ -16,6 +16,7 @@ import { ThemeColorProvider } from '@/contexts/theme-color-context'
 import { LanguageProvider } from '@/contexts/language-context'
 import { getServerLocale } from '@/lib/i18n/server-locale'
 import { translate } from '@/lib/i18n/dictionaries'
+import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
@@ -130,6 +131,7 @@ export default async function RootLayout({
                     <TeamPanel />
                     <LeaguePanel />
                     <PlayerPanel />
+                    <Toaster />
                   </FavoritesProvider>
                 </PlayerProvider>
               </TeamProvider>

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Lock, Swords, Zap } from "lucide-react"
+import { Shield, Swords, Zap } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 
 export function GamesHubContent() {
@@ -52,20 +52,32 @@ export function GamesHubContent() {
             </div>
           </Link>
 
-          <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-dashed border-border/60 bg-card/40 p-5">
-            <div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                <Lock className="h-5 w-5" />
+          <Link
+            href="/oyunlar/kulubunu-kur"
+            className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-emerald-500/25 bg-[oklch(0.14_0.03_155)] p-5 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.7)] transition-all hover:-translate-y-1 hover:border-emerald-400/60 hover:shadow-[0_20px_50px_-16px_oklch(0.65_0.19_155)]"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,color-mix(in_oklch,oklch(0.65_0.19_155)_22%,transparent),transparent_65%)] opacity-80 transition-opacity group-hover:opacity-100"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[linear-gradient(color-mix(in_oklch,white_4%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_oklch,white_4%,transparent)_1px,transparent_1px)] bg-[size:28px_28px] opacity-40"
+            />
+            <div className="relative">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30">
+                <Shield className="h-5 w-5" />
               </div>
-              <h2 className="mt-4 text-lg font-bold text-muted-foreground">{t("games.comingSoon")}</h2>
-              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground/85">
-                {t("games.comingSoonDesc")}
-              </p>
+              <h2 className="mt-4 text-lg font-black uppercase italic tracking-tight text-foreground">
+                {t("managerCareer.title")}
+              </h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{t("managerCareer.subtitle")}</p>
             </div>
-            <div className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground/75">
-              {t("games.preparing")}
+            <div className="relative mt-4 flex items-center gap-1.5 text-xs font-black uppercase tracking-wide text-emerald-400">
+              <Zap className="h-3.5 w-3.5 fill-emerald-400" />
+              {t("games.enterArena")}
             </div>
-          </div>
+          </Link>
         </div>
       </main>
     </div>
