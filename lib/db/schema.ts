@@ -125,7 +125,17 @@ export const playerMarketValue = pgTable('player_market_value', {
   playerId: integer('playerId').notNull().unique(),
   /** Bu oyuncunun eşleştirildiği anda oynadığı API-Football takım id'si */
   teamId: integer('teamId').notNull(),
+  /** API-Football'ın kısa adı, örn. "O. Dembélé" — kadro/arayüz gösterimi için. */
   playerName: text('playerName').notNull(),
+  /**
+   * Transfermarkt kadro sayfasından gelen TAM ad, örn. "Ousmane Dembélé" —
+   * yalnızca isim/soyisim aramasını (menajer kariyeri kadro arama ekranı)
+   * `playerName`'in kısaltma formatına ("O. Dembélé") takılmadan yapabilmek
+   * için tutulur. API-Football tarafında bu bilgiyi almak oyuncu başına 1
+   * istek gerektirdiğinden (günlük kotayı tüketir), bunun yerine zaten her
+   * senkronda scrape edilen Transfermarkt verisinden ücretsiz elde edilir.
+   */
+  fullName: text('fullName'),
   /** Transfermarkt oyuncu id'si, örn. "28003" */
   transfermarktPlayerId: text('transfermarktPlayerId'),
   transfermarktPlayerSlug: text('transfermarktPlayerSlug'),

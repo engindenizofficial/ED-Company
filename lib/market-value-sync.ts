@@ -160,6 +160,7 @@ export async function syncTeamPlayers(
             .update(playerMarketValue)
             .set({
               valueEur: scrapedMatch.valueEur !== null ? String(scrapedMatch.valueEur) : null,
+              fullName: scrapedMatch.name,
               lastScrapedAt: now,
               updatedAt: now,
             })
@@ -463,6 +464,10 @@ async function upsertPlayerMarketValue(
       playerId: pm.apiFootballPlayerId,
       teamId,
       playerName: pm.apiFootballPlayerName,
+      // pm.transfermarktPlayerName, Transfermarkt kadro sayfasından gelen TAM
+      // ad (örn. "Ousmane Dembélé") — playerName ise API-Football'ın kısa
+      // formatı ("O. Dembélé"). Arama ekranı ikisini de kontrol eder.
+      fullName: pm.transfermarktPlayerName,
       transfermarktPlayerId: pm.transfermarktPlayerId,
       transfermarktPlayerSlug: null,
       valueEur: pm.valueEur !== null ? String(pm.valueEur) : null,
@@ -478,6 +483,7 @@ async function upsertPlayerMarketValue(
       set: {
         teamId,
         playerName: pm.apiFootballPlayerName,
+        fullName: pm.transfermarktPlayerName,
         transfermarktPlayerId: pm.transfermarktPlayerId,
         valueEur: pm.valueEur !== null ? String(pm.valueEur) : null,
         matchConfidence: pm.confidence,

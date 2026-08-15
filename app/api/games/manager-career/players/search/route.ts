@@ -25,6 +25,13 @@ export interface ManagerPlayerSearchResult {
 interface CandidateRow {
   playerId: number
   playerName: string
+  /**
+   * Transfermarkt kaynaklı TAM ad, örn. "Ousmane Dembélé" — playerName ise
+   * API-Football'ın kısaltılmış formatı ("O. Dembélé"). Kullanıcı ismiyle
+   * VEYA soyismiyle arayabilsin diye arama bu ikisinin BİRLEŞİMİNE bakar.
+   * Eski (backfill'den önce eklenen) satırlarda null olabilir.
+   */
+  fullName: string | null
   teamId: number
   teamName: string | null
   valueEur: number
@@ -59,6 +66,7 @@ async function getCandidateRows(): Promise<CandidateRow[]> {
     .select({
       playerId: playerMarketValue.playerId,
       playerName: playerMarketValue.playerName,
+      fullName: playerMarketValue.fullName,
       teamId: playerMarketValue.teamId,
       teamName: teamMarketValue.teamName,
       valueEur: playerMarketValue.valueEur,
@@ -70,6 +78,7 @@ async function getCandidateRows(): Promise<CandidateRow[]> {
   const parsed: CandidateRow[] = rows.map((r) => ({
     playerId: r.playerId,
     playerName: r.playerName,
+    fullName: r.fullName,
     teamId: r.teamId,
     teamName: r.teamName,
     valueEur: Number(r.valueEur),
@@ -141,11 +150,19 @@ export async function GET(req: NextRequest) {
   const qNorm = normalizeTR(q)
   const allCandidates = await getCandidateRows()
 
+  // Kısa ad ("O. Dembélé") VE tam ad ("Ousmane Dembélé") birleştirilip
+  // aranır — kullanıcı "Ousmane" yazdığında sadece soyismi tutan playerName
+  // eşleşmediği için tam ada da bakılması gerekiyor. Aynı şekilde başlangıç
+  // eşleşmesi (isim ya da soyisimle başlama) sıralamada öne alınır.
+  const searchableOf = (c: CandidateRow) => normalizeTR(`${c.fullName ?? ""} ${c.playerName}`)
+
   const matches = allCandidates
-    .filter((c) => normalizeTR(c.playerName).includes(qNorm))
+    .filter((c) => searchableOf(c).includes(qNorm))
     .sort((a, b) => {
-      const aStarts = normalizeTR(a.playerName).startsWith(qNorm)
-      const bStarts = normalizeTR(b.playerName).startsWith(qNorm)
+      const aTokens = searchableOf(a).split(" ")
+      const bTokens = searchableOf(b).split(" ")
+      const aStarts = aTokens.some((t) => t.startsWith(qNorm))
+      const bStarts = bTokens.some((t) => t.startsWith(qNorm))
       if (aStarts !== bStarts) return aStarts ? -1 : 1
       return b.valueEur - a.valueEur
     })
