@@ -1,4 +1,7 @@
+import { headers } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
+import { isAdminEmail } from "@/lib/admin"
 import { getSquad, getPlayerRoleAndPhoto } from "@/lib/api-football"
 import { db } from "@/lib/db"
 import { playerMarketValue, teamMarketValue } from "@/lib/db/schema"
@@ -139,6 +142,14 @@ function normalizeTR(s: string): string {
  *    bir oyuncu kadroya eklenip bütçeden yanlış (veya hiç) tutar düşülemez.
  */
 export async function GET(req: NextRequest) {
+  // Menajer kariyeri oyunu henüz yayında değil, sadece admin hesabı
+  // erişebilir — sayfa yönlendirmesini atlayıp doğrudan bu endpoint'e
+  // istek atan biri olursa burada da engellenir.
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!isAdminEmail(session?.user?.email)) {
+    return NextResponse.json({ error: "Yetkiniz yok." }, { status: 403 })
+  }
+
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? ""
   const roleParam = req.nextUrl.searchParams.get("role")
   const roleFilter: PlayerRole | null = roleParam && PLAYER_ROLES.includes(roleParam as PlayerRole) ? (roleParam as PlayerRole) : null

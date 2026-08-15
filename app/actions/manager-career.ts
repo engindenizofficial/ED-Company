@@ -1,6 +1,7 @@
 "use server"
 
 import { auth } from "@/lib/auth"
+import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { managerCareer, managerSquadPlayer, playerMarketValue } from "@/lib/db/schema"
 import { and, eq, inArray } from "drizzle-orm"
@@ -22,10 +23,16 @@ import { DUEL_SELECTABLE_LEAGUE_IDS } from "@/lib/leagues"
 /**
  * Her kullanıcı verisine dokunan action bu helper'dan geçmek ZORUNDA — bkz.
  * app/actions/favorites.ts (aynı desen).
+ *
+ * Menajer kariyeri oyunu henüz yayında değil, sadece admin hesabı test
+ * edebilir. Sayfa (`/oyunlar/kulubunu-kur`) zaten admin olmayanları
+ * yönlendiriyor ama biri action'ı doğrudan çağırırsa (devtools, eski sekme
+ * vb.) burada da aynı kontrol tekrar edilir.
  */
 async function getUserId(): Promise<string> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) throw new Error("Unauthorized")
+  if (!isAdminEmail(session.user.email)) throw new Error("Unauthorized")
   return session.user.id
 }
 
