@@ -91,20 +91,34 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
     return t(fallbackKey)
   }
 
+  // ÖNEMLİ — bu iki handler'da ÖNCEDEN try/catch yoktu. Server action
+  // (requireAdmin() içinde) "Unauthorized" gibi bir hata fırlattığında, bu
+  // hata startResumeTransition/startScanTransition'ın async callback'i
+  // içinde YAKALANMADAN reddedilen bir promise olarak kalıyordu — React bunu
+  // sessizce yutuyor, buton kısa süre spinner gösterip normale dönüyor ama
+  // `message` hiç güncellenmiyordu. Admin butona bastığında (örn. oturumu
+  // sona ermişse) EKRANDA HİÇBİR ŞEY DEĞİŞMİYORDU — sanki tıklama hiç
+  // olmamış gibi görünüyordu. Şimdi hata her durumda `message`'a yazılıyor.
   function handleResume() {
     setMessage(null)
     startResumeTransition(async () => {
-      const result = await resumeMarketValueCronNow()
-      if (result.triggered) {
-        setMessage(t("admin.cron.resumeTriggered"))
-        // Zincir DB satırını hemen güncellemeye başlar — kısa bir gecikmeden
-        // sonra bir kez tazeleyerek admin sayfayı elle yenilemek zorunda
-        // kalmadan ilk ilerlemeyi görsün (periyodik polling zaten devam eder).
-        setTimeout(() => {
-          getMarketValueCronStatus().then(setStatus).catch(() => {})
-        }, 1500)
-      } else {
-        setMessage(translateReason(result.reason, "admin.cron.resumeFailedDefault"))
+      try {
+        const result = await resumeMarketValueCronNow()
+        if (result.triggered) {
+          setMessage(t("admin.cron.resumeTriggered"))
+          // Zincir DB satırını hemen güncellemeye başlar — kısa bir gecikmeden
+          // sonra bir kez tazeleyerek admin sayfayı elle yenilemek zorunda
+          // kalmadan ilk ilerlemeyi görsün (periyodik polling zaten devam eder).
+          setTimeout(() => {
+            getMarketValueCronStatus().then(setStatus).catch(() => {})
+          }, 1500)
+        } else {
+          setMessage(translateReason(result.reason, "admin.cron.resumeFailedDefault"))
+        }
+      } catch (err) {
+        console.error("[v0] Devam ettirme isteği başarısız:", err)
+        const detail = err instanceof Error ? err.message : String(err)
+        setMessage(`${t("admin.cron.resumeFailedDefault")} (${detail})`)
       }
     })
   }
@@ -112,14 +126,20 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
   function handleScanNow() {
     setMessage(null)
     startScanTransition(async () => {
-      const result = await triggerMarketValueScanNow()
-      if (result.triggered) {
-        setMessage(t("admin.cron.scanTriggered"))
-        setTimeout(() => {
-          getMarketValueCronStatus().then(setStatus).catch(() => {})
-        }, 1500)
-      } else {
-        setMessage(translateReason(result.reason, "admin.cron.scanFailedDefault"))
+      try {
+        const result = await triggerMarketValueScanNow()
+        if (result.triggered) {
+          setMessage(t("admin.cron.scanTriggered"))
+          setTimeout(() => {
+            getMarketValueCronStatus().then(setStatus).catch(() => {})
+          }, 1500)
+        } else {
+          setMessage(translateReason(result.reason, "admin.cron.scanFailedDefault"))
+        }
+      } catch (err) {
+        console.error("[v0] Tarama isteği başarısız:", err)
+        const detail = err instanceof Error ? err.message : String(err)
+        setMessage(`${t("admin.cron.scanFailedDefault")} (${detail})`)
       }
     })
   }

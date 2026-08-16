@@ -28,7 +28,16 @@ const REVIEW_PATH = "/admin/market-value-review"
 async function requireAdmin(): Promise<void> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!isAdminEmail(session?.user?.email)) {
-    throw new Error("Unauthorized")
+    // ÖNEMLİ — bu action'lar önceden burada fırlayan hatayı bileşende hiç
+    // yakalamıyordu (bkz. market-value-cron-status.tsx), admin butona
+    // bastığında ekranda hiçbir şey değişmiyordu. Artık hem bileşen hatayı
+    // gösteriyor hem de burada hangi e-posta ile (veya oturumsuz) reddedildiği
+    // sunucu loguna yazılıyor — bir dahaki sefere buton "çalışmazsa" sebep
+    // (oturum yok / farklı hesap / e-posta eşleşmiyor) buradan görülebilir.
+    console.error(
+      `[v0] Admin yetkisi reddedildi — oturumdaki e-posta: ${session?.user?.email ?? "(oturum yok)"}`,
+    )
+    throw new Error(`Unauthorized: ${session?.user?.email ?? "no session"}`)
   }
 }
 
