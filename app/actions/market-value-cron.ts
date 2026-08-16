@@ -1,12 +1,19 @@
 "use server"
 
 import { headers } from "next/headers"
+import { after } from "next/server"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { teamMarketValue, playerMarketValue, marketValueReviewQueue, marketValueCronRun } from "@/lib/db/schema"
-import { getActiveCronRun, getLatestCronRun, isCronRunStale, type CronRunRow } from "@/lib/market-value-cron-run"
+import {
+  getActiveCronRun,
+  getLatestCronRun,
+  isCronRunStale,
+  triggerChainContinuation,
+  type CronRunRow,
+} from "@/lib/market-value-cron-run"
 import { SCRAPABLE_LEAGUE_IDS } from "@/lib/market-value-sync"
 
 // ---------------------------------------------------------------------------
@@ -86,16 +93,18 @@ export async function resumeMarketValueCronNow(): Promise<{ triggered: boolean; 
   if (bypassSecret) headersInit["x-vercel-protection-bypass"] = bypassSecret
 
   const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
-  try {
-    // Yanıtı beklemiyoruz — zincir kendi kendini after() ile devam ettirecek.
-    // (bkz. app/api/cron/resume-market-values/route.ts)
-    fetch(`${base}/api/cron/resume-market-values`, { headers: headersInit }).catch((err) => {
-      console.error("[v0] Manuel devam ettirme tetiklenemedi:", err)
-    })
-  } catch (err) {
-    console.error("[v0] Manuel devam ettirme tetiklenemedi:", err)
-    return { triggered: false, reason: "triggerFailed" }
-  }
+  const url = `${base}/api/cron/resume-market-values`
+
+  // ÖNEMLİ — ÖNCEDEN bu istek `fetch(...).catch(...)` ile beklenmeden
+  // (await edilmeden) gönderiliyordu. Bu server action, yanıtı döndürüp
+  // (`return { triggered: true }`) bittiği an Vercel bu fonksiyonun
+  // çalışmasını dondurabiliyor — bu da isteğin ağa GERÇEKTEN çıkması
+  // garanti edilmeden kesilmesine yol açıyordu. Sonuç: buton "tetiklendi"
+  // mesajını gösteriyordu ama route'a istek hiç ulaşmıyordu, DB'deki satır
+  // hiç değişmiyordu. `after()`, bu callback'i yanıt gönderildikten SONRA
+  // ama fonksiyon çalışması bitmeden önce çalıştırıp tamamlanmasını garanti
+  // eder (bkz. route.ts'nin kendi zincirleme adımı — aynı deseni kullanır).
+  after(() => triggerChainContinuation(url, headersInit))
 
   revalidatePath(REVIEW_PATH)
   return { triggered: true }
@@ -133,16 +142,16 @@ export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean;
   if (bypassSecret) headersInit["x-vercel-protection-bypass"] = bypassSecret
 
   const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
-  try {
-    // Yanıtı beklemiyoruz — tam tarama birkaç dakika sürebilir, zincir kendi
-    // kendini after() ile devam ettirecek (bkz. route.ts).
-    fetch(`${base}/api/cron/update-market-values`, { headers: headersInit }).catch((err) => {
-      console.error("[v0] Manuel tarama tetiklenemedi:", err)
-    })
-  } catch (err) {
-    console.error("[v0] Manuel tarama tetiklenemedi:", err)
-    return { triggered: false, reason: "triggerFailed" }
-  }
+  const url = `${base}/api/cron/update-market-values`
+
+  // ÖNEMLİ — aynı sebep: bu istek ÖNCEDEN `fetch(...).catch(...)` ile
+  // beklenmeden gönderiliyordu ve server action yanıtı döndükten sonra
+  // fonksiyon dondurulabildiği için istek ağa hiç çıkmayabiliyordu. Bu
+  // yüzden "Şimdi Tara"ya basınca hiçbir yeni döngü başlamıyor, admin
+  // panelindeki "24/24" hiç değişmiyordu. `after()` + `triggerChainContinuation`
+  // (zaman aşımı + yeniden deneme ile) isteğin gerçekten gönderilip
+  // yanıtlanmasını garanti eder.
+  after(() => triggerChainContinuation(url, headersInit))
 
   revalidatePath(REVIEW_PATH)
   return { triggered: true }
