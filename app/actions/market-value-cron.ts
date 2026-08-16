@@ -159,12 +159,25 @@ export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean;
   const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
   const url = `${base}/api/cron/update-market-values`
 
-  // İlk isteği server action tamamlanmadan bekliyoruz. `after()` burada
-  // güvenilir değil: yanıt döndüğü anda self-fetch hiç başlamadan fonksiyon
-  // askıya alınabiliyor ve admin "tetiklendi" mesajını görse bile DB'de yeni
-  // cron satırı oluşmuyordu. Route'un kendisi sonraki adımları after() ile
-  // zincirleyecek; action yalnızca ilk adımı garanti ediyor.
-  await triggerChainContinuation(url, headersInit)
+  // ÖNEMLİ — bu action ÖNCEDEN `await triggerChainContinuation(...)` ile
+  // isteği tamamen bekliyordu. Ama hedef route (update-market-values), yanıtı
+  // döndürmeden ÖNCE zaman bütçesi dolana kadar (STEP_BUDGET_MS = 260 saniye)
+  // gerçek taramayı senkron olarak yapıyor — yani bu action, bu route'un TÜM
+  // ilk adım döngüsü bitene kadar bloke oluyordu. Server action'lar aynı
+  // sayfa segmentinin fonksiyon süresi sınırına tabidir ve bu sayfa/action
+  // dosyası hiçbir yerde `maxDuration` tanımlamıyor (varsayılan çok daha
+  // kısa) — bu yüzden action, hedef route yanıt vermeden ÇOK ÖNCE platform
+  // tarafından zaman aşımına uğratılıp öldürülüyordu. Admin butona bastığında
+  // "tetiklendi" mesajı bile görünmüyordu; sadece buton uzun süre spinner
+  // gösterip sonunda sessizce hataya düşüyordu — yani buton "hiçbir şekilde
+  // çalışmıyor" gibi görünüyordu.
+  //
+  // Çözüm: resumeMarketValueCronNow'daki (yukarıdaki) ile AYNI deseni
+  // kullan — `after()` ile fire-and-forget. `after()`, callback'i yanıt
+  // gönderildikten SONRA ama fonksiyon dondurulmadan ÖNCE çalıştırmayı
+  // garanti eder; action anında "tetiklendi" döner, gerçek tarama arka
+  // planda (route'un kendi 300s maxDuration'ı içinde) devam eder.
+  after(() => triggerChainContinuation(url, headersInit))
 
   revalidatePath(REVIEW_PATH)
   return { triggered: true }
