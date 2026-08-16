@@ -480,7 +480,7 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
       {/* Match panel — full screen */}
       {selected && (
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex flex-col bg-background"
           role="dialog"
           aria-modal="true"
           aria-label={`${selected.home.name} - ${selected.away.name} ${t("home.matchAnalysis")}`}
