@@ -489,6 +489,14 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-foreground">{player.name}</p>
                     <p className="truncate text-xs text-muted-foreground">{player.teamName ?? t("managerCareer.unknownTeam")}</p>
+                    {player.match ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {player.match.rating !== null ? `${t("managerCareer.rating")}: ${player.match.rating}` : t("managerCareer.noRating")}
+                        {` · ${t("managerCareer.minutes")}: ${player.match.minutes}`}
+                        {player.match.goals > 0 ? ` · ${t("managerCareer.goals")}: ${player.match.goals}` : ""}
+                        {player.match.assists > 0 ? ` · ${t("managerCareer.assists")}: ${player.match.assists}` : ""}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="text-sm tabular-nums text-muted-foreground">{player.previousPower} → {player.currentPower}</span>

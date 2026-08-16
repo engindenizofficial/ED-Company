@@ -70,6 +70,8 @@ export function clampPower(value: number): number {
 /** Bir maçtaki gerçek performans — cron tarafından API-Football'dan çekilip biriktirilir. */
 export type MatchPerformance = {
   fixtureId: number
+  teamId?: number
+  teamName?: string
   /** ISO tarih string'i */
   date: string
   /** API-Football maç rating'i (0-10), rating verilmemişse null */

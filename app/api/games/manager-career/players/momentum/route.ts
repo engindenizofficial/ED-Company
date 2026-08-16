@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { and, eq, gte, ne } from "drizzle-orm"
+import { and, eq, gte } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { playerMarketValue, playerPower, teamMarketValue } from "@/lib/db/schema"
 
@@ -15,6 +15,7 @@ export async function GET() {
       teamName: teamMarketValue.teamName,
       currentPower: playerPower.currentPower,
       formModifier: playerPower.formModifier,
+      recentMatches: playerPower.recentMatches,
       lastFormUpdateAt: playerPower.lastFormUpdateAt,
     })
     .from(playerPower)
@@ -23,7 +24,6 @@ export async function GET() {
     .where(
       and(
         gte(playerPower.lastFormUpdateAt, since),
-        ne(playerPower.formModifier, 0),
       ),
     )
     .orderBy(playerPower.formModifier)
@@ -32,15 +32,33 @@ export async function GET() {
     players: rows
       .filter((row) => row.currentPower !== null)
       .map((row) => {
+        const matches = Array.isArray(row.recentMatches) ? row.recentMatches as Array<{
+          fixtureId?: number
+          teamName?: string
+          date?: string
+          rating?: number | null
+          goals?: number
+          assists?: number
+          minutes?: number
+        }> : []
+        const latestMatch = matches.find((match) => match.date && new Date(match.date).getTime() >= since.getTime()) ?? matches[0]
         const change = row.formModifier
         return {
           id: row.playerId,
           name: row.playerName ?? row.fallbackName ?? `Player ${row.playerId}`,
-          teamName: row.teamName,
+          teamName: latestMatch?.teamName ?? row.teamName,
           previousPower: Math.max(1, Math.min(99, row.currentPower! - change)),
           currentPower: row.currentPower!,
           change,
           updatedAt: row.lastFormUpdateAt,
+          match: latestMatch ? {
+            fixtureId: latestMatch.fixtureId ?? null,
+            date: latestMatch.date ?? null,
+            rating: latestMatch.rating ?? null,
+            goals: latestMatch.goals ?? 0,
+            assists: latestMatch.assists ?? 0,
+            minutes: latestMatch.minutes ?? 0,
+          } : null,
         }
       })
       .sort((a, b) => Math.abs(b.change) - Math.abs(a.change)),
@@ -55,4 +73,12 @@ export type MomentumPlayer = {
   currentPower: number
   change: number
   updatedAt: string | Date | null
+  match: {
+    fixtureId: number | null
+    date: string | null
+    rating: number | null
+    goals: number
+    assists: number
+    minutes: number
+  } | null
 }

@@ -92,6 +92,8 @@ export async function runPlayerPowerSync(): Promise<PlayerPowerSyncResult> {
       if (!s.player.id || s.minutes === null || s.minutes <= 0) continue
       const perf: MatchPerformance = {
         fixtureId: fixture.id,
+        teamId: s.teamId,
+        teamName: s.team,
         date: fixture.date,
         rating: s.rating !== null ? Number.parseFloat(s.rating) : null,
         goals: s.goals ?? 0,
