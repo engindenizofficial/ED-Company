@@ -421,3 +421,54 @@ export const managerSquadPlayer = pgTable('manager_squad_player', {
   benchIndex: integer('benchIndex'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
 })
+
+/**
+ * Tek bir menajer kariyeri sezonundaki tek bir fikstür (lig maçı).
+ * Ligdeki TÜM takımlar (gerçek takımlar + kullanıcının kulübü) çift devreli
+ * round-robin ile bu tabloya yazılır; gerçek takımlar birbiriyle oynadığında
+ * da sonuç burada simüle edilip saklanır.
+ */
+export const managerFixture = pgTable('manager_fixture', {
+  id: text('id').primaryKey(),
+  careerId: text('careerId')
+    .notNull()
+    .references(() => managerCareer.id, { onDelete: 'cascade' }),
+  /** Sezon içindeki hafta numarası, 1'den başlar */
+  matchday: integer('matchday').notNull(),
+  /** API-Football takım id'si; null => bu taraf kullanıcının kulübü */
+  homeTeamId: integer('homeTeamId'),
+  homeTeamName: text('homeTeamName').notNull(),
+  homeTeamLogo: text('homeTeamLogo'),
+  awayTeamId: integer('awayTeamId'),
+  awayTeamName: text('awayTeamName').notNull(),
+  awayTeamLogo: text('awayTeamLogo'),
+  /** homeTeamId veya awayTeamId null ise true (kullanıcının kulübü bu maçta) */
+  isUserMatch: boolean('isUserMatch').notNull().default(false),
+  /** "scheduled" | "played" */
+  status: text('status').notNull().default('scheduled'),
+  homeGoals: integer('homeGoals'),
+  awayGoals: integer('awayGoals'),
+  /** [{minute, type: "goal"|"yellow"|"red", side: "home"|"away", playerName}] — sonuç anında üretilir, bir daha değişmez */
+  events: jsonb('events').notNull().default([]),
+  playedAt: timestamp('playedAt'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+})
+
+/**
+ * Bir kariyerdeki gerçek (API-Football) takımlar için bir kez hesaplanıp
+ * önbelleğe alınan hücum/orta saha/defans/genel güç. Kullanıcının kulübü
+ * için bu tablo kullanılmaz — onun gücü kadrosundan anlık hesaplanır.
+ */
+export const managerTeamStrength = pgTable('manager_team_strength', {
+  id: text('id').primaryKey(),
+  careerId: text('careerId')
+    .notNull()
+    .references(() => managerCareer.id, { onDelete: 'cascade' }),
+  /** API-Football takım id'si */
+  teamId: integer('teamId').notNull(),
+  defense: numeric('defense', { precision: 6, scale: 2 }).notNull(),
+  midfield: numeric('midfield', { precision: 6, scale: 2 }).notNull(),
+  attack: numeric('attack', { precision: 6, scale: 2 }).notNull(),
+  overall: numeric('overall', { precision: 6, scale: 2 }).notNull(),
+  computedAt: timestamp('computedAt').notNull().defaultNow(),
+})
