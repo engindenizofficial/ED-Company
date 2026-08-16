@@ -286,6 +286,33 @@ export const playerPowerCronRun = pgTable('player_power_cron_run', {
   createdAt: timestamp('createdAt').notNull().defaultNow(),
 })
 
+/**
+ * Tam-sezon güç backfill'inin (bkz. lib/player-power-backfill.ts,
+ * app/api/cron/backfill-player-power) kalıcı durumu. `backfill-player-positions`
+ * ile aynı zincirleme (`after()` ile kendini tetikleyen) desene sahiptir,
+ * tek fark ilerlemenin lig + lig-içi fixture index'iyle takip edilmesi —
+ * bkz. FEATURED_LEAGUE_IDS (lib/leagues.ts).
+ */
+export const playerPowerBackfillCronRun = pgTable('player_power_backfill_cron_run', {
+  id: text('id').primaryKey(),
+  runStartedAt: timestamp('runStartedAt').notNull(),
+  runFinishedAt: timestamp('runFinishedAt'),
+  /** "running" | "completed" | "failed" */
+  status: text('status').notNull().default('running'),
+  /** Sırada işlenecek FEATURED_LEAGUE_IDS index'i. */
+  currentLeagueIndex: integer('currentLeagueIndex').notNull().default(0),
+  /** Şu anki ligin (kronolojik sıralanmış, biten) fikstür listesindeki sıradaki index. */
+  currentFixtureIndex: integer('currentFixtureIndex').notNull().default(0),
+  /** Bu koşuda toplam işlenen fixture/oyuncu sayısı — ilerleme göstergesi için. */
+  fixturesProcessed: integer('fixturesProcessed').notNull().default(0),
+  playersUpdated: integer('playersUpdated').notNull().default(0),
+  /** Zincirin hâlâ "canlı" ilerlediğini gösterir — her adımda güncellenir. */
+  heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
+  lastError: text('lastError'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+})
+
 // ---------------------------------------------------------------------------
 // Oyuncu alt mevki verisi (Transfermarkt profil sayfası).
 // Kaynak: her oyuncunun Transfermarkt profilindeki "Main position" / "Other

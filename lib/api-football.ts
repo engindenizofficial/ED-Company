@@ -238,6 +238,18 @@ export async function getFixtureById(id: number): Promise<Fixture | null> {
   return mapFixture(raw[0])
 }
 
+/**
+ * Bir ligin BİR sezonundaki tüm fikstürlerini tek istekte döner (API-Football
+ * `/fixtures?league=&season=`). Günlük güç cron'unun tarih-tarih taramasından
+ * farklı olarak, tam sezon güç backfill'i (bkz. lib/player-power-backfill.ts)
+ * bunu kullanır — 24 lig için 24 istekle sezonun tamamı taranabilir, günlerce
+ * tarih taramaya gerek kalmaz.
+ */
+export async function getFixturesByLeagueSeason(leagueId: number, season: number): Promise<Fixture[]> {
+  const raw = await apiFetch<RawFixture>("/fixtures", { league: leagueId, season }, 3600)
+  return raw.map(mapFixture)
+}
+
 // ---------------------------------------------------------------------------
 // Panel header ("basic info") — /api/player, /api/team, /api/league hafif
 // endpoint'leri VE bunların dinamik route karşılıkları (/oyuncu/[id],
@@ -647,6 +659,14 @@ export async function getFixturePlayerStats(fixtureId: number): Promise<FixtureP
         dribbles: s?.dribbles?.attempts ?? null,
         captain: !!s?.games?.captain,
         substitute: !!s?.games?.substitute,
+        saves: s?.goals?.saves ?? null,
+        goalsConceded: s?.goals?.conceded ?? null,
+        keyPasses: s?.passes?.key ?? null,
+        interceptions: s?.tackles?.interceptions ?? null,
+        blocks: s?.tackles?.blocks ?? null,
+        duelsTotal: s?.duels?.total ?? null,
+        duelsWon: s?.duels?.won ?? null,
+        dribblesSuccess: s?.dribbles?.success ?? null,
       })
     }
   }

@@ -271,6 +271,22 @@ export interface FixturePlayerStat {
   dribbles: number | null
   captain: boolean
   substitute: boolean
+  /** Kalecinin yaptığı kurtarış sayısı (goals.saves) — mevkiye özel form kriterleri için. */
+  saves: number | null
+  /** Kalecinin/takımın yediği gol sayısı (goals.conceded) — mevkiye özel form kriterleri için. */
+  goalsConceded: number | null
+  /** Kilit pas sayısı (passes.key) — orta saha/kanat form kriterleri için. */
+  keyPasses: number | null
+  /** Top kesme sayısı (tackles.interceptions) — defans form kriterleri için. */
+  interceptions: number | null
+  /** Blok sayısı (tackles.blocks) — defans form kriterleri için. */
+  blocks: number | null
+  /** Toplam ikili mücadele (duels.total) */
+  duelsTotal: number | null
+  /** Kazanılan ikili mücadele (duels.won) — defans/orta saha form kriterleri için. */
+  duelsWon: number | null
+  /** Başarılı çalım sayısı (dribbles.success) — kanat/hücum form kriterleri için. */
+  dribblesSuccess: number | null
 }
 
 export interface SidelinedEntry {

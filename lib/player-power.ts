@@ -20,6 +20,8 @@
  * olmayan oyuncular için piyasa değerinden anlık hesaplama).
  */
 
+import type { PlayerPosition } from "./player-positions"
+
 export const MIN_POWER = 1
 export const MAX_POWER = 99
 
@@ -90,7 +92,10 @@ export type MatchPerformance = {
   goalsConceded?: number | null
   keyPasses?: number | null
   interceptions?: number | null
-  clearances?: number | null
+  blocks?: number | null
+  duelsTotal?: number | null
+  duelsWon?: number | null
+  dribblesSuccess?: number | null
 }
 
 /**
@@ -161,25 +166,106 @@ export function computeBasePower(params: {
 }
 
 /**
+ * Mevkiye özel form ağırlıkları — bir maçtaki performans istatistiklerinin
+ * form deltasına ne kadar katkı yapacağını belirler. Her katsayı, o
+ * istatistiğin "1 birimi"nin rating puanı cinsinden değerine karşılık gelir
+ * (örn. GK için her kurtarış +0.09, her yenilen gol -0.16).
+ *
+ * Mantık, gerçek pozisyonun sorumluluklarını yansıtır:
+ *  - GK: kurtarış/yenilen gol dışında hiçbir şey önemli değil.
+ *  - CB/LB/RB: top kesme + blok + ikili mücadele öne çıkar, gol/asist marjinal.
+ *  - DM: top kesme + pas isabeti, hafif hücum katkısı.
+ *  - CM: pas isabeti + kilit pas, orta düzey gol/asist.
+ *  - AM/LW/RW/CF/ST: gol/asist/şut/çalım öne çıkar, defans katkısı yok/az.
+ *  - LM/RM: kanat gibi hücuma katkı verir ama biraz defans sorumluluğu da taşır.
+ */
+type PositionFormWeights = {
+  goals: number
+  assists: number
+  shotsOn: number
+  keyPasses: number
+  passesAccuracy: number
+  tackles: number
+  interceptions: number
+  blocks: number
+  duelsWon: number
+  dribblesSuccess: number
+  saves: number
+  goalsConceded: number
+}
+
+export const POSITION_FORM_WEIGHTS: Record<PlayerPosition, PositionFormWeights> = {
+  GK: { goals: 0, assists: 0, shotsOn: 0, keyPasses: 0, passesAccuracy: 0.01, tackles: 0, interceptions: 0, blocks: 0, duelsWon: 0, dribblesSuccess: 0, saves: 0.09, goalsConceded: -0.16 },
+  CB: { goals: 0.18, assists: 0.1, shotsOn: 0, keyPasses: 0.02, passesAccuracy: 0.012, tackles: 0.045, interceptions: 0.07, blocks: 0.06, duelsWon: 0.05, dribblesSuccess: 0, saves: 0, goalsConceded: 0 },
+  LB: { goals: 0.18, assists: 0.15, shotsOn: 0.02, keyPasses: 0.05, passesAccuracy: 0.008, tackles: 0.045, interceptions: 0.05, blocks: 0.03, duelsWon: 0.04, dribblesSuccess: 0.05, saves: 0, goalsConceded: 0 },
+  RB: { goals: 0.18, assists: 0.15, shotsOn: 0.02, keyPasses: 0.05, passesAccuracy: 0.008, tackles: 0.045, interceptions: 0.05, blocks: 0.03, duelsWon: 0.04, dribblesSuccess: 0.05, saves: 0, goalsConceded: 0 },
+  DM: { goals: 0.15, assists: 0.12, shotsOn: 0.02, keyPasses: 0.03, passesAccuracy: 0.015, tackles: 0.06, interceptions: 0.06, blocks: 0.03, duelsWon: 0.05, dribblesSuccess: 0.02, saves: 0, goalsConceded: 0 },
+  CM: { goals: 0.2, assists: 0.18, shotsOn: 0.05, keyPasses: 0.06, passesAccuracy: 0.015, tackles: 0.03, interceptions: 0.03, blocks: 0.015, duelsWon: 0.03, dribblesSuccess: 0.04, saves: 0, goalsConceded: 0 },
+  AM: { goals: 0.25, assists: 0.22, shotsOn: 0.07, keyPasses: 0.08, passesAccuracy: 0.008, tackles: 0.01, interceptions: 0.01, blocks: 0, duelsWon: 0.01, dribblesSuccess: 0.06, saves: 0, goalsConceded: 0 },
+  LM: { goals: 0.22, assists: 0.2, shotsOn: 0.06, keyPasses: 0.07, passesAccuracy: 0.006, tackles: 0.03, interceptions: 0.02, blocks: 0, duelsWon: 0.02, dribblesSuccess: 0.06, saves: 0, goalsConceded: 0 },
+  RM: { goals: 0.22, assists: 0.2, shotsOn: 0.06, keyPasses: 0.07, passesAccuracy: 0.006, tackles: 0.03, interceptions: 0.02, blocks: 0, duelsWon: 0.02, dribblesSuccess: 0.06, saves: 0, goalsConceded: 0 },
+  LW: { goals: 0.28, assists: 0.2, shotsOn: 0.09, keyPasses: 0.06, passesAccuracy: 0, tackles: 0.01, interceptions: 0, blocks: 0, duelsWon: 0.01, dribblesSuccess: 0.07, saves: 0, goalsConceded: 0 },
+  RW: { goals: 0.28, assists: 0.2, shotsOn: 0.09, keyPasses: 0.06, passesAccuracy: 0, tackles: 0.01, interceptions: 0, blocks: 0, duelsWon: 0.01, dribblesSuccess: 0.07, saves: 0, goalsConceded: 0 },
+  CF: { goals: 0.3, assists: 0.15, shotsOn: 0.1, keyPasses: 0.05, passesAccuracy: 0, tackles: 0, interceptions: 0, blocks: 0, duelsWon: 0.01, dribblesSuccess: 0.04, saves: 0, goalsConceded: 0 },
+  ST: { goals: 0.32, assists: 0.1, shotsOn: 0.11, keyPasses: 0.03, passesAccuracy: 0, tackles: 0, interceptions: 0, blocks: 0, duelsWon: 0.02, dribblesSuccess: 0.03, saves: 0, goalsConceded: 0 },
+}
+
+function positionWeightedBonus(match: MatchPerformance, weights: PositionFormWeights): number {
+  return (
+    match.goals * weights.goals +
+    match.assists * weights.assists +
+    (match.shotsOn ?? 0) * weights.shotsOn +
+    (match.keyPasses ?? 0) * weights.keyPasses +
+    (match.passesAccuracy ?? 0) * weights.passesAccuracy +
+    (match.tackles ?? 0) * weights.tackles +
+    (match.interceptions ?? 0) * weights.interceptions +
+    (match.blocks ?? 0) * weights.blocks +
+    (match.duelsWon ?? 0) * weights.duelsWon +
+    (match.dribblesSuccess ?? 0) * weights.dribblesSuccess +
+    (match.saves ?? 0) * weights.saves +
+    (match.goalsConceded ?? 0) * weights.goalsConceded
+  )
+}
+
+/** Mevki backfill'i henüz doğrulanmış bir mevki üretmediği oyuncular için kaba (4 grup) fallback bonus hesabı. */
+function coarsePositionBonus(match: MatchPerformance): number {
+  const pos = match.position?.toUpperCase() ?? ""
+  const attacking = match.goals * GOAL_BONUS + match.assists * ASSIST_BONUS + (match.shotsOn ?? 0) * 0.08
+  const creating = (match.assists ?? 0) * ASSIST_BONUS + (match.passesAccuracy ?? 0) * 0.012 + (match.keyPasses ?? 0) * 0.06
+  const defending = (match.tackles ?? 0) * 0.06 + (match.interceptions ?? 0) * 0.05 + (match.blocks ?? 0) * 0.025
+  const goalkeeping = (match.saves ?? 0) * 0.07 - (match.goalsConceded ?? 0) * 0.12
+  if (pos === "G" || pos === "GK") return goalkeeping
+  if (pos === "D" || pos === "DF") return defending + creating * 0.35
+  if (pos === "M" || pos === "MF") return creating + attacking * 0.35
+  return attacking
+}
+
+/**
  * Son maçların (en yeni önde, en fazla RECENT_MATCHES_LIMIT eleman) üstel azalan
  * ağırlıklı etkisinden -10..+10 aralığında bir form modifier üretir.
  * Süre almayan (minutes=0) veya rating'i olmayan maçlar sayılmaz.
+ *
+ * `position` verilirse (Transfermarkt kaynaklı doğrulanmış mevki, bkz.
+ * lib/player-positions.ts) o mevkiye özel ağırlık seti (POSITION_FORM_WEIGHTS)
+ * kullanılır — bir kaleci artık gol/asist ile değil kurtarış/yenilen golle,
+ * bir stoper top kesme/blokla, bir santrfor gol/şutla değerlendirilir.
+ * `position` null ise (backfill henüz bu oyuncuya ulaşmadı) her maçın kendi
+ * ham API-Football pozisyonundan (G/D/M/F) türetilen kaba 4 grup mantığına
+ * düşülür — böylece doğrulanmamış oyuncular da kırılmadan, sadece daha az
+ * hassas bir form puanı alır.
  */
-export function computeFormModifier(recentMatches: MatchPerformance[]): number {
+export function computeFormModifier(recentMatches: MatchPerformance[], position: PlayerPosition | null = null): number {
   const relevant = recentMatches.filter((m) => m.minutes > 0 && m.rating !== null).slice(0, RECENT_MATCHES_LIMIT)
   if (relevant.length === 0) return 0
+
+  const weights = position ? POSITION_FORM_WEIGHTS[position] : null
 
   let weightedDeltaSum = 0
   let weightSum = 0
 
   relevant.forEach((match, index) => {
     const rating = match.rating as number
-    const pos = match.position?.toUpperCase() ?? ""
-    const attacking = match.goals * GOAL_BONUS + match.assists * ASSIST_BONUS + (match.shotsOn ?? 0) * 0.08
-    const creating = (match.assists ?? 0) * ASSIST_BONUS + (match.passesAccuracy ?? 0) * 0.012 + (match.keyPasses ?? 0) * 0.06
-    const defending = (match.tackles ?? 0) * 0.06 + (match.interceptions ?? 0) * 0.05 + (match.clearances ?? 0) * 0.025
-    const goalkeeping = (match.saves ?? 0) * 0.07 - (match.goalsConceded ?? 0) * 0.12
-    const bonus = pos === "G" || pos === "GK" ? goalkeeping : pos === "D" || pos === "DF" ? defending + creating * 0.35 : pos === "M" || pos === "MF" ? creating + attacking * 0.35 : attacking
+    const bonus = weights ? positionWeightedBonus(match, weights) : coarsePositionBonus(match)
     const rawDelta = rating - NEUTRAL_MATCH_RATING + Math.min(bonus, MAX_MATCH_DELTA)
     const delta = Math.max(-MAX_MATCH_DELTA, Math.min(MAX_MATCH_DELTA, rawDelta))
 

@@ -57,6 +57,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { MomentumPlayer } from "@/app/api/games/manager-career/players/momentum/route"
+import { ratingAtPosition, positionLabel, type PositionProfile } from "@/lib/player-positions"
 
 export interface SquadEntry {
   playerId: number
@@ -68,6 +69,8 @@ export interface SquadEntry {
   priceEur: number
   /** Oyuncu güç motorunun ürettiği 1-99 puan (bkz. lib/player-power.ts) — sadece gösterim amaçlı, kadroya kaydedilmez. */
   power: number | null
+  /** Transfermarkt kaynaklı alt mevki profili — slota göre reyting düşürmek için kullanılır (bkz. lib/player-positions.ts). */
+  position: PositionProfile | null
 }
 
 export interface SquadCompletionPayload {
@@ -214,6 +217,7 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
       role: result.role,
       priceEur: result.priceEur,
       power: result.power,
+      position: result.position,
     }
     if (searchTarget.kind === "starting") {
       setStarting((prev) => ({ ...prev, [searchTarget.slot.key]: entry }))
@@ -459,6 +463,7 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
         open={searchDialogOpen}
         onOpenChange={(o) => !o && setSearchTarget(null)}
         role={searchRole}
+        targetPosition={searchTarget?.kind === "starting" ? searchTarget.slot.position : null}
         budgetRemainingEur={remainingEur}
         excludePlayerIds={excludePlayerIds}
         onSelect={handleSelectPlayer}
@@ -544,12 +549,23 @@ function PitchSlot({
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id })
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ id, disabled: !entry })
 
+  // Slota göre uyarlanmış reyting: oyuncunun mevkisi bu slotla tam uyuşmuyorsa
+  // (örn. bir stoper orta sahaya konursa) gösterilen puan gerçekten düşer —
+  // bkz. lib/player-positions.ts ratingAtPosition()/fit().
+  const displayedPower = entry && entry.power !== null ? ratingAtPosition(entry.power, entry.position, slot.position) : entry?.power ?? null
+
   return (
     <div
       ref={setDropRef}
       className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
       style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
     >
+      <span
+        title={positionLabel(slot.position)}
+        className="rounded bg-black/60 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-white/90"
+      >
+        {slot.position}
+      </span>
       {entry ? (
         <div className={cn("relative flex flex-col items-center gap-1", isDragging && "opacity-30")}>
           <button
@@ -583,7 +599,7 @@ function PitchSlot({
           </button>
           <div className="flex max-w-20 items-center gap-1 rounded bg-black/70 px-1 py-0.5">
             <span className="min-w-0 truncate text-[9px] font-semibold text-white">{entry.playerName}</span>
-            <PowerBadge power={entry.power} />
+            <PowerBadge power={displayedPower} />
           </div>
         </div>
       ) : (
@@ -690,7 +706,12 @@ function BenchSlot({
         <span className="truncate text-[9px] font-semibold text-foreground">{entry.playerName}</span>
         <PowerBadge power={entry.power} />
       </div>
-      <span className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground">{ROLE_ABBR[entry.role]}</span>
+      <span
+        title={entry.position?.primary ? positionLabel(entry.position.primary) : undefined}
+        className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground"
+      >
+        {entry.position?.primary ?? ROLE_ABBR[entry.role]}
+      </span>
     </div>
   )
 }
