@@ -9,7 +9,10 @@ import { marketValueReviewQueue } from "@/lib/db/schema"
 import { MarketValueReviewBoard, type ReviewQueueItem } from "@/components/market-value-review-board"
 import { MarketValueCronStatus } from "@/components/market-value-cron-status"
 import { MarketValueDangerZone } from "@/components/market-value-danger-zone"
+import { PlayerPositionCronStatus } from "@/components/player-position-cron-status"
+import { PlayerPositionDangerZone } from "@/components/player-position-danger-zone"
 import { getMarketValueCronStatus } from "@/app/actions/market-value-cron"
+import { getPlayerPositionCronStatus } from "@/app/actions/player-position-cron"
 import { getServerLocale } from "@/lib/i18n/server-locale"
 import { translate } from "@/lib/i18n/dictionaries"
 
@@ -28,9 +31,12 @@ export default async function MarketValueReviewPage() {
     redirect("/")
   }
 
-  const [rows, cronStatus] = await Promise.all([
+  const locale = await getServerLocale()
+
+  const [rows, cronStatus, playerPositionStatus] = await Promise.all([
     db.select().from(marketValueReviewQueue).orderBy(desc(marketValueReviewQueue.createdAt)),
     getMarketValueCronStatus(),
+    getPlayerPositionCronStatus(),
   ])
 
   const items: ReviewQueueItem[] = rows.map((row) => ({
@@ -51,8 +57,18 @@ export default async function MarketValueReviewPage() {
   return (
     <main className="mx-auto max-w-4xl px-5 py-8">
       <div className="mb-6 flex flex-col gap-4">
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          {translate(locale, "admin.sectionMarketValue")}
+        </h2>
         <MarketValueCronStatus initialStatus={cronStatus} />
         <MarketValueDangerZone />
+      </div>
+      <div className="mb-6 flex flex-col gap-4 border-t pt-6">
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          {translate(locale, "admin.sectionPlayerPositions")}
+        </h2>
+        <PlayerPositionCronStatus initialStatus={playerPositionStatus} />
+        <PlayerPositionDangerZone />
       </div>
       <MarketValueReviewBoard items={items} />
     </main>

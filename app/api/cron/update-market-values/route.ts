@@ -12,8 +12,13 @@ import {
 } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
-// Vercel Cron her Çarşamba 03:00 (İstanbul saati) bu endpoint'i tetikler
-// (bkz. vercel.json — "0 0 * * 3" = Çarşamba 00:00 UTC = Çarşamba 03:00 TR).
+// ÖNEMLİ — bu route ÖNCEDEN vercel.json'daki bir Vercel Cron zamanlamasıyla
+// (her Çarşamba 03:00 TR) otomatik tetikleniyordu. Bu otomatik zamanlama
+// KALDIRILDI — artık bu endpoint SADECE admin panelindeki "Şimdi Tara"
+// butonuyla (bkz. app/actions/market-value-cron.ts triggerMarketValueScanNow)
+// manuel olarak tetiklenir. Route'un kendisi (zincirleme, devam ettirme,
+// stale/broken tespiti) hiç değişmedi — sadece dışarıdan otomatik çağıran
+// zamanlayıcı yok artık.
 //
 // 24 lig tek bir istekte işlenmiyor (Transfermarkt + API-Football'a yüzlerce
 // istek gidiyor, serverless zaman aşımı riski var). Bunun yerine bu route
@@ -104,9 +109,9 @@ export async function GET(request: Request) {
       return Response.json({ done: true, message: "Döngü zaten tamamlanmış." })
     }
   } else {
-    // Dıştan gelen tetikleme: Vercel Cron'un haftalık çağrısı (veya admin'in
-    // manuel "yeni döngü başlat" isteği). Devam eden bir "running" döngü
-    // varsa ona devam edilir; yoksa yeni bir döngü başlatılır.
+    // Dıştan gelen tetikleme: admin'in "Şimdi Tara" isteği (artık otomatik bir
+    // haftalık zamanlama yok). Devam eden bir "running" döngü varsa ona devam
+    // edilir; yoksa yeni bir döngü başlatılır.
     const active = await getActiveCronRun()
 
     if (active && !runMatchesCurrentLeagueList(active)) {
@@ -124,9 +129,9 @@ export async function GET(request: Request) {
     } else if (!active) {
       run = await startNewCronRun()
     } else if (isCronRunStale(active)) {
-      // Zincir kırılmıştı (heartbeat eskimiş) — admin manuel devam ettirmediyse,
-      // Vercel Cron'un bir sonraki haftalık tetiklemesi aynı durumu görüp
-      // doğrudan devam ettirir.
+      // Zincir kırılmıştı (heartbeat eskimiş) — admin panelindeki "Devam Ettir"
+      // veya bu route'a atılan bir sonraki manuel "Şimdi Tara" isteği aynı
+      // durumu görüp doğrudan devam ettirir.
       console.log(`[v0] Kırılmış döngü (${active.id}) bu istekle devam ettiriliyor.`)
       run = active
     } else {

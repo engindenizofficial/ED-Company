@@ -723,6 +723,8 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       cronStatusTitle: "Zamanlanmış Görev Durumu",
       dangerZoneTitle: "Tehlikeli Bölge",
       pageTitle: "Piyasa Değeri Kontrolü — ED Company",
+      sectionMarketValue: "Piyasa Değeri Taraması",
+      sectionPlayerPositions: "Oyuncu Mevki Taraması",
       cron: {
         heading: "Piyasa değeri senkron durumu",
         scanNow: "Şimdi Tara",
@@ -731,8 +733,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         scanTriggered:
           "Tarama tetiklendi — birkaç saniye içinde ilerlemeye başlayacak, bu kartı yenileyerek takip edebilirsiniz.",
         scanFailedDefault: "Tarama tetiklenemedi.",
-        neverRun:
-          'Henüz hiç tarama çalıştırılmadı. Haftalık otomatik taramayı beklemek istemiyorsanız "Şimdi Tara" butonuyla hemen başlatabilirsiniz.',
+        neverRun: 'Henüz hiç tarama çalıştırılmadı. "Şimdi Tara" butonuyla manuel olarak başlatabilirsiniz.',
         reasonNoActiveRun: "Devam eden bir döngü yok.",
         reasonRunHealthy: "Döngü sağlıklı ilerliyor, henüz devam ettirmeye gerek yok.",
         reasonTriggerFailed: "Tetikleme başarısız oldu.",
@@ -755,6 +756,37 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         confirmTitle: "Tüm piyasa değeri verileri silinsin mi?",
         confirmDescription:
           "Bu işlem şunları kalıcı olarak siler: tüm takım ve oyuncu piyasa değerleri (onaylanmış/reddedilmiş eşleşmeler dahil), onay/red gözden geçirme listesi ve haftalık tarama döngüsü geçmişi. Bu işlem geri alınamaz.",
+        cancel: "Vazgeç",
+        confirmDelete: "Evet, tümünü sil",
+        deleteFailedDefault: "Silme işlemi başarısız oldu.",
+      },
+      playerPositionCron: {
+        heading: "Oyuncu mevki taraması durumu",
+        scanNow: "Şimdi Tara",
+        scanTriggered:
+          "Tarama tetiklendi — birkaç saniye içinde ilerlemeye başlayacak, bu kartı yenileyerek takip edebilirsiniz.",
+        scanFailedDefault: "Tarama tetiklenemedi.",
+        neverRun: "Henüz hiç tarama çalıştırılmadı. {{count}} oyuncunun mevkisi bekliyor.",
+        reasonScanAlreadyRunning: "Zaten devam eden bir tarama var, lütfen tamamlanmasını bekleyin.",
+        reasonNoRemainingCandidates: "Mevkisi eksik oyuncu kalmadı, tarama gerekmiyor.",
+        statusDone: "Tamamlandı",
+        statusBroken: "Zincir kırıldı",
+        statusRunning: "Çalışıyor",
+        statusIdle: "Beklemede",
+        remaining: "{{count}} oyuncunun mevkisi bekliyor",
+        lastBatch: "Son parti: {{processed}} oyuncu işlendi, {{matched}} eşleşti · {{date}}",
+        lastErrorLabel: "Son hata: {{error}}",
+        brokenWarning:
+          "Zincir bir süredir ilerlemedi, muhtemelen kesintiye uğradı. Devam etmesi için \"Şimdi Tara\" butonuna tekrar basabilirsiniz.",
+      },
+      playerPositionDangerZone: {
+        heading: "Tehlikeli Bölge",
+        description:
+          "Çekilmiş tüm oyuncu mevki verilerini ve tarama geçmişini kalıcı olarak siler. Piyasa değeri eşleşmelerine dokunmaz. Bu işlem geri alınamaz — bir sonraki tarama her oyuncunun mevkisini sıfırdan yeniden çeker.",
+        resetAll: "Tümünü Sıfırla",
+        confirmTitle: "Tüm oyuncu mevki verileri silinsin mi?",
+        confirmDescription:
+          "Bu işlem çekilmiş tüm oyuncu mevki verilerini ve tarama geçmişini kalıcı olarak siler. Bu işlem geri alınamaz.",
         cancel: "Vazgeç",
         confirmDelete: "Evet, tümünü sil",
         deleteFailedDefault: "Silme işlemi başarısız oldu.",
@@ -1561,6 +1593,8 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       cronStatusTitle: "Scheduled Job Status",
       dangerZoneTitle: "Danger Zone",
       pageTitle: "Market Value Review — ED Company",
+      sectionMarketValue: "Market Value Scan",
+      sectionPlayerPositions: "Player Position Scan",
       cron: {
         heading: "Market value sync status",
         scanNow: "Scan Now",
@@ -1568,8 +1602,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         resumeFailedDefault: "Could not resume.",
         scanTriggered: "Scan triggered — it will start progressing in a few seconds; refresh this card to follow along.",
         scanFailedDefault: "Could not trigger the scan.",
-        neverRun:
-          'No scan has been run yet. If you don\'t want to wait for the weekly automatic scan, you can start one right away with the "Scan Now" button.',
+        neverRun: 'No scan has been run yet. You can start one manually with the "Scan Now" button.',
         reasonNoActiveRun: "There is no run in progress.",
         reasonRunHealthy: "The chain is progressing normally; no need to resume yet.",
         reasonTriggerFailed: "Failed to trigger.",

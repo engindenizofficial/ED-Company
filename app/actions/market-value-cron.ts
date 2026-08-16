@@ -121,10 +121,11 @@ export async function resumeMarketValueCronNow(): Promise<{ triggered: boolean; 
 }
 
 /**
- * Admin'in "Şimdi Tara" butonu — haftalık Vercel Cron tetiklemesini
-   * (bkz. vercel.json, her Çarşamba) beklemeden, aynı 24 ligi zincirleme
- * işleyen tam taramayı hemen başlatır. Sağlıklı ilerleyen bir döngü zaten
- * varsa (aynı hafta içinde tekrar tıklanırsa) ikinci bir tanesini başlatıp
+ * Admin'in "Şimdi Tara" butonu — aynı 24 ligi zincirleme işleyen tam
+ * taramayı hemen başlatır. ÖNEMLİ: bu tarama artık SADECE bu buton ile
+ * başlar — vercel.json'daki otomatik haftalık Vercel Cron zamanlaması
+ * (her Çarşamba) kaldırıldı. Sağlıklı ilerleyen bir döngü zaten varsa
+ * (kısa süre içinde tekrar tıklanırsa) ikinci bir tanesini başlatıp
  * ligleri iki kez taramamak için hiçbir şey yapmaz — bu durumda mevcut
  * döngüye devam edilmesini bekler.
  *

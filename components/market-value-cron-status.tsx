@@ -30,9 +30,10 @@ const POLL_INTERVAL_MS = 4000
 // app/actions/market-value-cron.ts). Bunu tetikleyen otomatik bir zamanlama
 // yoktur — devam ettirme yalnızca bu buton ile yapılır.
 //
-// "Şimdi Tara" butonu, haftalık Vercel Cron tetiklemesini (her Çarşamba)
-// beklemeden aynı tam taramayı admin isteğiyle anında başlatır — sağlıklı
-// ilerleyen bir döngü varsa ikinci bir tanesi başlatılmaz.
+// "Şimdi Tara" butonu, aynı tam taramayı admin isteğiyle anında başlatır —
+// sağlıklı ilerleyen bir döngü varsa ikinci bir tanesi başlatılmaz. Bu
+// tarama artık SADECE bu buton ile başlar (otomatik haftalık zamanlama
+// kaldırıldı, bkz. vercel.json).
 // ---------------------------------------------------------------------------
 
 export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRunStatus | null }) {
