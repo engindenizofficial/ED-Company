@@ -126,6 +126,16 @@ export async function resumeMarketValueCronNow(): Promise<{ triggered: boolean; 
 export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean; reason?: string }> {
   await requireAdmin()
 
+  // "Şimdi Tara" normal haftalık cron'dan farklı olarak tam bir manuel
+  // yenilemedir: daha önce admin tarafından kilitlenmiş eşleşmeler dahil
+  // mevcut değerlerin üzerine yeni Transfermarkt verisi yazılabilmelidir.
+  // Eşleşme kararlarını değil, sadece kilit bayrağını kaldırıyoruz; yeni tarama
+  // güncel aday ve değeri yeniden hesaplayacak.
+  await Promise.all([
+    db.update(teamMarketValue).set({ manualOverride: false }),
+    db.update(playerMarketValue).set({ manualOverride: false }),
+  ])
+
   const active = await getActiveCronRun()
   if (active && !isCronRunStale(active)) {
     return { triggered: false, reason: "scanAlreadyRunning" }
