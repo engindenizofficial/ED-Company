@@ -4,10 +4,11 @@ import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { getSquad, getPlayerRoleAndPhoto } from "@/lib/api-football"
 import { db } from "@/lib/db"
-import { playerMarketValue, teamMarketValue } from "@/lib/db/schema"
-import { and, eq, gt } from "drizzle-orm"
+import { playerMarketValue, teamMarketValue, playerPower } from "@/lib/db/schema"
+import { and, eq, gt, inArray } from "drizzle-orm"
 import type { PlayerRole } from "@/lib/games/manager-career"
 import { PLAYER_ROLES } from "@/lib/games/manager-career"
+import { computeLivePowerFromMarketValue } from "@/lib/player-power"
 
 export const dynamic = "force-dynamic"
 
@@ -23,6 +24,12 @@ export interface ManagerPlayerSearchResult {
   role: PlayerRole
   /** Piyasa değeri, tam euro — kadroya eklerken bütçeden düşülecek tutar. */
   priceEur: number
+  /**
+   * Oyuncu güç motorunun ürettiği 1-99 puan (bkz. lib/player-power.ts). DB'de
+   * güç satırı olmayan oyuncular için piyasa değerinden anlık hesaplanır
+   * (form/rating verisi yansımaz, sadece taban güç).
+   */
+  power: number | null
 }
 
 interface CandidateRow {
@@ -223,6 +230,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Güç motorunun bu adaylar için üretmiş olduğu satırları toplu oku — satırı
+  // olmayan oyuncular için aşağıda piyasa değerinden anlık hesaplanır.
+  const powerRows = await db
+    .select({ playerId: playerPower.playerId, currentPower: playerPower.currentPower })
+    .from(playerPower)
+    .where(inArray(playerPower.playerId, matches.map((m) => m.playerId)))
+  const powerByPlayerId = new Map(powerRows.map((r) => [r.playerId, r.currentPower]))
+
   const results: ManagerPlayerSearchResult[] = matches
     .map((c) => {
       const info = roleByPlayerId.get(c.playerId)
@@ -238,6 +253,7 @@ export async function GET(req: NextRequest) {
         teamLogo: teamLogoUrl(c.teamId),
         role: info.role,
         priceEur: c.valueEur,
+        power: powerByPlayerId.get(c.playerId) ?? computeLivePowerFromMarketValue(c.valueEur),
       }
       return result
     })

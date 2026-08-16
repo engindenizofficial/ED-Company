@@ -33,6 +33,7 @@ import {
   type PlayerRole,
 } from "@/lib/games/manager-career"
 import { PlayerSearchDialog } from "@/components/games/manager-career/player-search-dialog"
+import { PowerBadge } from "@/components/games/manager-career/power-badge"
 import type { ManagerPlayerSearchResult } from "@/app/api/games/manager-career/players/search/route"
 import type { SquadPlayerInput } from "@/app/actions/manager-career"
 import { cn } from "@/lib/utils"
@@ -45,6 +46,8 @@ export interface SquadEntry {
   teamLogo: string | null
   role: PlayerRole
   priceEur: number
+  /** Oyuncu güç motorunun ürettiği 1-99 puan (bkz. lib/player-power.ts) — sadece gösterim amaçlı, kadroya kaydedilmez. */
+  power: number | null
 }
 
 export interface SquadCompletionPayload {
@@ -132,6 +135,7 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
       teamLogo: result.teamLogo,
       role: result.role,
       priceEur: result.priceEur,
+      power: result.power,
     }
     if (searchTarget.kind === "starting") {
       setStarting((prev) => ({ ...prev, [searchTarget.slot.key]: entry }))
@@ -357,6 +361,7 @@ function PitchSlot({
               <span className="text-xs font-bold text-foreground">{entry.playerName.charAt(0)}</span>
             )}
           </button>
+          <PowerBadge power={entry.power} className="absolute -bottom-0.5 -left-0.5" />
           <button
             type="button"
             onClick={(e) => {
@@ -423,14 +428,17 @@ function BenchSlot({
       >
         <X className="h-2.5 w-2.5" />
       </button>
-      <button type="button" onClick={onOpen} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-secondary">
-        {entry.photo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={entry.photo} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <span className="text-xs font-bold text-foreground">{entry.playerName.charAt(0)}</span>
-        )}
-      </button>
+      <div className="relative">
+        <button type="button" onClick={onOpen} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-secondary">
+          {entry.photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={entry.photo} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-xs font-bold text-foreground">{entry.playerName.charAt(0)}</span>
+          )}
+        </button>
+        <PowerBadge power={entry.power} className="absolute -bottom-0.5 -right-0.5" />
+      </div>
       <span className="w-full truncate text-center text-[9px] font-semibold text-foreground">{entry.playerName}</span>
       <span className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground">{ROLE_ABBR[entry.role]}</span>
     </div>

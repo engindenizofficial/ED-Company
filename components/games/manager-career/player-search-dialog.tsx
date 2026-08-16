@@ -14,6 +14,7 @@ import { useLanguage } from "@/contexts/language-context"
 import { formatMarketValueEur } from "@/lib/market-value-format"
 import type { PlayerRole } from "@/lib/games/manager-career"
 import type { ManagerPlayerSearchResult } from "@/app/api/games/manager-career/players/search/route"
+import { PowerBadge } from "@/components/games/manager-career/power-badge"
 
 const ROLE_LABEL_KEY: Record<PlayerRole, string> = {
   Goalkeeper: "goalkeeper",
@@ -146,6 +147,7 @@ export function PlayerSearchDialog({
                         {r.name.charAt(0)}
                       </div>
                     )}
+                    <PowerBadge power={r.power} className="absolute -bottom-1 -right-1" />
                   </div>
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate text-sm font-semibold text-foreground">{r.name}</span>

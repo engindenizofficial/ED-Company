@@ -220,6 +220,73 @@ export const marketValueCronRun = pgTable('market_value_cron_run', {
 })
 
 // ---------------------------------------------------------------------------
+// Oyuncu güç motoru (player power engine).
+// Taban güç = piyasa değeri (marketPower) + biriken sezon maç rating ortalaması
+// (ratingPower) karışımı. Form katmanı = son ~8 maçın üstel azalan ağırlıklı
+// etkisi (formModifier). currentPower = clamp(basePower + formModifier, 1, 99).
+// Sadece günlük cron (bkz. lib/player-power-sync.ts, app/api/cron/
+// update-player-power) tarafından yazılır. Uygulama tarafı bu tabloyu sadece
+// OKUR; satırı olmayan oyuncular için güç piyasa değerinden anlık hesaplanır
+// (bkz. lib/player-power.ts).
+// ---------------------------------------------------------------------------
+
+/** Oyuncu bazlı güç durumu — taban güç bileşenleri + biriken form geçmişi. */
+export const playerPower = pgTable('player_power', {
+  id: text('id').primaryKey(),
+  /** API-Football oyuncu id'si */
+  playerId: integer('playerId').notNull().unique(),
+  /** Oyuncunun en son görüldüğü API-Football takım id'si */
+  teamId: integer('teamId'),
+  /** Piyasa değerinden türetilen taban puan (1-99), her cron çalışmasında yeniden hesaplanır */
+  marketPower: integer('marketPower'),
+  /** seasonRatingSum/Count'un ait olduğu API-Football sezonu (Ağustos'ta değişir). Sezon değiştiğinde ikisi de sıfırlanır. */
+  seasonYear: integer('seasonYear'),
+  /** Biriken sezon rating toplamı — her işlenen maçta rating eklenir */
+  seasonRatingSum: numeric('seasonRatingSum', { precision: 10, scale: 2 }).notNull().default('0'),
+  /** Biriken sezon maç sayısı (rating verilmiş maçlar) */
+  seasonRatingCount: integer('seasonRatingCount').notNull().default(0),
+  /** marketPower ve sezon rating ortalamasının ağırlıklı karışımı (1-99) */
+  basePower: integer('basePower'),
+  /** Son ~8 maçın üstel azalan ağırlıklı etkisi, -10..+10 aralığında */
+  formModifier: integer('formModifier').notNull().default(0),
+  /** clamp(basePower + formModifier, 1, 99) — kadro kurma ekranında gösterilen nihai puan */
+  currentPower: integer('currentPower'),
+  /**
+   * Son işlenen maçların özeti (en yeni önde), form hesaplamasında kullanılır.
+   * Her eleman: { fixtureId, date, rating, goals, assists, minutes }
+   */
+  recentMatches: jsonb('recentMatches').notNull().default([]),
+  lastFormUpdateAt: timestamp('lastFormUpdateAt'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+})
+
+/** Güç cron'unun zaten işlediği fixture'lar — aynı maçın istatistiklerinin iki kez form'a eklenmesini engeller. */
+export const playerPowerProcessedFixture = pgTable('player_power_processed_fixture', {
+  id: text('id').primaryKey(),
+  /** API-Football fixture id'si */
+  fixtureId: integer('fixtureId').notNull().unique(),
+  processedAt: timestamp('processedAt').notNull().defaultNow(),
+})
+
+/** Günlük güç cron'unun basit çalışma günlüğü — ayrı bir izleme ekranı olmadan gözlemlenebilirlik sağlar. */
+export const playerPowerCronRun = pgTable('player_power_cron_run', {
+  id: text('id').primaryKey(),
+  runStartedAt: timestamp('runStartedAt').notNull(),
+  runFinishedAt: timestamp('runFinishedAt'),
+  /** "running" | "completed" | "failed" */
+  status: text('status').notNull().default('running'),
+  /** Bu çalışmada taranan biten maç sayısı (takip edilen liglere filtrelenmiş) */
+  fixturesScanned: integer('fixturesScanned').notNull().default(0),
+  /** Bu çalışmada istatistikleri işlenen (yeni) fixture sayısı */
+  fixturesProcessed: integer('fixturesProcessed').notNull().default(0),
+  /** Bu çalışmada güç satırı güncellenen oyuncu sayısı */
+  playersUpdated: integer('playersUpdated').notNull().default(0),
+  lastError: text('lastError'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+})
+
+// ---------------------------------------------------------------------------
 // "Kulübünü Kur" (menajer kariyeri) oyunu.
 // Kullanıcı zorluk + lig + logo + isim seçip 18 kişilik bir kadro kurar.
 // Her kullanıcının aynı anda tek bir kariyeri olur — yeniden oluşturma eski
