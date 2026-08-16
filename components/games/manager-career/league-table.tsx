@@ -60,11 +60,11 @@ export function LeagueTable({ rows }: { rows: LeagueTableRow[] }) {
                     ) : (
                       <span className="h-5 w-5 shrink-0" />
                     )}
-                    <span className={cn("truncate font-semibold", row.isUser ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+                    <span className={cn("truncate font-semibold", row.isUser ? "text-emerald-400" : "text-foreground")}>
                       {row.teamName}
                     </span>
                     {row.isUser ? (
-                      <span className="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                      <span className="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400">
                         {t("managerCareer.yourClubBadge")}
                       </span>
                     ) : null}

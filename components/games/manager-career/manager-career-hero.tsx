@@ -9,8 +9,10 @@ export function ManagerCareerHero() {
   const { t } = useLanguage()
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-background">
-      <header className="relative z-10 border-b border-border/60">
+    <div className="arena-scope arena-bg relative min-h-screen overflow-x-hidden">
+      <div className="arena-spotlight" />
+
+      <header className="relative z-10">
         <div className="mx-auto max-w-4xl px-5 py-6">
           <Link
             href="/oyunlar"
@@ -21,7 +23,7 @@ export function ManagerCareerHero() {
           </Link>
 
           <div className="mt-4 flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-500 ring-1 ring-emerald-500/30">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30">
               <Shield className="h-5.5 w-5.5" />
             </div>
             <div>

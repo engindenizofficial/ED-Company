@@ -21,10 +21,10 @@ function TeamCell({ name, logo, isUser, align }: { name: string; logo: string | 
       ) : (
         <span className="h-5.5 w-5.5 shrink-0" />
       )}
-      <span className={cn("truncate text-sm font-semibold", isUser ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+      <span className={cn("truncate text-sm font-semibold", isUser ? "text-emerald-400" : "text-foreground")}>
         {name}
         {isUser ? (
-          <span className="ml-1.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600 align-middle dark:text-emerald-400">
+          <span className="ml-1.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400 align-middle">
             {t("managerCareer.yourClubBadge")}
           </span>
         ) : null}
@@ -64,7 +64,7 @@ export function FixtureList({ fixtures }: { fixtures: FixtureSummary[] }) {
                 "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
                 rows.every((r) => r.status === "played")
                   ? "bg-muted text-muted-foreground"
-                  : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+                  : "bg-emerald-500/15 text-emerald-400",
               )}
             >
               {rows.every((r) => r.status === "played") ? t("managerCareer.playedStatus") : t("managerCareer.scheduledStatus")}
