@@ -149,14 +149,12 @@ export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean;
   const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
   const url = `${base}/api/cron/update-market-values`
 
-  // ÖNEMLİ — aynı sebep: bu istek ÖNCEDEN `fetch(...).catch(...)` ile
-  // beklenmeden gönderiliyordu ve server action yanıtı döndükten sonra
-  // fonksiyon dondurulabildiği için istek ağa hiç çıkmayabiliyordu. Bu
-  // yüzden "Şimdi Tara"ya basınca hiçbir yeni döngü başlamıyor, admin
-  // panelindeki "24/24" hiç değişmiyordu. `after()` + `triggerChainContinuation`
-  // (zaman aşımı + yeniden deneme ile) isteğin gerçekten gönderilip
-  // yanıtlanmasını garanti eder.
-  after(() => triggerChainContinuation(url, headersInit))
+  // İlk isteği server action tamamlanmadan bekliyoruz. `after()` burada
+  // güvenilir değil: yanıt döndüğü anda self-fetch hiç başlamadan fonksiyon
+  // askıya alınabiliyor ve admin "tetiklendi" mesajını görse bile DB'de yeni
+  // cron satırı oluşmuyordu. Route'un kendisi sonraki adımları after() ile
+  // zincirleyecek; action yalnızca ilk adımı garanti ediyor.
+  await triggerChainContinuation(url, headersInit)
 
   revalidatePath(REVIEW_PATH)
   return { triggered: true }
