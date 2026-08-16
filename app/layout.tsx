@@ -19,8 +19,11 @@ import { translate } from '@/lib/i18n/dictionaries'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
-const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
+// Standart "latin" alt kümesi Türkçe'ye özgü karakterleri (ş, ğ, ı, İ, ç, ö, ü)
+// içermiyor — bunlar "latin-ext" alt kümesinde. Bu eksik olduğunda tarayıcı bu
+// karakterleri siyah kutu + soru işareti (tofu) olarak gösteriyordu.
+const geistSans = Geist({ subsets: ['latin', 'latin-ext'], variable: '--font-geist-sans' })
+const geistMono = Geist_Mono({ subsets: ['latin', 'latin-ext'], variable: '--font-geist-mono' })
 
 const GA_MEASUREMENT_ID = 'G-HT84HW4PPM'
 
