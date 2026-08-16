@@ -15,6 +15,7 @@ import {
   type CronRunRow,
 } from "@/lib/market-value-cron-run"
 import { SCRAPABLE_LEAGUE_IDS } from "@/lib/market-value-sync"
+import { eq, ne } from "drizzle-orm"
 
 // ---------------------------------------------------------------------------
 // Admin panelinde haftalık piyasa değeri cron döngüsünün durumunu göstermek
@@ -182,10 +183,13 @@ export interface ResetMarketValueDataResult {
 export async function resetAllMarketValueData(): Promise<ResetMarketValueDataResult> {
   await requireAdmin()
 
+  // Admin tarafından manuel onaylanan kayıtlar `manualOverride = true` ile
+  // kilitlenir. Reset yalnızca otomatik/henüz onaylanmamış kayıtları siler;
+  // onaylı eşleşmeler, değerleri ve review geçmişi korunur.
   const [deletedTeams, deletedPlayers, deletedReviewEntries, deletedCronRuns] = await Promise.all([
-    db.delete(teamMarketValue).returning({ id: teamMarketValue.id }),
-    db.delete(playerMarketValue).returning({ id: playerMarketValue.id }),
-    db.delete(marketValueReviewQueue).returning({ id: marketValueReviewQueue.id }),
+    db.delete(teamMarketValue).where(eq(teamMarketValue.manualOverride, false)).returning({ id: teamMarketValue.id }),
+    db.delete(playerMarketValue).where(eq(playerMarketValue.manualOverride, false)).returning({ id: playerMarketValue.id }),
+    db.delete(marketValueReviewQueue).where(ne(marketValueReviewQueue.status, "approved")).returning({ id: marketValueReviewQueue.id }),
     db.delete(marketValueCronRun).returning({ id: marketValueCronRun.id }),
   ])
 
