@@ -1,16 +1,26 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { AlertTriangle, CheckCircle2, Loader2, PlayCircle, RotateCcw, Timer } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useLanguage } from "@/contexts/language-context"
 import {
+  getMarketValueCronStatus,
   resumeMarketValueCronNow,
   triggerMarketValueScanNow,
   type CronRunStatus,
 } from "@/app/actions/market-value-cron"
+
+// Kart, sunucudan sadece ilk yüklemede bir kez `initialStatus` alır ve onu
+// `useState` ile local state'e alır — React, prop değişse de bu başlangıç
+// değerini tekrar uygulamaz. Yani "Şimdi Tara"ya bastıktan sonra arka planda
+// tarama gerçekten ilerlese bile, admin manuel olarak tam sayfa yenilemesi
+// (F5) yapmadan kartta HİÇBİR ŞEY değişmez. Bunu çözmek için, tarama/devam
+// ettirme tetiklendiğinde veya zaten "running" bir döngü varken durumu
+// periyodik olarak sunucudan tazeliyoruz.
+const POLL_INTERVAL_MS = 4000
 
 // ---------------------------------------------------------------------------
 // Haftalık piyasa değeri cron döngüsünün ("24 lig zincirleme işleniyor" —
@@ -31,6 +41,31 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
   const [isResuming, startResumeTransition] = useTransition()
   const [isScanning, startScanTransition] = useTransition()
   const [message, setMessage] = useState<string | null>(null)
+
+  // Butona basıldıktan sonra (veya sayfa yüklendiğinde zaten koşan bir döngü
+  // varken) durumu periyodik olarak tazele — böylece admin, ilerlemeyi
+  // görmek için sayfayı manuel yenilemek zorunda kalmaz.
+  const statusRef = useRef(status)
+  statusRef.current = status
+
+  useEffect(() => {
+    const shouldPoll = () =>
+      isScanning || isResuming || (statusRef.current !== null && statusRef.current.status === "running")
+
+    if (!shouldPoll()) return
+
+    const interval = setInterval(async () => {
+      if (!shouldPoll()) return
+      try {
+        const fresh = await getMarketValueCronStatus()
+        setStatus(fresh)
+      } catch (err) {
+        console.error("[v0] Durum tazelenemedi:", err)
+      }
+    }, POLL_INTERVAL_MS)
+
+    return () => clearInterval(interval)
+  }, [isScanning, isResuming, status?.status])
 
   function formatDateTime(iso: string): string {
     return new Date(iso).toLocaleString(locale === "tr" ? "tr-TR" : "en-US", {
@@ -62,6 +97,12 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
       const result = await resumeMarketValueCronNow()
       if (result.triggered) {
         setMessage(t("admin.cron.resumeTriggered"))
+        // Zincir DB satırını hemen güncellemeye başlar — kısa bir gecikmeden
+        // sonra bir kez tazeleyerek admin sayfayı elle yenilemek zorunda
+        // kalmadan ilk ilerlemeyi görsün (periyodik polling zaten devam eder).
+        setTimeout(() => {
+          getMarketValueCronStatus().then(setStatus).catch(() => {})
+        }, 1500)
       } else {
         setMessage(translateReason(result.reason, "admin.cron.resumeFailedDefault"))
       }
@@ -74,6 +115,9 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
       const result = await triggerMarketValueScanNow()
       if (result.triggered) {
         setMessage(t("admin.cron.scanTriggered"))
+        setTimeout(() => {
+          getMarketValueCronStatus().then(setStatus).catch(() => {})
+        }, 1500)
       } else {
         setMessage(translateReason(result.reason, "admin.cron.scanFailedDefault"))
       }
