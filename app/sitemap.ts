@@ -43,6 +43,7 @@ const ROUTE_OVERRIDES: Record<
   '/': { priority: 1, changeFrequency: 'daily' },
   '/oyunlar': { priority: 0.8, changeFrequency: 'weekly' },
   '/oyunlar/piyasa-degeri-duellosu': { priority: 0.7, changeFrequency: 'weekly' },
+  '/oyunlar/kulubunu-kur': { priority: 0.7, changeFrequency: 'weekly' },
   '/sign-in': { priority: 0.3, changeFrequency: 'monthly' },
   '/sign-up': { priority: 0.3, changeFrequency: 'monthly' },
 }
