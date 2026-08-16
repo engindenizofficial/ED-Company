@@ -4,7 +4,19 @@ export type PositionSource = "api-football" | "transfermarkt" | "unverified"
 export type PositionProfile = { primary: PlayerPosition | null; secondary: PlayerPosition[]; source: PositionSource }
 
 const ALIASES: Record<string, PlayerPosition> = {
-  GK: "GK", Goalkeeper: "GK", LB: "LB", "Left Back": "LB", CB: "CB", "Centre Back": "CB", "Center Back": "CB", RB: "RB", "Right Back": "RB", DM: "DM", "Defensive Midfielder": "DM", CM: "CM", "Central Midfielder": "CM", AM: "AM", "Attacking Midfielder": "AM", LM: "LM", "Left Midfielder": "LM", RM: "RM", "Right Midfielder": "RM", LW: "LW", "Left Winger": "LW", RW: "RW", "Right Winger": "RW", CF: "CF", "Second Striker": "CF", ST: "ST", Striker: "ST", Attacker: "ST",
+  GK: "GK", Goalkeeper: "GK", "Torwart": "GK",
+  LB: "LB", "Left Back": "LB", "Left-Back": "LB", "Left back": "LB",
+  CB: "CB", "Centre Back": "CB", "Center Back": "CB", "Centre-Back": "CB", "Center-Back": "CB", "Sweeper": "CB", "Libero": "CB",
+  RB: "RB", "Right Back": "RB", "Right-Back": "RB", "Right back": "RB",
+  DM: "DM", "Defensive Midfielder": "DM", "Defensive Midfield": "DM",
+  CM: "CM", "Central Midfielder": "CM", "Central Midfield": "CM", "Midfielder": "CM",
+  AM: "AM", "Attacking Midfielder": "AM", "Attacking Midfield": "AM",
+  LM: "LM", "Left Midfielder": "LM", "Left Midfield": "LM",
+  RM: "RM", "Right Midfielder": "RM", "Right Midfield": "RM",
+  LW: "LW", "Left Winger": "LW", "Left Wing": "LW",
+  RW: "RW", "Right Winger": "RW", "Right Wing": "RW",
+  CF: "CF", "Second Striker": "CF", "Second striker": "CF",
+  ST: "ST", Striker: "ST", Attacker: "ST", "Centre-Forward": "ST", "Center-Forward": "ST", "Centre Forward": "ST",
 }
 
 export function normalizePosition(value: string | null | undefined): PlayerPosition | null { return value ? ALIASES[value.trim()] ?? null : null }

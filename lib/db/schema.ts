@@ -287,6 +287,55 @@ export const playerPowerCronRun = pgTable('player_power_cron_run', {
 })
 
 // ---------------------------------------------------------------------------
+// Oyuncu alt mevki verisi (Transfermarkt profil sayfası).
+// Kaynak: her oyuncunun Transfermarkt profilindeki "Main position" / "Other
+// position" alanları — bkz. lib/transfermarkt-scraper.ts scrapePlayerPosition().
+// Sadece arka planda kademeli çalışan backfill route'u (bkz.
+// app/api/cron/backfill-player-positions) tarafından yazılır. Uygulama
+// tarafı bu tabloyu sadece OKUR. Satırı olmayan/henüz doldurulmamış
+// oyuncular "unverified" kabul edilir (bkz. lib/player-positions.ts fit()
+// — doğrulanmamış oyuncular için nötr 0.72 sabit çarpan kullanılır),
+// böylece backfill ilerlerken kadro ekranı kademeli olarak iyileşir.
+// ---------------------------------------------------------------------------
+
+/** Oyuncu bazlı Transfermarkt alt mevki verisi. */
+export const playerPosition = pgTable('player_position', {
+  id: text('id').primaryKey(),
+  /** API-Football oyuncu id'si */
+  playerId: integer('playerId').notNull().unique(),
+  /** playerMarketValue.transfermarktPlayerId'den kopyalanır — hangi profil sayfasından çekildiğini izler. */
+  transfermarktPlayerId: text('transfermarktPlayerId'),
+  /** Transfermarkt'ın ham metni, örn. "Defensive Midfield" — tanı/debug amaçlı saklanır. */
+  mainPositionRaw: text('mainPositionRaw'),
+  /** mainPositionRaw'ın lib/player-positions.ts ALIASES ile normalize edilmiş hali, örn. "DM" */
+  mainPosition: text('mainPosition'),
+  /** Transfermarkt'ın ham "Other position" metinleri, örn. ["Central Midfield", "Attacking Midfield"] */
+  secondaryPositionsRaw: jsonb('secondaryPositionsRaw').notNull().default([]),
+  /** secondaryPositionsRaw'ın normalize edilmiş hali, örn. ["CM", "AM"] */
+  secondaryPositions: jsonb('secondaryPositions').notNull().default([]),
+  /** "transfermarkt" | "unverified" — profil sayfasında pozisyon bulunamazsa (nadiren) "unverified" yazılır. */
+  source: text('source').notNull().default('transfermarkt'),
+  lastScrapedAt: timestamp('lastScrapedAt'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+})
+
+/** Kademeli mevki backfill'inin basit çalışma günlüğü — ayrı bir izleme ekranı olmadan gözlemlenebilirlik sağlar. */
+export const playerPositionCronRun = pgTable('player_position_cron_run', {
+  id: text('id').primaryKey(),
+  runStartedAt: timestamp('runStartedAt').notNull(),
+  runFinishedAt: timestamp('runFinishedAt'),
+  /** "running" | "completed" | "failed" — "completed" tüm adaylar bitince, aksi halde zincir kendini after() ile tetikleyip devam eder. */
+  status: text('status').notNull().default('running'),
+  /** Bu koşuda (bu satırın ömrü boyunca, zincir dahil) işlenen oyuncu sayısı. */
+  playersProcessed: integer('playersProcessed').notNull().default(0),
+  /** Bu koşuda mevki bulunan (mainPosition doldurulan) oyuncu sayısı. */
+  playersMatched: integer('playersMatched').notNull().default(0),
+  lastError: text('lastError'),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+})
+
+// ---------------------------------------------------------------------------
 // "Kulübünü Kur" (menajer kariyeri) oyunu.
 // Kullanıcı zorluk + lig + logo + isim seçip 18 kişilik bir kadro kurar.
 // Her kullanıcının aynı anda tek bir kariyeri olur — yeniden oluşturma eski

@@ -15,6 +15,7 @@ import { formatMarketValueEur } from "@/lib/market-value-format"
 import type { PlayerRole } from "@/lib/games/manager-career"
 import type { ManagerPlayerSearchResult } from "@/app/api/games/manager-career/players/search/route"
 import { PowerBadge } from "@/components/games/manager-career/power-badge"
+import { hasVerifiedPosition, positionSummary } from "@/lib/player-positions"
 
 const ROLE_LABEL_KEY: Record<PlayerRole, string> = {
   Goalkeeper: "goalkeeper",
@@ -152,6 +153,11 @@ export function PlayerSearchDialog({
                     <div className="flex min-w-0 items-center gap-1.5">
                       <span className="truncate text-sm font-semibold text-foreground">{r.name}</span>
                       <PowerBadge power={r.power} />
+                      {hasVerifiedPosition(r.position) && (
+                        <span className="shrink-0 rounded bg-secondary px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                          {positionSummary(r.position)}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5">
                       {r.teamLogo && (

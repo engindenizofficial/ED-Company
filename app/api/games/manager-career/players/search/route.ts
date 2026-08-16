@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSquad, getPlayerRoleAndPhoto } from "@/lib/api-football"
 import { db } from "@/lib/db"
-import { playerMarketValue, teamMarketValue, playerPower } from "@/lib/db/schema"
+import { playerMarketValue, teamMarketValue, playerPower, playerPosition } from "@/lib/db/schema"
 import { and, eq, gt, inArray } from "drizzle-orm"
 import type { PlayerRole } from "@/lib/games/manager-career"
 import { PLAYER_ROLES } from "@/lib/games/manager-career"
 import { computeLivePowerFromMarketValue } from "@/lib/player-power"
+import { profile, type PositionProfile } from "@/lib/player-positions"
 
 export const dynamic = "force-dynamic"
 
@@ -27,6 +28,13 @@ export interface ManagerPlayerSearchResult {
    * (form/rating verisi yansımaz, sadece taban güç).
    */
   power: number | null
+  /**
+   * Transfermarkt kaynaklı alt mevki profili (bkz. lib/player-positions.ts).
+   * Backfill henüz bu oyuncuya ulaşmadıysa null döner — kadro ekranı bu
+   * durumda doğrulanmamış (nötr) olarak ele alır, hatalı bir mevki
+   * uydurmaz.
+   */
+  position: PositionProfile | null
 }
 
 interface CandidateRow {
@@ -227,6 +235,25 @@ export async function GET(req: NextRequest) {
     .where(inArray(playerPower.playerId, matches.map((m) => m.playerId)))
   const powerByPlayerId = new Map(powerRows.map((r) => [r.playerId, r.currentPower]))
 
+  // Mevki backfill'i kademeli çalıştığı için (bkz. lib/player-position-sync.ts)
+  // her oyuncu için satır olmayabilir — bu durumda position: null döner ve
+  // kadro ekranı doğrulanmamış (nötr) fallback kullanır.
+  const positionRows = await db
+    .select({
+      playerId: playerPosition.playerId,
+      mainPosition: playerPosition.mainPosition,
+      secondaryPositions: playerPosition.secondaryPositions,
+      source: playerPosition.source,
+    })
+    .from(playerPosition)
+    .where(inArray(playerPosition.playerId, matches.map((m) => m.playerId)))
+  const positionByPlayerId = new Map(
+    positionRows.map((r) => [
+      r.playerId,
+      profile(r.mainPosition, (r.secondaryPositions as string[]) ?? [], r.source as "transfermarkt" | "unverified"),
+    ]),
+  )
+
   const results: ManagerPlayerSearchResult[] = matches
     .map((c) => {
       const info = roleByPlayerId.get(c.playerId)
@@ -243,6 +270,7 @@ export async function GET(req: NextRequest) {
         role: info.role,
         priceEur: c.valueEur,
         power: powerByPlayerId.get(c.playerId) ?? computeLivePowerFromMarketValue(c.valueEur),
+        position: positionByPlayerId.get(c.playerId) ?? null,
       }
       return result
     })

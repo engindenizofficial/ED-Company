@@ -289,5 +289,53 @@ export async function scrapePlayerNationality(transfermarktPlayerId: string): Pr
   return countries.length > 0 ? countries.join(" / ") : null
 }
 
+export interface ScrapedPlayerPosition {
+  /** Transfermarkt'ın ham "Main position:" metni, örn. "Defensive Midfield" */
+  mainPosition: string | null
+  /** Transfermarkt'ın ham "Other position:" metinleri (birden fazla olabilir) */
+  secondaryPositions: string[]
+}
+
+/**
+ * Bir Transfermarkt oyuncu profilinden ana/yan mevki bilgisini çeker.
+ * SADECE arka planda kademeli çalışan mevki backfill'i (bkz.
+ * lib/player-position-sync.ts) tarafından çağrılır.
+ *
+ * Profil sayfasındaki ilgili blok tek bir <dl> içinde sıralı dt/dd
+ * çiftlerinden oluşur: `<dt>Main position:</dt><dd>...</dd>` ardından
+ * `<dt>Other position:</dt>` ve onu takip eden bir veya daha fazla
+ * `<dd class="detail-position__position">` elemanı. Sıra korunarak
+ * dt metnine göre hangi listeye ait olduğu belirlenir.
+ */
+export async function scrapePlayerPosition(transfermarktPlayerId: string): Promise<ScrapedPlayerPosition | null> {
+  const url = `${BASE_URL}/x/profil/spieler/${transfermarktPlayerId}`
+  const html = await fetchHtml(url)
+  if (!html) return null
+
+  const $ = cheerio.load(html)
+  let mainPosition: string | null = null
+  const secondaryPositions: string[] = []
+  let currentLabel: "main" | "other" | null = null
+
+  $(".detail-position dt, .detail-position dd").each((_, el) => {
+    const $el = $(el)
+    const tag = el.tagName?.toLowerCase()
+    if (tag === "dt") {
+      const label = $el.text().trim().toLowerCase()
+      currentLabel = label.startsWith("main position") ? "main" : label.startsWith("other position") ? "other" : null
+      return
+    }
+    if (tag === "dd" && $el.hasClass("detail-position__position")) {
+      const text = $el.text().trim()
+      if (!text) return
+      if (currentLabel === "main" && !mainPosition) mainPosition = text
+      else if (currentLabel === "other") secondaryPositions.push(text)
+    }
+  })
+
+  if (!mainPosition && secondaryPositions.length === 0) return null
+  return { mainPosition, secondaryPositions }
+}
+
 /** Cron job'ın sırayla çağıracağı, tüm desteklenen 24 ligin id listesi. */
 export const SCRAPABLE_LEAGUE_IDS: number[] = FEATURED_LEAGUE_IDS
