@@ -1,9 +1,9 @@
 import { db } from "./db"
 import { playerPower, playerPowerProcessedFixture, playerMarketValue, playerPosition } from "./db/schema"
 import { inArray } from "drizzle-orm"
-import { getFixturesByDate, getFixturePlayerStats, currentSeason, type Fixture } from "./api-football"
+import { getFixturesByDate, getFixturePlayerStats, currentSeason } from "./api-football"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
-import type { FixturePlayerStat } from "./types"
+import type { FixturePlayerStat, Fixture } from "./types"
 import { isPlayerPosition, type PlayerPosition } from "./player-positions"
 import {
   computeBasePower,

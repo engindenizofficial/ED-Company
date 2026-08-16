@@ -15,7 +15,7 @@ import { formatMarketValueEur } from "@/lib/market-value-format"
 import type { PlayerRole } from "@/lib/games/manager-career"
 import type { ManagerPlayerSearchResult } from "@/app/api/games/manager-career/players/search/route"
 import { PowerBadge } from "@/components/games/manager-career/power-badge"
-import { hasVerifiedPosition, positionSummary } from "@/lib/player-positions"
+import { hasVerifiedPosition, positionSummary, ratingAtPosition, fit, positionLabel, type PlayerPosition } from "@/lib/player-positions"
 
 const ROLE_LABEL_KEY: Record<PlayerRole, string> = {
   Goalkeeper: "goalkeeper",
@@ -38,6 +38,8 @@ interface PlayerSearchDialogProps {
   onOpenChange: (open: boolean) => void
   /** null → herhangi bir mevkiden oyuncu (yedek seçimi). */
   role: PlayerRole | null
+  /** Sahadaki hedef slotun spesifik mevkisi (örn. "LB") — verildiğinde reyting bu slota göre uyarlanır ve sonuçlar buna göre sıralanır. Yedek seçiminde null. */
+  targetPosition?: PlayerPosition | null
   budgetRemainingEur: number
   excludePlayerIds: Set<number>
   onSelect: (result: ManagerPlayerSearchResult) => void
@@ -47,6 +49,7 @@ export function PlayerSearchDialog({
   open,
   onOpenChange,
   role,
+  targetPosition = null,
   budgetRemainingEur,
   excludePlayerIds,
   onSelect,
@@ -127,60 +130,82 @@ export function PlayerSearchDialog({
           )}
 
           {!loading &&
-            results.map((r) => {
-              const alreadySelected = excludePlayerIds.has(r.id)
-              const insufficientBudget = r.priceEur > budgetRemainingEur
-              const disabled = alreadySelected || insufficientBudget
-              return (
-                <button
-                  key={r.id}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onSelect(r)}
-                  className="flex items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-secondary/70 disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-secondary">
-                    {r.photo ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.photo} alt="" className="h-full w-full object-cover" loading="lazy" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs font-bold text-muted-foreground">
-                        {r.name.charAt(0)}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate text-sm font-semibold text-foreground">{r.name}</span>
-                      <PowerBadge power={r.power} />
-                      {hasVerifiedPosition(r.position) && (
-                        <span className="shrink-0 rounded bg-secondary px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
-                          {positionSummary(r.position)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {r.teamLogo && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={r.teamLogo} alt="" className="h-3.5 w-3.5 object-contain opacity-80" loading="lazy" />
-                      )}
-                      <span className="truncate text-[11px] text-muted-foreground">
-                        {r.teamName ?? t("duel.unknown")}
-                        {r.age ? ` · ${r.age}` : ""}
-                      </span>
-                    </div>
-                  </div>
-                  <span
-                    className={
-                      "shrink-0 text-xs font-bold tabular-nums " +
-                      (insufficientBudget ? "text-destructive" : "text-emerald-500")
-                    }
+            [...results]
+              // Hedef bir slot varsa, o slota en uyumlu oyuncular üstte listelenir
+              // (bkz. lib/player-positions.ts fit()) — ham güç puanına göre değil.
+              .sort((a, b) => {
+                if (!targetPosition) return 0
+                const fitDiff = fit(b.position, targetPosition) - fit(a.position, targetPosition)
+                if (fitDiff !== 0) return fitDiff
+                return (b.power ?? 0) - (a.power ?? 0)
+              })
+              .map((r) => {
+                const alreadySelected = excludePlayerIds.has(r.id)
+                const insufficientBudget = r.priceEur > budgetRemainingEur
+                const disabled = alreadySelected || insufficientBudget
+                const fitRatio = targetPosition ? fit(r.position, targetPosition) : 1
+                const adjustedPower = targetPosition && r.power !== null ? ratingAtPosition(r.power, r.position, targetPosition) : r.power
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onSelect(r)}
+                    className="flex items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-secondary/70 disabled:cursor-not-allowed disabled:opacity-45"
                   >
-                    {formatMarketValueEur(r.priceEur, locale) ?? "-"}
-                  </span>
-                </button>
-              )
-            })}
+                    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-secondary">
+                      {r.photo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={r.photo} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-xs font-bold text-muted-foreground">
+                          {r.name.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-sm font-semibold text-foreground">{r.name}</span>
+                        <PowerBadge power={adjustedPower} />
+                        {hasVerifiedPosition(r.position) && (
+                          <span className="shrink-0 rounded bg-secondary px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                            {positionSummary(r.position)}
+                          </span>
+                        )}
+                        {targetPosition && fitRatio < 1 && (
+                          <span
+                            title={`${positionLabel(targetPosition)} için tam mevkisi değil`}
+                            className={
+                              "shrink-0 rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide " +
+                              (fitRatio >= 0.85 ? "bg-amber-500/15 text-amber-600" : "bg-destructive/15 text-destructive")
+                            }
+                          >
+                            {fitRatio >= 0.85 ? "Yakın mevki" : "Uyumsuz mevki"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {r.teamLogo && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={r.teamLogo} alt="" className="h-3.5 w-3.5 object-contain opacity-80" loading="lazy" />
+                        )}
+                        <span className="truncate text-[11px] text-muted-foreground">
+                          {r.teamName ?? t("duel.unknown")}
+                          {r.age ? ` · ${r.age}` : ""}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={
+                        "shrink-0 text-xs font-bold tabular-nums " +
+                        (insufficientBudget ? "text-destructive" : "text-emerald-500")
+                      }
+                    >
+                      {formatMarketValueEur(r.priceEur, locale) ?? "-"}
+                    </span>
+                  </button>
+                )
+              })}
         </div>
       </DialogContent>
     </Dialog>
