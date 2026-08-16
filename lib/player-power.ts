@@ -2,7 +2,11 @@
  * Oyuncu güç motoru — saf hesaplama fonksiyonları (yan etkisiz, DB/API'ye dokunmaz).
  *
  * Model:
- *  - marketPower:  piyasa değerinden log-ölçekli sabit 1-99 puan.
+ *  - marketPower:  piyasa değerinden sıkıştırılmış (FC serisi tarzı) sabit 1-99 puan.
+ *                  Düşük-orta değer aralığında (floor..pivot) hızlı yükselen, yüksek
+ *                  değer aralığında (pivot..ceil) çok daha yavaş yükselen iki eğimli
+ *                  bir eğri kullanılır — böylece 10 kat piyasa değeri farkı, gücü
+ *                  orantısız büyütmez (örn. ~7M€ oyuncu ~81, ~70M€ oyuncu ~87 civarı).
  *  - ratingPower:  biriken sezon maç rating ortalamasından (0-10) 1-99 puan.
  *  - basePower:    marketPower + ratingPower'ın ağırlıklı karışımı (rating verisi
  *                  birikince ağırlığı kademeli artar, maks %35).
@@ -27,9 +31,21 @@ const MAX_RATING_WEIGHT = 0.35
 /** Bu kadar maçtan sonra rating ağırlığı maksimuma ulaşır. */
 const RATING_WEIGHT_FULL_AT_COUNT = 10
 
-/** marketPower log-ölçeğinin kalibre edildiği alt/üst sınır (euro). Altı/üstü clamp edilir. */
-const MARKET_VALUE_FLOOR_EUR = 50_000
+/**
+ * marketPower'ın kalibre edildiği iki eğimli (piecewise log) eğrinin kırılma noktaları.
+ * floor..pivot arası dik bir eğim (sıradan profesyonellerden düzenli forma çıkan
+ * oyunculara kadar hızlı yükselir), pivot..ceil arası çok daha yatık bir eğim
+ * (yıldızlar arası fark artık büyük oranda piyasa değerinden değil, sezon rating'i
+ * ve formdan gelsin diye). Değerler bu aralığın dışında kalırsa clamp edilir.
+ */
+const MARKET_VALUE_FLOOR_EUR = 100_000
+const MARKET_VALUE_PIVOT_EUR = 8_000_000
 const MARKET_VALUE_CEIL_EUR = 200_000_000
+
+/** Kırılma noktalarındaki karşılık gelen güç puanları. */
+const MARKET_POWER_AT_FLOOR = 50
+const MARKET_POWER_AT_PIVOT = 82
+const MARKET_POWER_AT_CEIL = 90
 
 /** ratingPower doğrusal ölçeğinin kalibre edildiği alt/üst sınır (API-Football 0-10 rating). */
 const RATING_FLOOR = 3.0
@@ -64,19 +80,32 @@ export type MatchPerformance = {
 }
 
 /**
- * Piyasa değerinden (euro) sabit log-ölçekli 1-99 taban puan üretir.
+ * Piyasa değerinden (euro) sabit, iki eğimli (piecewise log) 1-99 taban puan üretir.
  * Sabit ölçek kullanılır (havuza göre relatif değil) — böylece bir oyuncunun
  * gücü sadece başka oyuncuların değeri değişti diye kaymaz.
+ *
+ * floor..pivot arası dik, pivot..ceil arası yatık eğim: ör. ~7M€ oyuncu ile
+ * ~70M€ oyuncu arasındaki fark artık ~27 puan değil, ~6 puan civarında olur —
+ * yıldızlar arası ayrım daha çok sezon rating'i ve formdan gelir.
  */
 export function marketPowerFromValue(valueEur: number | null | undefined): number | null {
   if (valueEur === null || valueEur === undefined || !Number.isFinite(valueEur) || valueEur <= 0) {
     return null
   }
   const clampedValue = Math.max(MARKET_VALUE_FLOOR_EUR, Math.min(MARKET_VALUE_CEIL_EUR, valueEur))
-  const logFloor = Math.log10(MARKET_VALUE_FLOOR_EUR)
+  const logValue = Math.log10(clampedValue)
+
+  if (clampedValue <= MARKET_VALUE_PIVOT_EUR) {
+    const logFloor = Math.log10(MARKET_VALUE_FLOOR_EUR)
+    const logPivot = Math.log10(MARKET_VALUE_PIVOT_EUR)
+    const ratio = (logValue - logFloor) / (logPivot - logFloor)
+    return clampPower(MARKET_POWER_AT_FLOOR + (MARKET_POWER_AT_PIVOT - MARKET_POWER_AT_FLOOR) * ratio)
+  }
+
+  const logPivot = Math.log10(MARKET_VALUE_PIVOT_EUR)
   const logCeil = Math.log10(MARKET_VALUE_CEIL_EUR)
-  const ratio = (Math.log10(clampedValue) - logFloor) / (logCeil - logFloor)
-  return clampPower(MIN_POWER + (MAX_POWER - MIN_POWER) * ratio)
+  const ratio = (logValue - logPivot) / (logCeil - logPivot)
+  return clampPower(MARKET_POWER_AT_PIVOT + (MARKET_POWER_AT_CEIL - MARKET_POWER_AT_PIVOT) * ratio)
 }
 
 /** Biriken sezon rating ortalamasından (0-10) doğrusal 1-99 taban puan üretir. */
