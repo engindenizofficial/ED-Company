@@ -66,6 +66,8 @@ export interface CareerHomeData {
   nextFixture: FixtureSummary | null
   totalMatchdays: number
   matchdaysPlayed: number
+  /** En son oynanan kullanıcı maçı — sayfa yeniden açıldığında canlı akışı tekrar oynatmadan kalıcı özet göstermek için. */
+  lastPlayedMatch: PlayedMatchResult | null
 }
 
 export interface PlayedMatchResult {
@@ -98,6 +100,20 @@ function toFixtureSummary(row: typeof managerFixture.$inferSelect): FixtureSumma
     status: row.status as "scheduled" | "played",
     homeGoals: row.homeGoals,
     awayGoals: row.awayGoals,
+  }
+}
+
+/** Oynanmış bir kullanıcı fikstürünü, canlı akış bittikten sonra kalıcı özet olarak yeniden gösterebilmek için PlayedMatchResult'a çevirir. */
+function toPlayedMatchResult(row: typeof managerFixture.$inferSelect): PlayedMatchResult {
+  return {
+    fixtureId: row.id,
+    homeTeamName: row.homeTeamName,
+    homeTeamLogo: row.homeTeamLogo,
+    awayTeamName: row.awayTeamName,
+    awayTeamLogo: row.awayTeamLogo,
+    homeGoals: row.homeGoals ?? 0,
+    awayGoals: row.awayGoals ?? 0,
+    events: (row.events as MatchEvent[]) ?? [],
   }
 }
 
@@ -163,6 +179,9 @@ export async function getMyCareerHome(): Promise<CareerHomeData | null> {
   const matchdays = new Set(fixtures.map((f) => f.matchday))
   const playedMatchdays = new Set(fixtures.filter((f) => f.status === "played").map((f) => f.matchday))
   const nextUserFixture = fixtures.filter((f) => f.isUserMatch && f.status === "scheduled").sort((a, b) => a.matchday - b.matchday)[0]
+  const lastPlayedUserFixture = fixtures
+    .filter((f) => f.isUserMatch && f.status === "played" && f.playedAt !== null)
+    .sort((a, b) => (b.playedAt as Date).getTime() - (a.playedAt as Date).getTime())[0]
 
   return {
     clubName: career.clubName,
@@ -173,6 +192,7 @@ export async function getMyCareerHome(): Promise<CareerHomeData | null> {
     nextFixture: nextUserFixture ? toFixtureSummary(nextUserFixture) : null,
     totalMatchdays: matchdays.size,
     matchdaysPlayed: playedMatchdays.size,
+    lastPlayedMatch: lastPlayedUserFixture ? toPlayedMatchResult(lastPlayedUserFixture) : null,
   }
 }
 

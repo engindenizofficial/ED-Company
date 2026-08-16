@@ -35,6 +35,7 @@ import {
   type ManagerCareerSummary,
 } from "@/app/actions/manager-career"
 import { SquadBuilder, type SquadCompletionPayload } from "@/components/games/manager-career/squad-builder"
+import { CareerHome } from "@/components/games/manager-career/career-home"
 import { cn } from "@/lib/utils"
 
 type WizardStep = "difficulty" | "logo" | "names" | "league" | "squad" | "done"
@@ -155,27 +156,14 @@ export function ManagerCareerWizard() {
 
   if (existingCareer && existingCareer.status === "active" && step !== "done") {
     return (
-      <div className="mx-auto max-w-md rounded-2xl border border-border/60 bg-card p-6 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/30">
-          <Image
-            src={`/images/manager-logos/${existingCareer.logoFile}`}
-            alt=""
-            width={48}
-            height={48}
-            className="h-12 w-12 object-contain"
-          />
+      <div className="flex flex-col gap-3">
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" onClick={() => setRestartConfirmOpen(true)} className="text-muted-foreground">
+            {t("managerCareer.restartCareer")}
+          </Button>
         </div>
-        <p className="mt-4 text-sm text-muted-foreground">
-          {t("managerCareer.existingCareerBanner", { clubName: existingCareer.clubName })}
-        </p>
-        <h2 className="mt-1 text-xl font-black tracking-tight text-foreground">{existingCareer.clubName}</h2>
-        <Button
-          variant="outline"
-          className="mt-5 w-full"
-          onClick={() => setRestartConfirmOpen(true)}
-        >
-          {t("managerCareer.restartCareer")}
-        </Button>
+
+        <CareerHome />
 
         <AlertDialog open={restartConfirmOpen} onOpenChange={setRestartConfirmOpen}>
           <AlertDialogContent>
