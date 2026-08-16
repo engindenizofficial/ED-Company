@@ -786,7 +786,7 @@ function PlayerStatsTable({
                   <td className="py-2 text-center tabular-nums text-muted-foreground">{p.shotsOn ?? "—"}</td>
                   <td className="py-2 text-center tabular-nums text-muted-foreground">{p.passes ?? "—"}</td>
                   <td className="py-2 text-center tabular-nums text-muted-foreground">{p.dribbles ?? "—"}</td>
-                  <td className="py-2 text-center tabular-nums text-muted-foreground">{p.tackles ?? "���"}</td>
+                  <td className="py-2 text-center tabular-nums text-muted-foreground">{p.tackles ?? "—"}</td>
                   <td className="py-2 text-center">
                     {p.redCard ? (
                       <span className="inline-block h-3.5 w-2.5 rounded-sm bg-destructive" title={t("analysis.redCard")} />

@@ -175,7 +175,7 @@ export const marketValueReviewQueue = pgTable('market_value_review_queue', {
   /**
    * Ülke bilgisi için en az bir doldurma denemesi yapıldı mı? API-Football /
    * Transfermarkt kaynağında veri bulunamayınca entityCountry/candidateCountry
-   * null kalabilir ���� bu durumda bu alan olmadan satır her backfill turunda
+   * null kalabilir — bu durumda bu alan olmadan satır her backfill turunda
    * tekrar seçilip sonsuza kadar "işlenip" hiçbir zaman çözülmüyordu. Bu
    * bayrak true olduktan sonra satır backfill sorgusundan çıkar.
    */

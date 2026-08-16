@@ -293,7 +293,7 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
                     sub={[
                       passAccuracy != null ? `${passAccuracy.toFixed(0)}${t("playerPanel.accuracySuffix")}` : null,
                       passesKey > 0 ? `${passesKey} ${t("playerPanel.keyPassSuffix")}` : null,
-                    ].filter(Boolean).join(" �� ") || undefined}
+                    ].filter(Boolean).join(" · ") || undefined}
                   />
                 )}
                 {tacklesTotal > 0 && (
