@@ -17,7 +17,7 @@ function TeamCell({ name, logo, isUser, align }: { name: string; logo: string | 
       )}
     >
       {logo ? (
-        <Image src={logo} alt="" width={22} height={22} className="h-5.5 w-5.5 shrink-0 object-contain" unoptimized />
+        <Image src={logo} alt="" width={22} height={22} className="h-5.5 w-5.5 shrink-0 rounded-[3px] bg-white object-contain p-0.5 ring-1 ring-black/10" unoptimized />
       ) : (
         <span className="h-5.5 w-5.5 shrink-0" />
       )}

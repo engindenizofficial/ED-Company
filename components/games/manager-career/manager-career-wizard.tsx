@@ -363,7 +363,7 @@ export function ManagerCareerWizard() {
                   )}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={league.logo} alt="" className="h-7 w-7 shrink-0 object-contain" width={28} height={28} loading="lazy" />
+                  <img src={league.logo} alt="" className="h-7 w-7 shrink-0 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={28} height={28} loading="lazy" />
                   <div className="flex min-w-0 flex-col">
                     <span className="truncate text-xs font-semibold text-foreground">{league.name}</span>
                     <span className="truncate text-[11px] text-muted-foreground">{league.country}</span>
