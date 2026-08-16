@@ -1,6 +1,17 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core"
 import { ChevronLeft, Loader2, Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import { useLanguage } from "@/contexts/language-context"
@@ -78,6 +89,26 @@ const ROLE_ABBR: Record<PlayerRole, string> = {
 
 type SearchTarget = { kind: "starting"; slot: FormationSlot } | { kind: "bench"; index: number }
 
+type SlotId = { kind: "starting"; key: string } | { kind: "bench"; index: number }
+
+const STARTING_ID_PREFIX = "starting__"
+const BENCH_ID_PREFIX = "bench__"
+
+function startingSlotId(key: string): string {
+  return `${STARTING_ID_PREFIX}${key}`
+}
+
+function benchSlotId(index: number): string {
+  return `${BENCH_ID_PREFIX}${index}`
+}
+
+function parseSlotId(id: string): SlotId {
+  if (id.startsWith(STARTING_ID_PREFIX)) {
+    return { kind: "starting", key: id.slice(STARTING_ID_PREFIX.length) }
+  }
+  return { kind: "bench", index: Number(id.slice(BENCH_ID_PREFIX.length)) }
+}
+
 export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }: SquadBuilderProps) {
   const { t, locale } = useLanguage()
 
@@ -86,6 +117,9 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
   const [bench, setBench] = useState<(SquadEntry | null)[]>(Array(BENCH_SIZE).fill(null))
   const [searchTarget, setSearchTarget] = useState<SearchTarget | null>(null)
   const [pendingFormation, setPendingFormation] = useState<string | null>(null)
+  const [draggingEntry, setDraggingEntry] = useState<SquadEntry | null>(null)
+
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   const slots = useMemo(() => getFormationSlots(formation), [formation])
 
@@ -165,6 +199,65 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
     })
   }
 
+  function handleDragStart(event: DragStartEvent) {
+    const source = parseSlotId(String(event.active.id))
+    const entry = source.kind === "starting" ? starting[source.key] : bench[source.index]
+    setDraggingEntry(entry ?? null)
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setDraggingEntry(null)
+    const { active, over } = event
+    if (!over) return
+
+    const sourceId = String(active.id)
+    const targetId = String(over.id)
+    if (sourceId === targetId) return
+
+    const source = parseSlotId(sourceId)
+    const target = parseSlotId(targetId)
+
+    const sourceEntry = source.kind === "starting" ? starting[source.key] : bench[source.index]
+    const targetEntry = target.kind === "starting" ? starting[target.key] : bench[target.index]
+    if (!sourceEntry) return
+
+    if (source.kind === "starting" && target.kind === "starting") {
+      setStarting((prev) => {
+        const next = { ...prev }
+        if (targetEntry) next[source.key] = targetEntry
+        else delete next[source.key]
+        next[target.key] = sourceEntry
+        return next
+      })
+    } else if (source.kind === "bench" && target.kind === "bench") {
+      setBench((prev) => {
+        const next = [...prev]
+        next[source.index] = targetEntry ?? null
+        next[target.index] = sourceEntry
+        return next
+      })
+    } else if (source.kind === "starting" && target.kind === "bench") {
+      setStarting((prev) => {
+        const next = { ...prev }
+        if (targetEntry) next[source.key] = targetEntry
+        else delete next[source.key]
+        return next
+      })
+      setBench((prev) => {
+        const next = [...prev]
+        next[target.index] = sourceEntry
+        return next
+      })
+    } else if (source.kind === "bench" && target.kind === "starting") {
+      setBench((prev) => {
+        const next = [...prev]
+        next[source.index] = targetEntry ?? null
+        return next
+      })
+      setStarting((prev) => ({ ...prev, [target.key]: sourceEntry }))
+    }
+  }
+
   function handleCompleteClick() {
     if (!isComplete) {
       const emptyCount = slots.length - startingFilledCount + (BENCH_SIZE - benchFilledCount)
@@ -240,52 +333,59 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
         </div>
       </div>
 
-      {/* Yarı saha */}
-      <div className="relative mx-auto aspect-[3/4] w-full max-w-sm overflow-hidden rounded-2xl border-2 border-white/25 bg-[repeating-linear-gradient(180deg,oklch(0.42_0.09_150)_0%,oklch(0.42_0.09_150)_10%,oklch(0.38_0.09_150)_10%,oklch(0.38_0.09_150)_20%)]">
-        {/* orta hat çizgisi (üst kenar) */}
-        <div className="absolute inset-x-0 top-0 h-[2px] bg-white/40" />
-        {/* orta yuvarlağın alt yarısı */}
-        <div className="absolute left-1/2 top-0 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/30" />
-        {/* ceza sahası (alt kenar, kale çizgisine yakın) */}
-        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
-          <div className="h-[22%] w-[62%] border-2 border-b-0 border-white/30" />
-        </div>
-        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
-          <div className="h-[9%] w-[32%] border-2 border-b-0 border-white/30" />
-        </div>
-        {/* kale çizgisi */}
-        <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/50" />
+      <DndContext sensors={dndSensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        {/* Yarı saha */}
+        <div className="relative mx-auto aspect-[3/4] w-full max-w-sm overflow-hidden rounded-2xl border-2 border-white/25 bg-[repeating-linear-gradient(180deg,oklch(0.42_0.09_150)_0%,oklch(0.42_0.09_150)_10%,oklch(0.38_0.09_150)_10%,oklch(0.38_0.09_150)_20%)]">
+          {/* orta hat çizgisi (üst kenar) */}
+          <div className="absolute inset-x-0 top-0 h-[2px] bg-white/40" />
+          {/* orta yuvarlağın alt yarısı */}
+          <div className="absolute left-1/2 top-0 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/30" />
+          {/* ceza sahası (alt kenar, kale çizgisine yakın) */}
+          <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
+            <div className="h-[22%] w-[62%] border-2 border-b-0 border-white/30" />
+          </div>
+          <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
+            <div className="h-[9%] w-[32%] border-2 border-b-0 border-white/30" />
+          </div>
+          {/* kale çizgisi */}
+          <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/50" />
 
-        {slots.map((slot) => (
-          <PitchSlot
-            key={slot.key}
-            slot={slot}
-            entry={starting[slot.key]}
-            onOpen={() => setSearchTarget({ kind: "starting", slot })}
-            onRemove={() => handleRemoveStarting(slot.key)}
-          />
-        ))}
-      </div>
-
-      {/* Yedekler */}
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold text-muted-foreground">{t("managerCareer.benchTitle")}</span>
-          <span className="text-xs font-semibold tabular-nums text-muted-foreground">
-            {t("managerCareer.benchCount", { filled: benchFilledCount, total: BENCH_SIZE })}
-          </span>
-        </div>
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-          {bench.map((entry, index) => (
-            <BenchSlot
-              key={index}
-              entry={entry}
-              onOpen={() => setSearchTarget({ kind: "bench", index })}
-              onRemove={() => handleRemoveBench(index)}
+          {slots.map((slot) => (
+            <PitchSlot
+              key={slot.key}
+              slot={slot}
+              entry={starting[slot.key]}
+              onOpen={() => setSearchTarget({ kind: "starting", slot })}
+              onRemove={() => handleRemoveStarting(slot.key)}
             />
           ))}
         </div>
-      </div>
+
+        {/* Yedekler */}
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">{t("managerCareer.benchTitle")}</span>
+            <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+              {t("managerCareer.benchCount", { filled: benchFilledCount, total: BENCH_SIZE })}
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+            {bench.map((entry, index) => (
+              <BenchSlot
+                key={index}
+                index={index}
+                entry={entry}
+                onOpen={() => setSearchTarget({ kind: "bench", index })}
+                onRemove={() => handleRemoveBench(index)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <DragOverlay dropAnimation={null}>
+          {draggingEntry ? <DraggedPlayerPreview entry={draggingEntry} /> : null}
+        </DragOverlay>
+      </DndContext>
 
       <div className="flex items-center justify-between border-t border-border/60 pt-4">
         <Button variant="outline" onClick={onBack} disabled={submitting}>
@@ -341,18 +441,28 @@ function PitchSlot({
   onRemove: () => void
 }) {
   const { t } = useLanguage()
+  const id = startingSlotId(slot.key)
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id })
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ id, disabled: !entry })
 
   return (
     <div
+      ref={setDropRef}
       className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
       style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
     >
       {entry ? (
-        <div className="relative flex flex-col items-center gap-1">
+        <div className={cn("relative flex flex-col items-center gap-1", isDragging && "opacity-30")}>
           <button
+            ref={setDragRef}
+            {...listeners}
+            {...attributes}
             type="button"
             onClick={onOpen}
-            className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white shadow-md sm:h-13 sm:w-13"
+            className={cn(
+              "flex h-11 w-11 cursor-grab touch-none items-center justify-center overflow-hidden rounded-full border-2 bg-white shadow-md active:cursor-grabbing sm:h-13 sm:w-13",
+              isOver ? "border-primary" : "border-white",
+            )}
           >
             {entry.photo ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -382,7 +492,10 @@ function PitchSlot({
           type="button"
           onClick={onOpen}
           aria-label={t("managerCareer.emptySlot")}
-          className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-white/70 bg-white/10 text-white transition-colors hover:bg-white/20 sm:h-13 sm:w-13"
+          className={cn(
+            "flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed text-white transition-colors sm:h-13 sm:w-13",
+            isOver ? "border-primary bg-primary/20" : "border-white/70 bg-white/10 hover:bg-white/20",
+          )}
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -391,24 +504,46 @@ function PitchSlot({
   )
 }
 
+function DraggedPlayerPreview({ entry }: { entry: SquadEntry }) {
+  return (
+    <div className="flex h-11 w-11 cursor-grabbing items-center justify-center overflow-hidden rounded-full border-2 border-primary bg-white shadow-lg">
+      {entry.photo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={entry.photo} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span className="text-xs font-bold text-foreground">{entry.playerName.charAt(0)}</span>
+      )}
+    </div>
+  )
+}
+
 function BenchSlot({
+  index,
   entry,
   onOpen,
   onRemove,
 }: {
+  index: number
   entry: SquadEntry | null
   onOpen: () => void
   onRemove: () => void
 }) {
   const { t } = useLanguage()
+  const id = benchSlotId(index)
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id })
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ id, disabled: !entry })
 
   if (!entry) {
     return (
       <button
+        ref={setDropRef}
         type="button"
         onClick={onOpen}
         aria-label={t("managerCareer.emptyBenchSlot")}
-        className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border/60 bg-card text-muted-foreground transition-colors hover:border-border"
+        className={cn(
+          "flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed text-muted-foreground transition-colors",
+          isOver ? "border-primary bg-primary/10" : "border-border/60 bg-card hover:border-border",
+        )}
       >
         <Plus className="h-4 w-4" />
       </button>
@@ -416,7 +551,14 @@ function BenchSlot({
   }
 
   return (
-    <div className="relative flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-border/60 bg-card p-1.5">
+    <div
+      ref={setDropRef}
+      className={cn(
+        "relative flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border p-1.5",
+        isDragging && "opacity-30",
+        isOver ? "border-primary bg-primary/5" : "border-border/60 bg-card",
+      )}
+    >
       <button
         type="button"
         onClick={(e) => {
@@ -429,7 +571,14 @@ function BenchSlot({
         <X className="h-2.5 w-2.5" />
       </button>
       <div>
-        <button type="button" onClick={onOpen} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-secondary">
+        <button
+          ref={setDragRef}
+          {...listeners}
+          {...attributes}
+          type="button"
+          onClick={onOpen}
+          className="flex h-9 w-9 cursor-grab touch-none items-center justify-center overflow-hidden rounded-full bg-secondary active:cursor-grabbing"
+        >
           {entry.photo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={entry.photo} alt="" className="h-full w-full object-cover" />
