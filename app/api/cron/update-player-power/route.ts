@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm"
+import { playerPower, playerPowerProcessedFixture } from "@/lib/db/schema"
 import { db } from "@/lib/db"
 import { playerPowerCronRun } from "@/lib/db/schema"
 import { runPlayerPowerSync } from "@/lib/player-power-sync"
@@ -30,10 +31,15 @@ export async function GET(request: Request) {
   }
 
   const runStartedAt = new Date()
+  const forceResync = new URL(request.url).searchParams.get("resync") === "1"
   const logId = `player-power-run-${runStartedAt.getTime()}`
   await db.insert(playerPowerCronRun).values({ id: logId, runStartedAt, status: "running" })
 
   try {
+    if (forceResync) {
+      await db.delete(playerPower)
+      await db.delete(playerPowerProcessedFixture)
+    }
     const result = await runPlayerPowerSync()
     await db
       .update(playerPowerCronRun)
