@@ -16,8 +16,9 @@ const MAX_RETRIES = 5
 // Aynı endpoint+parametre için kısa süreli response cache.
 // Panel verileri (kadro, istatistik, transferler vb.) saniyeler içinde
 // değişmez; bu TTL sadece art arda aç/kapatmalarda tutarlılık sağlamak ve
-// istek hacmini azaltmak için var.
-const CACHE_TTL_MS = 90_000
+// istek hacmini azaltmak için var. `revalidate` belirtilmeyen çağrılar için
+// varsayılan olarak kullanılır.
+const DEFAULT_CACHE_TTL_MS = 90_000
 const responseCache = new Map<string, { data: unknown; expiresAt: number }>()
 // Aynı anahtar için devam eden isteği paylaş (aynı anda tetiklenen tekrar
 // istekler tek bir ağ çağrısına düşsün).
@@ -115,8 +116,16 @@ export async function apiFootballFetch<T>(
     }
   }
 
+  // Bellek içi cache'in ömrü, çağıranın istediği `revalidate` süresine göre
+  // belirlenir (ör. canlı maç olayları/istatistikleri 30sn, kadrolar 300sn).
+  // Önceden bu değer göz ardı edilip her şey sabit 90sn tutuluyordu; bu da
+  // örneğin 30sn'lik bir istemci otomatik-yenilemesinin 2-3 turunu aynı bayat
+  // veriye çarptırıyor, canlı maç panelinde veri "geç güncelleniyormuş" gibi
+  // görünüyordu.
+  const ttlMs = options.revalidate != null ? options.revalidate * 1000 : DEFAULT_CACHE_TTL_MS
+
   const promise = doFetch<T>(path, params, options).then((data) => {
-    responseCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS })
+    responseCache.set(key, { data, expiresAt: Date.now() + ttlMs })
     inFlight.delete(key)
     return data
   }).catch((err) => {
