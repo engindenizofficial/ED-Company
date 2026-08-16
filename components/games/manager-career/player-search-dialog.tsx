@@ -187,7 +187,12 @@ export function PlayerSearchDialog({
                       <div className="flex items-center gap-1.5">
                         {r.teamLogo && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={r.teamLogo} alt="" className="h-3.5 w-3.5 object-contain opacity-80" loading="lazy" />
+                          <img
+                            src={r.teamLogo}
+                            alt=""
+                            className="h-3.5 w-3.5 shrink-0 rounded-[2px] bg-white object-contain ring-1 ring-black/10"
+                            loading="lazy"
+                          />
                         )}
                         <span className="truncate text-[11px] text-muted-foreground">
                           {r.teamName ?? t("duel.unknown")}

@@ -1,4 +1,8 @@
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
 import type { Metadata } from "next"
+import { auth } from "@/lib/auth"
+import { isAdminEmail } from "@/lib/admin"
 import { ManagerCareerHero } from "@/components/games/manager-career/manager-career-hero"
 import { getServerLocale } from "@/lib/i18n/server-locale"
 import { translate } from "@/lib/i18n/dictionaries"
@@ -15,6 +19,17 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default function ManagerCareerPage() {
+export const dynamic = "force-dynamic"
+
+// "Kulübünü Kur" oyunu şu an sadece admin hesabına açık — yayına hazır
+// olmadığı için diğer kullanıcılar (giriş yapmış olsalar da) ana sayfaya
+// geri yönlendirilir. Alttaki server action'lar (app/actions/manager-career.ts)
+// zaten aynı kontrolü tekrar yapıyor, burası sadece sayfanın kendisini kapatır.
+export default async function ManagerCareerPage() {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!isAdminEmail(session?.user?.email)) {
+    redirect("/")
+  }
+
   return <ManagerCareerHero />
 }

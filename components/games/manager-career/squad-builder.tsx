@@ -583,7 +583,7 @@ function PitchSlot({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={entry.photo} alt="" className="h-full w-full object-cover" />
             ) : (
-              <span className="text-xs font-bold text-foreground">{entry.playerName.charAt(0)}</span>
+              <span className="text-xs font-bold text-neutral-900">{entry.playerName.charAt(0)}</span>
             )}
           </button>
           <button
@@ -626,7 +626,7 @@ function DraggedPlayerPreview({ entry }: { entry: SquadEntry }) {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={entry.photo} alt="" className="h-full w-full object-cover" />
       ) : (
-        <span className="text-xs font-bold text-foreground">{entry.playerName.charAt(0)}</span>
+        <span className="text-xs font-bold text-neutral-900">{entry.playerName.charAt(0)}</span>
       )}
     </div>
   )
