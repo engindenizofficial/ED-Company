@@ -145,10 +145,13 @@ export const FORMATIONS: FormationDef[] = [
 
 export const DEFAULT_FORMATION_ID = "4-4-2"
 
+import type { PlayerPosition } from "@/lib/player-positions"
+
 export interface FormationSlot {
   /** Bu dizilişe özgü benzersiz anahtar, örn. "Defender-0-2". */
   key: string
   role: PlayerRole
+  position: PlayerPosition
   x: number
   y: number
 }
@@ -164,7 +167,14 @@ export function getFormationSlots(formationId: string): FormationSlot[] {
       // Tek eleman ortada; birden fazla elemanda eşit aralıklarla, kenarlara
       // taşmayacak şekilde (10-90 aralığı) dağıt.
       const x = count === 1 ? 50 : 12 + (i * (76 / (count - 1)))
-      slots.push({ key: `${line.role}-${lineIndex}-${i}`, role: line.role, x, y: line.y })
+      const position: PlayerPosition = line.role === "Goalkeeper"
+        ? "GK"
+        : line.role === "Defender"
+          ? (count === 3 ? (i === 0 ? "LB" : i === count - 1 ? "RB" : "CB") : count >= 4 ? (i === 0 ? "LB" : i === count - 1 ? "RB" : "CB") : "CB")
+          : line.role === "Midfielder"
+            ? (line.y >= 50 ? "DM" : count >= 4 && i === 0 ? "LM" : count >= 4 && i === count - 1 ? "RM" : line.y <= 38 ? "AM" : "CM")
+            : (count >= 3 && i === 0 ? "LW" : count >= 3 && i === count - 1 ? "RW" : count === 1 ? "ST" : "CF")
+      slots.push({ key: `${line.role}-${lineIndex}-${i}`, role: line.role, position, x, y: line.y })
     }
   })
 

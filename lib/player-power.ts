@@ -79,6 +79,18 @@ export type MatchPerformance = {
   goals: number
   assists: number
   minutes: number
+  position?: string | null
+  shots?: number | null
+  shotsOn?: number | null
+  passes?: number | null
+  passesAccuracy?: number | null
+  tackles?: number | null
+  dribbles?: number | null
+  saves?: number | null
+  goalsConceded?: number | null
+  keyPasses?: number | null
+  interceptions?: number | null
+  clearances?: number | null
 }
 
 /**
@@ -162,8 +174,13 @@ export function computeFormModifier(recentMatches: MatchPerformance[]): number {
 
   relevant.forEach((match, index) => {
     const rating = match.rating as number
-    const bonus = Math.min(match.goals * GOAL_BONUS + match.assists * ASSIST_BONUS, MAX_MATCH_DELTA)
-    const rawDelta = rating - NEUTRAL_MATCH_RATING + bonus
+    const pos = match.position?.toUpperCase() ?? ""
+    const attacking = match.goals * GOAL_BONUS + match.assists * ASSIST_BONUS + (match.shotsOn ?? 0) * 0.08
+    const creating = (match.assists ?? 0) * ASSIST_BONUS + (match.passesAccuracy ?? 0) * 0.012 + (match.keyPasses ?? 0) * 0.06
+    const defending = (match.tackles ?? 0) * 0.06 + (match.interceptions ?? 0) * 0.05 + (match.clearances ?? 0) * 0.025
+    const goalkeeping = (match.saves ?? 0) * 0.07 - (match.goalsConceded ?? 0) * 0.12
+    const bonus = pos === "G" || pos === "GK" ? goalkeeping : pos === "D" || pos === "DF" ? defending + creating * 0.35 : pos === "M" || pos === "MF" ? creating + attacking * 0.35 : attacking
+    const rawDelta = rating - NEUTRAL_MATCH_RATING + Math.min(bonus, MAX_MATCH_DELTA)
     const delta = Math.max(-MAX_MATCH_DELTA, Math.min(MAX_MATCH_DELTA, rawDelta))
 
     const decayWeight = Math.pow(FORM_DECAY, index)

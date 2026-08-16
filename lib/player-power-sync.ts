@@ -99,6 +99,13 @@ export async function runPlayerPowerSync(): Promise<PlayerPowerSyncResult> {
         goals: s.goals ?? 0,
         assists: s.assists ?? 0,
         minutes: s.minutes,
+        position: s.player.pos,
+        shots: s.shots,
+        shotsOn: s.shotsOn,
+        passes: s.passes,
+        passesAccuracy: s.passesAccuracy ? Number.parseFloat(s.passesAccuracy) : null,
+        tackles: s.tackles,
+        dribbles: s.dribbles,
       }
       const list = performancesByPlayer.get(s.player.id) ?? []
       list.push({ teamId: s.teamId, perf })
