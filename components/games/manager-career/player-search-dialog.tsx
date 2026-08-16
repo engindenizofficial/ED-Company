@@ -147,10 +147,12 @@ export function PlayerSearchDialog({
                         {r.name.charAt(0)}
                       </div>
                     )}
-                    <PowerBadge power={r.power} className="absolute -bottom-1 -right-1" />
                   </div>
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate text-sm font-semibold text-foreground">{r.name}</span>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-sm font-semibold text-foreground">{r.name}</span>
+                      <PowerBadge power={r.power} />
+                    </div>
                     <div className="flex items-center gap-1.5">
                       {r.teamLogo && (
                         // eslint-disable-next-line @next/next/no-img-element

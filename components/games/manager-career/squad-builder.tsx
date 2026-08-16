@@ -361,7 +361,6 @@ function PitchSlot({
               <span className="text-xs font-bold text-foreground">{entry.playerName.charAt(0)}</span>
             )}
           </button>
-          <PowerBadge power={entry.power} className="absolute -bottom-0.5 -left-0.5" />
           <button
             type="button"
             onClick={(e) => {
@@ -373,9 +372,10 @@ function PitchSlot({
           >
             <X className="h-2.5 w-2.5" />
           </button>
-          <span className="max-w-14 truncate rounded bg-black/70 px-1 py-0.5 text-[9px] font-semibold text-white">
-            {entry.playerName}
-          </span>
+          <div className="flex max-w-20 items-center gap-1 rounded bg-black/70 px-1 py-0.5">
+            <span className="min-w-0 truncate text-[9px] font-semibold text-white">{entry.playerName}</span>
+            <PowerBadge power={entry.power} />
+          </div>
         </div>
       ) : (
         <button
@@ -428,7 +428,7 @@ function BenchSlot({
       >
         <X className="h-2.5 w-2.5" />
       </button>
-      <div className="relative">
+      <div>
         <button type="button" onClick={onOpen} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-secondary">
           {entry.photo ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -437,9 +437,11 @@ function BenchSlot({
             <span className="text-xs font-bold text-foreground">{entry.playerName.charAt(0)}</span>
           )}
         </button>
-        <PowerBadge power={entry.power} className="absolute -bottom-0.5 -right-0.5" />
       </div>
-      <span className="w-full truncate text-center text-[9px] font-semibold text-foreground">{entry.playerName}</span>
+      <div className="flex max-w-full items-center gap-1">
+        <span className="truncate text-[9px] font-semibold text-foreground">{entry.playerName}</span>
+        <PowerBadge power={entry.power} />
+      </div>
       <span className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground">{ROLE_ABBR[entry.role]}</span>
     </div>
   )
