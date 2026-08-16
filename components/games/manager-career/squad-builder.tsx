@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   DndContext,
   DragOverlay,
@@ -12,7 +12,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core"
-import { ChevronLeft, Loader2, Plus, X } from "lucide-react"
+import { ChevronLeft, Loader2, RefreshCw, TrendingDown, TrendingUp, Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import { useLanguage } from "@/contexts/language-context"
 import { Button } from "@/components/ui/button"
@@ -48,6 +48,15 @@ import { PowerBadge } from "@/components/games/manager-career/power-badge"
 import type { ManagerPlayerSearchResult } from "@/app/api/games/manager-career/players/search/route"
 import type { SquadPlayerInput } from "@/app/actions/manager-career"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import type { MomentumPlayer } from "@/app/api/games/manager-career/players/momentum/route"
 
 export interface SquadEntry {
   playerId: number
@@ -118,6 +127,41 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
   const [searchTarget, setSearchTarget] = useState<SearchTarget | null>(null)
   const [pendingFormation, setPendingFormation] = useState<string | null>(null)
   const [draggingEntry, setDraggingEntry] = useState<SquadEntry | null>(null)
+  const [momentumOpen, setMomentumOpen] = useState(false)
+  const [momentumPlayers, setMomentumPlayers] = useState<MomentumPlayer[]>([])
+  const [momentumLoading, setMomentumLoading] = useState(true)
+  const [momentumError, setMomentumError] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/games/manager-career/players/momentum")
+      .then((response) => {
+        if (!response.ok) throw new Error("momentum request failed")
+        return response.json() as Promise<{ players: MomentumPlayer[] }>
+      })
+      .then((data) => {
+        if (cancelled) return
+        setMomentumPlayers(data.players)
+        setMomentumOpen(true)
+      })
+      .catch(() => {
+        if (!cancelled) setMomentumError(true)
+      })
+      .finally(() => {
+        if (!cancelled) setMomentumLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  function retryMomentum() {
+    setMomentumLoading(true)
+    setMomentumError(false)
+    fetch("/api/games/manager-career/players/momentum")
+      .then((response) => response.json() as Promise<{ players: MomentumPlayer[] }>)
+      .then((data) => { setMomentumPlayers(data.players); setMomentumOpen(true) })
+      .catch(() => setMomentumError(true))
+      .finally(() => setMomentumLoading(false))
+  }
 
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -143,8 +187,8 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
   const benchFilledCount = bench.filter((e) => e !== null).length
   const isComplete = startingFilledCount === slots.length && benchFilledCount === BENCH_SIZE
 
-  function handleFormationSelect(nextFormationId: string) {
-    if (nextFormationId === formation) return
+  function handleFormationSelect(nextFormationId: string | null) {
+    if (!nextFormationId || nextFormationId === formation) return
     if (Object.keys(starting).length > 0) {
       setPendingFormation(nextFormationId)
     } else {
@@ -307,6 +351,13 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
       {/* Diziliş seçimi + bütçe özeti */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setMomentumOpen(true)} disabled={momentumLoading}>
+            <TrendingUp data-icon="inline-start" />
+            {t("managerCareer.momentumButton")}
+            {momentumPlayers.length > 0 ? <Badge variant="secondary">{momentumPlayers.length}</Badge> : null}
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-muted-foreground">{t("managerCareer.formationLabel")}</span>
           <Select value={formation} onValueChange={handleFormationSelect}>
             <SelectTrigger className="w-28">
@@ -412,6 +463,46 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
         excludePlayerIds={excludePlayerIds}
         onSelect={handleSelectPlayer}
       />
+
+      <Dialog open={momentumOpen} onOpenChange={setMomentumOpen}>
+        <DialogContent className="max-h-[85vh] max-w-lg overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>{t("managerCareer.momentumTitle")}</DialogTitle>
+            <DialogDescription>{t("managerCareer.momentumDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="flex max-h-[55vh] flex-col gap-2 overflow-y-auto pr-1">
+            {momentumLoading ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                <Loader2 className="animate-spin" /> {t("managerCareer.momentumLoading")}
+              </div>
+            ) : momentumError ? (
+              <div className="flex flex-col items-center gap-3 py-8 text-center text-sm text-muted-foreground">
+                <p>{t("managerCareer.momentumError")}</p>
+                <Button variant="outline" size="sm" onClick={retryMomentum}><RefreshCw data-icon="inline-start" />{t("common.retry")}</Button>
+              </div>
+            ) : momentumPlayers.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">{t("managerCareer.momentumEmpty")}</p>
+            ) : momentumPlayers.map((player) => {
+              const positive = player.change > 0
+              return (
+                <div key={player.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 p-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-foreground">{player.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{player.teamName ?? t("managerCareer.unknownTeam")}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-sm tabular-nums text-muted-foreground">{player.previousPower} → {player.currentPower}</span>
+                    <Badge variant={positive ? "default" : "destructive"}>
+                      {positive ? <TrendingUp data-icon="inline-start" /> : <TrendingDown data-icon="inline-start" />}
+                      {positive ? "+" : ""}{player.change}
+                    </Badge>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={pendingFormation !== null} onOpenChange={(o) => !o && setPendingFormation(null)}>
         <AlertDialogContent>
