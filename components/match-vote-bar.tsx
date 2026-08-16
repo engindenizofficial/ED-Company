@@ -32,6 +32,11 @@ export function MatchVoteBar({
   const [pending, setPending] = useState(false)
   // Bar açıldığında yüzdeler %0'dan gerçek değerlere doğru animasyonla büyüsün.
   const [revealed, setRevealed] = useState(false)
+  // Oy verilen/değiştirilen tarafa göre reveal animasyonunun hangi noktadan
+  // açılacağını belirler (bkz. globals.css .vote-reveal-{home,draw,away}).
+  // Her değişiklikte bir sayaç artırılır ki React aynı seçime tekrar
+  // basıldığında da (key değişmese bile) animasyon yeniden oynasın.
+  const [revealKey, setRevealKey] = useState(0)
 
   const state = optimistic ?? data ?? null
   const hasVoted = !!state?.myVote
@@ -46,15 +51,23 @@ export function MatchVoteBar({
   }, [hasVoted])
 
   async function vote(choice: VoteChoice) {
-    if (pending || hasVoted || !state) return
+    if (pending || !state || state.myVote === choice) return
     setPending(true)
+    setRevealKey((k) => k + 1)
 
-    // Anında yerel önizleme — kullanıcı butona bastığı an çubuk açılır.
+    // Anında yerel önizleme — kullanıcı butona bastığı an çubuk açılır/güncellenir.
+    // Önceki oy varsa ve değişiyorsa, eski seçimin sayacını düşürüp yenisini
+    // artırıyoruz (toplam oy sayısı sabit kalır) — sunucudaki castVote ile aynı mantık.
+    const previous = state.myVote
+    const nextCounts = { ...state.counts, [choice]: state.counts[choice] + 1 }
+    if (previous && previous !== choice) {
+      nextCounts[previous] = Math.max(0, nextCounts[previous] - 1)
+    }
     const next: VoteState = {
       ...state,
       myVote: choice,
-      counts: { ...state.counts, [choice]: state.counts[choice] + 1 },
-      total: state.total + 1,
+      counts: nextCounts,
+      total: previous ? state.total : state.total + 1,
     }
     setOptimistic(next)
 
@@ -125,8 +138,17 @@ export function MatchVoteBar({
           </div>
         ) : (
           <div className="flex flex-col gap-2.5">
-            {/* Segmented percentage bar */}
-            <div className="flex h-8 w-full overflow-hidden rounded-lg bg-secondary/60">
+            {/* Segmented percentage bar — oy verilen/değiştirilen tarafa göre
+                soldan (ev), ortadan (berabere) veya sağdan (deplasman) açılır.
+                `key={revealKey}` her oy değişikliğinde bu satırı yeniden mount
+                edip animasyonun tekrar oynamasını sağlar. */}
+            <div
+              key={revealKey}
+              className={cn(
+                "flex h-8 w-full overflow-hidden rounded-lg bg-secondary/60",
+                `vote-reveal-${state.myVote}`,
+              )}
+            >
               <VoteSegment
                 pctValue={revealed ? homePct : 0}
                 color="bg-primary"
@@ -147,25 +169,32 @@ export function MatchVoteBar({
               />
             </div>
 
-            {/* Labels — seçilen taraf dolgulu bir rozetle ve onay ikonuyla belirtilir */}
+            {/* Labels — seçilen taraf dolgulu bir rozetle ve onay ikonuyla belirtilir.
+                Etiketlere tıklanarak oy değiştirilebilir. */}
             <div className="grid grid-cols-3 gap-2">
               <VoteLabel
                 label={homeName}
                 active={state.myVote === "home"}
                 tone="text-primary"
                 activeClassName="border-primary/50 bg-primary/12"
+                onClick={() => vote("home")}
+                disabled={pending}
               />
               <VoteLabel
                 label={t("matchVote.drawOption")}
                 active={state.myVote === "draw"}
                 tone="text-foreground"
                 activeClassName="border-foreground/30 bg-foreground/8"
+                onClick={() => vote("draw")}
+                disabled={pending}
               />
               <VoteLabel
                 label={awayName}
                 active={state.myVote === "away"}
                 tone="text-accent"
                 activeClassName="border-accent/50 bg-accent/12"
+                onClick={() => vote("away")}
+                disabled={pending}
               />
             </div>
           </div>
@@ -227,18 +256,25 @@ function VoteLabel({
   active,
   tone,
   activeClassName,
+  onClick,
+  disabled,
 }: {
   label: string
   active: boolean
   tone: string
   activeClassName: string
+  onClick: () => void
+  disabled?: boolean
 }) {
   const { t } = useLanguage()
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
       className={cn(
-        "flex items-center justify-center gap-1 truncate rounded-lg border border-transparent px-1.5 py-1 transition-colors",
-        active && activeClassName,
+        "flex items-center justify-center gap-1 truncate rounded-lg border border-transparent px-1.5 py-1 transition-colors active:scale-95 disabled:pointer-events-none disabled:opacity-70",
+        active ? activeClassName : "hover:bg-secondary hover:border-muted-foreground/30",
       )}
     >
       {active && <Check className={cn("h-3 w-3 shrink-0", tone)} aria-hidden="true" />}
@@ -247,7 +283,7 @@ function VoteLabel({
       >
         {label}
       </span>
-      {active && <span className="sr-only">{t("matchVote.yourVoteSrOnly")}</span>}
-    </div>
+      <span className="sr-only">{active ? t("matchVote.yourVoteSrOnly") : t("matchVote.changeVoteSrOnly")}</span>
+    </button>
   )
 }

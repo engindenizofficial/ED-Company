@@ -333,7 +333,9 @@ export async function getVoterChoice(fixtureId: number, voterId: string): Promis
 
 /**
  * Bir kullanıcının oyunu kaydeder. Kullanıcı bu maça daha önce oy verdiyse
- * hiçbir şey değiştirmez ve mevcut oyunu döndürür (tek kişi tek oy).
+ * ve yeni seçim farklıysa oyunu günceller: eski seçimin sayacı bir azalır,
+ * yeni seçimin sayacı bir artar (toplam oy sayısı değişmez). Aynı seçime
+ * tekrar basılırsa hiçbir şey değişmeden mevcut durum döndürülür.
  */
 export async function castVote(
   fixtureId: number,
@@ -343,13 +345,17 @@ export async function castVote(
   if (!redis) return { counts: EMPTY_COUNTS, myVote: choice }
   try {
     const existing = await getVoterChoice(fixtureId, voterId)
-    if (existing) {
+    if (existing === choice) {
       const counts = await getVoteCounts(fixtureId)
-      return { counts, myVote: existing }
+      return { counts, myVote: choice }
     }
 
     await redis.hset(K.voteChoices(fixtureId), { [voterId]: choice })
     await redis.expire(K.voteChoices(fixtureId), VOTE_TTL)
+    if (existing) {
+      // Oy değiştiriliyor — eski seçimin sayacını düşür, toplamı sabit tut.
+      await redis.hincrby(K.voteCounts(fixtureId), existing, -1)
+    }
     await redis.hincrby(K.voteCounts(fixtureId), choice, 1)
     await redis.expire(K.voteCounts(fixtureId), VOTE_TTL)
 

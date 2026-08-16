@@ -37,8 +37,9 @@ export async function GET(request: Request) {
 }
 
 // Tek tıkla oy verme — üye olsun olmasın herkes kullanabilir.
-// Ziyaretçi kimliği bir çerezle takip edilir; aynı kişi bir maça yalnızca
-// bir kez oy verebilir.
+// Ziyaretçi kimliği bir çerezle takip edilir. Aynı kişi bir maça istediği
+// kadar oy verebilir; her yeni istek önceki seçimin üzerine yazar
+// (castVote eski seçimin sayacını düşürüp yeni seçimi artırır).
 export async function POST(request: Request) {
   let body: { fixtureId?: number; choice?: string }
   try {

@@ -503,3 +503,40 @@
   0% { transform: translateY(0) scale(1); opacity: 0.9; }
   100% { transform: translateY(-38px) scale(0.4); opacity: 0; }
 }
+
+/* ---------------------------------------------------------------------- */
+/* Maç oylama çubuğu — sonuçlar oyun verdiğiniz tarafa göre farklı bir     */
+/* noktadan (transform-origin) açılır: ev sahibi -> soldan, deplasman ->   */
+/* sağdan, berabere -> ortadan. Yön, .vote-reveal-{home,draw,away}         */
+/* sınıflarıyla belirlenir; oy her değiştiğinde kapsayıcı yeniden mount    */
+/* edilerek (key prop) animasyon tekrar oynatılır.                        */
+/* ---------------------------------------------------------------------- */
+
+@keyframes vote-reveal {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+.vote-reveal-home,
+.vote-reveal-draw,
+.vote-reveal-away {
+  animation: vote-reveal 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.vote-reveal-home {
+  transform-origin: left center;
+}
+
+.vote-reveal-draw {
+  transform-origin: center center;
+}
+
+.vote-reveal-away {
+  transform-origin: right center;
+}
