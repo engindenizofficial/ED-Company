@@ -8,18 +8,21 @@ import { acquireChainLock, refreshChainLock, releaseChainLock } from "@/lib/redi
 // başlangıcı / devre arası / 2. yarı / maç bitişi olaylarını ~30 saniyede bir
 // kontrol eder.
 //
-// Vercel Cron'un minimum aralığı 1 dakika olduğundan, market-value cron'unda
-// kullanılan AYNI "self-chaining" deseni uygulanıyor (bkz. lib/market-value-
-// cron-run.ts + app/api/cron/update-market-values/route.ts): tek bir HTTP
-// çağrısı, kendi içinde soft time budget (~260s) dolana kadar 30 saniyelik
-// döngüyle tarama yapar, sonra `after()` ile kendini yeniden tetikler.
+// Vercel Cron'un minimum aralığı 1 dakika (Hobby planda ise günde 1 kez ile
+// sınırlı) olduğundan, market-value cron'unda kullanılan AYNI "self-chaining"
+// deseni uygulanıyor (bkz. lib/market-value-cron-run.ts + app/api/cron/
+// update-market-values/route.ts): tek bir HTTP çağrısı, kendi içinde soft
+// time budget (~260s) dolana kadar 30 saniyelik döngüyle tarama yapar, sonra
+// `after()` ile kendini yeniden tetikler.
 //
-// vercel.json'daki periyodik giriş cron'u (örn. her 5 dakikada bir) bu
-// route'u tetikler. O tetiklemeler arasında zincir zaten kendi kendini
-// besliyor olabilir — bu yüzden bir Redis kilidi ("zaten çalışıyor" kaydı,
-// market-value'daki DB tabanlı "running" satırının basit karşılığı) ile
-// aynı anda birden fazla zincirin aynı maçları iki kez taramasının önüne
-// geçilir.
+// Hobby planda dakikalık Vercel Cron kullanılamadığından, bu route dışarıdan
+// .github/workflows/live-fixture-notifications-cron.yml (GitHub Actions,
+// 5 dakikada bir) tarafından beslenir. Zincir zaten çalışıyorsa (kilit
+// tutuluyorsa) bu dıştan gelen tetiklemeler anında { alreadyRunning: true }
+// döner — asıl görevleri, zincir herhangi bir sebeple tamamen durursa onu
+// yeniden ateşlemek. Redis kilidi ("zaten çalışıyor" kaydı, market-value'daki
+// DB tabanlı "running" satırının basit karşılığı) aynı anda birden fazla
+// zincirin aynı maçları iki kez taramasının önüne geçer.
 //
 // Hiç canlı maç yoksa döngü daha uzun aralıklarla ("boşta" modu) kontrol
 // eder ama zinciri SONLANDIRMAZ — yeni bir maç her an başlayabilir.
