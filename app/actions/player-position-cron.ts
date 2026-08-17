@@ -10,6 +10,7 @@ import { db } from "@/lib/db"
 import { playerPosition, playerPositionCronRun } from "@/lib/db/schema"
 import { countRemainingCandidates } from "@/lib/player-position-sync"
 import { triggerChainContinuation } from "@/lib/market-value-cron-run"
+import { sanitize } from "@/lib/site-url"
 
 // ---------------------------------------------------------------------------
 // Admin panelinde oyuncu mevki (Transfermarkt) backfill'inin durumunu
@@ -149,7 +150,7 @@ export async function triggerPlayerPositionScanNow(): Promise<{ triggered: boole
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headersInit["x-vercel-protection-bypass"] = bypassSecret
 
-  const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
+  const base = sanitize(process.env.VERCEL_URL) ? `https://${sanitize(process.env.VERCEL_URL)}` : "http://localhost:3000"
   const url = `${base}/api/cron/backfill-player-positions`
 
   // Piyasa değeri action'larıyla AYNI desen — `after()` ile fire-and-forget.

@@ -1,12 +1,7 @@
 import type { MetadataRoute } from 'next'
+import { getSiteUrl } from '@/lib/site-url'
 
-const baseURL =
-  process.env.BETTER_AUTH_URL ??
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : (process.env.V0_RUNTIME_URL ?? 'http://localhost:3000'))
+const baseURL = getSiteUrl()
 
 export default function robots(): MetadataRoute.Robots {
   return {

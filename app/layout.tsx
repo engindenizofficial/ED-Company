@@ -17,6 +17,7 @@ import { LanguageProvider } from '@/contexts/language-context'
 import { getServerLocale } from '@/lib/i18n/server-locale'
 import { translate } from '@/lib/i18n/dictionaries'
 import { Toaster } from '@/components/ui/sonner'
+import { getSiteUrl } from '@/lib/site-url'
 import './globals.css'
 
 // Standart "latin" alt kümesi Türkçe'ye özgü karakterleri (ş, ğ, ı, İ, ç, ö, ü)
@@ -27,20 +28,12 @@ const geistMono = Geist_Mono({ subsets: ['latin', 'latin-ext'], variable: '--fon
 
 const GA_MEASUREMENT_ID = 'G-HT84HW4PPM'
 
-const SITE_URL =
-  process.env.BETTER_AUTH_URL ??
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : (process.env.V0_RUNTIME_URL ?? 'http://localhost:3000'))
-
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getServerLocale()
   const title = translate(locale, 'meta.home.title')
   const description = translate(locale, 'meta.home.description')
   return {
-    metadataBase: new URL(SITE_URL),
+    metadataBase: new URL(getSiteUrl()),
     title,
     description,
     generator: 'v0.app',

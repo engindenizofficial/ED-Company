@@ -15,6 +15,7 @@ import {
   type CronRunRow,
 } from "@/lib/market-value-cron-run"
 import { SCRAPABLE_LEAGUE_IDS } from "@/lib/market-value-sync"
+import { sanitize } from "@/lib/site-url"
 import { eq, ne } from "drizzle-orm"
 
 // ---------------------------------------------------------------------------
@@ -102,7 +103,7 @@ export async function resumeMarketValueCronNow(): Promise<{ triggered: boolean; 
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headersInit["x-vercel-protection-bypass"] = bypassSecret
 
-  const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
+  const base = sanitize(process.env.VERCEL_URL) ? `https://${sanitize(process.env.VERCEL_URL)}` : "http://localhost:3000"
   const url = `${base}/api/cron/resume-market-values`
 
   // ÖNEMLİ — ÖNCEDEN bu istek `fetch(...).catch(...)` ile beklenmeden
@@ -157,7 +158,7 @@ export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean;
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headersInit["x-vercel-protection-bypass"] = bypassSecret
 
-  const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
+  const base = sanitize(process.env.VERCEL_URL) ? `https://${sanitize(process.env.VERCEL_URL)}` : "http://localhost:3000"
   const url = `${base}/api/cron/update-market-values`
 
   // ÖNEMLİ — bu action ÖNCEDEN `await triggerChainContinuation(...)` ile

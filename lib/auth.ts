@@ -2,26 +2,16 @@ import { betterAuth } from 'better-auth'
 import { emailOTP } from 'better-auth/plugins'
 import { pool } from '@/lib/db'
 import { Resend } from 'resend'
+import { getSiteUrl, sanitize } from '@/lib/site-url'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-export const baseURL =
-  process.env.BETTER_AUTH_URL ??
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.V0_RUNTIME_URL) as string
-
-if (!baseURL) {
-  // Bu durumda Google OAuth ve e-posta linkleri bozuk URL üretir.
-  // En sık sebep: Vercel projesinde "Enable access to System Environment
-  // Variables" ayarının kapalı olması (Settings > Environment Variables).
-  console.error(
-    '[auth] baseURL çözümlenemedi: BETTER_AUTH_URL, VERCEL_PROJECT_PRODUCTION_URL, VERCEL_URL ve V0_RUNTIME_URL değişkenlerinin hepsi boş. ' +
-      'Vercel projesinde "Enable access to System Environment Variables" ayarını ve domain\'in Production olarak işaretli olduğunu kontrol edin.',
-  )
-}
+// getSiteUrl() zaten BETTER_AUTH_URL -> VERCEL_PROJECT_PRODUCTION_URL ->
+// VERCEL_URL -> V0_RUNTIME_URL sırasını deniyor, sonucu new URL() ile
+// doğruluyor (platform env değişkenlerine bazen sarılan literal tırnakları
+// da temizliyor) ve hepsi boşsa/geçersizse localhost'a düşüyor — bu yüzden
+// burada ayrıca boşluk kontrolüne gerek yok.
+export const baseURL = getSiteUrl()
 
 export const auth = betterAuth({
   database: pool,
@@ -102,10 +92,10 @@ export const auth = betterAuth({
     }),
   ],
   trustedOrigins: [
-    ...(process.env.V0_RUNTIME_URL ? [process.env.V0_RUNTIME_URL] : []),
-    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
-    ...(process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? [`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`]
+    ...(sanitize(process.env.V0_RUNTIME_URL) ? [sanitize(process.env.V0_RUNTIME_URL) as string] : []),
+    ...(sanitize(process.env.VERCEL_URL) ? [`https://${sanitize(process.env.VERCEL_URL)}`] : []),
+    ...(sanitize(process.env.VERCEL_PROJECT_PRODUCTION_URL)
+      ? [`https://${sanitize(process.env.VERCEL_PROJECT_PRODUCTION_URL)}`]
       : []),
     ...(process.env.NODE_ENV === 'development'
       ? [

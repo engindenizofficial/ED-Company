@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { teamMarketValue, playerMarketValue } from '@/lib/db/schema'
 import { FEATURED_LEAGUE_IDS } from '@/lib/leagues'
 import { getFixturesByDate } from '@/lib/api-football'
+import { getSiteUrl } from '@/lib/site-url'
 import type { Fixture } from '@/lib/types'
 
 // Sitemap her istekte değil, saatte bir yeniden üretilir — maç/lig/takım/oyuncu
@@ -15,13 +16,7 @@ export const revalidate = 3600
 // ki soğuk cache'te (saatlik yenilemenin ilk isteği) zaman aşımına uğramasın.
 export const maxDuration = 300
 
-const baseURL =
-  process.env.BETTER_AUTH_URL ??
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : (process.env.V0_RUNTIME_URL ?? 'http://localhost:3000'))
+const baseURL = getSiteUrl()
 
 const APP_DIR = path.join(process.cwd(), 'app')
 
