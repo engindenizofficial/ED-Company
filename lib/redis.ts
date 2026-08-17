@@ -41,6 +41,47 @@ const K = {
   pendingPredictions: () => `ed:pending-predictions`,
   voteCounts: (fixtureId: number) => `ed:vote:counts:${fixtureId}`,
   voteChoices: (fixtureId: number) => `ed:vote:choices:${fixtureId}`,
+  chainLock: (name: string) => `ed:chain-lock:${name}`,
+}
+
+// ---------------------------------------------------------------------------
+// Basit self-chaining kilidi — "zaten çalışan bir zincir varsa dıştan gelen
+// yeni bir tetiklemeyi (örn. vercel.json'daki periyodik giriş cron'u) erken
+// reddet" deseni için. TTL, kilidin heartbeat'i her adımda tazelenmezse
+// otomatik düşmesini sağlar (kırılmış zincirin sonsuza dek kilitli kalmasını
+// engeller).
+// ---------------------------------------------------------------------------
+
+/** Kilidi almaya çalışır. Alınabildiyse true, zaten tutuluyorsa false döner. */
+export async function acquireChainLock(name: string, ttlSeconds: number): Promise<boolean> {
+  if (!redis) return true // Redis yoksa kilitleme atlanır (dev/ilk kurulum) — zincir yine de çalışabilir.
+  try {
+    const result = await redis.set(K.chainLock(name), Date.now(), { nx: true, ex: ttlSeconds })
+    return result !== null
+  } catch (err) {
+    console.log("[v0] redis acquireChainLock failed:", err instanceof Error ? err.message : err)
+    return true
+  }
+}
+
+/** Kilidin süresini tazeler (zincir hâlâ ilerliyor demektir). */
+export async function refreshChainLock(name: string, ttlSeconds: number): Promise<void> {
+  if (!redis) return
+  try {
+    await redis.expire(K.chainLock(name), ttlSeconds)
+  } catch (err) {
+    console.log("[v0] redis refreshChainLock failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+/** Kilidi serbest bırakır (zincir tamamen durduğunda). */
+export async function releaseChainLock(name: string): Promise<void> {
+  if (!redis) return
+  try {
+    await redis.del(K.chainLock(name))
+  } catch (err) {
+    console.log("[v0] redis releaseChainLock failed:", err instanceof Error ? err.message : err)
+  }
 }
 
 export interface PendingPrediction {
