@@ -83,6 +83,8 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       permissionDenied: "Bildirim izni reddedildi. Tarayıcı ayarlarından izin vermen gerekiyor.",
       requiresLogin: "Bildirimleri açmak için giriş yapmalısın.",
       genericError: "Bildirimler açılamadı. Lütfen tekrar dene.",
+      sendTest: "Test Bildirimi Gönder",
+      testSent: "Test bildirimi gönderildi — kısa süre içinde görmelisin.",
     },
     loginPrompt: {
       title: "ED Analytics'e Hoş Geldin",
@@ -619,7 +621,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       },
       injuryType: {
         missingFixture: "Maçta Yok",
-        questionable: "Şüpheli",
+        questionable: "��üpheli",
         out: "Dışarıda",
       },
     },
@@ -999,6 +1001,8 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       permissionDenied: "Notification permission was denied. Allow it from your browser settings.",
       requiresLogin: "You need to sign in to enable notifications.",
       genericError: "Couldn't enable notifications. Please try again.",
+      sendTest: "Send Test Notification",
+      testSent: "Test notification sent — you should see it shortly.",
     },
     loginPrompt: {
       title: "Welcome to ED Analytics",

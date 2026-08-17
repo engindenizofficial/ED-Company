@@ -1,7 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { deletePushSubscription, hasActivePushSubscription, savePushSubscription } from "@/app/actions/push-subscriptions"
+import {
+  deletePushSubscription,
+  hasActivePushSubscription,
+  savePushSubscription,
+  sendTestPushNotification,
+} from "@/app/actions/push-subscriptions"
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
@@ -129,5 +134,18 @@ export function usePushNotifications(isSignedIn: boolean) {
     }
   }, [busy])
 
-  return { status, busy, error, enable, disable }
+  const sendTest = useCallback(async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await sendTestPushNotification()
+    } catch {
+      setError("genericError")
+    } finally {
+      setBusy(false)
+    }
+  }, [busy])
+
+  return { status, busy, error, enable, disable, sendTest }
 }

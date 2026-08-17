@@ -25,6 +25,7 @@ import {
   Mail,
   Menu,
   Palette,
+  Send,
   ShieldCheck,
   Star,
   Trash2,
@@ -71,6 +72,7 @@ export function FavoritesMenu() {
   const [mounted, setMounted] = useState(false)
   const [sendingDelete, setSendingDelete] = useState(false)
   const [deleteSentTo, setDeleteSentTo] = useState<string | null>(null)
+  const [testSent, setTestSent] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -114,6 +116,13 @@ export function FavoritesMenu() {
       setSigningOut(false)
     }
   }, [signingOut, close, router])
+
+  const handleSendTest = useCallback(async () => {
+    setTestSent(false)
+    await notifications.sendTest()
+    setTestSent(true)
+    setTimeout(() => setTestSent(false), 4000)
+  }, [notifications])
 
   const handleFavoriteClick = useCallback(
     (fav: FavoriteItem) => {
@@ -360,15 +369,29 @@ export function FavoritesMenu() {
                   {notifications.status === "unsupported" ? (
                     <p className="text-xs font-medium text-muted-foreground">{t("notifications.notSupported")}</p>
                   ) : notifications.status === "enabled" ? (
-                    <button
-                      type="button"
-                      onClick={notifications.disable}
-                      disabled={notifications.busy}
-                      className="flex items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50"
-                    >
-                      <BellOff className="h-3.5 w-3.5" />
-                      {notifications.busy ? t("notifications.disabling") : t("notifications.disable")}
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={notifications.disable}
+                        disabled={notifications.busy}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50"
+                      >
+                        <BellOff className="h-3.5 w-3.5" />
+                        {notifications.busy ? t("notifications.disabling") : t("notifications.disable")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSendTest}
+                        disabled={notifications.busy}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-transparent px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-50"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        {t("notifications.sendTest")}
+                      </button>
+                      {testSent ? (
+                        <p className="text-xs font-medium text-primary">{t("notifications.testSent")}</p>
+                      ) : null}
+                    </div>
                   ) : (
                     <button
                       type="button"

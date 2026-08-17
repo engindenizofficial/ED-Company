@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { pushSubscription } from "@/lib/db/schema"
+import { sendPushToUsers } from "@/lib/push-notifications"
 import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 
@@ -67,4 +68,17 @@ export async function hasActivePushSubscription(): Promise<boolean> {
     .where(eq(pushSubscription.userId, userId))
     .limit(1)
   return rows.length > 0
+}
+
+/**
+ * Test amaçlı: gerçek bir maç olayı beklemeden giriş yapmış kullanıcının
+ * kayıtlı tüm cihazlarına anında bir örnek bildirim gönderir.
+ */
+export async function sendTestPushNotification(): Promise<void> {
+  const userId = await getUserId()
+  await sendPushToUsers([userId], {
+    title: "Test bildirimi ⚽",
+    body: "Push bildirimleri çalışıyor! Gerçek maçlarda gol, başlangıç ve bitiş anlarında böyle bildirim alacaksın.",
+    tag: "test-notification",
+  })
 }
