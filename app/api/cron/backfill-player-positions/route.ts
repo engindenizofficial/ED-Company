@@ -24,8 +24,25 @@ import { triggerChainContinuation } from "@/lib/market-value-cron-run"
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
-/** Her adımda işlenecek oyuncu sayısı — Transfermarkt'a saygılı hız sınırıyla (700ms/istek) tek bir maxDuration penceresine sığar. */
-const BATCH_SIZE = 200
+/**
+ * Her adımda işlenecek oyuncu sayısı.
+ *
+ * ÖNEMLİ — bu değer ÖNCEDEN 200'dü. 200 oyuncu, oyuncu başına ortalama
+ * 1-3s (bazen retry ile ~10-13s) sürdüğü için TEK bir adımın bitmesi
+ * 3-5+ dakika sürebiliyordu — ve admin paneldeki "player_position_cron_run"
+ * satırı (playersProcessed/playersMatched) SADECE adım tamamen bitince
+ * güncellendiği için, admin "Şimdi Tara"ya bastıktan sonra 3-5 dakika boyunca
+ * hiçbir sayı değişmeden "0 işlendi" görüyordu — arka planda gerçekten
+ * çalışıyor olsa bile tamamen donmuş/başlamamış gibi görünüyordu.
+ *
+ * Piyasa değeri döngüsü (bkz. lib/market-value-cron-run.ts) AYNI sorunu
+ * "her adımda TEK takım işle" diyerek çözüyor — burada da aynı prensiple
+ * grubu küçültüyoruz: her adım artık sadece 10 oyuncu işler (~10-20s),
+ * admin panelindeki 4 saniyelik polling ile GERÇEKTEN görünür, sık
+ * güncellenen ilerleme sağlar. Toplam süre değişmez (aynı sayıda oyuncu,
+ * sadece daha küçük ve daha çok self-fetch adımına bölünmüş şekilde).
+ */
+const BATCH_SIZE = 10
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
