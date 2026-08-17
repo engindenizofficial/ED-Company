@@ -72,6 +72,35 @@ export const favorite = pgTable('favorite', {
 })
 
 // ---------------------------------------------------------------------------
+// Push bildirimleri
+// Kullanıcı favori takımının maçları için Web Push aboneliği + canlı maç
+// bildirim durumu (tekrar göndermemek için son bilinen skor/durum).
+// ---------------------------------------------------------------------------
+
+/** Bir tarayıcı/cihazın Web Push aboneliği. Kullanıcı başına birden çok cihaz olabilir. */
+export const pushSubscription = pgTable('push_subscription', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  endpoint: text('endpoint').notNull().unique(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+})
+
+/** Bir fikstür için gönderilen son bildirim durumu — cron'un aynı olayı iki kez göndermesini engeller. */
+export const liveFixtureNotificationState = pgTable('live_fixture_notification_state', {
+  /** API-Football fikstür id'si (text — integer PK yerine, tekilliği garantiler) */
+  fixtureId: text('fixtureId').primaryKey(),
+  /** Son bildirimi gönderdiğimiz maç durumu, örn. "1H" | "HT" | "2H" | "FT" */
+  lastStatusShort: text('lastStatusShort'),
+  /** Son bildirim gönderildiğindeki ev sahibi gol sayısı */
+  lastHomeGoals: integer('lastHomeGoals').notNull().default(0),
+  /** Son bildirim gönderildiğindeki misafir gol sayısı */
+  lastAwayGoals: integer('lastAwayGoals').notNull().default(0),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+})
+
+// ---------------------------------------------------------------------------
 // Piyasa değeri (market value) tabloları
 // Kaynak: Transfermarkt scraping. Sadece cron job (Çarşamba gece yarısı UTC / TR 03:00) tarafından
 // yazılır. Uygulama tarafı bu tabloları sadece OKUR, hiçbir zaman anlık scrape

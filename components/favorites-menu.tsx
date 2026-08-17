@@ -15,6 +15,8 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
+  Bell,
+  BellOff,
   ChevronLeft,
   ChevronRight,
   GripVertical,
@@ -47,8 +49,9 @@ import { isAdminEmail } from "@/lib/admin"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/contexts/language-context"
 import { LanguageSwitcher } from "@/components/language-switcher"
+import { usePushNotifications } from "@/hooks/use-push-notifications"
 
-type PanelView = "menu" | "favorites" | "theme" | "account"
+type PanelView = "menu" | "favorites" | "theme" | "account" | "notifications"
 
 export function FavoritesMenu() {
   const { t, locale } = useLanguage()
@@ -58,6 +61,7 @@ export function FavoritesMenu() {
   const { openLeague } = useLeaguePanel()
   const { favorites, removeFavorite, reorderFavorites } = useFavorites()
   const { accentColor } = useThemeColor()
+  const notifications = usePushNotifications(Boolean(session?.user))
   const activeAccent = ACCENT_COLORS.find((c) => c.id === accentColor) ?? ACCENT_COLORS[0]
   const isAdmin = isAdminEmail(session?.user?.email)
 
@@ -192,7 +196,9 @@ export function FavoritesMenu() {
                     ? t("menu.themeColor")
                     : view === "account"
                       ? t("menu.myAccount")
-                      : t("menu.title")}
+                      : view === "notifications"
+                        ? t("menu.notifications")
+                        : t("menu.title")}
               </span>
               {view === "menu" ? <LanguageSwitcher /> : null}
               <button
@@ -277,6 +283,23 @@ export function FavoritesMenu() {
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
                 </button>
 
+                {/* Bildirimler — Tema Rengi'nin altında, hem misafir hem giriş yapmış kullanıcılarda */}
+                <button
+                  type="button"
+                  onClick={() => setView("notifications")}
+                  className="mt-1 flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    {notifications.status === "enabled" ? (
+                      <Bell className="h-4 w-4 text-primary" />
+                    ) : (
+                      <BellOff className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                  <span className="flex-1 text-sm font-semibold text-foreground">{t("menu.notifications")}</span>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
+                </button>
+
                 {/* Çıkış Yap (giriş yapmışsa) / Giriş Yap daveti (misafirse) — en altta */}
                 {session?.user ? (
                   <button
@@ -317,6 +340,56 @@ export function FavoritesMenu() {
               </div>
             ) : view === "theme" ? (
               <ThemeColorPicker />
+            ) : view === "notifications" ? (
+              <div className="flex flex-1 flex-col overflow-y-auto p-4">
+                <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-card p-5">
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex items-center gap-2">
+                      {notifications.status === "enabled" ? (
+                        <Bell className="h-4 w-4 shrink-0 text-primary" />
+                      ) : (
+                        <BellOff className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      )}
+                      <span className="text-sm font-bold text-foreground">{t("notifications.goalAlertsTitle")}</span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {t("notifications.goalAlertsDesc")}
+                    </p>
+                  </div>
+
+                  {notifications.status === "unsupported" ? (
+                    <p className="text-xs font-medium text-muted-foreground">{t("notifications.notSupported")}</p>
+                  ) : notifications.status === "enabled" ? (
+                    <button
+                      type="button"
+                      onClick={notifications.disable}
+                      disabled={notifications.busy}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50"
+                    >
+                      <BellOff className="h-3.5 w-3.5" />
+                      {notifications.busy ? t("notifications.disabling") : t("notifications.disable")}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={notifications.enable}
+                      disabled={notifications.busy || notifications.status === "loading"}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      <Bell className="h-3.5 w-3.5" />
+                      {notifications.busy ? t("notifications.enabling") : t("notifications.enable")}
+                    </button>
+                  )}
+
+                  {notifications.error ? (
+                    <p className="text-xs font-medium text-destructive">
+                      {t(`notifications.${notifications.error}`)}
+                    </p>
+                  ) : null}
+
+                  <p className="text-[11px] leading-relaxed text-muted-foreground/80">{t("notifications.iosHint")}</p>
+                </div>
+              </div>
             ) : view === "account" ? (
               <div className="flex flex-1 flex-col overflow-y-auto p-4">
                 <div className="flex flex-col gap-4 rounded-2xl border border-destructive/30 bg-card p-5">
