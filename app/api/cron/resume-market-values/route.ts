@@ -7,6 +7,7 @@ import {
   isCronRunStale,
   runMatchesCurrentLeagueList,
   triggerChainContinuation,
+  type CronRunRow,
 } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
@@ -35,6 +36,13 @@ export const maxDuration = 300
 // haneli sayılara indirmek için birden çok adımı arka arkaya işler.
 const STEP_BUDGET_MS = 260_000
 
+// ÖNEMLİ — bkz. app/api/cron/update-market-values/route.ts'nin başındaki kök
+// neden açıklaması: bu route da AYNI hatayı taşıyordu — ağır işi (yukarıdaki
+// STEP_BUDGET_MS'lik do-while) yanıt dönmeden ÖNCE senkron yapıyordu, ama
+// zinciri tetikleyen self-fetch yanıtı sadece 15 saniye bekliyordu. Aynı
+// çözüm burada da uygulanıyor: yanıt hemen dönülüyor, ağır iş after() içinde
+// yapılıyor (bkz. runResumeBatchAndContinue).
+
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) return true
@@ -61,8 +69,34 @@ async function triggerNextResumeStep(request: Request, runId: string): Promise<v
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
   // Zaman aşımı + yeniden deneme ile — bkz. lib/market-value-cron-run.ts
-  // içindeki triggerChainContinuation açıklaması.
+  // içindeki triggerChainContinuation açıklaması. Callee artık hemen ack
+  // döndüğü için 15 saniyelik zaman aşımı burada gerçekten yeterli.
   await triggerChainContinuation(url.toString(), headers)
+}
+
+/**
+ * Asıl ağır işi (art arda adım işleme + tamamlanınca cleanup) yapar ve
+ * ardından bir sonraki adımı tetikler. GET handler'ı yanıtı döndürdükten
+ * SONRA after() içinde çağrılır — bkz. dosya başındaki kök neden açıklaması.
+ */
+async function runResumeBatchAndContinue(request: Request, initialRun: CronRunRow): Promise<void> {
+  const startedAt = Date.now()
+  let updatedRun = initialRun
+  let done = false
+
+  do {
+    const step = await processCronRunStep(updatedRun)
+    updatedRun = step.run
+    done = step.done
+  } while (!done && Date.now() - startedAt < STEP_BUDGET_MS)
+
+  if (done) {
+    await cleanupStaleMarketValueRows(updatedRun.runStartedAt, updatedRun.hadErrors)
+    await completeCronRun(updatedRun.id)
+    return
+  }
+
+  await triggerNextResumeStep(request, updatedRun.id)
 }
 
 export async function GET(request: Request) {
@@ -110,37 +144,15 @@ export async function GET(request: Request) {
     console.log(`[v0] Kırılmış döngü tespit edildi (${run.id}), lig index ${run.currentLeagueIndex}'ten devam ediliyor.`)
   }
 
-  // Bkz. update-market-values/route.ts — zaman bütçesi dolana ya da döngü
-  // tamamlanana kadar arka arkaya adım işle.
-  const startedAt = Date.now()
-  let updatedRun = run
-  let done = false
-
-  do {
-    const step = await processCronRunStep(updatedRun)
-    updatedRun = step.run
-    done = step.done
-  } while (!done && Date.now() - startedAt < STEP_BUDGET_MS)
-
-  if (done) {
-    const cleanup = await cleanupStaleMarketValueRows(updatedRun.runStartedAt, updatedRun.hadErrors)
-    await completeCronRun(updatedRun.id)
-    return Response.json({
-      resumed: true,
-      done: true,
-      runId: updatedRun.id,
-      hadErrors: updatedRun.hadErrors,
-      cleanup,
-    })
-  }
-
-  after(() => triggerNextResumeStep(request, updatedRun.id))
+  // ÖNEMLİ — asıl ağır iş burada SENKRON yapılmıyor, hemen yanıt dönülüyor —
+  // bkz. dosya başındaki kök neden açıklaması ve runResumeBatchAndContinue.
+  after(() => runResumeBatchAndContinue(request, run))
 
   return Response.json({
     resumed: true,
-    done: false,
-    runId: updatedRun.id,
-    currentLeagueIndex: updatedRun.currentLeagueIndex,
+    started: true,
+    runId: run.id,
+    currentLeagueIndex: run.currentLeagueIndex,
     totalLeagues: SCRAPABLE_LEAGUE_IDS.length,
   })
 }
