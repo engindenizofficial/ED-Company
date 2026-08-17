@@ -1,5 +1,5 @@
 import { after } from "next/server"
-import { eq } from "drizzle-orm"
+import { desc, eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { playerPositionCronRun } from "@/lib/db/schema"
 import { runPlayerPositionBackfillBatch } from "@/lib/player-position-sync"
@@ -105,9 +105,37 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const runStartedAt = new Date()
-  const logId = `player-position-run-${runStartedAt.getTime()}`
-  await db.insert(playerPositionCronRun).values({ id: logId, runStartedAt, status: "running" })
+  // ÖNEMLİ — BATCH_SIZE=1 (bkz. yukarıdaki yorum) her GET'in TEK bir oyuncu
+  // işlemesi anlamına geliyor, ve zincir kendini yüzlerce/binlerce kez
+  // tetikleyerek devam ediyor. Öncesinde her GET burada YENİ bir satır
+  // insert ediyordu ("logId" her zaman `Date.now()`'a göre benzersizdi) —
+  // sadece EN SON satır "completed" olarak işaretleniyor, zincirdeki tüm ara
+  // adımların satırları SONSUZA KADAR "running" (0/0 sayaçlarla) kalıyordu.
+  // Bu, admin panelinin gösterdiği bilgiyi bozmuyordu (panel her zaman en
+  // son satırı okur), ama binlerce oyuncu tam bir taramadan geçtiğinde
+  // tabloya binlerce "yarım" satır birikiyordu.
+  //
+  // Düzeltme: devam eden ("running") bir koşu varsa onu SATIR olarak
+  // yeniden kullanıyoruz — yeni satır açmak yerine aynı satırın sayaçlarını
+  // (playersProcessed/playersMatched) her adımda ARTIRARAK güncelliyoruz.
+  // Böylece tüm zincir boyunca (ilk tetiklemeden "completed"e kadar) TEK bir
+  // satır var olur — market-value cron sistemindeki "tek satır, yerinde
+  // güncelle" deseninin aynısı (bkz. lib/market-value-cron-run.ts).
+  const [activeRun] = await db
+    .select({ id: playerPositionCronRun.id })
+    .from(playerPositionCronRun)
+    .where(eq(playerPositionCronRun.status, "running"))
+    .orderBy(desc(playerPositionCronRun.createdAt))
+    .limit(1)
+
+  let logId: string
+  if (activeRun) {
+    logId = activeRun.id
+  } else {
+    const runStartedAt = new Date()
+    logId = `player-position-run-${runStartedAt.getTime()}`
+    await db.insert(playerPositionCronRun).values({ id: logId, runStartedAt, status: "running" })
+  }
 
   try {
     const result = await runPlayerPositionBackfillBatch(BATCH_SIZE)
@@ -118,8 +146,11 @@ export async function GET(request: Request) {
       .set({
         status: done ? "completed" : "running",
         runFinishedAt: done ? new Date() : undefined,
-        playersProcessed: result.processed,
-        playersMatched: result.matched,
+        // Bu adımın sayısını, önceki adımlardan gelen toplama EKLE — üzerine
+        // yazma. Aksi halde satır her zaman SADECE son adımın (1 oyuncu)
+        // sayısını gösterirdi, koşunun tamamının toplamını değil.
+        playersProcessed: sql`${playerPositionCronRun.playersProcessed} + ${result.processed}`,
+        playersMatched: sql`${playerPositionCronRun.playersMatched} + ${result.matched}`,
       })
       .where(eq(playerPositionCronRun.id, logId))
 
