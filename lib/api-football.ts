@@ -436,6 +436,24 @@ export async function getHeadToHead(homeId: number, awayId: number): Promise<For
   return games
 }
 
+/**
+ * Bir ligin BÜTÜN katılımcı takım listesini döndürür (/teams uç noktası).
+ *
+ * ÖNEMLİ — bilerek /standings DEĞİL /teams kullanılıyor: /standings, bir
+ * takımın o sezon henüz resmi lig maçı oynanmamış/kayda geçmemiş olması
+ * durumunda o takımı listeden tamamen ATLAR (örn. sezon başında fikstürü
+ * ertelenen veya yeni terfi eden bir takım). /teams ise sezona katılan TÜM
+ * takımları, hiç maç oynanmamış olsa bile eksiksiz döndürür. Piyasa değeri
+ * eşleştirme zinciri takım listesini buradan almalı; aksi halde standings'te
+ * henüz görünmeyen bir takım (ve onun tüm kadrosu) hiç taranmaz.
+ */
+export async function getLeagueTeams(leagueId: number, season: number): Promise<{ id: number; name: string }[]> {
+  const raw = await safeFetch<any>("/teams", { league: leagueId, season }, 3600)
+  return raw
+    .map((r) => ({ id: r.team?.id ?? 0, name: r.team?.name ?? "" }))
+    .filter((t) => t.id !== 0)
+}
+
 export async function getStandings(leagueId: number, season: number, teamIds: number[]): Promise<StandingRow[]> {
   const raw = await safeFetch<any>("/standings", { league: leagueId, season }, 3600)
   if (raw.length === 0) return []
