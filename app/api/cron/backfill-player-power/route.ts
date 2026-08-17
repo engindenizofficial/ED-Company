@@ -1,5 +1,6 @@
 import { after } from "next/server"
 import { runPlayerPowerBackfillBatch } from "@/lib/player-power-backfill"
+import { triggerChainContinuation } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
 // Tam sezon güç motoru backfill'i. vercel.json'da otomatik bir cron
@@ -25,6 +26,8 @@ function isAuthorized(request: Request): boolean {
   return header === `Bearer ${secret}`
 }
 
+// Bkz. app/api/cron/backfill-player-positions/route.ts — aynı sebeple aynı
+// dayanıklı triggerChainContinuation'a geçildi (zaman aşımı + 3 deneme).
 async function triggerNextStep(request: Request): Promise<void> {
   const headers: Record<string, string> = {}
   const secret = process.env.CRON_SECRET
@@ -32,14 +35,7 @@ async function triggerNextStep(request: Request): Promise<void> {
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  try {
-    const response = await fetch(request.url, { headers })
-    if (!response.ok) {
-      console.error(`[v0] Güç backfill zinciri devam tetiklemesi başarısız: HTTP ${response.status}`)
-    }
-  } catch (err) {
-    console.error("[v0] Güç backfill zinciri devam tetiklemesi başarısız:", err)
-  }
+  await triggerChainContinuation(request.url, headers)
 }
 
 export async function GET(request: Request) {

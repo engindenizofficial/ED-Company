@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { playerPositionCronRun } from "@/lib/db/schema"
 import { runPlayerPositionBackfillBatch } from "@/lib/player-position-sync"
+import { triggerChainContinuation } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
 // 7.526 oyuncunun Transfermarkt mevki verisini kademeli, arka planda dolduran
@@ -33,6 +34,14 @@ function isAuthorized(request: Request): boolean {
   return header === `Bearer ${secret}`
 }
 
+// ÖNEMLİ — bu self-fetch, piyasa değeri zincirindeki AYNI dayanıklı
+// triggerChainContinuation'ı (bkz. lib/market-value-cron-run.ts) kullanır:
+// zaman aşımı + 3 deneme ile yeniden dener, başarısız HTTP kodlarını da hata
+// sayar. Eskiden burada tek seferlik, yeniden denemesiz bir fetch vardı —
+// geçici bir ağ hatası veya Vercel'in isteği bir an bloklaması zinciri
+// sessizce ve kalıcı olarak durduruyordu (site kapalıyken/kısa kesintilerde
+// piyasa değeri zinciri devam ederken mevki zincirinin durmasının sebebi
+// buydu).
 async function triggerNextStep(request: Request): Promise<void> {
   const headers: Record<string, string> = {}
   const secret = process.env.CRON_SECRET
@@ -40,14 +49,7 @@ async function triggerNextStep(request: Request): Promise<void> {
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  try {
-    const response = await fetch(request.url, { headers })
-    if (!response.ok) {
-      console.error(`[v0] Mevki backfill zinciri devam tetiklemesi başarısız: HTTP ${response.status}`)
-    }
-  } catch (err) {
-    console.error("[v0] Mevki backfill zinciri devam tetiklemesi başarısız:", err)
-  }
+  await triggerChainContinuation(request.url, headers)
 }
 
 export async function GET(request: Request) {

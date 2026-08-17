@@ -1,4 +1,4 @@
-import { getStandings, getSquad } from "./api-football"
+import { getLeagueTeams, getSquad } from "./api-football"
 import type { ScrapedTeam, ScrapedPlayer } from "./transfermarkt-scraper"
 
 // ---------------------------------------------------------------------------
@@ -145,13 +145,21 @@ export interface TeamMatchResult {
   status: "matched" | "review" | "unmatched"
 }
 
-/** Bir ligin API-Football takım listesini (standings üzerinden) çeker. */
+/**
+ * Bir ligin API-Football takım listesini çeker.
+ *
+ * Bilerek /standings DEĞİL /teams (getLeagueTeams) kullanılıyor — standings,
+ * sezonun henüz oynanmamış/kayda geçmemiş bir maçı olan takımı (örn. sezon
+ * başında fikstürü ertelenen ya da yeni terfi eden bir takım) listeden
+ * tamamen atlıyordu. Bu da o takımın (ve tüm kadrosunun) piyasa değeri
+ * taramasına hiç girmemesine sebep oluyordu.
+ */
 export async function getLeagueTeamsForMatching(leagueId: number, season: number): Promise<ApiFootballTeamRef[]> {
-  const rows = await getStandings(leagueId, season, [])
+  const rows = await getLeagueTeams(leagueId, season)
   const seen = new Map<number, string>()
   for (const row of rows) {
-    if (row.teamId && !seen.has(row.teamId)) {
-      seen.set(row.teamId, row.team)
+    if (row.id && !seen.has(row.id)) {
+      seen.set(row.id, row.name)
     }
   }
   return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))

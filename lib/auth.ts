@@ -30,6 +30,24 @@ export const auth = betterAuth({
     enabled: true,
     autoSignIn: false,
     requireEmailVerification: true,
+    resetPasswordTokenExpiresIn: 3600, // 1 saat
+    sendResetPassword: async ({ user, url }: { user: { email: string; name?: string }, url: string }) => {
+      await resend.emails.send({
+        from: 'ED Analytics <no-reply@edcompanyofficial.com>',
+        to: user.email,
+        subject: 'Şifrenizi sıfırlayın',
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0f172a;border-radius:12px;">
+            <img src="${baseURL}/icon-512.png" alt="ED Analytics" width="40" height="40" style="border-radius:8px;margin-bottom:16px;display:block;" />
+            <h2 style="color:#f8fafc;font-size:20px;margin-bottom:8px;">ED Analytics</h2>
+            <p style="color:#94a3b8;font-size:14px;margin-bottom:24px;">Merhaba ${user.name ?? user.email},</p>
+            <p style="color:#cbd5e1;font-size:14px;margin-bottom:24px;">Şifreni sıfırlamak için aşağıdaki butona tıkla. Bu link 1 saat geçerlidir.</p>
+            <a href="${url}" style="display:inline-block;background:#3b82f6;color:#fff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">Şifremi Sıfırla</a>
+            <p style="color:#475569;font-size:12px;margin-top:24px;">Bu talebi siz oluşturmadıysanız bu e-postayı dikkate almayın; şifreniz değişmeyecektir.</p>
+          </div>
+        `,
+      })
+    },
   },
   socialProviders: {
     google: {
