@@ -158,12 +158,15 @@ export async function triggerPlayerPositionScanNow(): Promise<{ triggered: boole
   // backfill arka planda (route'un kendi 300s maxDuration'ı içinde) devam eder.
   //
   // ÖNEMLİ — özel (varsayılandan uzun) bir timeout veriyoruz, route.ts'teki
-  // SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS ile AYNI değer. Bu route'un
-  // varsayılan 15s'lik self-fetch zaman aşımından çok daha uzun sürebilecek
-  // tek-oyuncu adımları olduğu için (bkz. route.ts BATCH_SIZE yorumu) —
-  // uyuşmazlık, aynı adım için sunucuda çalışan bir isteği "başarısız" sayıp
-  // paralel bir ikincisini başlatan çoklanma felaketine yol açar.
-  after(() => triggerChainContinuation(url, headersInit, 45_000))
+  // SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS ile TAM OLARAK AYNI değer (60s) —
+  // bu iki sayı senkronize kalmalı, aksi halde aynı çoklanma felaketi
+  // tekrar oluşabilir (bkz. route.ts'teki detaylı worst-case hesabı). Bu
+  // route'un varsayılan 15s'lik self-fetch zaman aşımından çok daha uzun
+  // sürebilecek tek-oyuncu adımları olduğu için (bkz. route.ts BATCH_SIZE
+  // yorumu) — uyuşmazlık, aynı adım için sunucuda çalışan bir isteği
+  // "başarısız" sayıp paralel bir ikincisini başlatan çoklanma felaketine
+  // yol açar.
+  after(() => triggerChainContinuation(url, headersInit, 60_000))
 
   revalidatePath(REVIEW_PATH)
   return { triggered: true }

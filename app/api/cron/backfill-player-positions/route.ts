@@ -54,13 +54,26 @@ const BATCH_SIZE = 1
 /**
  * Bu route için self-fetch zaman aşımı — triggerChainContinuation'ın
  * varsayılanından (15s, piyasa değeri zinciri için doğru) KASITLI olarak
- * farklı. Tek bir oyuncunun worst-case süresini (transfermarkt-scraper.ts:
- * FETCH_TIMEOUT_MS=8s + BLOCKING_RETRY_DELAYS_MS'in üç denemesi:
- * 8+1.5+8+4+8 = ~29.5s) bolca aşacak şekilde 45s seçildi — böylece sunucu
- * en kötü durumda bile hâlâ meşgulken self-fetch asla "zaman aşımı" deyip
- * yukarıdaki çoklanma felaketini tetiklemez.
+ * farklı. Tek bir oyuncunun worst-case süresini bolca aşacak şekilde
+ * ayarlanmalı.
+ *
+ * Gerçek worst-case hesabı (transfermarkt-scraper.ts: FETCH_TIMEOUT_MS=8s,
+ * BLOCKING_RETRY_DELAYS_MS=[1.5s, 4s, 10s], retries=3 → toplam 4 deneme,
+ * aralarında 3 bekleme):
+ *   deneme1(8s) + bekle(1.5s) + deneme2(8s) + bekle(4s) + deneme3(8s)
+ *   + bekle(10s) + deneme4(8s) = 8+1.5+8+4+8+10+8 = 47.5s
+ *
+ * ÖNEMLİ — burada ÖNCEDEN 45s idi ve yorumdaki hesap eksikti (son deneme +
+ * son beklemeyi saymamıştı, gerçek değeri ~2.5s eksik gösteriyordu). 45s <
+ * 47.5s gerçek worst-case olduğu için, TAM da o en nadir "4 deneme de zaman
+ * aşımına uğradı" senaryosunda self-fetch sunucu HÂLÂ meşgulken "zaman
+ * aşımı" deyip ikinci bir paralel isteği tetikleyebilir, bu da tekrar
+ * BATCH_SIZE=200/10 sırasında yaşanan çoklanma felaketini (bkz. yukarıdaki
+ * BATCH_SIZE yorumu) küçük ölçekte tetikleyebilirdi. Şimdi 60s'ye
+ * çıkarıldı — gerçek 47.5s worst-case'in üzerine ~12.5s'lik bolca pay
+ * bırakıyor.
  */
-const SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS = 45_000
+const SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS = 60_000
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
