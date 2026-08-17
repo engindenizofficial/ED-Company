@@ -27,22 +27,40 @@ export const maxDuration = 300
 /**
  * Her adımda işlenecek oyuncu sayısı.
  *
- * ÖNEMLİ — bu değer ÖNCEDEN 200'dü. 200 oyuncu, oyuncu başına ortalama
- * 1-3s (bazen retry ile ~10-13s) sürdüğü için TEK bir adımın bitmesi
- * 3-5+ dakika sürebiliyordu — ve admin paneldeki "player_position_cron_run"
- * satırı (playersProcessed/playersMatched) SADECE adım tamamen bitince
- * güncellendiği için, admin "Şimdi Tara"ya bastıktan sonra 3-5 dakika boyunca
- * hiçbir sayı değişmeden "0 işlendi" görüyordu — arka planda gerçekten
- * çalışıyor olsa bile tamamen donmuş/başlamamış gibi görünüyordu.
+ * ÖNEMLİ — bu değer ÖNCE 200, sonra 10 idi. Her ikisi de aynı, daha ciddi
+ * bir soruna yol açtı: triggerChainContinuation'ın self-fetch zaman aşımı
+ * (bkz. lib/market-value-cron-run.ts SELF_FETCH_TIMEOUT_MS, 15s) bir
+ * batch'in gerçek worst-case süresinden KISAdır (10 oyuncu, Transfermarkt
+ * retry'ları yüzünden 90+ saniye sürebiliyordu — hatta TEK bir oyuncunun
+ * worst-case'i bile ~30s'yi bulabiliyor). Bu yüzden self-fetch "zaman aşımı"
+ * deyip isteği TEKRAR gönderiyordu — ama sunucudaki ilk istek iptal olmadan
+ * arka planda çalışmaya devam ediyordu. Sonuç: aynı adım için birden fazla
+ * paralel istek Transfermarkt'a gidip birbirini yavaşlatıyor, bu da yeni
+ * zaman aşımlarına ve daha fazla paralel isteğe yol açan bir çoklanma
+ * felaketi oluşturuyordu (admin "Şimdi Tara"ya bastığında "başlıyor" diyip
+ * sonra hiçbir şey olmamasının, sayfa yenilenince eski duruma dönmesinin
+ * asıl sebebi buydu).
  *
- * Piyasa değeri döngüsü (bkz. lib/market-value-cron-run.ts) AYNI sorunu
- * "her adımda TEK takım işle" diyerek çözüyor — burada da aynı prensiple
- * grubu küçültüyoruz: her adım artık sadece 10 oyuncu işler (~10-20s),
- * admin panelindeki 4 saniyelik polling ile GERÇEKTEN görünür, sık
- * güncellenen ilerleme sağlar. Toplam süre değişmez (aynı sayıda oyuncu,
- * sadece daha küçük ve daha çok self-fetch adımına bölünmüş şekilde).
+ * Çözüm iki parçalı: (1) piyasa değeri zincirindeki gibi her adımda TEK
+ * birim iş yap (1 oyuncu — bkz. lib/market-value-cron-run.ts "her HTTP
+ * çağrısı en fazla bir takım kadar iş yapar" prensibi), (2) self-fetch
+ * timeout'unu bu tek oyuncunun gerçek worst-case süresine göre ayarla (bkz.
+ * SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS aşağıda) — böylece sunucu hâlâ
+ * çalışırken self-fetch asla "zaman aşımı" deyip ikinci bir paralel istek
+ * başlatmaz.
  */
-const BATCH_SIZE = 10
+const BATCH_SIZE = 1
+
+/**
+ * Bu route için self-fetch zaman aşımı — triggerChainContinuation'ın
+ * varsayılanından (15s, piyasa değeri zinciri için doğru) KASITLI olarak
+ * farklı. Tek bir oyuncunun worst-case süresini (transfermarkt-scraper.ts:
+ * FETCH_TIMEOUT_MS=8s + BLOCKING_RETRY_DELAYS_MS'in üç denemesi:
+ * 8+1.5+8+4+8 = ~29.5s) bolca aşacak şekilde 45s seçildi — böylece sunucu
+ * en kötü durumda bile hâlâ meşgulken self-fetch asla "zaman aşımı" deyip
+ * yukarıdaki çoklanma felaketini tetiklemez.
+ */
+const SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS = 45_000
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
@@ -66,7 +84,7 @@ async function triggerNextStep(request: Request): Promise<void> {
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  await triggerChainContinuation(request.url, headers)
+  await triggerChainContinuation(request.url, headers, SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS)
 }
 
 export async function GET(request: Request) {

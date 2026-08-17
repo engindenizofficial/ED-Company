@@ -71,11 +71,28 @@ function sleep(ms: number): Promise<void> {
  * yeniden deneme ile dayanıklı şekilde yapar. Tek doğruluk kaynağı burası —
  * hem ana cron route'u hem de resume route'u bunu kullanır, böylece askıda
  * kalan tek bir istek artık tüm zinciri sessizce öldüremez.
+ *
+ * `timeoutMs` (varsayılan 15s, market-value zinciri için doğru): her adımın
+ * gerçek worst-case süresini KESİNLİKLE aşmalı. AKSİ HALDE şu çoklanma
+ * felaketi oluşur — bu tam olarak mevki (player-position) zincirinde
+ * yaşandı: bir adım sunucuda 15s'den uzun sürerse (örn. Transfermarkt
+ * retry'ları yüzünden), self-fetch "zaman aşımı" deyip isteği TEKRAR
+ * gönderir; ama sunucudaki ilk istek İPTAL OLMAZ, arka planda çalışmaya
+ * devam eder. Artık AYNI adım için 2 paralel istek Transfermarkt'a gidiyor
+ * olur — bu da bot korumasını daha çok tetikler, adımları daha da
+ * yavaşlatır, 15s'yi yine aşar, 3. bir istek başlar... Sonsuz çoğalan,
+ * birbirini yavaşlatan paralel zincirler oluşur. Çağıran taraf bu yüzden
+ * kendi adımının gerçek worst-case süresine göre daha uzun bir `timeoutMs`
+ * vermelidir.
  */
-export async function triggerChainContinuation(url: string, headers: Record<string, string>): Promise<void> {
+export async function triggerChainContinuation(
+  url: string,
+  headers: Record<string, string>,
+  timeoutMs: number = SELF_FETCH_TIMEOUT_MS,
+): Promise<void> {
   for (let attempt = 1; attempt <= SELF_FETCH_MAX_ATTEMPTS; attempt++) {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), SELF_FETCH_TIMEOUT_MS)
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const response = await fetch(url, { headers, signal: controller.signal })
       if (!response.ok) {
