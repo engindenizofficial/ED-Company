@@ -30,7 +30,7 @@ const REQUEST_DELAY_MS = 700
  * şekilde durmak için yumuşak zaman bütçesi.
  *
  * NEDEN GEREKLİ: Her oyuncu isteği Transfermarkt'tan yavaş yanıt gelirse ya
- * da 429/403/5xx alıp yeniden denerse tek başına 20s'ye (+ 3s/8s/20s backoff
+ * da 429/403/5xx alıp yeniden denerse tek başına 8s'ye (+ 1.5s/4s/10s backoff
  * ile üç tekrar denemeye) kadar sürebilir. BATCH_SIZE=200 ile, art arda
  * birkaç oyuncu yavaş/yeniden denenen olduğunda toplam süre kolayca 300s'yi
  * geçiyordu — bu durumda Vercel fonksiyonu döngünün ORTASINDA sert bir
@@ -47,8 +47,8 @@ const REQUEST_DELAY_MS = 700
  *
  * 190s seçildi (300s'nin belirgin altında): kontrol her adaydan ÖNCE
  * yapılıyor, bu yüzden bütçeyi az aşmış olsak bile son adayın kendisi
- * worst-case ~90-100s sürebilir (3 tekrar denemenin tamamı + backoff'lar) —
- * 190s + ~100s = ~290s, hâlâ 300s'nin altında kalır.
+ * worst-case ~40-45s sürebilir (3 tekrar denemenin tamamı + backoff'lar) —
+ * 190s + ~45s = ~235s, hâlâ 300s'nin belirgin altında kalır.
  */
 const SOFT_TIME_BUDGET_MS = 190_000
 

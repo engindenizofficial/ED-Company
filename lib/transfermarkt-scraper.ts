@@ -82,17 +82,26 @@ function sleep(ms: number): Promise<void> {
  * lig döngüsünün rastgele bir takımda "sebepsizce" durmasının asıl kök
  * nedeni buydu). Zaman aşımı burada AbortController ile catch bloğuna
  * düşürülüyor, böylece aşağıdaki mevcut retry mantığı devreye giriyor.
+ *
+ * 8s olarak ayarlandı (önceden 20s): gerçek sayfa yanıtları normalde 1-2s
+ * içinde gelir, bu yüzden 20s'lik bekleme pratikte sadece "askıda kalan"
+ * isteklerde worst-case süreyi gereksiz yere şişiriyordu (bir oyuncu 20s
+ * timeout + retry'da başarı ~25s'ye çıkıyordu). 8s hâlâ yavaş ama gerçek
+ * bir sunucu yanıtı için yeterli pay bırakırken worst-case'i büyük ölçüde
+ * kısaltıyor.
  */
-const FETCH_TIMEOUT_MS = 20_000
+const FETCH_TIMEOUT_MS = 8_000
 
 /**
  * Transfermarkt'ın rate-limit / bot koruması (403 Forbidden, 429 Too Many
  * Requests) ve geçici sunucu hataları (5xx) için kullanılan, giderek uzayan
  * bekleme süreleri. Transfermarkt'ın bot engelleri genelde birkaç saniyelik
  * bir 5xx hiçbirinden daha uzun sürdüğü için buradaki gecikmeler kasıtlı
- * olarak daha büyük.
+ * olarak daha büyük — ama çok agresif küçültmek Transfermarkt'ı tekrar
+ * tekrar hızlı çarpıp tüm sistemin bloklanmasına yol açabileceği için
+ * ölçülü tutuldu (1.5s / 4s / 10s).
  */
-const BLOCKING_RETRY_DELAYS_MS = [3000, 8000, 20000]
+const BLOCKING_RETRY_DELAYS_MS = [1500, 4000, 10000]
 
 /**
  * Transfermarkt sayfasını indirir. Geçici ağ hatalarında, 5xx'lerde ve
@@ -122,6 +131,16 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
         headers: {
           "User-Agent": USER_AGENT,
           "Accept-Language": "en-US,en;q=0.9",
+          // Gerçek bir tarayıcıya daha yakın bir istek imzası, Transfermarkt'ın
+          // bot korumasının tetiklenme sıklığını azaltmayı hedefler (daha az
+          // 403/429 = daha az retry'a düşme = ortalama sürede iyileşme).
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Upgrade-Insecure-Requests": "1",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "none",
         },
         redirect: "follow",
         signal: controller.signal,
