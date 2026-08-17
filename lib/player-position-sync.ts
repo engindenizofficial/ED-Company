@@ -25,6 +25,33 @@ import { profile } from "./player-positions"
 /** Transfermarkt'a art arda çok hızlı istek atmamamak için oyuncular arası bekleme. */
 const REQUEST_DELAY_MS = 700
 
+/**
+ * Route'un maxDuration'ından (300s) daha erken, kendi isteğimizle güvenli bir
+ * şekilde durmak için yumuşak zaman bütçesi.
+ *
+ * NEDEN GEREKLİ: Her oyuncu isteği Transfermarkt'tan yavaş yanıt gelirse ya
+ * da 429/403/5xx alıp yeniden denerse tek başına 20s'ye (+ 3s/8s/20s backoff
+ * ile üç tekrar denemeye) kadar sürebilir. BATCH_SIZE=200 ile, art arda
+ * birkaç oyuncu yavaş/yeniden denenen olduğunda toplam süre kolayca 300s'yi
+ * geçiyordu — bu durumda Vercel fonksiyonu döngünün ORTASINDA sert bir
+ * şekilde kesiyor, bu yüzden ne run satırı güncelleniyor (sonsuza kadar
+ * "running" + 0/0 kalıyor) ne de bir sonraki adım tetikleniyordu ("Zincir
+ * kırıldı"). Tek tek oyuncu yazma işlemleri döngü içinde anında commit
+ * edildiği için ilerleme gerçekte oluyordu, sadece görünmüyordu.
+ *
+ * Çözüm: sabit bir batch boyutuna güvenmek yerine, döngü her adımdan önce
+ * geçen süreyi kontrol eder ve bu bütçeye yaklaşınca KENDİ İSTEĞİYLE erken
+ * durur — böylece fonksiyon her zaman platform zaman aşımından ÖNCE, run
+ * satırını doğru sayılarla güncelleyip bir sonraki adımı tetikleyerek düzgün
+ * bir şekilde geri döner.
+ *
+ * 190s seçildi (300s'nin belirgin altında): kontrol her adaydan ÖNCE
+ * yapılıyor, bu yüzden bütçeyi az aşmış olsak bile son adayın kendisi
+ * worst-case ~90-100s sürebilir (3 tekrar denemenin tamamı + backoff'lar) —
+ * 190s + ~100s = ~290s, hâlâ 300s'nin altında kalır.
+ */
+const SOFT_TIME_BUDGET_MS = 190_000
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -99,10 +126,16 @@ export interface PositionBackfillBatchResult {
  */
 export async function runPlayerPositionBackfillBatch(batchSize: number): Promise<PositionBackfillBatchResult> {
   const candidates = await getPositionBackfillCandidates(batchSize)
+  const startedAt = Date.now()
   let processed = 0
   let matched = 0
 
   for (const candidate of candidates) {
+    // Zaman bütçesini aştıysak burada dur — kalan adaylar bir sonraki
+    // (kendi kendini tetikleyen) adımda işlenecek. Fonksiyonun platformun
+    // sert zaman aşımı tarafından ortadan kesilmesini önler.
+    if (Date.now() - startedAt > SOFT_TIME_BUDGET_MS) break
+
     if (processed > 0) await sleep(REQUEST_DELAY_MS)
 
     let scraped: Awaited<ReturnType<typeof scrapePlayerPosition>> = null
