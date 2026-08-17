@@ -146,11 +146,15 @@ export function PlayerPositionCronStatus({ initialStatus }: { initialStatus: Pla
             </div>
 
             <p className="text-xs text-muted-foreground">
-              {t("admin.playerPositionCron.lastBatch", {
-                processed: status.playersProcessed,
-                matched: status.playersMatched,
-                date: status.runStartedAt ? formatDateTime(status.runStartedAt) : "—",
-              })}
+              {isHealthyRunning
+                ? t("admin.playerPositionCron.currentlyProcessing", {
+                    date: status.runStartedAt ? formatDateTime(status.runStartedAt) : "—",
+                  })
+                : t("admin.playerPositionCron.lastBatch", {
+                    processed: status.playersProcessed,
+                    matched: status.playersMatched,
+                    date: status.runStartedAt ? formatDateTime(status.runStartedAt) : "—",
+                  })}
             </p>
 
             {status.lastError && (

@@ -741,7 +741,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       pending: "Beklemede",
       cronStatusTitle: "Zamanlanmış Görev Durumu",
       dangerZoneTitle: "Tehlikeli Bölge",
-      pageTitle: "Piyasa Değeri Kontrolü — ED Company",
+      pageTitle: "Piyasa Değeri Kontrol�� — ED Company",
       sectionMarketValue: "Piyasa Değeri Taraması",
       sectionPlayerPositions: "Oyuncu Mevki Taraması",
       cron: {
@@ -794,6 +794,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         statusIdle: "Beklemede",
         remaining: "{{count}} oyuncunun mevkisi bekliyor",
         lastBatch: "Son parti: {{processed}} oyuncu işlendi, {{matched}} eşleşti · {{date}}",
+        currentlyProcessing: "Şu an bir parti taranıyor (başlangıç: {{date}}) — bu parti bitince sayılar güncellenecek.",
         lastErrorLabel: "Son hata: {{error}}",
         brokenWarning:
           "Zincir bir süredir ilerlemedi, muhtemelen kesintiye uğradı. Devam etmesi için \"Şimdi Tara\" butonuna tekrar basabilirsiniz.",
