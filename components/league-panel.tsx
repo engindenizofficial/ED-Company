@@ -19,8 +19,10 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useLeaguePanel, type LeaguePanelState } from "@/contexts/league-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
+import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
 import { PlayerButton } from "@/components/player-panel"
 import { TeamButton } from "@/components/team-panel"
+import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
@@ -694,6 +696,7 @@ function LeaguePanelInner({
 }) {
   const { t, locale } = useLanguage()
   const { league, basic, loading, error } = panel
+  const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToClose(closeLeague)
 
   const tabs: PanelTabItem[] = [
     { key: "seasonStats", label: t("league.seasonOverview"), icon: <Activity className="h-3.5 w-3.5" /> },
@@ -713,11 +716,14 @@ function LeaguePanelInner({
       role="dialog"
       aria-modal="true"
       aria-label={`${league.name} ${t("league.leagueInfo")}`}
+      style={swipeStyle}
     >
       <div className="flex h-full w-full flex-col overflow-hidden">
 
-        {/* Header */}
-        <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-4 shrink-0">
+        {/* Header — aşağı sürüklenerek panel kapatılabilir (mobil) */}
+        <div className="shrink-0 bg-card" {...swipeHandlers}>
+          <PanelDragHandle />
+          <div className="flex items-center gap-3 border-b border-border px-4 py-4">
           {league.logo ? (
             // Tek renkli/çizgi lig logolarındaki siyah öğelerin koyu temada arka
             // planla kaybolmaması için sabit beyaz bir zemin ekliyoruz.
@@ -752,6 +758,7 @@ function LeaguePanelInner({
           >
             <X className="h-4 w-4" />
           </button>
+          </div>
         </div>
 
         {/* Season badge */}

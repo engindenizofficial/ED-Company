@@ -25,6 +25,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { usePlayerPanel } from "@/contexts/player-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
+import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
+import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
@@ -727,6 +729,7 @@ function PlayerPanelInner({
 }) {
   const { t, locale } = useLanguage()
   const { player, profile, loading, error } = panel
+  const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToClose(closePlayer)
 
   const POS_LABEL: Record<string, string> = {
     Goalkeeper: t("team.goalkeeper"), Defender: t("team.defender"), Midfielder: t("team.midfielder"), Attacker: t("team.attacker"),
@@ -747,11 +750,14 @@ function PlayerPanelInner({
       role="dialog"
       aria-modal="true"
       aria-label={`${player.name} ${t("playerPanel.playerInfoLabel")}`}
+      style={swipeStyle}
     >
       <div className="flex h-full w-full flex-col overflow-hidden">
 
-        {/* Header */}
-        <div className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-4">
+        {/* Header — aşağı sürüklenerek panel kapatılabilir (mobil) */}
+        <div className="shrink-0 bg-card" {...swipeHandlers}>
+          <PanelDragHandle />
+          <div className="flex items-center gap-3 border-b border-border px-4 py-4">
           {player.photo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -854,6 +860,7 @@ function PlayerPanelInner({
           >
             <X className="h-4 w-4" />
           </button>
+          </div>
         </div>
 
         {/* Current club banner */}

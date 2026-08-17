@@ -22,7 +22,9 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTeamPanel } from "@/contexts/team-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
+import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
 import { PlayerButton } from "@/components/player-panel"
+import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
 import { formatMarketValueEur } from "@/lib/market-value-format"
@@ -825,6 +827,7 @@ function TeamPanelInner({
 }) {
   const { t, locale } = useLanguage()
   const { team, basic, loading, error } = panel
+  const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToClose(closeTeam)
 
   const tabs: PanelTabItem[] = [
     { key: "stats", label: t("team.seasonStats"), icon: <Activity className="h-3.5 w-3.5" /> },
@@ -858,12 +861,14 @@ function TeamPanelInner({
       role="dialog"
       aria-modal="true"
       aria-label={`${team.name} ${t("team.teamInfo")}`}
+      style={swipeStyle}
     >
       {/* Full screen panel */}
       <div className="flex h-full w-full flex-col overflow-hidden">
 
-        {/* Header */}
-        <div className="relative shrink-0 overflow-hidden">
+        {/* Header — aşağı sürüklenerek panel kapatılabilir (mobil) */}
+        <div className="relative shrink-0 overflow-hidden" {...swipeHandlers}>
+          <PanelDragHandle />
           <div className="relative flex items-center gap-4 border-b border-border/60 px-5 py-4">
             {/* Logo */}
             {team.logo ? (

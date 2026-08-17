@@ -14,6 +14,8 @@ import { useLanguage } from "@/contexts/language-context"
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
+import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
+import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { useSession } from "@/lib/auth-client"
 import { isAdminEmail } from "@/lib/admin"
 import type { Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
@@ -411,6 +413,9 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
     selected ? `/mac/${selected.id}` : undefined,
   )
 
+  const closeSelected = useCallback(() => setSelected(null), [])
+  const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToClose(closeSelected)
+
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
   const handleSelect = useCallback((f: Fixture) => {
@@ -484,23 +489,27 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
           role="dialog"
           aria-modal="true"
           aria-label={`${selected.home.name} - ${selected.away.name} ${t("home.matchAnalysis")}`}
+          style={swipeStyle}
         >
-          {/* Top bar */}
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold text-foreground">
-                {selected.home.name} – {selected.away.name}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">{selected.league.name}</p>
+          {/* Top bar — aşağı sürüklenerek panel kapatılabilir (mobil) */}
+          <div className="flex shrink-0 flex-col border-b border-border bg-card" {...swipeHandlers}>
+            <PanelDragHandle />
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-foreground">
+                  {selected.home.name} – {selected.away.name}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">{selected.league.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                aria-label={t("common.close")}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setSelected(null)}
-              aria-label={t("common.close")}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
           </div>
 
           {/* Scrollable content */}
