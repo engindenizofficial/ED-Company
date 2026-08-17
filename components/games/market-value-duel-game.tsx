@@ -297,12 +297,12 @@ export function MarketValueDuelGame() {
           </p>
         </div>
 
-        <div className="flex w-full max-w-2xl flex-col gap-3">
+        <div className="flex w-full max-w-2xl flex-wrap justify-center gap-2">
           <button
             type="button"
-            onClick={toggleAllLeagues}
+                onClick={toggleAllLeagues}
             className={cn(
-              "flex w-full items-center justify-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold uppercase tracking-wide transition-colors",
+              "flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold uppercase tracking-wide transition-colors",
               allSelected
                 ? "border-primary bg-primary/15 text-primary"
                 : "border-border/60 bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground",
@@ -312,40 +312,36 @@ export function MarketValueDuelGame() {
             {t("duel.allLeagues")}
           </button>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
-            {DUEL_SELECTABLE_LEAGUES.map((league) => {
-              const isSelected = selectedLeagueIds.has(league.id)
-              return (
-                <button
-                  key={league.id}
-                  type="button"
-                  onClick={() => toggleLeague(league.id)}
-                  aria-pressed={isSelected}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold transition-colors",
-                    isSelected
-                      ? "border-primary/50 bg-primary/10 text-foreground"
-                      : "border-border/60 bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
-                  )}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={league.flagUrl}
-                    alt=""
-                    className="h-3 w-4 shrink-0 rounded-sm object-cover opacity-90"
-                    width={16}
-                    height={12}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span className="truncate">{league.name}</span>
-                  <span className="shrink-0 truncate text-muted-foreground/70">
-                    {toDisplayCountry(league.country, locale)}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+          {DUEL_SELECTABLE_LEAGUES.map((league) => {
+            const isSelected = selectedLeagueIds.has(league.id)
+            return (
+              <button
+                key={league.id}
+                type="button"
+                onClick={() => toggleLeague(league.id)}
+                aria-pressed={isSelected}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold transition-colors",
+                  isSelected
+                    ? "border-primary/50 bg-primary/10 text-foreground"
+                    : "border-border/60 bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={league.flagUrl}
+                  alt=""
+                  className="h-3 w-4 rounded-sm object-cover opacity-90"
+                  width={16}
+                  height={12}
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span>{league.name}</span>
+                <span className="text-muted-foreground/70">{toDisplayCountry(league.country, locale)}</span>
+              </button>
+            )
+          })}
         </div>
 
         <p className="text-xs font-medium text-muted-foreground">

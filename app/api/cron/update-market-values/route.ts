@@ -47,32 +47,10 @@ export const maxDuration = 300
 // olarak orada kırılıyordu. Şimdi her çağrı, aşağıdaki zaman bütçesi
 // dolana kadar (veya döngü tamamlanana kadar) ARKA ARKAYA birden çok adım
 // işler — bu, gereken self-fetch sayısını (ve dolayısıyla kırılma riskini)
-// yüzlerce yerine tek haneli sayılara indirir.
+// yüzlerce yerine tek haneli sayılara indirir. Buffer, self-fetch'in kendi
+// zaman aşımı (15s) + yeniden denemeleri için maxDuration'dan pay bırakır.
 const STEP_BUDGET_MS = 260_000
 
-// ÖNEMLİ — BULUNAN GERÇEK KÖK NEDEN (admin "Şimdi Tara"ya basınca hiçbir şey
-// olmuyor gibi görünmesi): Bu route'un tek bir çağrısı, yukarıdaki
-// STEP_BUDGET_MS boyunca (260 saniyeye kadar) SENKRON olarak birçok takım/lig
-// işleyip ANCAK İŞİ BİTİRDİKTEN SONRA yanıt dönüyordu. Zinciri bir sonraki
-// adıma taşıyan self-fetch (triggerChainContinuation, bkz.
-// lib/market-value-cron-run.ts) ise bu yanıtı sadece 15 saniye (
-// SELF_FETCH_TIMEOUT_MS) bekliyordu — yani callee'nin normal, TASARLANMIŞ
-// çalışma süresi (260s) her zaman bu 15 saniyelik zaman aşımından
-// UZUNDU. Sonuç: her adımda self-fetch "başarısız" sayılıp 2-3 kez tekrar
-// gönderiliyordu; her tekrar, hâlâ çalışmakta olan (heartbeat'i taze
-// olduğu için "stale" sayılmayan) AYNI döngü satırı üzerinde YENİ bir
-// eşzamanlı (concurrent) işleyici başlatıyordu — bu da birbirinin
-// ilerlemesini ezen/bozan yarış durumlarına (race condition) yol açıyordu.
-// Zincir dışarıdan "tetiklendi" görünse de gerçek ilerleme kesintiye
-// uğruyor/bozuluyordu.
-//
-// ÇÖZÜM: Bu route artık ağır işi (yukarıdaki do-while döngüsünü) yapmadan
-// ÖNCE hemen (milisaniyeler içinde) bir "başladı" yanıtı dönüyor; asıl
-// tarama işi kendi after() callback'i İÇİNDE yapılıyor (bkz. GET handler'ı
-// altındaki runBatchAndContinue). Böylece zinciri tetikleyen taraf (admin'in
-// action'ı veya önceki self-fetch) yanıtı saniyeler içinde alır, 15 saniyelik
-// zaman aşımına hiç yaklaşmaz — gereksiz tekrar tetikleme ve çakışan
-// eşzamanlı işleyiciler artık oluşmaz.
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   // CRON_SECRET henüz tanımlı değilse kontrolü atla (geliştirme/ilk kurulum).
@@ -102,38 +80,11 @@ async function triggerNextStep(request: Request, runId: string): Promise<void> {
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  // Artık callee (bu route'un kendisi) hemen bir "başladı" yanıtı dönüyor
-  // (bkz. runBatchAndContinue) — bu yüzden 15 saniyelik zaman aşımı burada
-  // gerçekten yeterli, çünkü artık 260 saniyelik gerçek işi BEKLEMİYORUZ.
+  // Zaman aşımı + yeniden deneme ile — bkz. lib/market-value-cron-run.ts
+  // içindeki triggerChainContinuation açıklaması: bunlar OLMADAN, askıda
+  // kalan tek bir self-fetch isteği after()'ı maxDuration'a kadar bekletip
+  // zinciri hiçbir hata izi bırakmadan sessizce kırabiliyordu.
   await triggerChainContinuation(url.toString(), headers)
-}
-
-/**
- * Asıl ağır işi (zaman bütçesi dolana/döngü tamamlanana kadar art arda adım
- * işleme + tamamlanınca cleanup) yapar ve ardından bir sonraki adımı
- * tetikler. GET handler'ı yanıtı döndürdükten SONRA after() içinde çağrılır
- * — böylece bu route'a self-fetch yapan taraf, bu fonksiyonun bitmesini
- * BEKLEMEK ZORUNDA KALMAZ (bkz. yukarıdaki kök neden açıklaması).
- */
-async function runBatchAndContinue(request: Request, initialRun: CronRunRow): Promise<void> {
-  const startedAt = Date.now()
-  let updatedRun = initialRun
-  let done = false
-
-  do {
-    const step = await processCronRunStep(updatedRun)
-    updatedRun = step.run
-    done = step.done
-  } while (!done && Date.now() - startedAt < STEP_BUDGET_MS)
-
-  if (done) {
-    const hadErrors = updatedRun.hadErrors
-    await cleanupStaleMarketValueRows(updatedRun.runStartedAt, hadErrors)
-    await completeCronRun(updatedRun.id)
-    return
-  }
-
-  await triggerNextStep(request, updatedRun.id)
 }
 
 export async function GET(request: Request) {
@@ -190,24 +141,42 @@ export async function GET(request: Request) {
     }
   }
 
-  // Bu noktada `run` yukarıdaki her koldan non-null atanmış olur (aksi
-  // haller zaten erken return ile bitmiştir) — closure içindeki tip
-  // daralmasını garanti etmek için sabit bir değişkene alıyoruz.
-  const activeRun: CronRunRow = run
+  // Zaman bütçesi dolana ya da döngü tamamlanana kadar arka arkaya adım işle
+  // — bkz. STEP_BUDGET_MS açıklaması: bu, self-fetch'e olan bağımlılığı (ve
+  // dolayısıyla kırılma riskini) büyük ölçüde azaltır.
+  const startedAt = Date.now()
+  let updatedRun = run
+  let done = false
 
-  // ÖNEMLİ — asıl ağır iş (art arda adım işleme, tamamlanınca cleanup, bir
-  // sonraki adımı tetikleme) burada SENKRON yapılmıyor. Bu isteği tetikleyen
-  // taraf (admin'in "Şimdi Tara" action'ı veya zincirin önceki halkası) bu
-  // yanıtı sadece kısa bir süre bekliyor (bkz. triggerChainContinuation) —
-  // gerçek iş yanıt döndükten SONRA after() içinde yapılır ki çağıran taraf
-  // asla zaman aşımına uğramasın (bkz. dosya başındaki kök neden açıklaması).
-  after(() => runBatchAndContinue(request, activeRun))
+  do {
+    const step = await processCronRunStep(updatedRun)
+    updatedRun = step.run
+    done = step.done
+  } while (!done && Date.now() - startedAt < STEP_BUDGET_MS)
+
+  if (done) {
+    // Zincirdeki son adım: tüm ligler işlendi (veya en fazla deneme sayısı
+    // tüketilerek "failed" işaretlendi). hadErrors=false ise artık hiçbir
+    // taranan ligde/kadroda görünmeyen "hayalet" kayıtları temizle.
+    const cleanup = await cleanupStaleMarketValueRows(updatedRun.runStartedAt, updatedRun.hadErrors)
+    await completeCronRun(updatedRun.id)
+    return Response.json({
+      done: true,
+      message: "Tüm ligler işlendi.",
+      runId: updatedRun.id,
+      hadErrors: updatedRun.hadErrors,
+      leagueStatuses: updatedRun.leagueStatuses,
+      cleanup,
+    })
+  }
+
+  // Yanıtı bekletmeden bir sonraki adımı tetikle.
+  after(() => triggerNextStep(request, updatedRun.id))
 
   return Response.json({
-    started: true,
-    runId: activeRun.id,
-    currentLeagueIndex: activeRun.currentLeagueIndex,
+    runId: updatedRun.id,
+    currentLeagueIndex: updatedRun.currentLeagueIndex,
     totalLeagues: SCRAPABLE_LEAGUE_IDS.length,
-    hadErrors: activeRun.hadErrors,
+    hadErrors: updatedRun.hadErrors,
   })
 }
