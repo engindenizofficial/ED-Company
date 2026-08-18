@@ -10,7 +10,7 @@ import { db } from "@/lib/db"
 import { playerPosition, playerPositionCronRun } from "@/lib/db/schema"
 import { countRemainingCandidates } from "@/lib/player-position-sync"
 import { triggerChainContinuation } from "@/lib/market-value-cron-run"
-import { sanitize } from "@/lib/site-url"
+import { getSiteUrl } from "@/lib/site-url"
 
 // ---------------------------------------------------------------------------
 // Admin panelinde oyuncu mevki (Transfermarkt) backfill'inin durumunu
@@ -150,8 +150,12 @@ export async function triggerPlayerPositionScanNow(): Promise<{ triggered: boole
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headersInit["x-vercel-protection-bypass"] = bypassSecret
 
-  const base = sanitize(process.env.VERCEL_URL) ? `https://${sanitize(process.env.VERCEL_URL)}` : "http://localhost:3000"
-  const url = `${base}/api/cron/backfill-player-positions`
+  // ÖNEMLİ — sadece VERCEL_URL'e bakmak YERİNE getSiteUrl()'ün tam fallback
+  // zincirini (BETTER_AUTH_URL -> VERCEL_PROJECT_PRODUCTION_URL -> VERCEL_URL
+  // -> V0_RUNTIME_URL -> localhost) kullanıyoruz — bazı ortamlarda (örn. v0
+  // sandbox) VERCEL_URL tanımsız olabilir, bu durumda eski kod sessizce
+  // "http://localhost:3000"e düşüyordu.
+  const url = `${getSiteUrl()}/api/cron/backfill-player-positions`
 
   // Piyasa değeri action'larıyla AYNI desen — `after()` ile fire-and-forget.
   // Bu callback, yanıt gönderildikten SONRA ama fonksiyon dondurulmadan ÖNCE
@@ -159,15 +163,15 @@ export async function triggerPlayerPositionScanNow(): Promise<{ triggered: boole
   // backfill arka planda (route'un kendi 300s maxDuration'ı içinde) devam eder.
   //
   // ÖNEMLİ — özel (varsayılandan uzun) bir timeout veriyoruz, route.ts'teki
-  // SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS ile TAM OLARAK AYNI değer (60s) —
+  // SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS ile TAM OLARAK AYNI değer (270s) —
   // bu iki sayı senkronize kalmalı, aksi halde aynı çoklanma felaketi
   // tekrar oluşabilir (bkz. route.ts'teki detaylı worst-case hesabı). Bu
   // route'un varsayılan 15s'lik self-fetch zaman aşımından çok daha uzun
-  // sürebilecek tek-oyuncu adımları olduğu için (bkz. route.ts BATCH_SIZE
-  // yorumu) — uyuşmazlık, aynı adım için sunucuda çalışan bir isteği
-  // "başarısız" sayıp paralel bir ikincisini başlatan çoklanma felaketine
-  // yol açar.
-  after(() => triggerChainContinuation(url, headersInit, 60_000))
+  // sürebilecek adımları olduğu için (bkz. route.ts BATCH_SIZE/SOFT_TIME_
+  // BUDGET_MS yorumu) — uyuşmazlık, aynı adım için sunucuda çalışan bir
+  // isteği "başarısız" sayıp paralel bir ikincisini başlatan çoklanma
+  // felaketine yol açar.
+  after(() => triggerChainContinuation(url, headersInit, 270_000))
 
   revalidatePath(REVIEW_PATH)
   return { triggered: true }

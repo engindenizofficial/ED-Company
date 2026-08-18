@@ -817,6 +817,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         lastErrorLabel: "Son hata: {{error}}",
         brokenWarning:
           "Zincir bir süredir ilerlemedi, muhtemelen kesintiye uğradı. Devam etmesi için \"Şimdi Tara\" butonuna tekrar basabilirsiniz.",
+        autoRecovered: "Zincir kırılmıştı, otomatik olarak yeniden başlatıldı.",
       },
       playerPositionDangerZone: {
         heading: "Tehlikeli Bölge",

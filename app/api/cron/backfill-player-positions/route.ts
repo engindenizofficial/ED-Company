@@ -25,55 +25,59 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
 /**
- * Her adımda işlenecek oyuncu sayısı.
+ * Her adımda işlenecek EN FAZLA oyuncu sayısı — ama fiili sayı bundan çok
+ * daha küçük olabilir, çünkü `runPlayerPositionBackfillBatch` kendi içinde
+ * SOFT_TIME_BUDGET_MS (bkz. lib/player-position-sync.ts, 190s) bütçesini
+ * aşınca kendi isteğiyle erken durur. Yani bu sayı sadece bir "tavan" —
+ * gerçek batch büyüklüğünü zaman bütçesi belirler.
  *
- * ÖNEMLİ — bu değer ÖNCE 200, sonra 10 idi. Her ikisi de aynı, daha ciddi
- * bir soruna yol açtı: triggerChainContinuation'ın self-fetch zaman aşımı
- * (bkz. lib/market-value-cron-run.ts SELF_FETCH_TIMEOUT_MS, 15s) bir
- * batch'in gerçek worst-case süresinden KISAdır (10 oyuncu, Transfermarkt
- * retry'ları yüzünden 90+ saniye sürebiliyordu — hatta TEK bir oyuncunun
- * worst-case'i bile ~30s'yi bulabiliyor). Bu yüzden self-fetch "zaman aşımı"
- * deyip isteği TEKRAR gönderiyordu — ama sunucudaki ilk istek iptal olmadan
- * arka planda çalışmaya devam ediyordu. Sonuç: aynı adım için birden fazla
- * paralel istek Transfermarkt'a gidip birbirini yavaşlatıyor, bu da yeni
- * zaman aşımlarına ve daha fazla paralel isteğe yol açan bir çoklanma
- * felaketi oluşturuyordu (admin "Şimdi Tara"ya bastığında "başlıyor" diyip
- * sonra hiçbir şey olmamasının, sayfa yenilenince eski duruma dönmesinin
- * asıl sebebi buydu).
+ * ÖNEMLİ GEÇMİŞ — bu değer sırasıyla 200, 10, sonra 1 oldu. 200 ve 10 aynı
+ * ciddi soruna yol açtı: o zamanki self-fetch zaman aşımı (15s) bir
+ * batch'in gerçek worst-case süresinden (Transfermarkt retry'ları yüzünden
+ * 90+ saniye) KISAydı — self-fetch "zaman aşımı" deyip isteği TEKRAR
+ * gönderiyordu, ama sunucudaki ilk istek iptal olmadan arka planda çalışmaya
+ * devam ediyordu → aynı adım için paralel istekler Transfermarkt'a gidip
+ * birbirini yavaşlatan bir çoklanma felaketi oluşuyordu. Buna karşı BATCH_
+ * SIZE=1'e düşürüldü — ama bu da 7700+ oyuncu için ZİNCİRİN 7700+ kez ard
+ * arda, HİÇ KIRILMADAN self-fetch etmesini gerektiriyordu; tek bir geçici
+ * ağ/deployment-protection hatası (self-fetch'in 3 denemesinin hepsi
+ * başarısız olursa, bkz. triggerChainContinuation) zinciri kalıcı olarak
+ * durduruyordu — admin panelinin sürekli "Zincir kırıldı" göstermesinin ve
+ * elle "Şimdi Tara"ya tekrar tekrar basılması gerekmesinin asıl sebebi
+ * buydu.
  *
- * Çözüm iki parçalı: (1) piyasa değeri zincirindeki gibi her adımda TEK
- * birim iş yap (1 oyuncu — bkz. lib/market-value-cron-run.ts "her HTTP
- * çağrısı en fazla bir takım kadar iş yapar" prensibi), (2) self-fetch
- * timeout'unu bu tek oyuncunun gerçek worst-case süresine göre ayarla (bkz.
- * SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS aşağıda) — böylece sunucu hâlâ
- * çalışırken self-fetch asla "zaman aşımı" deyip ikinci bir paralel istek
- * başlatmaz.
+ * Çözüm: batch boyutunu tavan olarak büyük tut (500) ama gerçek işi
+ * SOFT_TIME_BUDGET_MS'e bırak — böylece her adım güvenli bir şekilde
+ * mümkün olduğunca çok oyuncuyu (tipik olarak ~190s / ~1.2s ≈ 150+ oyuncu)
+ * işler, zincirin tamamlanması için gereken self-fetch sayısı ~7700'den
+ * ~50'ye düşer — bu da zincirin kırılma olasılığını aynı oranda azaltır.
+ * self-fetch timeout'u da (aşağıda) bu daha uzun adımın gerçek worst-case
+ * süresine göre ayarlandı.
  */
-const BATCH_SIZE = 1
+const BATCH_SIZE = 500
 
 /**
  * Bu route için self-fetch zaman aşımı — triggerChainContinuation'ın
  * varsayılanından (15s, piyasa değeri zinciri için doğru) KASITLI olarak
- * farklı. Tek bir oyuncunun worst-case süresini bolca aşacak şekilde
- * ayarlanmalı.
+ * farklı. Bir ADIMIN (SOFT_TIME_BUDGET_MS'e kadar süren, bkz. yukarıdaki
+ * BATCH_SIZE yorumu) gerçek worst-case süresini bolca aşacak şekilde
+ * ayarlanmalı — AKSİ HALDE self-fetch sunucu hâlâ çalışırken "zaman aşımı"
+ * deyip ikinci bir paralel istek başlatır (BATCH_SIZE yorumundaki çoklanma
+ * felaketi).
  *
- * Gerçek worst-case hesabı (transfermarkt-scraper.ts: FETCH_TIMEOUT_MS=8s,
- * BLOCKING_RETRY_DELAYS_MS=[1.5s, 4s, 10s], retries=3 → toplam 4 deneme,
- * aralarında 3 bekleme):
- *   deneme1(8s) + bekle(1.5s) + deneme2(8s) + bekle(4s) + deneme3(8s)
- *   + bekle(10s) + deneme4(8s) = 8+1.5+8+4+8+10+8 = 47.5s
+ * Gerçek worst-case hesabı:
+ *   SOFT_TIME_BUDGET_MS (190s, lib/player-position-sync.ts) bütçe kontrolü
+ *   her adaydan ÖNCE yapılıyor — bu yüzden bütçeyi az aşmış olsak bile son
+ *   adayın kendisi worst-case'te 4 deneme + 3 backoff sürebilir (bkz.
+ *   transfermarkt-scraper.ts: FETCH_TIMEOUT_MS=8s, BLOCKING_RETRY_DELAYS_
+ *   MS=[1.5s, 4s, 10s]): 8+1.5+8+4+8+10+8 = 47.5s.
+ *   Toplam worst-case: 190s + 47.5s = 237.5s.
  *
- * ÖNEMLİ — burada ÖNCEDEN 45s idi ve yorumdaki hesap eksikti (son deneme +
- * son beklemeyi saymamıştı, gerçek değeri ~2.5s eksik gösteriyordu). 45s <
- * 47.5s gerçek worst-case olduğu için, TAM da o en nadir "4 deneme de zaman
- * aşımına uğradı" senaryosunda self-fetch sunucu HÂLÂ meşgulken "zaman
- * aşımı" deyip ikinci bir paralel isteği tetikleyebilir, bu da tekrar
- * BATCH_SIZE=200/10 sırasında yaşanan çoklanma felaketini (bkz. yukarıdaki
- * BATCH_SIZE yorumu) küçük ölçekte tetikleyebilirdi. Şimdi 60s'ye
- * çıkarıldı — gerçek 47.5s worst-case'in üzerine ~12.5s'lik bolca pay
- * bırakıyor.
+ * 270s seçildi: 237.5s gerçek worst-case'in üzerine ~32.5s pay bırakıyor,
+ * ve route'un kendi maxDuration'ından (300s) hâlâ belirgin şekilde altta
+ * kalıyor (DB yazma/yanıt dönüşü gibi ek gecikmelere yer bırakır).
  */
-const SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS = 60_000
+const SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS = 270_000
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
