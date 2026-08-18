@@ -20,6 +20,34 @@ export interface GoalRate {
   goalsAgainstAvg: number
 }
 
+/** Son N maçtan çıkarılmış gol ortalaması — sezon ortalamasını güncel formla düzeltmek için. */
+export interface RecentFormRate {
+  goalsForAvg: number
+  goalsAgainstAvg: number
+  sampleSize: number
+}
+
+/** `{ scored, conceded }[]` (örn. FormGame[]) listesinden RecentFormRate çıkarır. */
+export function recentFormRate(games: Array<{ scored: number; conceded: number }> | null | undefined): RecentFormRate | null {
+  if (!games || games.length === 0) return null
+  const gf = games.reduce((a, g) => a + g.scored, 0)
+  const ga = games.reduce((a, g) => a + g.conceded, 0)
+  return { goalsForAvg: gf / games.length, goalsAgainstAvg: ga / games.length, sampleSize: games.length }
+}
+
+/**
+ * Sezon oranını, son form oranına örneklem büyüklüğüne göre ölçeklenen bir
+ * ağırlıkla çeker. 6 maçlık tam örneklemde `weight` kadar, daha azında
+ * oransal olarak daha düşük ağırlıkla — küçük örneklemde gürültüye kapılmamak
+ * için.
+ */
+function blendSeasonWithRecent(seasonRate: number, recentRate: number | undefined, sampleSize: number | undefined, weight: number): number {
+  if (recentRate == null || !sampleSize) return seasonRate
+  const confidence = Math.min(1, sampleSize / 6)
+  const w = weight * confidence
+  return seasonRate * (1 - w) + recentRate * w
+}
+
 const MAX_GOALS = 8
 
 // Dixon-Coles düşük-skor korelasyon parametresi. Gerçek futbol maçlarında
@@ -95,17 +123,32 @@ function probsFromGrid(grid: number[][]): { home: number; draw: number; away: nu
  * Ev sahibinin hücumu ile deplasmanın defansının, deplasmanın hücumu ile ev
  * sahibinin defansının ortalaması alınır — klasik "attack vs. opponent defense"
  * yaklaşımı. Ev sahibi/deplasman split verisi yoksa genel ortalamaya düşer.
+ *
+ * `homeRecent`/`awayRecent` verilirse (son 6 maç), sezon ortalaması bu son
+ * form oranına doğru çekilir — sezon ortalaması bir takımın güncel durumunu
+ * (sakatlık dönüşü sonrası çıkış, teknik direktör değişikliği, seri
+ * galibiyet/mağlubiyet) maskeleyebilir; son form daha güncel ama daha
+ * gürültülü bir sinyaldir, bu yüzden örneklem büyüklüğüne göre ölçeklenen
+ * orta düzey bir ağırlıkla (varsayılan %35) katkı verir.
  */
 export function computeExpectedGoals(
   homeOverall: GoalRate | null | undefined,
   awayOverall: GoalRate | null | undefined,
   homeVenueSplit: GoalRate | null | undefined,
   awayVenueSplit: GoalRate | null | undefined,
+  homeRecent?: RecentFormRate | null,
+  awayRecent?: RecentFormRate | null,
+  recentFormWeight = 0.35,
 ): { homeXG: number; awayXG: number } {
-  const homeAttack = homeVenueSplit?.goalsForAvg ?? homeOverall?.goalsForAvg ?? 1.2
-  const homeDefense = homeVenueSplit?.goalsAgainstAvg ?? homeOverall?.goalsAgainstAvg ?? 1.2
-  const awayAttack = awayVenueSplit?.goalsForAvg ?? awayOverall?.goalsForAvg ?? 1.0
-  const awayDefense = awayVenueSplit?.goalsAgainstAvg ?? awayOverall?.goalsAgainstAvg ?? 1.4
+  const homeAttackSeason = homeVenueSplit?.goalsForAvg ?? homeOverall?.goalsForAvg ?? 1.2
+  const homeDefenseSeason = homeVenueSplit?.goalsAgainstAvg ?? homeOverall?.goalsAgainstAvg ?? 1.2
+  const awayAttackSeason = awayVenueSplit?.goalsForAvg ?? awayOverall?.goalsForAvg ?? 1.0
+  const awayDefenseSeason = awayVenueSplit?.goalsAgainstAvg ?? awayOverall?.goalsAgainstAvg ?? 1.4
+
+  const homeAttack = blendSeasonWithRecent(homeAttackSeason, homeRecent?.goalsForAvg, homeRecent?.sampleSize, recentFormWeight)
+  const homeDefense = blendSeasonWithRecent(homeDefenseSeason, homeRecent?.goalsAgainstAvg, homeRecent?.sampleSize, recentFormWeight)
+  const awayAttack = blendSeasonWithRecent(awayAttackSeason, awayRecent?.goalsForAvg, awayRecent?.sampleSize, recentFormWeight)
+  const awayDefense = blendSeasonWithRecent(awayDefenseSeason, awayRecent?.goalsAgainstAvg, awayRecent?.sampleSize, recentFormWeight)
 
   // Alt sınır koy — sıfıra yakın ortalamalar (az maç oynanmış / veri eksik)
   // Poisson dağılımını bozup gerçekçi olmayan 0-0 baskısı yaratmasın.
@@ -211,6 +254,84 @@ export function calibrateExpectedGoalsToOdds(
   return {
     homeXG: Math.max(0.2, homeXG * bestHomeScale),
     awayXG: Math.max(0.15, awayXG * bestAwayScale),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sakatlık/kadro etkisi
+// ---------------------------------------------------------------------------
+// Gol ortalamaları geçmişe bakar ve o maça özel kilit oyuncu eksikliğini
+// (özellikle golcü veya kaleci) yansıtmaz. Bu, /injuries verisiyle çapraz
+// eşleştirilen mevki bilgisine (Forvet/Orta saha/Defans/Kaleci) göre
+// hücum/savunma oranlarına küçük, sınırlı bir düzeltme uygular.
+// ---------------------------------------------------------------------------
+
+export interface InjuryImpactInput {
+  /** "Missing Fixture" = kesin yok, "Questionable" = şüpheli — kesinlik ağırlığını belirler. */
+  type: string
+  /** Squad'dan eşleştirilen mevki: "Attacker" | "Midfielder" | "Defender" | "Goalkeeper" | null. */
+  position: string | null
+}
+
+function certaintyOf(type: string): number {
+  if (/missing/i.test(type)) return 1
+  if (/questionable/i.test(type)) return 0.4
+  return 0.7
+}
+
+/** Bir takımın eksik oyuncularından hücum/savunma çarpan faktörünü hesaplar. */
+function computeInjuryFactors(injuries: InjuryImpactInput[]): { attackFactor: number; concedeFactor: number } {
+  let attackPenalty = 0
+  let concedePenalty = 0
+
+  for (const inj of injuries) {
+    const c = certaintyOf(inj.type)
+    switch (inj.position) {
+      case "Attacker":
+        attackPenalty += 0.1 * c
+        break
+      case "Midfielder":
+        attackPenalty += 0.04 * c
+        concedePenalty += 0.02 * c
+        break
+      case "Defender":
+        concedePenalty += 0.06 * c
+        break
+      case "Goalkeeper":
+        concedePenalty += 0.08 * c
+        break
+      default:
+        attackPenalty += 0.02 * c
+    }
+  }
+
+  // Uzun sakatlık listelerinde gerçekçi olmayan sapmalar oluşmasın diye
+  // toplam ceza en fazla %20 ile sınırlanır.
+  attackPenalty = Math.min(attackPenalty, 0.2)
+  concedePenalty = Math.min(concedePenalty, 0.2)
+
+  return { attackFactor: 1 - attackPenalty, concedeFactor: 1 + concedePenalty }
+}
+
+/**
+ * Ev ve deplasman takımlarının sakatlık/eksik listesine göre xG'yi düzeltir.
+ * Bir takımın forvetleri eksikse kendi xG'si düşer; rakibin savunmacıları/
+ * kalecisi eksikse bu takımın xG'si yükselir (rakip savunması zayıflamıştır).
+ */
+export function applyInjuryImpact(
+  homeXG: number,
+  awayXG: number,
+  homeInjuries: InjuryImpactInput[],
+  awayInjuries: InjuryImpactInput[],
+): { homeXG: number; awayXG: number } {
+  if (homeInjuries.length === 0 && awayInjuries.length === 0) return { homeXG, awayXG }
+
+  const homeFactors = computeInjuryFactors(homeInjuries)
+  const awayFactors = computeInjuryFactors(awayInjuries)
+
+  return {
+    homeXG: Math.max(0.2, homeXG * homeFactors.attackFactor * awayFactors.concedeFactor),
+    awayXG: Math.max(0.15, awayXG * awayFactors.attackFactor * homeFactors.concedeFactor),
   }
 }
 

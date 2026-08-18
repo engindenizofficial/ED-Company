@@ -16,7 +16,14 @@ import {
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { getAdaptiveWeights, getAdaptiveScoreWeights, STATIC_WEIGHTS } from "@/lib/model-weights"
-import { computeExpectedGoals, predictFromExpectedGoals, blendWithH2H, calibrateExpectedGoalsToOdds } from "@/lib/poisson"
+import {
+  computeExpectedGoals,
+  predictFromExpectedGoals,
+  blendWithH2H,
+  calibrateExpectedGoalsToOdds,
+  recentFormRate,
+  applyInjuryImpact,
+} from "@/lib/poisson"
 import type { MatchPrediction, ModelVote } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -334,11 +341,19 @@ export async function POST(request: Request) {
   // prompt'larına somut bir sayısal referans verir hem de aşağıda LLM'lerden
   // bağımsız 4. bir ensemble oyu olarak kullanılır.
   // ---------------------------------------------------------------------------
+  // Son 6 maçlık form oranı — sezon ortalamasını güncel duruma (sakatlık
+  // dönüşü, seri galibiyet/mağlubiyet, teknik direktör değişikliği) doğru
+  // çeker. `recent` her zaman genel (ev+deplasman karışık) son maçlardır.
+  const homeRecentForm = recentFormRate(live.homeStats?.recent)
+  const awayRecentForm = recentFormRate(live.awayStats?.recent)
+
   const statsXG = computeExpectedGoals(
     live.homeStats ?? null,
     live.awayStats ?? null,
     live.homeStats?.home ?? null,
     live.awayStats?.away ?? null,
+    homeRecentForm,
+    awayRecentForm,
   )
   // h2h her zaman GÜNCEL fikstürün ev sahibi takımının bakış açısından
   // raporlanır (getHeadToHead(home.id, away.id) — bkz. lib/api-football.ts),
@@ -348,7 +363,22 @@ export async function POST(request: Request) {
     statsXG.awayXG,
     live.h2h.map((g) => ({ homeTeamGoals: g.scored, awayTeamGoals: g.conceded })),
   )
-  const { homeXG, awayXG } = calibrateExpectedGoalsToOdds(h2hXG.homeXG, h2hXG.awayXG, live.odds)
+
+  // Sakatlık/eksik oyuncu etkisi — /injuries listesindeki oyuncuları squad'daki
+  // mevkiye göre eşleştirip forvet/kaleci gibi kilit rolleri hücum/savunma
+  // oranına yansıtır. Takım adına göre ev/deplasman ayrımı yapılır.
+  const matchTeamInjuries = (teamName: string, squad: typeof live.homeSquad) =>
+    live.injuries
+      .filter((inj) => inj.team === teamName)
+      .map((inj) => ({
+        type: inj.type,
+        position: squad.find((p) => p.id === inj.playerId)?.pos ?? null,
+      }))
+  const homeInjuryImpact = matchTeamInjuries(homeName, live.homeSquad)
+  const awayInjuryImpact = matchTeamInjuries(awayName, live.awaySquad)
+  const injuryAdjustedXG = applyInjuryImpact(h2hXG.homeXG, h2hXG.awayXG, homeInjuryImpact, awayInjuryImpact)
+
+  const { homeXG, awayXG } = calibrateExpectedGoalsToOdds(injuryAdjustedXG.homeXG, injuryAdjustedXG.awayXG, live.odds)
   const poissonPrediction = predictFromExpectedGoals(homeXG, awayXG)
 
   // ---------------------------------------------------------------------------
