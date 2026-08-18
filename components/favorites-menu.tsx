@@ -379,15 +379,17 @@ export function FavoritesMenu() {
                         <BellOff className="h-3.5 w-3.5" />
                         {notifications.busy ? t("notifications.disabling") : t("notifications.disable")}
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleSendTest}
-                        disabled={notifications.busy}
-                        className="flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-transparent px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-50"
-                      >
-                        <Send className="h-3.5 w-3.5" />
-                        {t("notifications.sendTest")}
-                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={handleSendTest}
+                          disabled={notifications.busy}
+                          className="flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-transparent px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-50"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          {t("notifications.sendTest")}
+                        </button>
+                      )}
                       {testSent ? (
                         <p className="text-xs font-medium text-primary">{t("notifications.testSent")}</p>
                       ) : null}

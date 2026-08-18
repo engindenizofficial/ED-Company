@@ -120,7 +120,10 @@ export function AnalysisPanel({
   const isPredictable = !LIVE_OR_FINISHED.has(fixture.statusShort)
   // Tahmin yapılmışsa maç başlamış/bitmişse de göster
   const hasPrediction = !!(prediction)
-  const showPrediction = isPredictable || hasPrediction
+  // Yapay zeka tahmin bölümü şu anlık sadece adminlerde gözükür. Bir admin
+  // zaten tahmin almışsa, o tahmin sonucu normal kullanıcılara da gösterilir
+  // (ama "Tahmin Al" / silme butonları yalnızca adminde kalır).
+  const showPrediction = isAdmin ? isPredictable || hasPrediction : hasPrediction
 
   // Maç Olayları, Oyuncu Performansları ve Maç İstatistikleri sadece maç
   // başladıktan sonra üretilen verilerdir. Henüz başlamamış bir maçta bu
@@ -173,7 +176,7 @@ export function AnalysisPanel({
           isLoading={predictionLoading ?? false}
           homeName={home.name}
           awayName={away.name}
-          onPredict={isPredictable ? onPredict : undefined}
+          onPredict={isAdmin && isPredictable ? onPredict : undefined}
           isAdmin={isAdmin}
           onDelete={onDeletePrediction}
         />
