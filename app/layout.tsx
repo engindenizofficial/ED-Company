@@ -11,6 +11,7 @@ import { LeaguePanel } from '@/components/league-panel'
 import { PlayerProvider } from '@/contexts/player-context'
 import { PlayerPanel } from '@/components/player-panel'
 import { PanelRouteGuard } from '@/components/panel-route-guard'
+import { PwaUpdateWatcher } from '@/components/pwa-update-watcher'
 import { FavoritesProvider } from '@/contexts/favorites-context'
 import { ThemeColorProvider } from '@/contexts/theme-color-context'
 import { LanguageProvider } from '@/contexts/language-context'
@@ -114,6 +115,7 @@ export default async function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark');}var a=localStorage.getItem('ed-accent-color');if(a&&a!=='green'){document.documentElement.setAttribute('data-accent',a);}}catch(e){}})();`,
           }}
         />
+        <PwaUpdateWatcher />
         <LanguageProvider initialLocale={locale}>
           <ThemeColorProvider>
             <LeagueProvider>
