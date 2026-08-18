@@ -15,7 +15,8 @@ import {
 } from "@/lib/redis"
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
-import { getAdaptiveWeights, STATIC_WEIGHTS } from "@/lib/model-weights"
+import { getAdaptiveWeights, getAdaptiveScoreWeights, STATIC_WEIGHTS } from "@/lib/model-weights"
+import { computeExpectedGoals, predictFromExpectedGoals } from "@/lib/poisson"
 import type { MatchPrediction, ModelVote } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -177,7 +178,7 @@ function formatOdds(odds: LiveData["odds"], homeName: string, awayName: string):
 // Ağırlıklı ensemble oylama
 // ---------------------------------------------------------------------------
 function weightedVote(
-  votes: Array<{ vote: z.infer<typeof PredictionSchema>; weight: number }>,
+  votes: Array<{ vote: z.infer<typeof PredictionSchema>; weight: number; scoreWeight?: number }>,
 ): {
   winner: "home" | "away" | "draw"
   homeScore: number
@@ -192,8 +193,16 @@ function weightedVote(
   for (const { vote, weight } of votes) winnerTally[vote.winner] += weight
   const winner = (Object.entries(winnerTally).sort((a, b) => b[1] - a[1])[0][0]) as "home" | "away" | "draw"
 
-  const homeScore = Math.round(votes.reduce((s, v) => s + v.vote.homeScore * v.weight, 0) / totalWeight)
-  const awayScore = Math.round(votes.reduce((s, v) => s + v.vote.awayScore * v.weight, 0) / totalWeight)
+  // Skor ortalaması için ayrı ağırlık kullan (scoreWeight verilmemişse weight'e
+  // düşer) — bir modelin kazananı bilmesi skorunu isabetli tahmin ettiği
+  // anlamına gelmez, bu yüzden skor geçmişine göre ayrı bir ölçüt kullanıyoruz.
+  const totalScoreWeight = votes.reduce((s, v) => s + (v.scoreWeight ?? v.weight), 0)
+  const homeScore = Math.round(
+    votes.reduce((s, v) => s + v.vote.homeScore * (v.scoreWeight ?? v.weight), 0) / totalScoreWeight,
+  )
+  const awayScore = Math.round(
+    votes.reduce((s, v) => s + v.vote.awayScore * (v.scoreWeight ?? v.weight), 0) / totalScoreWeight,
+  )
   const confidence = Math.round(votes.reduce((s, v) => s + v.vote.confidence * v.weight, 0) / totalWeight)
 
   const bttsScore = votes.reduce((s, v) => s + (v.vote.btts ? v.weight : 0), 0)
@@ -293,6 +302,19 @@ export async function POST(request: Request) {
   const awayStanding = live.standings.find((s) => s.teamId === fixture.away.id)
 
   // ---------------------------------------------------------------------------
+  // Poisson istatistik modeli — gol ortalamalarından beklenen gol (xG benzeri)
+  // hesapla. Bu hem LLM prompt'larına somut bir sayısal referans verir hem de
+  // aşağıda LLM'lerden bağımsız 4. bir ensemble oyu olarak kullanılır.
+  // ---------------------------------------------------------------------------
+  const { homeXG, awayXG } = computeExpectedGoals(
+    live.homeStats ?? null,
+    live.awayStats ?? null,
+    live.homeStats?.home ?? null,
+    live.awayStats?.away ?? null,
+  )
+  const poissonPrediction = predictFromExpectedGoals(homeXG, awayXG)
+
+  // ---------------------------------------------------------------------------
   // Ortak veri bloğu — her prompt'ta tekrar eden bağlam
   // ---------------------------------------------------------------------------
   const sharedContext = `
@@ -317,6 +339,12 @@ ${formatInjuries(live.injuries)}
 
 BAHİS ORANLARI (piyasa beklentisi — düşük oran = güçlü favori):
 ${formatOdds(live.odds, homeName, awayName)}
+
+İSTATİSTİKSEL MODEL (Poisson dağılımı, gol ortalamalarından hesaplandı):
+Beklenen gol: ${homeName} ${homeXG.toFixed(2)} — ${awayName} ${awayXG.toFixed(2)}
+En olası skor: ${poissonPrediction.homeScore}-${poissonPrediction.awayScore}
+Skor tahminini yaparken bu istatistiksel referansı bir çıpa olarak kullan; ondan büyük şekilde
+saparsan (yaralanma, motivasyon, form gibi) gerekçeni keyFactors'ta belirt.
 ${(() => {
   const lineup = formatLineups(live.lineups)
   if (lineup) return `\nRESMİ 11 (açıklandı):\n${lineup}`
@@ -402,7 +430,12 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
 
   // 5. Ağırlıkları geçmiş isabet oranına göre hesapla (statik WEIGHTS yerine).
   // Yeterli çözümlenmiş tahmin yoksa statik varsayılana yakın kalır (cold start).
-  const adaptiveWeights = await getAdaptiveWeights()
+  // İki ayrı ağırlık seti: taraf (winner) isabetine göre ve skor hatasına göre —
+  // bir modelin kazananı bilmesi skorunu isabetli tahmin ettiği anlamına gelmez.
+  const [adaptiveWeights, adaptiveScoreWeights] = await Promise.all([
+    getAdaptiveWeights(),
+    getAdaptiveScoreWeights(),
+  ])
 
   // 6. 3 modeli paralel çalıştır — her biri kendi rolüne ait prompt'u N kez
   // örnekleyip (self-consistency) kendi içinde çoğunluk oylaması yapar.
@@ -414,7 +447,8 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
         label,
       )
       const weight = adaptiveWeights[provider]?.weight ?? STATIC_WEIGHTS[provider] ?? 1.0
-      return { provider, label, weight, object, agreement, sampleCount }
+      const scoreWeight = adaptiveScoreWeights[provider]?.weight ?? weight
+      return { provider, label, weight, scoreWeight, object, agreement, sampleCount }
     }),
   )
 
@@ -422,20 +456,49 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     provider: string
     label: string
     weight: number
+    scoreWeight: number
     object: z.infer<typeof PredictionSchema>
     agreement: number
     sampleCount: number
   }
-  const successfulVotes = (modelResults as PromiseSettledResult<ModelResult>[])
+  const llmVotes = (modelResults as PromiseSettledResult<ModelResult>[])
     .filter((r): r is PromiseFulfilledResult<ModelResult> => r.status === "fulfilled")
     .map((r) => ({ ...r.value, vote: r.value.object }))
 
-  if (successfulVotes.length === 0) {
+  if (llmVotes.length === 0) {
     return NextResponse.json({ error: "Tüm AI modelleri başarısız oldu." }, { status: 502 })
   }
 
-  // 7. Ağırlıklı oylama
-  const ensemble = weightedVote(successfulVotes.map((v) => ({ vote: v.vote, weight: v.weight })))
+  // 6b. Poisson istatistik modelini 4. ensemble oyu olarak ekle — LLM'lerden
+  // bağımsız, tamamen veri odaklı. Kendi geçmiş performansına göre de adaptif
+  // ağırlık alır (provider adı "poisson").
+  const poissonWeight = adaptiveWeights.poisson?.weight ?? STATIC_WEIGHTS.poisson
+  const poissonScoreWeight = adaptiveScoreWeights.poisson?.weight ?? poissonWeight
+  const poissonVoteEntry = {
+    provider: "poisson",
+    label: "İstatistik Modeli",
+    weight: poissonWeight,
+    scoreWeight: poissonScoreWeight,
+    agreement: 1,
+    sampleCount: 0,
+    vote: {
+      homeScore:  poissonPrediction.homeScore,
+      awayScore:  poissonPrediction.awayScore,
+      winner:     poissonPrediction.winner,
+      confidence: poissonPrediction.confidence,
+      btts:       poissonPrediction.btts,
+      overUnder:  poissonPrediction.overUnder,
+      keyFactors: poissonPrediction.keyFactors,
+    } satisfies z.infer<typeof PredictionSchema>,
+  }
+
+  const successfulVotes = [...llmVotes, poissonVoteEntry]
+
+  // 7. Ağırlıklı oylama — kazanan/BTTS/üst-alt için `weight`, skor ortalaması
+  // için `scoreWeight` kullanılır.
+  const ensemble = weightedVote(
+    successfulVotes.map((v) => ({ vote: v.vote, weight: v.weight, scoreWeight: v.scoreWeight })),
+  )
 
   // 8. Anahtar faktörler — tüm modellerden birleştir
   const allFactors = successfulVotes.flatMap((v) => v.vote.keyFactors)
@@ -460,9 +523,10 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
 
   // 10. ModelVote dizisi — model alanı "provider/model-id" formatında olmalı (UI etiket eşleşmesi için)
   const PROVIDER_MODEL_ID: Record<string, string> = {
-    openai: "openai/gpt-5.6-terra",
-    google: "google/gemini-3.7-flash",
-    xai:    "xai/grok-4.6",
+    openai:  "openai/gpt-5.6-terra",
+    google:  "google/gemini-3.7-flash",
+    xai:     "xai/grok-4.6",
+    poisson: "poisson/expected-goals",
   }
   const modelVotes: ModelVote[] = successfulVotes.map((v) => ({
     model:      PROVIDER_MODEL_ID[v.provider] ?? `${v.provider}/${v.label}`,

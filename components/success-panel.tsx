@@ -19,6 +19,7 @@ function modelLabel(model: string): string {
     if (model.includes("grok-4.5")) return "Grok 4.5"
     return "Grok 4.6"
   }
+  if (model.includes("poisson")) return "İstatistik Modeli (Poisson)"
   return model
 }
 

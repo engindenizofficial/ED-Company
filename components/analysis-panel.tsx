@@ -1893,6 +1893,9 @@ function modelLabel(modelId: string): { short: string; colorCls: string } {
     const short = modelId.includes("grok-4.5") ? "Grok 4.5" : "Grok 4.6"
     return { short, colorCls: "bg-violet-500/10 text-violet-600 border-violet-500/20 dark:text-violet-400" }
   }
+  if (modelId.startsWith("poisson/")) {
+    return { short: "İstatistik Modeli", colorCls: "bg-slate-500/10 text-slate-600 border-slate-500/20 dark:text-slate-400" }
+  }
   return { short: modelId.split("/")[0], colorCls: "bg-secondary text-muted-foreground border-border/60" }
 }
 

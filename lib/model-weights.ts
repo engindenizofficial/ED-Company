@@ -18,6 +18,10 @@ export const STATIC_WEIGHTS: Record<string, number> = {
   openai: 2.0,
   google: 1.5,
   xai: 1.5,
+  // Poisson istatistik modeli — LLM'lerden bağımsız, gol ortalamalarına dayalı
+  // veri odaklı tahmin. Skor tahmininde LLM'lerden daha isabetli olması
+  // beklendiği için başlangıçta orta-yüksek bir taban ağırlıkla başlar.
+  poisson: 1.8,
 }
 
 /** Bir providerın ağırlığının veriye dayanmaya başlaması için gereken minimum çözümlenmiş tahmin sayısı. */
@@ -92,6 +96,74 @@ export async function getAdaptiveWeights(): Promise<Record<string, ModelWeightIn
     const weight = staticWeight * (1 - confidence) + dynamicWeight * confidence
 
     out[provider] = { weight, accuracy, sampleCount: stats.total }
+  }
+
+  return out
+}
+
+// ---------------------------------------------------------------------------
+// Skor-özel adaptif ağırlıklandırma
+// ---------------------------------------------------------------------------
+// getAdaptiveWeights() sadece "kazanan taraf" (sideCorrect) isabetine bakıyor
+// ve o ağırlık hem taraf oylamasında hem de skor ortalamasında kullanılıyordu.
+// Ancak bir modelin kazananı doğru bilmesi, skorunun isabetli olduğu anlamına
+// gelmez (örn. doğru kazananı ama 4-0 yerine 1-0 tahmin edebilir). Bu yüzden
+// skor ortalaması için ayrı bir ağırlık üretiyoruz: exact scoreCorrect yerine
+// ortalama gol hatası (|Δhome| + |Δaway|) kullanıyoruz çünkü tam skor tutturma
+// çok nadir olduğundan (şans seviyesi ~%10) örnek sayısı azken çok gürültülü
+// bir sinyal olurdu; ortalama hata daha yumuşak ve daha çabuk anlamlı hale gelir.
+// ---------------------------------------------------------------------------
+
+/** Ortalama gol hatası (0 = mükemmel) → ağırlık (0.5-3.5) dönüşümü. */
+function scoreErrorToWeight(avgError: number): number {
+  return Math.min(3.5, Math.max(0.5, 3.5 - avgError))
+}
+
+export interface ScoreWeightInfo {
+  weight: number
+  /** null = yeterli veri yok, statik ağırlık kullanılıyor */
+  avgError: number | null
+  sampleCount: number
+}
+
+export async function getAdaptiveScoreWeights(): Promise<Record<string, ScoreWeightInfo>> {
+  const allResults = await getAllTimePredictionResults()
+  const recent = [...allResults].sort((a, b) => b.savedAt - a.savedAt).slice(0, RESULT_WINDOW)
+
+  const byProvider: Record<string, { totalError: number; total: number }> = {}
+  for (const result of recent) {
+    if (!result.modelResults) continue
+    for (const mr of result.modelResults) {
+      const provider = providerOf(mr.model)
+      if (!byProvider[provider]) byProvider[provider] = { totalError: 0, total: 0 }
+      const error = Math.abs(mr.homeScore - result.actualHome) + Math.abs(mr.awayScore - result.actualAway)
+      byProvider[provider].totalError += error
+      byProvider[provider].total += 1
+    }
+  }
+
+  const out: Record<string, ScoreWeightInfo> = {}
+  const providers = new Set([...Object.keys(STATIC_WEIGHTS), ...Object.keys(byProvider)])
+
+  for (const provider of providers) {
+    const stats = byProvider[provider]
+    const staticWeight = STATIC_WEIGHTS[provider] ?? 1.0
+
+    if (!stats || stats.total < MIN_SAMPLES) {
+      out[provider] = {
+        weight: staticWeight,
+        avgError: stats && stats.total > 0 ? stats.totalError / stats.total : null,
+        sampleCount: stats?.total ?? 0,
+      }
+      continue
+    }
+
+    const avgError = stats.totalError / stats.total
+    const dynamicWeight = scoreErrorToWeight(avgError)
+    const confidence = Math.min(1, (stats.total - MIN_SAMPLES) / (FULL_SAMPLES - MIN_SAMPLES))
+    const weight = staticWeight * (1 - confidence) + dynamicWeight * confidence
+
+    out[provider] = { weight, avgError, sampleCount: stats.total }
   }
 
   return out
