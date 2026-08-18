@@ -32,6 +32,12 @@ const ENSEMBLE_MODELS = [
   { provider: "xai",     model: xai("grok-4.6"),                 label: "Grok 4.6"       },
 ] as const
 
+// Self-consistency: her model için tek atım yerine N örnekleme alıp kendi
+// içinde çoğunluk oylaması yapıyoruz. Bu, tek bir generateObject çağrısının
+// şans faktöründen kaynaklanan gürültüyü azaltır. Maliyet N katına çıkar
+// (3 model x 3 örnek = 9 çağrı/maç).
+const SELF_CONSISTENCY_SAMPLES = 3
+
 const PredictionSchema = z.object({
   homeScore:  z.number().int().min(0).max(20).describe("Ev sahibi takımın tahmin edilen gol sayısı"),
   awayScore:  z.number().int().min(0).max(20).describe("Deplasman takımının tahmin edilen gol sayısı"),
@@ -184,6 +190,51 @@ function weightedVote(
   const overUnder: "over" | "under" = overScore >= totalWeight / 2 ? "over" : "under"
 
   return { winner, homeScore, awayScore, confidence, btts, overUnder }
+}
+
+// ---------------------------------------------------------------------------
+// Self-consistency: bir modelden N örnekleme al, kendi içinde eşit ağırlıklı
+// oylama yaparak tek bir birleşik tahmine indir. Örnekler arasındaki anlaşma
+// oranı ("agreement") teşhis amaçlı loglanır; düşük anlaşma o model için
+// tahminin belirsiz olduğunu gösterir.
+// ---------------------------------------------------------------------------
+async function sampleWithSelfConsistency(
+  model: Parameters<typeof generateObject>[0]["model"],
+  prompt: string,
+  label: string,
+): Promise<{ object: z.infer<typeof PredictionSchema>; agreement: number; sampleCount: number }> {
+  const results = await Promise.allSettled(
+    Array.from({ length: SELF_CONSISTENCY_SAMPLES }, () =>
+      generateObject({ model, schema: PredictionSchema, prompt }),
+    ),
+  )
+
+  const samples: z.infer<typeof PredictionSchema>[] = []
+  for (const r of results) {
+    if (r.status === "fulfilled") samples.push(r.value.object)
+  }
+
+  if (samples.length === 0) {
+    throw new Error(`${label}: tüm örneklemeler başarısız oldu.`)
+  }
+
+  // Örneklerin kendi içindeki eşit ağırlıklı çoğunluk oylaması
+  const agg = weightedVote(samples.map((s) => ({ vote: s, weight: 1 })))
+
+  // Örnekler arası anlaşma oranı — kaç örnek çoğunluk kazananıyla hemfikir
+  const agreeing = samples.filter((s) => s.winner === agg.winner).length
+  const agreement = agreeing / samples.length
+
+  const allFactors = samples.flatMap((s) => s.keyFactors)
+  const keyFactors = [...new Set(allFactors)].slice(0, 5)
+
+  console.log(`[v0] ${label} self-consistency: ${samples.length}/${SELF_CONSISTENCY_SAMPLES} örnek, anlaşma %${Math.round(agreement * 100)}, sonuç: ${agg.winner} ${agg.homeScore}-${agg.awayScore}`)
+
+  return {
+    object: { ...agg, keyFactors },
+    agreement,
+    sampleCount: samples.length,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -340,20 +391,28 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   // Yeterli çözümlenmiş tahmin yoksa statik varsayılana yakın kalır (cold start).
   const adaptiveWeights = await getAdaptiveWeights()
 
-  // 6. 3 modeli paralel çalıştır — her biri kendi rolüne ait prompt'u alır
+  // 6. 3 modeli paralel çalıştır — her biri kendi rolüne ait prompt'u N kez
+  // örnekleyip (self-consistency) kendi içinde çoğunluk oylaması yapar.
   const modelResults = await Promise.allSettled(
     ENSEMBLE_MODELS.map(async ({ provider, model, label }) => {
-      const { object } = await generateObject({
+      const { object, agreement, sampleCount } = await sampleWithSelfConsistency(
         model,
-        schema: PredictionSchema,
-        prompt: modelPrompts[provider] ?? contextPrompt,
-      })
+        modelPrompts[provider] ?? contextPrompt,
+        label,
+      )
       const weight = adaptiveWeights[provider]?.weight ?? STATIC_WEIGHTS[provider] ?? 1.0
-      return { provider, label, weight, object }
+      return { provider, label, weight, object, agreement, sampleCount }
     }),
   )
 
-  type ModelResult = { provider: string; label: string; weight: number; object: z.infer<typeof PredictionSchema> }
+  type ModelResult = {
+    provider: string
+    label: string
+    weight: number
+    object: z.infer<typeof PredictionSchema>
+    agreement: number
+    sampleCount: number
+  }
   const successfulVotes = (modelResults as PromiseSettledResult<ModelResult>[])
     .filter((r): r is PromiseFulfilledResult<ModelResult> => r.status === "fulfilled")
     .map((r) => ({ ...r.value, vote: r.value.object }))
