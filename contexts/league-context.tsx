@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useCallback, useContext, useState } from "react"
+import { createContext, useCallback, useContext, useRef, useState } from "react"
 import type { LeagueBasicInfo } from "@/lib/types"
 import { useLanguage } from "@/contexts/language-context"
 
@@ -33,17 +33,27 @@ const LeagueContext = createContext<LeagueContextValue | null>(null)
 export function LeagueProvider({ children }: { children: React.ReactNode }) {
   const [panel, setPanel] = useState<LeaguePanelState | null>(null)
   const { t } = useLanguage()
+  const requestIdRef = useRef(0)
+  const controllerRef = useRef<AbortController | null>(null)
 
   const openLeague = useCallback(async (league: LeagueInfo) => {
-    // Start loading immediately
+    const requestId = ++requestIdRef.current
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
     setPanel({ league, basic: null, loading: true, error: null })
 
     try {
-      const res = await fetch(`/api/league?leagueId=${league.id}`, { cache: "no-store" })
+      const res = await fetch(`/api/league?leagueId=${league.id}&request=${Date.now()}-${requestId}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      })
       if (!res.ok) throw new Error(t("common.serverErrorWithStatus", { status: res.status }))
       const basic: LeagueBasicInfo = await res.json()
+      if (controller.signal.aborted || requestId !== requestIdRef.current) return
       setPanel((prev) => (prev?.league.id === league.id ? { league, basic, loading: false, error: null } : prev))
     } catch (err) {
+      if (controller.signal.aborted || requestId !== requestIdRef.current) return
       const msg = err instanceof Error ? err.message : t("common.unexpectedError")
       setPanel((prev) => (prev?.league.id === league.id ? { league, basic: null, loading: false, error: msg } : prev))
     }

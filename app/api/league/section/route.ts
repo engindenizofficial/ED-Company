@@ -12,6 +12,19 @@ import type {
 } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
+export const revalidate = 0
+
+function noStoreJson<T>(body: T, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
+    },
+  })
+}
 
 // Lig panelindeki her sekme kendi verisini, sadece o sekmeye tıklandığında
 // bu endpoint üzerinden ayrı ayrı çeker. Böylece panel açılışında 8 endpoint
@@ -107,10 +120,10 @@ export async function GET(request: Request) {
   const section = searchParams.get("section") as Section | null
 
   if (!leagueId || isNaN(leagueId)) {
-    return NextResponse.json({ error: "missingLeagueId" }, { status: 400 })
+    return noStoreJson({ error: "missingLeagueId" }, { status: 400 })
   }
   if (!section || !VALID_SECTIONS.includes(section)) {
-    return NextResponse.json({ error: "invalidSection" }, { status: 400 })
+    return noStoreJson({ error: "invalidSection" }, { status: 400 })
   }
 
   const season = currentSeason()
@@ -123,7 +136,7 @@ export async function GET(request: Request) {
           apiFetch<any>("/players/topyellowcards", { league: leagueId, season }),
           apiFetch<any>("/players/topredcards", { league: leagueId, season }),
         ])
-        if (standings.length === 0) return NextResponse.json({ data: null })
+        if (standings.length === 0) return noStoreJson({ data: null })
         const totalMatches = Math.floor(standings.reduce((s, r) => s + r.played, 0) / 2)
         const totalGoals = standings.reduce((s, r) => s + r.goalsFor, 0)
         const avgGoalsPerMatch = totalMatches > 0 ? totalGoals / totalMatches : 0
@@ -139,13 +152,13 @@ export async function GET(request: Request) {
           redCards,
           totalMarketValueEur,
         }
-        return NextResponse.json({ data })
+        return noStoreJson({ data })
       }
 
       case "standings": {
         const standings = await fetchStandings(leagueId, season)
-        if (standings.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data: standings })
+        if (standings.length === 0) return noStoreJson({ data: null })
+        return noStoreJson({ data: standings })
       }
 
       case "topScorers": {
@@ -168,8 +181,8 @@ export async function GET(request: Request) {
           redCards: entry.statistics?.[0]?.cards?.red ?? 0,
           pos: entry.statistics?.[0]?.games?.position ?? null,
         }))
-        if (data.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data })
+        if (data.length === 0) return noStoreJson({ data: null })
+        return noStoreJson({ data })
       }
 
       case "topAssists": {
@@ -189,8 +202,8 @@ export async function GET(request: Request) {
           appearances: entry.statistics?.[0]?.games?.appearences ?? 0,
           rating: entry.statistics?.[0]?.games?.rating ?? null,
         }))
-        if (data.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data })
+        if (data.length === 0) return noStoreJson({ data: null })
+        return noStoreJson({ data })
       }
 
       case "topYellowCards": {
@@ -209,8 +222,8 @@ export async function GET(request: Request) {
           red: entry.statistics?.[0]?.cards?.red ?? 0,
           appearances: entry.statistics?.[0]?.games?.appearences ?? 0,
         }))
-        if (data.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data })
+        if (data.length === 0) return noStoreJson({ data: null })
+        return noStoreJson({ data })
       }
 
       case "topRedCards": {
@@ -229,8 +242,8 @@ export async function GET(request: Request) {
           red: entry.statistics?.[0]?.cards?.red ?? 0,
           appearances: entry.statistics?.[0]?.games?.appearences ?? 0,
         }))
-        if (data.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data })
+        if (data.length === 0) return noStoreJson({ data: null })
+        return noStoreJson({ data })
       }
 
       case "recentFixtures": {
@@ -240,8 +253,8 @@ export async function GET(request: Request) {
           .sort((a, b) => b.fixture.timestamp - a.fixture.timestamp)
           .slice(0, 10)
           .map(mapFixture)
-        if (data.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data })
+        if (data.length === 0) return noStoreJson({ data: null })
+        return noStoreJson({ data })
       }
 
       case "upcomingFixtures": {
@@ -251,11 +264,11 @@ export async function GET(request: Request) {
           .sort((a, b) => a.fixture.timestamp - b.fixture.timestamp)
           .slice(0, 10)
           .map(mapFixture)
-        if (data.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data })
+        if (data.length === 0) return noStoreJson({ data: null })
+        return noStoreJson({ data })
       }
     }
   } catch {
-    return NextResponse.json({ error: "internalError" }, { status: 500 })
+    return noStoreJson({ error: "internalError" }, { status: 500 })
   }
 }
