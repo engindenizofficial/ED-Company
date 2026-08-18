@@ -134,6 +134,24 @@ export interface TeamSeasonStats {
   cleanSheets: number
   failedToScore: number
   recent: FormGame[]
+  /**
+   * Ev/deplasman ayrımlı istatistikler — API-Football'un
+   * /teams/statistics response'undaki fixtures/goals .home ve .away
+   * alanlarından. Bu ayrım tahmin promptunda kullanılır: bir takımın
+   * genel ortalaması iyi olsa da deplasman formu çok daha zayıf olabilir.
+   * Yetersiz veri durumunda (örn. hiç deplasman maçı oynamamış) null olur.
+   */
+  home: HomeAwaySplit | null
+  away: HomeAwaySplit | null
+}
+
+export interface HomeAwaySplit {
+  played: number
+  wins: number
+  draws: number
+  losses: number
+  goalsForAvg: number
+  goalsAgainstAvg: number
 }
 
 /** Everything we pulled live from API-Football for the detail panel. */

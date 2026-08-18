@@ -67,13 +67,26 @@ function formatStanding(s: Standing | undefined, label: string): string {
   return `${label} (${s.rank}. sıra): ${s.points} puan, ${s.played}M ${s.win}G ${s.draw}B ${s.lose}M, ${s.goalsFor} attı ${s.goalsAgainst} yedi (averaj ${avg > 0 ? "+" : ""}${avg}), form: ${s.form ?? "?"}`
 }
 
-function formatRecentForm(stats: Stats, label: string): string {
+/**
+ * `venue` verilirse ("home" | "away"), o sahaya özel ayrı bir satır ekler.
+ * Genel ortalama ev sahibi avantajını sulandırabilir — ev sahibi takım için
+ * evindeki performansı, deplasman takımı için deplasmandaki performansı
+ * ayrıca göstermek modele daha isabetli bir sinyal verir.
+ */
+function formatRecentForm(stats: Stats, label: string, venue?: "home" | "away"): string {
   if (!stats) return `${label}: Sezon istatistiği yok.`
   const recentStr = stats.recent
     .slice(0, 5)
     .map((g) => `${g.result}(${g.scored}-${g.conceded})`)
     .join(" ")
-  return `${label}: ${stats.played} maç, ${stats.wins}G/${stats.draws}B/${stats.losses}M, maç başı ${stats.goalsForAvg.toFixed(1)} gol attı / ${stats.goalsAgainstAvg.toFixed(1)} yedi, son 5: ${recentStr}`
+  const base = `${label}: ${stats.played} maç, ${stats.wins}G/${stats.draws}B/${stats.losses}M, maç başı ${stats.goalsForAvg.toFixed(1)} gol attı / ${stats.goalsAgainstAvg.toFixed(1)} yedi, son 5: ${recentStr}`
+
+  const split = venue === "home" ? stats.home : venue === "away" ? stats.away : null
+  if (!split) return base
+
+  const venueLabel = venue === "home" ? "evinde" : "deplasmanda"
+  const splitStr = `${label} ${venueLabel}: ${split.played} maç, ${split.wins}G/${split.draws}B/${split.losses}M, maç başı ${split.goalsForAvg.toFixed(1)} gol attı / ${split.goalsAgainstAvg.toFixed(1)} yedi`
+  return `${base}\n${splitStr}`
 }
 
 function formatH2H(h2h: LiveData["h2h"], homeName: string, awayName: string): string {
@@ -293,8 +306,8 @@ ${formatStanding(homeStanding, homeName)}
 ${formatStanding(awayStanding, awayName)}
 
 SEZON FORMU:
-${formatRecentForm(live.homeStats, homeName)}
-${formatRecentForm(live.awayStats, awayName)}
+${formatRecentForm(live.homeStats, homeName, "home")}
+${formatRecentForm(live.awayStats, awayName, "away")}
 
 KAFA KAFAYA (son 5):
 ${formatH2H(live.h2h, homeName, awayName)}

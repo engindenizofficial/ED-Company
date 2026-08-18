@@ -2,6 +2,7 @@ import type {
   Fixture,
   FixturePlayerStat,
   FormGame,
+  HomeAwaySplit,
   InjuryItem,
   LeagueBasicInfo,
   LineupPlayer,
@@ -389,7 +390,8 @@ export async function getTeamSeasonStats(
   const stat = (s && (s.fixtures ? s : s[0])) as any
 
   if (!stat || !stat.fixtures) {
-    // No season stats (e.g. cup game). Derive a minimal record from recent form.
+    // No season stats (e.g. cup game). Derive a minimal record from recent form,
+    // split by home/away using the "home" flag already present on each game.
     if (recent.length === 0) return null
     const wins = recent.filter((g) => g.result === "W").length
     const draws = recent.filter((g) => g.result === "D").length
@@ -408,12 +410,31 @@ export async function getTeamSeasonStats(
       cleanSheets: recent.filter((g) => g.conceded === 0).length,
       failedToScore: recent.filter((g) => g.scored === 0).length,
       recent,
+      home: splitFromRecent(recent, true),
+      away: splitFromRecent(recent, false),
     }
   }
 
   const num = (v: unknown): number => {
     const n = typeof v === "string" ? Number.parseFloat(v) : Number(v)
     return Number.isFinite(n) ? n : 0
+  }
+
+  // API-Football /teams/statistics ayrıca fixtures.*.home / fixtures.*.away ve
+  // goals.*.average.home / .away alanlarını döndürür — ev sahibi avantajını
+  // izole etmek için bunları kullanıyoruz. Hiç maç oynanmamışsa (played=0)
+  // null döndürüyoruz ki prompt'ta yanıltıcı "0.0 gol" göstermeyelim.
+  const buildSplit = (side: "home" | "away"): HomeAwaySplit | null => {
+    const played = num(stat.fixtures?.played?.[side])
+    if (played === 0) return null
+    return {
+      played,
+      wins: num(stat.fixtures?.wins?.[side]),
+      draws: num(stat.fixtures?.draws?.[side]),
+      losses: num(stat.fixtures?.loses?.[side]),
+      goalsForAvg: num(stat.goals?.for?.average?.[side]),
+      goalsAgainstAvg: num(stat.goals?.against?.average?.[side]),
+    }
   }
 
   return {
@@ -428,6 +449,27 @@ export async function getTeamSeasonStats(
     cleanSheets: num(stat.clean_sheet?.total),
     failedToScore: num(stat.failed_to_score?.total),
     recent,
+    home: buildSplit("home"),
+    away: buildSplit("away"),
+  }
+}
+
+/** /teams/statistics response'u yoksa (kupa maçı vb.) son 6 maçtan ev/deplasman ayrımı çıkar. */
+function splitFromRecent(recent: FormGame[], home: boolean): HomeAwaySplit | null {
+  const games = recent.filter((g) => g.home === home)
+  if (games.length === 0) return null
+  const wins = games.filter((g) => g.result === "W").length
+  const draws = games.filter((g) => g.result === "D").length
+  const losses = games.filter((g) => g.result === "L").length
+  const gf = games.reduce((a, g) => a + g.scored, 0)
+  const ga = games.reduce((a, g) => a + g.conceded, 0)
+  return {
+    played: games.length,
+    wins,
+    draws,
+    losses,
+    goalsForAvg: gf / games.length,
+    goalsAgainstAvg: ga / games.length,
   }
 }
 

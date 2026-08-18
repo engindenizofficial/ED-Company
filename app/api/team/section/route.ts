@@ -146,6 +146,18 @@ export async function GET(request: Request) {
         // diğer endpoint'lerdeki gibi [0] ile indekslemiyoruz.
         const s = (await apiFetchObject<any>("/teams/statistics", { team: teamId, season, league: leagueId })) as any
         if (!s?.fixtures) return noStoreJson({ data: null })
+        const buildSplit = (side: "home" | "away") => {
+          const played = num(s.fixtures?.played?.[side])
+          if (played === 0) return null
+          return {
+            played,
+            wins: num(s.fixtures?.wins?.[side]),
+            draws: num(s.fixtures?.draws?.[side]),
+            losses: num(s.fixtures?.loses?.[side]),
+            goalsForAvg: num(s.goals?.for?.average?.[side]),
+            goalsAgainstAvg: num(s.goals?.against?.average?.[side]),
+          }
+        }
         const data: TeamStatsSummary = {
           team: { id: teamId, name: "", logo: "" },
           formString: (s.form ?? "").slice(-8),
@@ -157,6 +169,8 @@ export async function GET(request: Request) {
           goalsAgainstAvg: num(s.goals?.against?.average?.total),
           cleanSheets: num(s.clean_sheet?.total),
           failedToScore: num(s.failed_to_score?.total),
+          home: buildSplit("home"),
+          away: buildSplit("away"),
         }
         return noStoreJson({ data })
       }
