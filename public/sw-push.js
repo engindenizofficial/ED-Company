@@ -24,7 +24,11 @@ self.addEventListener("push", (event) => {
   const options = {
     body: payload.body,
     icon: "/icon-192.png",
-    badge: "/icon-192.png",
+    // Android durum çubuğu badge'i renkli ikon kabul etmez — sistem alfa
+    // kanalını maske olarak kullanıp tek renkli bir silüet bekler, aksi halde
+    // boş/gri bir kare gösterir. Bu yüzden ayrı, saydam arka planlı tek
+    // renkli bir badge görseli kullanıyoruz.
+    badge: "/badge-monochrome.png",
     data: { url: payload.url || "/" },
     tag: payload.tag,
     renotify: Boolean(payload.tag),
