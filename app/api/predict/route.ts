@@ -16,7 +16,7 @@ import {
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { getAdaptiveWeights, getAdaptiveScoreWeights, STATIC_WEIGHTS } from "@/lib/model-weights"
-import { computeExpectedGoals, predictFromExpectedGoals } from "@/lib/poisson"
+import { computeExpectedGoals, predictFromExpectedGoals, blendWithH2H, calibrateExpectedGoalsToOdds } from "@/lib/poisson"
 import type { MatchPrediction, ModelVote } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -193,16 +193,42 @@ function weightedVote(
   for (const { vote, weight } of votes) winnerTally[vote.winner] += weight
   const winner = (Object.entries(winnerTally).sort((a, b) => b[1] - a[1])[0][0]) as "home" | "away" | "draw"
 
-  // Skor ortalaması için ayrı ağırlık kullan (scoreWeight verilmemişse weight'e
-  // düşer) — bir modelin kazananı bilmesi skorunu isabetli tahmin ettiği
-  // anlamına gelmez, bu yüzden skor geçmişine göre ayrı bir ölçüt kullanıyoruz.
+  // Skor için ayrı ağırlık kullan (scoreWeight verilmemişse weight'e düşer) —
+  // bir modelin kazananı bilmesi skorunu isabetli tahmin ettiği anlamına
+  // gelmez, bu yüzden skor geçmişine göre ayrı bir ölçüt kullanıyoruz.
+  //
+  // Skor için AĞIRLIKLI ÇOĞUNLUK OYU (plurality) kullanılır, basit ortalama
+  // DEĞİL: (2,1) ve (0,3) skorlarının ortalaması (1,2) olur — bu, hiçbir
+  // modelin seçmediği ve muhtemelen ikisinden de daha isabetsiz bir skordur.
+  // En yüksek ağırlığı toplayan TAM skor eşleşmesi seçilir; ağırlıklı
+  // ortalama+yuvarlama sadece hiçbir skor net bir öne çıkış (plurality)
+  // sağlamadığında (yani her oy farklıysa) yedek olarak kullanılır.
   const totalScoreWeight = votes.reduce((s, v) => s + (v.scoreWeight ?? v.weight), 0)
-  const homeScore = Math.round(
-    votes.reduce((s, v) => s + v.vote.homeScore * (v.scoreWeight ?? v.weight), 0) / totalScoreWeight,
-  )
-  const awayScore = Math.round(
-    votes.reduce((s, v) => s + v.vote.awayScore * (v.scoreWeight ?? v.weight), 0) / totalScoreWeight,
-  )
+  const scoreTally = new Map<string, { weight: number; homeScore: number; awayScore: number }>()
+  for (const v of votes) {
+    const w = v.scoreWeight ?? v.weight
+    const key = `${v.vote.homeScore}-${v.vote.awayScore}`
+    const entry = scoreTally.get(key)
+    if (entry) entry.weight += w
+    else scoreTally.set(key, { weight: w, homeScore: v.vote.homeScore, awayScore: v.vote.awayScore })
+  }
+  const rankedScores = [...scoreTally.values()].sort((a, b) => b.weight - a.weight)
+  const topScore = rankedScores[0]
+  const hasPlurality = rankedScores.length > 0 && (rankedScores.length === 1 || topScore.weight > rankedScores[1].weight)
+
+  let homeScore: number
+  let awayScore: number
+  if (hasPlurality) {
+    homeScore = topScore.homeScore
+    awayScore = topScore.awayScore
+  } else {
+    homeScore = Math.round(
+      votes.reduce((s, v) => s + v.vote.homeScore * (v.scoreWeight ?? v.weight), 0) / totalScoreWeight,
+    )
+    awayScore = Math.round(
+      votes.reduce((s, v) => s + v.vote.awayScore * (v.scoreWeight ?? v.weight), 0) / totalScoreWeight,
+    )
+  }
   const confidence = Math.round(votes.reduce((s, v) => s + v.vote.confidence * v.weight, 0) / totalWeight)
 
   const bttsScore = votes.reduce((s, v) => s + (v.vote.btts ? v.weight : 0), 0)
@@ -303,15 +329,26 @@ export async function POST(request: Request) {
 
   // ---------------------------------------------------------------------------
   // Poisson istatistik modeli — gol ortalamalarından beklenen gol (xG benzeri)
-  // hesapla. Bu hem LLM prompt'larına somut bir sayısal referans verir hem de
-  // aşağıda LLM'lerden bağımsız 4. bir ensemble oyu olarak kullanılır.
+  // hesapla, kafa-kafaya geçmişle hafifçe harmanla, piyasa oranlarına göre
+  // kalibre et ve Dixon-Coles düzeltmesiyle en olası skoru üret. Bu hem LLM
+  // prompt'larına somut bir sayısal referans verir hem de aşağıda LLM'lerden
+  // bağımsız 4. bir ensemble oyu olarak kullanılır.
   // ---------------------------------------------------------------------------
-  const { homeXG, awayXG } = computeExpectedGoals(
+  const statsXG = computeExpectedGoals(
     live.homeStats ?? null,
     live.awayStats ?? null,
     live.homeStats?.home ?? null,
     live.awayStats?.away ?? null,
   )
+  // h2h her zaman GÜNCEL fikstürün ev sahibi takımının bakış açısından
+  // raporlanır (getHeadToHead(home.id, away.id) — bkz. lib/api-football.ts),
+  // yani g.scored = ev sahibinin o geçmiş maçtaki golü, g.conceded = deplasmanın.
+  const h2hXG = blendWithH2H(
+    statsXG.homeXG,
+    statsXG.awayXG,
+    live.h2h.map((g) => ({ homeTeamGoals: g.scored, awayTeamGoals: g.conceded })),
+  )
+  const { homeXG, awayXG } = calibrateExpectedGoalsToOdds(h2hXG.homeXG, h2hXG.awayXG, live.odds)
   const poissonPrediction = predictFromExpectedGoals(homeXG, awayXG)
 
   // ---------------------------------------------------------------------------
