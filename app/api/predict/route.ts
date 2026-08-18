@@ -460,6 +460,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     btts:       v.vote.btts,
     overUnder:  v.vote.overUnder,
     keyFactors: v.vote.keyFactors,
+    agreement:  v.agreement,
   }))
 
   // 11. Nihai tahmin — cache'e yaz

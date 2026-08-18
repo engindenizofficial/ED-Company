@@ -1910,12 +1910,41 @@ function ModelVoteRow({
   const winnerLabel =
     vote.winner === "home" ? homeName : vote.winner === "away" ? awayName : t("analysis.draw")
 
+  // Self-consistency anlaşma göstergesi — eski cache'lenmiş tahminlerde bu
+  // alan bulunmayabilir (agreement özelliği eklenmeden önce üretilmiş).
+  const agreementPct = typeof vote.agreement === "number" ? Math.round(vote.agreement * 100) : null
+  const agreementDotCls =
+    agreementPct === null
+      ? null
+      : agreementPct >= 100
+        ? "bg-emerald-500"
+        : agreementPct >= 67
+          ? "bg-amber-500"
+          : "bg-rose-500"
+  const agreementLabel =
+    agreementPct === null
+      ? ""
+      : agreementPct >= 100
+        ? t("analysis.predictionAgreementHigh")
+        : agreementPct >= 67
+          ? t("analysis.predictionAgreementMed")
+          : t("analysis.predictionAgreementLow")
+
   return (
     <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-secondary/20 px-3 py-2">
       {/* Model chip */}
       <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold", colorCls)}>
         {short}
       </span>
+
+      {/* Self-consistency anlaşma göstergesi */}
+      {agreementDotCls && agreementPct !== null && (
+        <span
+          className={cn("size-1.5 shrink-0 rounded-full", agreementDotCls)}
+          title={`${agreementLabel} · ${t("analysis.predictionAgreementTooltip", { pct: agreementPct })}`}
+          aria-label={`${agreementLabel}: ${agreementPct}%`}
+        />
+      )}
 
       {/* Tahmini skor */}
       <span className="tabular-nums text-xs font-black text-foreground">

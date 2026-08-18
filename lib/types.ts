@@ -324,6 +324,12 @@ export interface ModelVote {
   overUnder: "over" | "under"
   /** Bu modelin öne çıkardığı anahtar faktörler */
   keyFactors: string[]
+  /**
+   * Self-consistency anlaşma oranı (0-1): modelden alınan N örneklemenin
+   * kaçı çoğunluk kazananıyla hemfikir. 1.0 = tüm örnekler aynı sonucu verdi
+   * (kararlı tahmin), düşük değer = model örnekler arasında tutarsız kaldı.
+   */
+  agreement: number
 }
 
 export interface MatchPrediction {

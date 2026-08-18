@@ -588,6 +588,10 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       predictionDeleteConfirmAction: "Sil",
       predictionDeleteSuccess: "Tahmin silindi.",
       predictionDeleteError: "Tahmin silinemedi, tekrar deneyin.",
+      predictionAgreementTooltip: "Model 3 kez örneklendi, örneklerin %{{pct}}'i bu sonuçta hemfikir oldu",
+      predictionAgreementHigh: "Kararlı",
+      predictionAgreementMed: "Orta",
+      predictionAgreementLow: "Kararsız",
       percentValue: "%{{n}}",
       matchesShort: "{{count}} maç",
       eventDetail: {
@@ -1511,6 +1515,10 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       predictionDeleteConfirmAction: "Delete",
       predictionDeleteSuccess: "Prediction deleted.",
       predictionDeleteError: "Failed to delete prediction, please try again.",
+      predictionAgreementTooltip: "Model was sampled 3 times; {{pct}}% of samples agreed on this outcome",
+      predictionAgreementHigh: "Consistent",
+      predictionAgreementMed: "Mixed",
+      predictionAgreementLow: "Inconsistent",
       percentValue: "{{n}}%",
       matchesShort: "{{count}} matches",
       eventDetail: {
