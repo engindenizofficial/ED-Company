@@ -274,30 +274,55 @@ export async function GET(request: Request) {
 
       case "transfers": {
         const transfersRaw = await apiFetch<any>("/transfers", { player: playerId })
-        const data: Transfer[] = (transfersRaw ?? [])
-          .flatMap((entry: any) =>
-            (entry.transfers ?? []).map((tx: any) => ({
-              date: tx.date ?? null,
-              type: tx.type ?? "",
-              teamFrom: { id: tx.teams?.out?.id ?? 0, name: tx.teams?.out?.name ?? "", logo: tx.teams?.out?.logo ?? "" },
-              teamTo: { id: tx.teams?.in?.id ?? 0, name: tx.teams?.in?.name ?? "", logo: tx.teams?.in?.logo ?? "" },
-            })),
-          )
-          .sort((a: Transfer, b: Transfer) => (b.date ?? "").localeCompare(a.date ?? ""))
-          .slice(0, 20)
+        const allTransfers: Transfer[] = (transfersRaw ?? []).flatMap((entry: any) =>
+          (entry.transfers ?? []).map((tx: any) => ({
+            date: tx.date ?? null,
+            type: tx.type ?? "",
+            teamFrom: { id: tx.teams?.out?.id ?? 0, name: tx.teams?.out?.name ?? "", logo: tx.teams?.out?.logo ?? "" },
+            teamTo: { id: tx.teams?.in?.id ?? 0, name: tx.teams?.in?.name ?? "", logo: tx.teams?.in?.logo ?? "" },
+          })),
+        )
+        // ÖNEMLİ — arayüzde (components/player-panel.tsx) tarih t.date.slice(0, 7)
+        // ile sadece "YYYY-MM" olarak gösteriliyor, tıpkı takım panelindeki
+        // transfer listesinde olduğu gibi (bkz. app/api/team/section/route.ts).
+        // API-Football aynı transferi aynı ay içinde birkaç gün farklı tarihle
+        // iki kez döndürebildiğinden, dedup anahtarı da tam tarih değil ay
+        // bazında olmalı — aksi halde ekranda birebir aynı satır iki kez
+        // görünür.
+        const seenTransferKeys = new Set<string>()
+        const data: Transfer[] = []
+        for (const tx of allTransfers.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""))) {
+          const monthKey = (tx.date ?? "").slice(0, 7)
+          const key = `${monthKey}-${tx.teamFrom.id}-${tx.teamTo.id}`
+          if (seenTransferKeys.has(key)) continue
+          seenTransferKeys.add(key)
+          data.push(tx)
+          if (data.length >= 20) break
+        }
         if (data.length === 0) return NextResponse.json({ data: null })
         return NextResponse.json({ data })
       }
 
       case "sidelined": {
         const sidelinedRaw = await apiFetch<any>("/sidelined", { player: playerId })
-        const data: SidelinedEntry[] = (sidelinedRaw ?? [])
-          .map((s: any) => ({
-            type: s.player?.reason ?? s.type ?? s.reason ?? "Bilinmiyor",
-            start: s.start ?? null,
-            end: s.end ?? null,
-          }))
-          .sort((a: SidelinedEntry, b: SidelinedEntry) => (b.start ?? "").localeCompare(a.start ?? ""))
+        // ÖNEMLİ — API-Football'ın "/sidelined" endpoint'i aynı sakatlık/ceza
+        // kaydını (aynı tip + başlangıç + bitiş tarihi) bazen birden fazla kez
+        // döndürüyor, bu da oyuncu panelindeki "raporlanamayan süre" listesinde
+        // aynı satırın iki kez görünmesine yol açıyordu. Tip+başlangıç+bitişe
+        // göre dedup yapılıyor.
+        const seenSidelinedKeys = new Set<string>()
+        const data: SidelinedEntry[] = []
+        const mapped: SidelinedEntry[] = (sidelinedRaw ?? []).map((s: any) => ({
+          type: s.player?.reason ?? s.type ?? s.reason ?? "Bilinmiyor",
+          start: s.start ?? null,
+          end: s.end ?? null,
+        }))
+        for (const entry of mapped.sort((a, b) => (b.start ?? "").localeCompare(a.start ?? ""))) {
+          const key = `${entry.type}-${entry.start}-${entry.end}`
+          if (seenSidelinedKeys.has(key)) continue
+          seenSidelinedKeys.add(key)
+          data.push(entry)
+        }
         if (data.length === 0) return NextResponse.json({ data: null })
         return NextResponse.json({ data })
       }
