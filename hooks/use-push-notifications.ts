@@ -87,6 +87,27 @@ export function usePushNotifications(isSignedIn: boolean) {
       }
 
       let subscription = await registration.pushManager.getSubscription()
+
+      // VAPID anahtarları sunucu tarafında değiştirilmiş olabilir (örn. ilk
+      // kurulumda eksikti ve sonradan eklendi). Tarayıcıdaki abonelik farklı
+      // bir public key ile oluşturulmuşsa, sunucunun elindeki private key ile
+      // artık eşleşmez ve push gönderimi sessizce 403 ile başarısız olur.
+      // Bu durumda eski aboneliği iptal edip güncel anahtarla yeniden abone
+      // oluyoruz.
+      if (subscription) {
+        const currentKey = subscription.options?.applicationServerKey
+          ? btoa(String.fromCharCode(...new Uint8Array(subscription.options.applicationServerKey as ArrayBuffer)))
+              .replace(/\+/g, "-")
+              .replace(/\//g, "_")
+              .replace(/=+$/, "")
+          : null
+        const expectedKey = publicKey.replace(/=+$/, "")
+        if (currentKey && currentKey !== expectedKey) {
+          await subscription.unsubscribe()
+          subscription = null
+        }
+      }
+
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,

@@ -62,7 +62,14 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload): 
         )
       } catch (err) {
         const statusCode = (err as { statusCode?: number })?.statusCode
-        if (statusCode === 404 || statusCode === 410) {
+        // 404/410: abonelik tarayıcı tarafında artık geçerli değil (Gone).
+        // 403: VAPID anahtarları abonelik oluşturulduğu andaki anahtarla
+        // eşleşmiyor (örn. anahtarlar sonradan değiştirildi/eklendi) — bu da
+        // kalıcı bir durumdur, tekrar denemekle düzelmez, o yüzden aynı
+        // şekilde temizliyoruz. Tarayıcı bir sonraki ziyarette
+        // usePushNotifications hook'u üzerinden güncel anahtarla yeniden
+        // abone olacak.
+        if (statusCode === 404 || statusCode === 410 || statusCode === 403) {
           staleEndpoints.push(sub.endpoint)
         } else {
           console.error(`[v0] Push gönderim hatası (endpoint: ${sub.endpoint.slice(0, 50)}...):`, err)
