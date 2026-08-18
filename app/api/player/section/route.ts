@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { safeApiFootballFetch } from "@/lib/api-football-client"
+import { apiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import type { PlayerSeasonStats, SidelinedEntry, TeamInfo, Transfer, Trophy } from "@/lib/types"
 
@@ -16,7 +16,7 @@ const VALID_SECTIONS = ["stats", "trophies", "transfers", "sidelined"] as const
 type Section = (typeof VALID_SECTIONS)[number]
 
 function apiFetch<T>(path: string, params: Record<string, string | number>): Promise<T[]> {
-  return safeApiFootballFetch<T>(path, params, { cache: "no-store" })
+  return apiFootballFetch<T>(path, params, { cache: "no-store" })
 }
 
 function currentSeason(): number {
@@ -35,8 +35,12 @@ const SEASON_LOOKBACK_YEARS = 20
 async function fetchSeasonStats(playerId: number): Promise<PlayerSeasonStats[]> {
   const season = currentSeason()
   const seasons = Array.from({ length: SEASON_LOOKBACK_YEARS }, (_, i) => season - i)
+  // Bir sezon isteği başarısız olursa onu boş dizi gibi kabul etme. Bu,
+  // oyuncunun o sezondaki takımını sessizce kaybettiriyordu. İstemci zaten
+  // 429/5xx için retry uyguluyor; son hata burada route'a taşınır ve kullanıcı
+  // eksik veri yerine tekrar deneyebileceği bir hata görür.
   const allSeasonRaw = await Promise.all(
-    seasons.map((s) => apiFetch<any>("/players", { id: playerId, season: s })),
+    seasons.map((s) => apiFootballFetch<any>("/players", { id: playerId, season: s }, { cache: "no-store" })),
   )
 
   // Aynı sezon içindeki tüm turnuva/takım kayıtlarını (lig, kupa, Şampiyonlar
