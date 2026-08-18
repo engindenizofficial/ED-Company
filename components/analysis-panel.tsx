@@ -1792,11 +1792,6 @@ function OddsSection({
               {t("analysis.predictionOddsFavorite", { team: favoriteTeamLabel })}
             </p>
           )}
-          {data?.source && (
-            <p className="text-center text-[10px] text-muted-foreground/60">
-              {t("analysis.predictionOddsSource", { source: data.source })}
-            </p>
-          )}
         </div>
       )}
     </SectionShell>
