@@ -249,12 +249,25 @@ export async function GET(request: Request) {
 
       case "trophies": {
         const trophiesRaw = await apiFetch<any>("/trophies", { player: playerId })
-        const data: Trophy[] = (trophiesRaw ?? []).map((t: any) => ({
-          league: t.league ?? "",
-          country: toTurkishCountry(t.country ?? ""),
-          season: t.season ?? "",
-          place: t.place ?? "",
-        }))
+        // ÖNEMLİ — API-Football'ın "/trophies" endpoint'i aynı kupayı (aynı
+        // lig + ülke + sezon + sıralama) bazen birden fazla kez döndürüyor.
+        // Hiçbir dedup yapılmadan doğrudan map'lendiği için ekranda "Süper Lig
+        // 2024/2025" gibi kayıtlar iki kez görünüyordu. Burada lig+ülke+sezon+
+        // sıralama kombinasyonuna göre dedup yapılıyor.
+        const seenTrophyKeys = new Set<string>()
+        const data: Trophy[] = []
+        for (const t of trophiesRaw ?? []) {
+          const trophy: Trophy = {
+            league: t.league ?? "",
+            country: toTurkishCountry(t.country ?? ""),
+            season: t.season ?? "",
+            place: t.place ?? "",
+          }
+          const key = `${trophy.league}-${trophy.country}-${trophy.season}-${trophy.place}`
+          if (seenTrophyKeys.has(key)) continue
+          seenTrophyKeys.add(key)
+          data.push(trophy)
+        }
         if (data.length === 0) return NextResponse.json({ data: null })
         return NextResponse.json({ data })
       }

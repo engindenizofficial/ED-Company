@@ -581,14 +581,27 @@ export async function getPlayerNationality(playerId: number, season: number): Pr
 
 export async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
   const raw = await safeFetch<any>("/injuries", { fixture: fixtureId }, 1800)
-  return raw.map((r) => ({
-    team: r.team?.name ?? "",
-    player: r.player?.name ?? "",
-    playerId: r.player?.id ?? null,
-    reason: r.player?.reason ?? "",
-    type: r.player?.type ?? "",
-  }))
-}
+  // ÖNEMLİ — API-Football'ın "/injuries" endpoint'i aynı oyuncu için aynı
+  // takım/tip/gerekçe kombinasyonunu bazen birden fazla kez döndürüyor, bu da
+  // maç analiz panelinde "K. Merah - Ankle Injury" gibi satırların iki kez
+  // görünmesine yol açıyordu. Takım+oyuncu+tip+gerekçeye göre dedup yapılıyor.
+  const seenInjuryKeys = new Set<string>()
+  const items: InjuryItem[] = []
+  for (const r of raw) {
+  const item: InjuryItem = {
+  team: r.team?.name ?? "",
+  player: r.player?.name ?? "",
+  playerId: r.player?.id ?? null,
+  reason: r.player?.reason ?? "",
+  type: r.player?.type ?? "",
+  }
+  const key = `${item.team}-${item.playerId ?? item.player}-${item.type}-${item.reason}`
+  if (seenInjuryKeys.has(key)) continue
+  seenInjuryKeys.add(key)
+  items.push(item)
+  }
+  return items
+  }
 
 export async function getEvents(fixtureId: number): Promise<MatchEvent[]> {
   const raw = await safeFetch<any>("/fixtures/events", { fixture: fixtureId }, 30)

@@ -258,7 +258,17 @@ export async function GET(request: Request) {
             const fromId = tx.teams?.out?.id ?? 0
             const toId = tx.teams?.in?.id ?? 0
             const pairKey = [fromId, toId].sort((a, b) => a - b).join("-")
-            const key = `${normalName}-${tx.date ?? ""}-${pairKey}`
+            // ÖNEMLİ — dedup anahtarı tam tarihi (tx.date, "YYYY-MM-DD") DEĞİL,
+            // ayın ilk 7 karakterini ("YYYY-MM") kullanıyor. Sebep: arayüzde
+            // (TransferRow, components/team-panel.tsx) tarih sadece "YYYY-MM"
+            // olarak gösteriliyor (t.date.slice(0, 7)) — API-Football bazen aynı
+            // transferi aynı ay içinde birkaç gün farklı tarihle iki kez
+            // döndürüyor (örn. "2026-07-01" ve "2026-07-15"). Tam tarihle dedup
+            // yapıldığında bu iki kayıt "farklı" sayılıp ikisi de listeye
+            // giriyor, ama ekranda aynı ay gösterildiği için kullanıcıya birebir
+            // aynı satır iki kez gösterilmiş gibi görünüyordu.
+            const monthKey = (tx.date ?? "").slice(0, 7)
+            const key = `${normalName}-${monthKey}-${pairKey}`
             if (seenTransferKeys.has(key)) continue
             seenTransferKeys.add(key)
             allTransfers.push({
