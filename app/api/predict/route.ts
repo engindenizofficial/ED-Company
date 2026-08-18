@@ -28,8 +28,8 @@ const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
 // ---------------------------------------------------------------------------
 const ENSEMBLE_MODELS = [
   { provider: "openai",  model: openai("gpt-5.6-terra"),         label: "GPT-5.6 Terra"  },
-  { provider: "google",  model: google("gemini-3.6-flash"),      label: "Gemini 3.6 Flash" },
-  { provider: "xai",     model: xai("grok-4.5"),                 label: "Grok 4.5"       },
+  { provider: "google",  model: google("gemini-3.7-flash"),      label: "Gemini 3.7 Flash" },
+  { provider: "xai",     model: xai("grok-4.6"),                 label: "Grok 4.6"       },
 ] as const
 
 const PredictionSchema = z.object({
@@ -287,7 +287,7 @@ Türkçe olarak kesin ve net tahmin yap.
 `.trim()
 
   // ---------------------------------------------------------------------------
-  // Gemini 3.6 Flash — İstatistik & Gol Beklentisi Uzmanı
+  // Gemini 3.7 Flash — İstatistik & Gol Beklentisi Uzmanı
   // Gol ortalamaları, BTTS, over/under, H2H sayısal analiz odaklı
   // ---------------------------------------------------------------------------
   const promptGemini = `
@@ -307,7 +307,7 @@ Türkçe olarak kesin ve net tahmin yap.
 `.trim()
 
   // ---------------------------------------------------------------------------
-  // Grok 4.5 — Bağlam & Motivasyon Analisti
+  // Grok 4.6 — Bağlam & Motivasyon Analisti
   // Sakatlıklar, maçın önemi, sürpriz faktörü odaklı
   // ---------------------------------------------------------------------------
   const promptGrok = `
@@ -389,8 +389,8 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   // 10. ModelVote dizisi — model alanı "provider/model-id" formatında olmalı (UI etiket eşleşmesi için)
   const PROVIDER_MODEL_ID: Record<string, string> = {
     openai: "openai/gpt-5.6-terra",
-    google: "google/gemini-3.6-flash",
-    xai:    "xai/grok-4.5",
+    google: "google/gemini-3.7-flash",
+    xai:    "xai/grok-4.6",
   }
   const modelVotes: ModelVote[] = successfulVotes.map((v) => ({
     model:      PROVIDER_MODEL_ID[v.provider] ?? `${v.provider}/${v.label}`,

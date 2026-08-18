@@ -6,11 +6,19 @@ import { cn } from "@/lib/utils"
 import { useLanguage } from "@/contexts/language-context"
 import type { PredictionResult } from "@/lib/types"
 
-// Model etiket haritası — model string'inden okunabilir isim üret
+// Model etiket haritası — model string'inden okunabilir isim üret.
+// Geçmiş sonuçlarda eski model sürümleri de olabileceği için versiyon
+// numarasına bakarak ayırt ediyoruz (örn. eski gemini-3.6 vs güncel 3.7).
 function modelLabel(model: string): string {
   if (model.includes("gpt")) return "GPT-5.6 Terra"
-  if (model.includes("gemini")) return "Gemini 3.6 Flash"
-  if (model.includes("grok")) return "Grok 4.5"
+  if (model.includes("gemini")) {
+    if (model.includes("gemini-3.6")) return "Gemini 3.6 Flash"
+    return "Gemini 3.7 Flash"
+  }
+  if (model.includes("grok")) {
+    if (model.includes("grok-4.5")) return "Grok 4.5"
+    return "Grok 4.6"
+  }
   return model
 }
 

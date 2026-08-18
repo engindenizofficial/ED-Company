@@ -1877,12 +1877,22 @@ function InjuryList({ injuries }: { injuries: InjuryItem[] }) {
 // PredictionCard — AI tahmin kartı (ensemble)
 // ---------------------------------------------------------------------------
 
-/** Model adını kısa etiket + renk sınıfına çevirir */
+/**
+ * Model adını kısa etiket + renk sınıfına çevirir.
+ * Geçmiş tahminlerde eski model sürümleri de görünebileceği için versiyon
+ * numarasına bakarak ayırt ediyoruz (örn. eski gemini-3.6 vs güncel 3.7).
+ */
 function modelLabel(modelId: string): { short: string; colorCls: string } {
-  if (modelId.startsWith("openai/"))     return { short: "GPT-5.6 Terra",   colorCls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" }
-  if (modelId.startsWith("anthropic/")) return { short: "Claude",     colorCls: "bg-orange-500/10  text-orange-600  border-orange-500/20  dark:text-orange-400"  }
-  if (modelId.startsWith("google/"))    return { short: "Gemini 3.6 Flash", colorCls: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" }
-  if (modelId.startsWith("xai/"))       return { short: "Grok 4.5",   colorCls: "bg-violet-500/10  text-violet-600  border-violet-500/20  dark:text-violet-400"  }
+  if (modelId.startsWith("openai/"))    return { short: "GPT-5.6 Terra", colorCls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" }
+  if (modelId.startsWith("anthropic/")) return { short: "Claude",        colorCls: "bg-orange-500/10  text-orange-600  border-orange-500/20  dark:text-orange-400"  }
+  if (modelId.startsWith("google/")) {
+    const short = modelId.includes("gemini-3.6") ? "Gemini 3.6 Flash" : "Gemini 3.7 Flash"
+    return { short, colorCls: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" }
+  }
+  if (modelId.startsWith("xai/")) {
+    const short = modelId.includes("grok-4.5") ? "Grok 4.5" : "Grok 4.6"
+    return { short, colorCls: "bg-violet-500/10 text-violet-600 border-violet-500/20 dark:text-violet-400" }
+  }
   return { short: modelId.split("/")[0], colorCls: "bg-secondary text-muted-foreground border-border/60" }
 }
 
