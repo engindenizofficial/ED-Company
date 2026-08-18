@@ -10,6 +10,7 @@ import {
   Inbox,
   LoaderCircle,
   MapPin,
+  Percent,
   RotateCw,
   Shield,
   Sparkles,
@@ -130,6 +131,13 @@ export function AnalysisPanel({
   // sekmeler boş/anlamsız içerik gösterdiği için hiç listelenmemeli.
   const hasStarted = LIVE_OR_FINISHED.has(fixture.statusShort)
 
+  // AI'ya prompt'ta gönderilen bahis oranları — tahmin varsa ve en az bir
+  // oran değeri mevcutsa "Oranlar" sekmesi listelenir. Bu alan eklenmeden
+  // önce cache'lenmiş eski tahminlerde `odds` olmayabilir.
+  const hasOdds = !!(
+    prediction?.odds && (prediction.odds.home !== null || prediction.odds.draw !== null || prediction.odds.away !== null)
+  )
+
   const { home, away, league } = fixture
   const { t } = useLanguage()
 
@@ -142,6 +150,9 @@ export function AnalysisPanel({
           { key: "playerStats", label: t("analysis.tabPlayerStats"), icon: <Star className="h-3.5 w-3.5" /> },
           { key: "statistics", label: t("analysis.tabStatistics"), icon: <BarChart3 className="h-3.5 w-3.5" /> },
         ]
+      : []),
+    ...(hasOdds
+      ? [{ key: "odds", label: t("analysis.tabOdds"), icon: <Percent className="h-3.5 w-3.5" /> }]
       : []),
     { key: "lineups", label: t("analysis.tabLineups"), icon: <Users className="h-3.5 w-3.5" /> },
     { key: "standings", label: t("analysis.tabStandings"), icon: <Shield className="h-3.5 w-3.5" /> },
@@ -200,6 +211,9 @@ export function AnalysisPanel({
             active={activeTab === "statistics"}
           />
         </>
+      )}
+      {hasOdds && prediction && (
+        <OddsSection prediction={prediction} homeName={home.name} awayName={away.name} active={activeTab === "odds"} />
       )}
       <LineupsSection fixtureId={fixture.id} home={home} away={away} active={activeTab === "lineups"} />
       <StandingsSection
@@ -1697,6 +1711,94 @@ function H2HList({
 }
 
 // ---------------------------------------------------------------------------
+// Odds — AI modellerine prompt'ta gönderilen bahis oranları
+// ---------------------------------------------------------------------------
+
+function OddsSection({
+  prediction,
+  homeName,
+  awayName,
+  active,
+}: {
+  prediction: MatchPrediction
+  homeName: string
+  awayName: string
+  active: boolean
+}) {
+  const { t } = useLanguage()
+
+  const entries: Array<{ key: "home" | "draw" | "away"; label: string; value: number | null }> = prediction.odds
+    ? [
+        { key: "home", label: t("analysis.predictionOddsHome", { team: homeName }), value: prediction.odds.home },
+        { key: "draw", label: t("analysis.predictionOddsDraw"), value: prediction.odds.draw },
+        { key: "away", label: t("analysis.predictionOddsAway", { team: awayName }), value: prediction.odds.away },
+      ]
+    : []
+  const validEntries = entries.filter(
+    (e): e is { key: "home" | "draw" | "away"; label: string; value: number } => e.value !== null,
+  )
+  const favorite = validEntries.length > 0 ? validEntries.reduce((a, b) => (a.value < b.value ? a : b)) : null
+  const favoriteTeamLabel = favorite?.key === "home" ? homeName : favorite?.key === "away" ? awayName : t("analysis.draw")
+
+  return (
+    <SectionShell active={active}>
+      {validEntries.length === 0 ? (
+        <SectionEmptyState label={t("analysis.tabOdds")} />
+      ) : (
+        <div className="flex flex-col gap-3">
+          <p className="text-[11px] leading-relaxed text-muted-foreground">{t("analysis.predictionOddsTitle")}</p>
+          <div className="grid grid-cols-3 gap-2">
+            {entries.map((entry) =>
+              entry.value === null ? (
+                <div
+                  key={entry.key}
+                  className="flex flex-col items-center gap-1 rounded-xl border border-border/40 bg-secondary/20 px-2 py-3 text-center"
+                >
+                  <span className="text-[10px] font-semibold text-muted-foreground/70">{entry.label}</span>
+                  <span className="text-sm font-bold text-muted-foreground/50">—</span>
+                </div>
+              ) : (
+                <div
+                  key={entry.key}
+                  className={cn(
+                    "flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center",
+                    favorite?.key === entry.key
+                      ? "border-primary/30 bg-primary/8"
+                      : "border-border/60 bg-secondary/30",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "text-[10px] font-semibold truncate max-w-full",
+                      favorite?.key === entry.key ? "text-primary" : "text-muted-foreground",
+                    )}
+                  >
+                    {entry.label}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-lg font-black tabular-nums",
+                      favorite?.key === entry.key ? "text-primary" : "text-foreground",
+                    )}
+                  >
+                    {entry.value.toFixed(2)}
+                  </span>
+                </div>
+              ),
+            )}
+          </div>
+          {favorite && (
+            <p className="text-center text-[11px] font-semibold text-muted-foreground">
+              {t("analysis.predictionOddsFavorite", { team: favoriteTeamLabel })}
+            </p>
+          )}
+        </div>
+      )}
+    </SectionShell>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Injuries
 // ---------------------------------------------------------------------------
 
@@ -1930,23 +2032,6 @@ function PredictionCard({
 
   const modelCount = prediction.modelVotes?.length ?? 0
 
-  // AI modellerine prompt'ta gönderilen bahis oranları — şeffaflık için panelde
-  // de gösterilir. Eski (bu alan eklenmeden önce) cache'lenmiş tahminlerde
-  // `odds` olmayabilir, bu yüzden hepsi opsiyonel.
-  const oddsEntries: Array<{ key: "home" | "draw" | "away"; label: string; value: number | null }> = prediction.odds
-    ? [
-        { key: "home", label: t("analysis.predictionOddsHome", { team: homeName }), value: prediction.odds.home },
-        { key: "draw", label: t("analysis.predictionOddsDraw"), value: prediction.odds.draw },
-        { key: "away", label: t("analysis.predictionOddsAway", { team: awayName }), value: prediction.odds.away },
-      ]
-    : []
-  const validOdds = oddsEntries.filter(
-    (e): e is { key: "home" | "draw" | "away"; label: string; value: number } => e.value !== null,
-  )
-  const favoriteOdds = validOdds.length > 0 ? validOdds.reduce((a, b) => (a.value < b.value ? a : b)) : null
-  const favoriteTeamLabel =
-    favoriteOdds?.key === "home" ? homeName : favoriteOdds?.key === "away" ? awayName : t("analysis.draw")
-
   return (
     <>
     <div className="rounded-2xl border border-primary/25 bg-card overflow-hidden">
@@ -2021,38 +2106,6 @@ function PredictionCard({
             {prediction.overUnder === "over" ? t("analysis.predictionOverLabel") : t("analysis.predictionUnderLabel")}
           </span>
         </div>
-
-        {/* AI'ya verilen bahis oranları — modele gönderilen piyasa verisini şeffaf gösterir */}
-        {validOdds.length > 0 && (
-          <div className="flex flex-col gap-1.5 rounded-xl border border-border/50 bg-secondary/30 px-3 py-2.5">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              {t("analysis.predictionOddsTitle")}
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {oddsEntries.map((entry) =>
-                entry.value === null ? null : (
-                  <span
-                    key={entry.key}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold",
-                      favoriteOdds?.key === entry.key
-                        ? "border-primary/30 bg-primary/10 text-primary"
-                        : "border-border/60 bg-card text-muted-foreground",
-                    )}
-                  >
-                    <span>{entry.label}</span>
-                    <span className="tabular-nums">{entry.value.toFixed(2)}</span>
-                  </span>
-                ),
-              )}
-            </div>
-            {favoriteOdds && (
-              <span className="text-[10px] text-muted-foreground/80">
-                {t("analysis.predictionOddsFavorite", { team: favoriteTeamLabel })}
-              </span>
-            )}
-          </div>
-        )}
 
         {/* Özet */}
         <p className="text-xs leading-relaxed text-muted-foreground">{prediction.summary}</p>
