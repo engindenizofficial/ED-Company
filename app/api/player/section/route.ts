@@ -228,24 +228,36 @@ async function fetchSeasonStats(playerId: number): Promise<PlayerSeasonStats[]> 
   return results
 }
 
+function noStoreJson<T>(body: T, init?: ResponseInit) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
+    },
+  })
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const playerId = Number(searchParams.get("playerId"))
   const section = searchParams.get("section") as Section | null
 
   if (!playerId || isNaN(playerId)) {
-    return NextResponse.json({ error: "missingPlayerId" }, { status: 400 })
+    return noStoreJson({ error: "missingPlayerId" }, { status: 400 })
   }
   if (!section || !VALID_SECTIONS.includes(section)) {
-    return NextResponse.json({ error: "invalidSection" }, { status: 400 })
+    return noStoreJson({ error: "invalidSection" }, { status: 400 })
   }
 
   try {
     switch (section) {
       case "stats": {
         const data = await fetchSeasonStats(playerId)
-        if (data.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data })
+        if (data.length === 0) return noStoreJson({ data: null })
+        return noStoreJson({ data })
       }
 
       case "trophies": {
@@ -269,8 +281,8 @@ export async function GET(request: Request) {
           seenTrophyKeys.add(key)
           data.push(trophy)
         }
-        if (data.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data })
+        if (data.length === 0) return noStoreJson({ data: null })
+        return noStoreJson({ data })
       }
 
       case "transfers": {
@@ -300,8 +312,8 @@ export async function GET(request: Request) {
           data.push(tx)
           if (data.length >= 20) break
         }
-        if (data.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data })
+        if (data.length === 0) return noStoreJson({ data: null })
+        return noStoreJson({ data })
       }
 
       case "sidelined": {
@@ -324,11 +336,11 @@ export async function GET(request: Request) {
           seenSidelinedKeys.add(key)
           data.push(entry)
         }
-        if (data.length === 0) return NextResponse.json({ data: null })
-        return NextResponse.json({ data })
+        if (data.length === 0) return noStoreJson({ data: null })
+        return noStoreJson({ data })
       }
     }
   } catch {
-    return NextResponse.json({ error: "internalError" }, { status: 500 })
+    return noStoreJson({ error: "internalError" }, { status: 500 })
   }
 }

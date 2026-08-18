@@ -77,7 +77,8 @@ function usePlayerSection<T>(playerId: number, section: string, open: boolean) {
     const controller = new AbortController()
     setState({ status: "loading", data: null, error: null })
 
-    fetch(`/api/player/section?playerId=${playerId}&section=${section}`, {
+    const requestUrl = `/api/player/section?playerId=${playerId}&section=${section}&request=${Date.now()}-${requestId}`
+    fetch(requestUrl, {
       cache: "no-store",
       signal: controller.signal,
     })
