@@ -817,7 +817,6 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         lastErrorLabel: "Son hata: {{error}}",
         brokenWarning:
           "Zincir bir süredir ilerlemedi, muhtemelen kesintiye uğradı. Devam etmesi için \"Şimdi Tara\" butonuna tekrar basabilirsiniz.",
-        autoRecovered: "Zincir kırılmıştı, otomatik olarak yeniden başlatıldı.",
       },
       playerPositionDangerZone: {
         heading: "Tehlikeli Bölge",
@@ -1698,7 +1697,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         statusCompleted: "Completed",
         leaguesProcessed: "{{current}}/{{total}} leagues processed",
         leaguesFailed: "{{count}} leagues failed",
-        cycleStart: "Cycle started: {{date}} · Last heartbeat: {{heartbeat}}",
+        cycleStart: "Cycle started: {{date}} �� Last heartbeat: {{heartbeat}}",
         brokenWarning:
           "The chain hasn't progressed in {{minutes}} minutes. It won't resume automatically — use the button below to trigger it manually.",
         resume: "Resume",

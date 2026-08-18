@@ -36,15 +36,6 @@ export function PlayerPositionCronStatus({ initialStatus }: { initialStatus: Pla
   const statusRef = useRef(status)
   statusRef.current = status
 
-  // ÖNEMLİ — zincir bir yerde kırılırsa (bkz. app/actions/player-position-cron.ts
-  // triggerChainContinuation'ın tüm denemelerinin tükenmesi), önceden admin
-  // bunu ELLE fark edip "Şimdi Tara"ya tekrar basmak zorundaydı — panel açık
-  // kalsa bile kendi kendine iyileşmiyordu. Bu ref, aynı anda birden fazla
-  // otomatik yeniden tetikleme göndermemek için "şu an bir otomatik kurtarma
-  // isteği zaten gönderildi mi" bilgisini tutar (poll aralığı 4s, ama bir
-  // tetikleme + tazeleme birkaç saniye sürebilir).
-  const autoRecoveringRef = useRef(false)
-
   useEffect(() => {
     const shouldPoll = () => isScanning || statusRef.current.status === "running"
 
@@ -55,31 +46,13 @@ export function PlayerPositionCronStatus({ initialStatus }: { initialStatus: Pla
       try {
         const fresh = await getPlayerPositionCronStatus()
         setStatus(fresh)
-
-        // Zincir kırılmışsa (isStale) ve zaten bir kurtarma denemesi
-        // yürütmüyorsak, admin hiçbir şeye tıklamadan otomatik olarak
-        // yeniden tetikle — triggerPlayerPositionScanNow zaten "stale ise
-        // yeniden tetikle" mantığını içeriyor, burada sadece onu çağırıyoruz.
-        if (fresh.hasRun && fresh.status === "running" && fresh.isStale && !autoRecoveringRef.current) {
-          autoRecoveringRef.current = true
-          try {
-            const result = await triggerPlayerPositionScanNow()
-            if (result.triggered) {
-              setMessage(t("admin.playerPositionCron.autoRecovered"))
-            }
-          } catch (err) {
-            console.error("[v0] Otomatik zincir kurtarma başarısız:", err)
-          } finally {
-            autoRecoveringRef.current = false
-          }
-        }
       } catch (err) {
         console.error("[v0] Mevki durumu tazelenemedi:", err)
       }
     }, POLL_INTERVAL_MS)
 
     return () => clearInterval(interval)
-  }, [isScanning, status.status, t])
+  }, [isScanning, status.status])
 
   function formatDateTime(iso: string): string {
     return new Date(iso).toLocaleString(locale === "tr" ? "tr-TR" : "en-US", {
