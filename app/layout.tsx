@@ -12,6 +12,7 @@ import { PlayerProvider } from '@/contexts/player-context'
 import { PlayerPanel } from '@/components/player-panel'
 import { PanelRouteGuard } from '@/components/panel-route-guard'
 import { PwaUpdateWatcher } from '@/components/pwa-update-watcher'
+import { PushSoundListener } from '@/components/push-sound-listener'
 import { FavoritesProvider } from '@/contexts/favorites-context'
 import { ThemeColorProvider } from '@/contexts/theme-color-context'
 import { LanguageProvider } from '@/contexts/language-context'
@@ -116,6 +117,7 @@ export default async function RootLayout({
           }}
         />
         <PwaUpdateWatcher />
+        <PushSoundListener />
         <LanguageProvider initialLocale={locale}>
           <ThemeColorProvider>
             <LeagueProvider>

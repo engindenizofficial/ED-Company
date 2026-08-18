@@ -32,9 +32,25 @@ self.addEventListener("push", (event) => {
     data: { url: payload.url || "/" },
     tag: payload.tag,
     renotify: Boolean(payload.tag),
+    // Web Push, arka planda özel bir ses dosyası çalmayı desteklemiyor
+    // (tarayıcı/OS her zaman kendi varsayılan sesini kullanır). Titreşim
+    // paterni ekleyerek bildirimi Android'de daha fark edilir yapıyoruz.
+    vibrate: [200, 80, 200],
   }
 
-  event.waitUntil(self.registration.showNotification(title, options))
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(title, options),
+      // Uygulama şu an açıksa (sekme/PWA ön planda), bağlı istemcilere
+      // mesaj gönderip kendi özel "gol sesi" efektimizi çaldırıyoruz.
+      // Bu, sistemin varsayılan bildirim sesine ek olarak duyulur.
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+        for (const client of clientList) {
+          client.postMessage({ type: "PLAY_GOAL_SOUND" })
+        }
+      }),
+    ]),
+  )
 })
 
 self.addEventListener("notificationclick", (event) => {
