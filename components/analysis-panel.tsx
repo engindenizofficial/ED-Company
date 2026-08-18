@@ -147,10 +147,10 @@ export function AnalysisPanel({
           { key: "statistics", label: t("analysis.tabStatistics"), icon: <BarChart3 className="h-3.5 w-3.5" /> },
         ]
       : []),
-    { key: "odds", label: t("analysis.tabOdds"), icon: <Percent className="h-3.5 w-3.5" /> },
     { key: "lineups", label: t("analysis.tabLineups"), icon: <Users className="h-3.5 w-3.5" /> },
     { key: "standings", label: t("analysis.tabStandings"), icon: <Shield className="h-3.5 w-3.5" /> },
     { key: "teamStats", label: t("analysis.tabTeamStats"), icon: <TrendingUp className="h-3.5 w-3.5" /> },
+    { key: "odds", label: t("analysis.tabOdds"), icon: <Percent className="h-3.5 w-3.5" /> },
     { key: "h2h", label: t("analysis.tabH2H"), icon: <Swords className="h-3.5 w-3.5" /> },
     { key: "injuries", label: t("analysis.tabInjuries"), icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   ]
@@ -1708,7 +1708,7 @@ function H2HList({
 // app/api/predict/route.ts → formatOdds).
 // ---------------------------------------------------------------------------
 
-type OddsData = { home: number | null; draw: number | null; away: number | null }
+type OddsData = { home: number | null; draw: number | null; away: number | null; source: string | null }
 
 function OddsSection({
   fixtureId,
@@ -1747,7 +1747,6 @@ function OddsSection({
       {status === "empty" && <SectionEmptyState label={t("analysis.tabOdds")} />}
       {status === "success" && validEntries.length > 0 && (
         <div className="flex flex-col gap-3">
-          <p className="text-[11px] leading-relaxed text-muted-foreground">{t("analysis.predictionOddsTitle")}</p>
           <div className="grid grid-cols-3 gap-2">
             {entries.map((entry) =>
               entry.value === null ? (
@@ -1791,6 +1790,11 @@ function OddsSection({
           {favorite && (
             <p className="text-center text-[11px] font-semibold text-muted-foreground">
               {t("analysis.predictionOddsFavorite", { team: favoriteTeamLabel })}
+            </p>
+          )}
+          {data?.source && (
+            <p className="text-center text-[10px] text-muted-foreground/60">
+              {t("analysis.predictionOddsSource", { source: data.source })}
             </p>
           )}
         </div>

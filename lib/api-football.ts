@@ -500,11 +500,14 @@ export async function getStandings(leagueId: number, season: number, teamIds: nu
   return rows
 }
 
-export async function getOdds(fixtureId: number): Promise<{ home: number | null; draw: number | null; away: number | null }> {
+export async function getOdds(
+  fixtureId: number,
+): Promise<{ home: number | null; draw: number | null; away: number | null; source: string | null }> {
   const raw = await safeFetch<any>("/odds", { fixture: fixtureId }, 3600)
-  if (!raw.length) return { home: null, draw: null, away: null }
+  if (!raw.length) return { home: null, draw: null, away: null, source: null }
 
-  // İlk bookmaker'ın "Match Winner" (veya "1X2") bahsini bul
+  // İlk bookmaker'ın "Match Winner" (veya "1X2") bahsini bul; oranların
+  // hangi bahis şirketinden geldiğini de (bookmaker.name) birlikte döndür.
   for (const entry of raw) {
     for (const bookmaker of entry.bookmakers ?? []) {
       for (const bet of bookmaker.bets ?? []) {
@@ -519,12 +522,13 @@ export async function getOdds(fixtureId: number): Promise<{ home: number | null;
             home: parse("home"),
             draw: parse("draw"),
             away: parse("away"),
+            source: bookmaker.name ?? null,
           }
         }
       }
     }
   }
-  return { home: null, draw: null, away: null }
+  return { home: null, draw: null, away: null, source: null }
 }
 
 export async function getSquad(teamId: number): Promise<SquadPlayer[]> {
