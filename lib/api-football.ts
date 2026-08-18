@@ -21,7 +21,7 @@ import type {
   Trophy,
 } from "./types"
 import { toTurkishCountry } from "./tr-aliases"
-import { apiFootballFetch, safeApiFootballFetch } from "./api-football-client"
+import { apiFootballFetch } from "./api-football-client"
 import { getPlayerMarketValue, getTeamMarketValue } from "./market-values"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
 
@@ -83,14 +83,17 @@ async function apiFetch<T>(
   return apiFootballFetch<T>(path, params, forceRefresh ? { cache: "no-store" } : { revalidate })
 }
 
-/** Best-effort fetch: returns [] instead of throwing so one dead endpoint
- * doesn't sink the whole aggregation. */
+/**
+ * API isteği başarısız olduğunda boş dizi döndürmez. Boş dizi gerçek "veri
+ * yok" anlamını korur; ağ/API hatası çağırana taşınır ve panel eksik veri
+ * göstermeden hata/tekrar deneme durumuna geçer.
+ */
 async function safeFetch<T>(
   path: string,
   params: Record<string, string | number>,
   revalidate = 60,
 ): Promise<T[]> {
-  return safeApiFootballFetch<T>(path, params, { revalidate })
+  return apiFootballFetch<T>(path, params, { revalidate })
 }
 
 // ---------------------------------------------------------------------------
@@ -260,7 +263,7 @@ export async function getFixturesByLeagueSeason(leagueId: number, season: number
 
 export async function getPlayerBasicProfile(playerId: number): Promise<PlayerProfile | null> {
   const season = currentSeason()
-  const playerRaw = await safeApiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
+  const playerRaw = await apiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
   if (!playerRaw || playerRaw.length === 0) return null
 
   const entry = playerRaw[0]
@@ -302,7 +305,7 @@ export async function getPlayerBasicProfile(playerId: number): Promise<PlayerPro
 }
 
 export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | null> {
-  const teamRaw = await safeApiFootballFetch<any>("/teams", { id: teamId }, { cache: "no-store" })
+  const teamRaw = await apiFootballFetch<any>("/teams", { id: teamId }, { cache: "no-store" })
   if (!teamRaw || teamRaw.length === 0) return null
 
   const rawTeam = teamRaw[0]
@@ -325,7 +328,7 @@ export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | 
 
 export async function getLeagueBasicInfo(leagueId: number): Promise<LeagueBasicInfo | null> {
   const season = currentSeason()
-  const leagueRaw = await safeApiFootballFetch<any>("/leagues", { id: leagueId, season }, { cache: "no-store" })
+  const leagueRaw = await apiFootballFetch<any>("/leagues", { id: leagueId, season }, { cache: "no-store" })
   if (!leagueRaw || leagueRaw.length === 0) return null
 
   const rawLeague = leagueRaw[0]
@@ -545,7 +548,7 @@ export async function getPlayerRoleAndPhoto(
   playerId: number,
 ): Promise<{ role: string | null; photo: string | null; age: number | null } | null> {
   const season = currentSeason()
-  const raw = await safeApiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
+  const raw = await apiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
   if (!raw || raw.length === 0) return null
   const entry = raw[0]
   const p = entry.player ?? {}
