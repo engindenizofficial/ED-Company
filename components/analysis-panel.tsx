@@ -131,18 +131,14 @@ export function AnalysisPanel({
   // sekmeler boş/anlamsız içerik gösterdiği için hiç listelenmemeli.
   const hasStarted = LIVE_OR_FINISHED.has(fixture.statusShort)
 
-  // AI'ya prompt'ta gönderilen bahis oranları — tahmin varsa ve en az bir
-  // oran değeri mevcutsa "Oranlar" sekmesi listelenir. Bu alan eklenmeden
-  // önce cache'lenmiş eski tahminlerde `odds` olmayabilir.
-  const hasOdds = !!(
-    prediction?.odds && (prediction.odds.home !== null || prediction.odds.draw !== null || prediction.odds.away !== null)
-  )
-
   const { home, away, league } = fixture
   const { t } = useLanguage()
 
   // Sekmeler yan yana sıralanır; panel açıldığında ilk sekme otomatik
-  // kendi verisini çeker, diğerleri sadece tıklandığında.
+  // kendi verisini çeker, diğerleri sadece tıklandığında. "Oranlar" sekmesi
+  // AI tahmininden tamamen bağımsızdır — tahmin alınmamış/silinmiş olsa da
+  // kullanıcı bahis oranlarını her zaman görebilir; aynı oranlar AI tahmini
+  // üretilirken de prompt'a dahil edilir (bkz. app/api/predict/route.ts).
   const tabs: PanelTabItem[] = [
     ...(hasStarted
       ? [
@@ -151,9 +147,7 @@ export function AnalysisPanel({
           { key: "statistics", label: t("analysis.tabStatistics"), icon: <BarChart3 className="h-3.5 w-3.5" /> },
         ]
       : []),
-    ...(hasOdds
-      ? [{ key: "odds", label: t("analysis.tabOdds"), icon: <Percent className="h-3.5 w-3.5" /> }]
-      : []),
+    { key: "odds", label: t("analysis.tabOdds"), icon: <Percent className="h-3.5 w-3.5" /> },
     { key: "lineups", label: t("analysis.tabLineups"), icon: <Users className="h-3.5 w-3.5" /> },
     { key: "standings", label: t("analysis.tabStandings"), icon: <Shield className="h-3.5 w-3.5" /> },
     { key: "teamStats", label: t("analysis.tabTeamStats"), icon: <TrendingUp className="h-3.5 w-3.5" /> },
@@ -212,9 +206,7 @@ export function AnalysisPanel({
           />
         </>
       )}
-      {hasOdds && prediction && (
-        <OddsSection prediction={prediction} homeName={home.name} awayName={away.name} active={activeTab === "odds"} />
-      )}
+      <OddsSection fixtureId={fixture.id} homeName={home.name} awayName={away.name} active={activeTab === "odds"} />
       <LineupsSection fixtureId={fixture.id} home={home} away={away} active={activeTab === "lineups"} />
       <StandingsSection
         fixtureId={fixture.id}
@@ -1711,27 +1703,35 @@ function H2HList({
 }
 
 // ---------------------------------------------------------------------------
-// Odds — AI modellerine prompt'ta gönderilen bahis oranları
+// Odds — Maç oranları. AI tahmininden tamamen bağımsız olarak, oynanmamış her
+// maçta gösterilir; aynı oranlar AI tahmini üretilirken de kullanılır (bkz.
+// app/api/predict/route.ts → formatOdds).
 // ---------------------------------------------------------------------------
 
+type OddsData = { home: number | null; draw: number | null; away: number | null }
+
 function OddsSection({
-  prediction,
+  fixtureId,
   homeName,
   awayName,
   active,
 }: {
-  prediction: MatchPrediction
+  fixtureId: number
   homeName: string
   awayName: string
   active: boolean
 }) {
   const { t } = useLanguage()
+  const { status, data, error, retry } = useLazySection<OddsData>(
+    `/api/analyze/section?fixtureId=${fixtureId}&section=odds`,
+    active,
+  )
 
-  const entries: Array<{ key: "home" | "draw" | "away"; label: string; value: number | null }> = prediction.odds
+  const entries: Array<{ key: "home" | "draw" | "away"; label: string; value: number | null }> = data
     ? [
-        { key: "home", label: t("analysis.predictionOddsHome", { team: homeName }), value: prediction.odds.home },
-        { key: "draw", label: t("analysis.predictionOddsDraw"), value: prediction.odds.draw },
-        { key: "away", label: t("analysis.predictionOddsAway", { team: awayName }), value: prediction.odds.away },
+        { key: "home", label: t("analysis.predictionOddsHome", { team: homeName }), value: data.home },
+        { key: "draw", label: t("analysis.predictionOddsDraw"), value: data.draw },
+        { key: "away", label: t("analysis.predictionOddsAway", { team: awayName }), value: data.away },
       ]
     : []
   const validEntries = entries.filter(
@@ -1742,9 +1742,10 @@ function OddsSection({
 
   return (
     <SectionShell active={active}>
-      {validEntries.length === 0 ? (
-        <SectionEmptyState label={t("analysis.tabOdds")} />
-      ) : (
+      {status === "loading" && <SectionLoading label={t("analysis.tabOdds")} />}
+      {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+      {status === "empty" && <SectionEmptyState label={t("analysis.tabOdds")} />}
+      {status === "success" && validEntries.length > 0 && (
         <div className="flex flex-col gap-3">
           <p className="text-[11px] leading-relaxed text-muted-foreground">{t("analysis.predictionOddsTitle")}</p>
           <div className="grid grid-cols-3 gap-2">

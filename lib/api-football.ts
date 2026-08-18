@@ -500,7 +500,7 @@ export async function getStandings(leagueId: number, season: number, teamIds: nu
   return rows
 }
 
-async function getOdds(fixtureId: number): Promise<{ home: number | null; draw: number | null; away: number | null }> {
+export async function getOdds(fixtureId: number): Promise<{ home: number | null; draw: number | null; away: number | null }> {
   const raw = await safeFetch<any>("/odds", { fixture: fixtureId }, 3600)
   if (!raw.length) return { home: null, draw: null, away: null }
 

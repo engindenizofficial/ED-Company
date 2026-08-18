@@ -5,6 +5,7 @@ import {
   getHeadToHead,
   getInjuries,
   getLineups,
+  getOdds,
   getStandings,
   getStatistics,
   getTeamSeasonStats,
@@ -27,6 +28,7 @@ const VALID_SECTIONS = [
   "teamStats",
   "h2h",
   "injuries",
+  "odds",
 ] as const
 type Section = (typeof VALID_SECTIONS)[number]
 
@@ -114,6 +116,14 @@ export async function GET(request: Request) {
       case "injuries": {
         const data = await getInjuries(fixtureId)
         if (data.length === 0) return NextResponse.json({ data: null })
+        return NextResponse.json({ data })
+      }
+
+      case "odds": {
+        const data = await getOdds(fixtureId)
+        if (data.home === null && data.draw === null && data.away === null) {
+          return NextResponse.json({ data: null })
+        }
         return NextResponse.json({ data })
       }
     }
