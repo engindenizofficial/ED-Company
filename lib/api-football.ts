@@ -21,7 +21,7 @@ import type {
   Trophy,
 } from "./types"
 import { toTurkishCountry } from "./tr-aliases"
-import { apiFootballFetch } from "./api-football-client"
+import { apiFootballFetch, safeApiFootballFetch } from "./api-football-client"
 import { getPlayerMarketValue, getTeamMarketValue } from "./market-values"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
 
@@ -84,16 +84,28 @@ async function apiFetch<T>(
 }
 
 /**
- * API isteği başarısız olduğunda boş dizi döndürmez. Boş dizi gerçek "veri
- * yok" anlamını korur; ağ/API hatası çağırana taşınır ve panel eksik veri
- * göstermeden hata/tekrar deneme durumuna geçer.
+ * ÖNEMLİ — isim yanıltıcıydı: bu fonksiyon önceden gerçekte apiFootballFetch'i
+ * (hata fırlatan varyantı) çağırıyordu, yani "safe" değildi. Bu dosyadaki
+ * fonksiyonların çoğu (getEvents, getStatistics, getLineups, getInjuries,
+ * getStandings, getSquad, getHeadToHead, getTeamSeasonStats, ...) safeFetch
+ * kullanıyor VE bunlardan bazıları (getTeamSeasonStats, getLiveMatchData)
+ * kendi içinde Promise.all ile birden fazla uç noktayı paralel çekiyor.
+ * Promise.all "hepsi ya da hiçbiri" çalıştığı için, aralarından SADECE BİRİ
+ * geçici olarak başarısız olsa (örn. kısa süreli 429) TÜM grup (örn. ev
+ * sahibi VE deplasman takımının sezon istatistikleri, ya da maç panelindeki
+ * "teamStats" sekmesinin tamamı) sessizce kaybolup bir açılışta gözükürken
+ * bir sonraki açılışta gözükmüyordu — panellerdeki tutarsız/eksik veri
+ * şikayetinin köküydü. apiFootballFetch zaten 429/5xx için 5 kez üstel
+ * geri çekilmeyle yeniden deniyor; bu noktaya kadar hâlâ başarısızsa
+ * safeApiFootballFetch boş dizi döndürerek yalnızca o TEK uç noktayı
+ * etkiler, aynı gruptaki diğer başarılı istekleri kaybettirmez.
  */
 async function safeFetch<T>(
   path: string,
   params: Record<string, string | number>,
   revalidate = 60,
 ): Promise<T[]> {
-  return apiFootballFetch<T>(path, params, { revalidate })
+  return safeApiFootballFetch<T>(path, params, { revalidate })
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { apiFootballFetch } from "@/lib/api-football-client"
+import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import type { PlayerSeasonStats, SidelinedEntry, TeamInfo, Transfer, Trophy } from "@/lib/types"
 
@@ -12,11 +12,20 @@ export const revalidate = 0
 // tetikliyor. Alttaki safeApiFootballFetch ayrıca kısa süreli cache içeriyor,
 // bu yüzden "Sezon İstatistikleri" ve "Kariyer Özeti" sekmeleri aynı veriyi
 // paylaşırken de ekstra istek yaratmıyor.
+//
+// ÖNEMLİ — burada bilerek safeApiFootballFetch kullanılıyor (apiFootballFetch
+// DEĞİL). apiFootballFetch tüm denemeler tükendiğinde hata fırlatır; bu route
+// aşağıda fetchSeasonStats içinde 20 sezonu Promise.all ile PARALEL çekiyor.
+// Promise.all "hepsi ya da hiçbiri" çalıştığı için, 20 istekten sadece BİRİ
+// (örn. geçici 429) hata fırlatsa TÜM sezon geçmişi kaybolurdu — ki bu tam
+// olarak "bazen bir takım/sezon gözükmüyor, bazen gözüküyor" şikayetinin kök
+// nedeniydi. safeApiFootballFetch hata durumunda boş dizi döndürdüğü için tek
+// bir sezonun geçici olarak başarısız olması diğer 19 sezonu etkilemiyor.
 const VALID_SECTIONS = ["stats", "trophies", "transfers", "sidelined"] as const
 type Section = (typeof VALID_SECTIONS)[number]
 
 function apiFetch<T>(path: string, params: Record<string, string | number>): Promise<T[]> {
-  return apiFootballFetch<T>(path, params, { cache: "no-store" })
+  return safeApiFootballFetch<T>(path, params, { cache: "no-store" })
 }
 
 function currentSeason(): number {
@@ -35,12 +44,16 @@ const SEASON_LOOKBACK_YEARS = 20
 async function fetchSeasonStats(playerId: number): Promise<PlayerSeasonStats[]> {
   const season = currentSeason()
   const seasons = Array.from({ length: SEASON_LOOKBACK_YEARS }, (_, i) => season - i)
-  // Bir sezon isteği başarısız olursa onu boş dizi gibi kabul etme. Bu,
-  // oyuncunun o sezondaki takımını sessizce kaybettiriyordu. İstemci zaten
-  // 429/5xx için retry uyguluyor; son hata burada route'a taşınır ve kullanıcı
-  // eksik veri yerine tekrar deneyebileceği bir hata görür.
+  // safeApiFootballFetch kullanılıyor: apiFootballFetch zaten 429/5xx için
+  // retry uyguluyor, ama tüm denemeler tükendiğinde hata FIRLATIYOR. Bu 20
+  // sezonu Promise.all ile paralel çektiğimiz için "hepsi ya da hiçbiri"
+  // davranışı oluşur — sadece BİR sezon isteği geçici olarak başarısız olsa
+  // (örn. kısa süreli 429) tüm kariyer geçmişi (ve içindeki tüm takımlar,
+  // örn. son transfer olan kulüp) sessizce kaybolurdu. safeApiFootballFetch
+  // başarısız bir sezon için boş dizi döndürür, böylece o sezon (varsa)
+  // sonraki açılışta tekrar denenir ve diğer 19 sezonu etkilemez.
   const allSeasonRaw = await Promise.all(
-    seasons.map((s) => apiFootballFetch<any>("/players", { id: playerId, season: s }, { cache: "no-store" })),
+    seasons.map((s) => safeApiFootballFetch<any>("/players", { id: playerId, season: s }, { cache: "no-store" })),
   )
 
   // Aynı sezon içindeki tüm turnuva/takım kayıtlarını (lig, kupa, Şampiyonlar

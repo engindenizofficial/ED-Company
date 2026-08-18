@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { apiFootballFetch } from "@/lib/api-football-client"
+import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import { getPlayerMarketValues } from "@/lib/market-values"
 import { calculateAge } from "@/lib/api-football"
@@ -35,8 +35,17 @@ const VALID_SECTIONS = [
 ] as const
 type Section = (typeof VALID_SECTIONS)[number]
 
+// ÖNEMLİ — bilerek safeApiFootballFetch kullanılıyor (apiFootballFetch DEĞİL).
+// apiFootballFetch tüm denemeler tükendiğinde hata fırlatır. Bu route içinde
+// "form" ve "stats" sekmeleri birden fazla endpoint'i Promise.all ile paralel
+// çekiyor; Promise.all "hepsi ya da hiçbiri" çalıştığı için, tek bir endpoint
+// geçici olarak başarısız olsa (örn. kısa süreli 429) o sekmedeki TÜM veri
+// (örn. diğer başarılı istekten gelen kısım da) sessizce kaybolurdu. Bu da
+// aynı takımı art arda aç/kapatınca bazı sekmelerin bazen dolu bazen boş
+// görünmesine yol açan köktendi. safeApiFootballFetch başarısız istekte boş
+// dizi döndürür, böylece bir endpoint'in geçici hatası diğerlerini etkilemez.
 function apiFetch<T>(path: string, params: Record<string, string | number>): Promise<T[]> {
-  return apiFootballFetch<T>(path, params, { cache: "no-store" })
+  return safeApiFootballFetch<T>(path, params, { cache: "no-store" })
 }
 
 // safeApiFootballFetch her zaman T[] tipinde döner, ancak API-Football'da
@@ -44,7 +53,7 @@ function apiFetch<T>(path: string, params: Record<string, string | number>): Pro
 // tek bir obje döndürür. Bu yardımcı, o durumda [0] ile yanlış indeksleme
 // yapmadan objeyi doğrudan kullanmamızı sağlıyor.
 async function apiFetchObject<T>(path: string, params: Record<string, string | number>): Promise<T | null> {
-  const raw = await apiFootballFetch<T>(path, params, { cache: "no-store" })
+  const raw = await safeApiFootballFetch<T>(path, params, { cache: "no-store" })
   return (raw as unknown as T) ?? null
 }
 
