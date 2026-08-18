@@ -36,7 +36,10 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     setPanel({ team, basic: null, loading: true, error: null })
 
     try {
-      const res = await fetch(`/api/team?teamId=${team.id}`, { cache: "no-store", signal: controller.signal })
+      const res = await fetch(`/api/team?teamId=${team.id}&request=${Date.now()}-${requestId}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      })
       if (!res.ok) throw new Error(t("common.serverErrorWithStatus", { status: res.status }))
       const basic: TeamBasicInfo = await res.json()
       if (controller.signal.aborted || requestId !== requestIdRef.current) return

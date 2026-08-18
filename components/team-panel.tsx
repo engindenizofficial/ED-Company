@@ -119,7 +119,8 @@ function useTeamSection<T>(teamId: number, section: string, open: boolean) {
     const requestId = ++requestIdRef.current
     const controller = new AbortController()
     setState({ status: "loading", data: null, error: null })
-    fetch(`/api/team/section?teamId=${teamId}&section=${section}`, {
+    const requestUrl = `/api/team/section?teamId=${teamId}&section=${section}&request=${Date.now()}-${requestId}`
+    fetch(requestUrl, {
       cache: "no-store",
       signal: controller.signal,
     })
