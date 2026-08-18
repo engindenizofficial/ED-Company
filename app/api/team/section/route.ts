@@ -16,6 +16,7 @@ import type {
 } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 // Takım panelindeki her sekme kendi verisini, sadece o sekmeye tıklandığında
 // bu endpoint üzerinden ayrı ayrı çeker. Böylece panel açılışında 9 endpoint

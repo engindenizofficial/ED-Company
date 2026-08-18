@@ -111,13 +111,18 @@ function useTeamSection<T>(teamId: number, section: string, open: boolean) {
   // başladı mı" kontrolünü sonuçlanmamış bir isteğin iptal edilmesine izin
   // verecek şekilde yapıyoruz — aksi halde ikinci (gerçek) mount hiç istek
   // başlatmaz ve arayüz sonsuza kadar "yükleniyor" durumunda kalır.
-  const hasLoadedRef = useRef(false)
+  const requestIdRef = useRef(0)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
-    if (!open || hasLoadedRef.current) return
-    let cancelled = false
+    if (!open) return
+    const requestId = ++requestIdRef.current
+    const controller = new AbortController()
     setState({ status: "loading", data: null, error: null })
-    fetch(`/api/team/section?teamId=${teamId}&section=${section}`, { cache: "no-store" })
+    fetch(`/api/team/section?teamId=${teamId}&section=${section}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => null)
@@ -126,23 +131,19 @@ function useTeamSection<T>(teamId: number, section: string, open: boolean) {
         return res.json() as Promise<{ data: T | null }>
       })
       .then((json) => {
-        if (cancelled) return
-        hasLoadedRef.current = true
+        if (controller.signal.aborted || requestId !== requestIdRef.current) return
         setState({ status: json.data === null ? "empty" : "success", data: json.data, error: null })
       })
       .catch((err) => {
-        if (cancelled) return
-        hasLoadedRef.current = true
+        if (controller.signal.aborted || requestId !== requestIdRef.current) return
         setState({ status: "error", data: null, error: err instanceof Error ? err.message : t("common.unexpectedError") })
       })
-    return () => {
-      cancelled = true
-    }
-  }, [open, teamId, section])
+    return () => controller.abort()
+  }, [open, teamId, section, retryKey, t])
 
   const retry = useCallback(() => {
-    hasLoadedRef.current = false
     setState({ status: "idle", data: null, error: null })
+    setRetryKey((value) => value + 1)
   }, [])
   return { ...state, retry }
 }

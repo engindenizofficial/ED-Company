@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useCallback, useContext, useState } from "react"
+import { createContext, useCallback, useContext, useRef, useState } from "react"
 import type { TeamBasicInfo, TeamInfo } from "@/lib/types"
 import { useLanguage } from "@/contexts/language-context"
 
@@ -25,17 +25,24 @@ const TeamContext = createContext<TeamContextValue | null>(null)
 export function TeamProvider({ children }: { children: React.ReactNode }) {
   const [panel, setPanel] = useState<TeamPanelState | null>(null)
   const { t } = useLanguage()
+  const requestIdRef = useRef(0)
+  const controllerRef = useRef<AbortController | null>(null)
 
   const openTeam = useCallback(async (team: TeamInfo) => {
-    // Start loading immediately
+    const requestId = ++requestIdRef.current
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
     setPanel({ team, basic: null, loading: true, error: null })
 
     try {
-      const res = await fetch(`/api/team?teamId=${team.id}`, { cache: "no-store" })
+      const res = await fetch(`/api/team?teamId=${team.id}`, { cache: "no-store", signal: controller.signal })
       if (!res.ok) throw new Error(t("common.serverErrorWithStatus", { status: res.status }))
       const basic: TeamBasicInfo = await res.json()
+      if (controller.signal.aborted || requestId !== requestIdRef.current) return
       setPanel((prev) => (prev?.team.id === team.id ? { team, basic, loading: false, error: null } : prev))
     } catch (err) {
+      if (controller.signal.aborted || requestId !== requestIdRef.current) return
       const msg = err instanceof Error ? err.message : t("common.unexpectedError")
       setPanel((prev) => (prev?.team.id === team.id ? { team, basic: null, loading: false, error: msg } : prev))
     }

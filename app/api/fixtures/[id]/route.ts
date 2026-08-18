@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getFixtureById } from "@/lib/api-football"
 
 export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 // /mac/[id] (paylaşılan link / direkt ziyaret) için: maç bugünün fikstür
 // listesinde yoksa (örn. dünkü/yarınki bir maç) tek başına bu endpoint'ten

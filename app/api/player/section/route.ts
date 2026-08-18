@@ -4,6 +4,7 @@ import { toTurkishCountry } from "@/lib/tr-aliases"
 import type { PlayerSeasonStats, SidelinedEntry, TeamInfo, Transfer, Trophy } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 // Oyuncu panelindeki her sekme kendi verisini, sadece o sekmeye tıklandığında
 // bu endpoint üzerinden ayrı ayrı çeker. Böylece panel açılışında birden fazla

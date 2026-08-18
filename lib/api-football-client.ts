@@ -96,46 +96,37 @@ export async function apiFootballFetch<T>(
 ): Promise<T[]> {
   const key = cacheKey(path, params)
 
-  // "no-store" ile açıkça taze veri istendiyse bellek içi response cache'i
-  // ve devam eden isteklere binmeyi de atla — aksi halde bu katman, Next.js
-  // fetch cache'ini atlamamıza rağmen 90 saniyeye kadar bayat veri döndürebilir.
   const bypassCache = options.cache === "no-store"
 
+  // `no-store` yalnızca tamamlanmış response cache'ini atlamalıdır. Aynı
+  // endpoint aynı anda iki kez istenirse devam eden isteği paylaşmaya devam
+  // ediyoruz; aksi halde sekme değiştirirken gereksiz çift API çağrısı ve
+  // 429 riski oluşur.
   if (!bypassCache) {
-    // 1. Taze bir cache girdisi varsa ağa hiç gitmeden onu döndür.
     const cached = responseCache.get(key)
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.data as T[]
-    }
-
-    // 2. Aynı anahtar için zaten devam eden bir istek varsa ona binelim
-    // (aynı panelin aynı anda iki kez tetiklediği aynı çağrı tek ağ isteğine düşer).
-    const existing = inFlight.get(key)
-    if (existing) {
-      return existing as Promise<T[]>
-    }
+    if (cached && cached.expiresAt > Date.now()) return cached.data as T[]
+    if (cached) responseCache.delete(key)
   }
 
-  // Bellek içi cache'in ömrü, çağıranın istediği `revalidate` süresine göre
-  // belirlenir (ör. canlı maç olayları/istatistikleri 30sn, kadrolar 300sn).
-  // Önceden bu değer göz ardı edilip her şey sabit 90sn tutuluyordu; bu da
-  // örneğin 30sn'lik bir istemci otomatik-yenilemesinin 2-3 turunu aynı bayat
-  // veriye çarptırıyor, canlı maç panelinde veri "geç güncelleniyormuş" gibi
-  // görünüyordu.
+  const existing = inFlight.get(key)
+  if (existing) return existing as Promise<T[]>
+
   const ttlMs = options.revalidate != null ? options.revalidate * 1000 : DEFAULT_CACHE_TTL_MS
+  const promise = doFetch<T>(path, params, options)
+    .then((data) => {
+      // no-store çağrılarında ne başarılı response ne de boş fallback cache'lenir.
+      // Böylece ilk açılıştaki geçici boş/eksik cevap sonraki sekme açılışlarına
+      // taşınmaz.
+      if (!bypassCache && data.length > 0 && ttlMs > 0) {
+        responseCache.set(key, { data, expiresAt: Date.now() + ttlMs })
+      }
+      return data
+    })
+    .finally(() => {
+      if (inFlight.get(key) === promise) inFlight.delete(key)
+    })
 
-  const promise = doFetch<T>(path, params, options).then((data) => {
-    responseCache.set(key, { data, expiresAt: Date.now() + ttlMs })
-    inFlight.delete(key)
-    return data
-  }).catch((err) => {
-    inFlight.delete(key)
-    throw err
-  })
-
-  if (!bypassCache) {
-    inFlight.set(key, promise)
-  }
+  inFlight.set(key, promise)
   return promise
 }
 

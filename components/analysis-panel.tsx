@@ -387,25 +387,20 @@ function useLazySection<T>(url: string, open: boolean, autoRefresh = false) {
   // verecek şekilde yapıyoruz — aksi halde ikinci (gerçek) mount hiç istek
   // başlatmaz ve arayüz sonsuza kadar "yükleniyor" durumunda kalır.
   const hasLoadedRef = useRef(false)
-  // Component unmount olduktan (panel/sekme kapandıktan) sonra gelen bir
-  // ağ cevabının artık ilgisiz olduğu state'e yazılmasını önler.
-  const isMountedRef = useRef(true)
-  useEffect(() => {
-    isMountedRef.current = true
-    return () => {
-      isMountedRef.current = false
-    }
-  }, [])
+  const requestIdRef = useRef(0)
+  const controllerRef = useRef<AbortController | null>(null)
 
   // silent=false: ilk yükleme, "yükleniyor" spinner'ı gösterir.
-  // silent=true: otomatik arka plan yenilemesi, ekranı spinner'a düşürmeden
-  // veriyi sessizce günceller; hata olursa da (ör. geçici ağ hatası) mevcut
-  // veriyi ekranda tutar, kullanıcıyı aniden hata ekranına düşürmez.
+  // silent=true: otomatik arka plan yenilemesi ekranı spinner'a düşürmez.
+  // Yeni istek başladığında eskisi iptal edilir; böylece geç dönen eski
+  // istatistik cevabı yeni cevabın üzerine yazamaz.
   const fetchSection = useCallback((silent: boolean) => {
-    if (!silent) {
-      setState({ status: "loading", data: null, error: null })
-    }
-    fetch(url, { cache: "no-store" })
+    const requestId = ++requestIdRef.current
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
+    if (!silent) setState({ status: "loading", data: null, error: null })
+    fetch(url, { cache: "no-store", signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => null)
@@ -414,29 +409,28 @@ function useLazySection<T>(url: string, open: boolean, autoRefresh = false) {
         return res.json() as Promise<{ data: T | null }>
       })
       .then((json) => {
-        if (!isMountedRef.current) return
+        if (controller.signal.aborted || requestId !== requestIdRef.current) return
         hasLoadedRef.current = true
         setState({ status: json.data === null ? "empty" : "success", data: json.data, error: null })
       })
       .catch((err) => {
-        if (!isMountedRef.current) return
+        if (controller.signal.aborted || requestId !== requestIdRef.current) return
         hasLoadedRef.current = true
         setState((prev) =>
           silent && prev.status === "success"
             ? prev
-            : {
-                status: "error",
-                data: null,
-                error: err instanceof Error ? err.message : t("common.unexpectedError"),
-              },
+            : { status: "error", data: null, error: err instanceof Error ? err.message : t("common.unexpectedError") },
         )
       })
   }, [url, t])
 
-  // İlk açılış: bölüm daha önce hiç yüklenmediyse bir kez veri çek.
+  // Sekmeye her dönüşte taze veri çek; hasLoaded yalnızca otomatik refresh'i
+  // ilk başarılı yüklemeden sonra çalıştırmak için kullanılır.
   useEffect(() => {
-    if (!open || hasLoadedRef.current) return
+    if (!open) return
+    hasLoadedRef.current = false
     fetchSection(false)
+    return () => controllerRef.current?.abort()
   }, [open, fetchSection])
 
   // Otomatik yenileme (ortak 3 kural, bkz. useAutoRefresh): sadece bu sekme

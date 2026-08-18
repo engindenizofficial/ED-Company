@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getPlayerBasicProfile } from "@/lib/api-football"
 
 export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 // Panel açıldığında sadece bu hafif endpoint çağrılır (header için isim/foto/
 // yaş/pozisyon/mevcut takım). Diğer tüm bölümler (sezon istatistikleri, kariyer

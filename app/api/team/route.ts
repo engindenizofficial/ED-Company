@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getTeamBasicInfo } from "@/lib/api-football"
 
 export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 // Panel açıldığında sadece bu hafif endpoint çağrılır (header için isim/logo/stadyum).
 // Diğer tüm bölümler (istatistik, kadro, transferler vb.) kendi sekmesine
