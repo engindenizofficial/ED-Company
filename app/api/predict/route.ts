@@ -418,6 +418,8 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     cachedAt:    Date.now(),
     homeName,
     awayName,
+    // AI modellerine prompt'ta gönderilen bahis oranları — panelde de gösterilir
+    odds:        live.odds,
   }
 
   await setCachedPrediction(fixtureId, prediction)

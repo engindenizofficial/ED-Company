@@ -1930,6 +1930,23 @@ function PredictionCard({
 
   const modelCount = prediction.modelVotes?.length ?? 0
 
+  // AI modellerine prompt'ta gönderilen bahis oranları — şeffaflık için panelde
+  // de gösterilir. Eski (bu alan eklenmeden önce) cache'lenmiş tahminlerde
+  // `odds` olmayabilir, bu yüzden hepsi opsiyonel.
+  const oddsEntries: Array<{ key: "home" | "draw" | "away"; label: string; value: number | null }> = prediction.odds
+    ? [
+        { key: "home", label: t("analysis.predictionOddsHome", { team: homeName }), value: prediction.odds.home },
+        { key: "draw", label: t("analysis.predictionOddsDraw"), value: prediction.odds.draw },
+        { key: "away", label: t("analysis.predictionOddsAway", { team: awayName }), value: prediction.odds.away },
+      ]
+    : []
+  const validOdds = oddsEntries.filter(
+    (e): e is { key: "home" | "draw" | "away"; label: string; value: number } => e.value !== null,
+  )
+  const favoriteOdds = validOdds.length > 0 ? validOdds.reduce((a, b) => (a.value < b.value ? a : b)) : null
+  const favoriteTeamLabel =
+    favoriteOdds?.key === "home" ? homeName : favoriteOdds?.key === "away" ? awayName : t("analysis.draw")
+
   return (
     <>
     <div className="rounded-2xl border border-primary/25 bg-card overflow-hidden">
@@ -2004,6 +2021,38 @@ function PredictionCard({
             {prediction.overUnder === "over" ? t("analysis.predictionOverLabel") : t("analysis.predictionUnderLabel")}
           </span>
         </div>
+
+        {/* AI'ya verilen bahis oranları — modele gönderilen piyasa verisini şeffaf gösterir */}
+        {validOdds.length > 0 && (
+          <div className="flex flex-col gap-1.5 rounded-xl border border-border/50 bg-secondary/30 px-3 py-2.5">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              {t("analysis.predictionOddsTitle")}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {oddsEntries.map((entry) =>
+                entry.value === null ? null : (
+                  <span
+                    key={entry.key}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold",
+                      favoriteOdds?.key === entry.key
+                        ? "border-primary/30 bg-primary/10 text-primary"
+                        : "border-border/60 bg-card text-muted-foreground",
+                    )}
+                  >
+                    <span>{entry.label}</span>
+                    <span className="tabular-nums">{entry.value.toFixed(2)}</span>
+                  </span>
+                ),
+              )}
+            </div>
+            {favoriteOdds && (
+              <span className="text-[10px] text-muted-foreground/80">
+                {t("analysis.predictionOddsFavorite", { team: favoriteTeamLabel })}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Özet */}
         <p className="text-xs leading-relaxed text-muted-foreground">{prediction.summary}</p>

@@ -350,6 +350,8 @@ export interface MatchPrediction {
   homeName?: string
   /** Deplasman takım adı (başarı paneli karşılaştırması için) */
   awayName?: string
+  /** AI modellerine prompt'ta verilen bahis oranları — panelde şeffaflık için gösterilir */
+  odds?: { home: number | null; draw: number | null; away: number | null }
 }
 
 /** Bitmiş maç için tahmin-gerçek sonuç karşılaştırması */
