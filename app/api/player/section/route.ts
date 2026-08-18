@@ -52,8 +52,25 @@ async function fetchSeasonStats(playerId: number): Promise<PlayerSeasonStats[]> 
   // örn. son transfer olan kulüp) sessizce kaybolurdu. safeApiFootballFetch
   // başarısız bir sezon için boş dizi döndürür, böylece o sezon (varsa)
   // sonraki açılışta tekrar denenir ve diğer 19 sezonu etkilemez.
+  // ÖNEMLİ — burada BİLEREK `cache: "no-store"` KULLANILMIYOR. 20 sezon isteği
+  // Promise.all ile paralel atıldığından, tek bir sezonun geçici bir hataya
+  // (429/5xx/timeout) çarpıp tüm denemeleri tükettiği durumlarda
+  // safeApiFootballFetch o sezon için sessizce boş dizi döndürür. "no-store"
+  // ile bu boş sonuç asla önbelleğe alınmadığından, panel her açılışta (hatta
+  // aynı oturumda "Sezon İstatistikleri" ve "Kariyer Özeti" sekmeleri arasında
+  // geçişte) 20 isteği sıfırdan tekrar atıyordu — bu da her seferinde
+  // rastgele farklı bir sezonun (dolayısıyla o sezonun takım/gol/asist vb.
+  // toplamlarının) kaybolup görünmesine, yani panel kapatılıp yeniden
+  // açıldığında "Kariyer Özeti" toplamlarının değişmesine yol açıyordu.
+  // Aşağıda cache açık bırakılarak (apiFootballFetch içindeki 90s'lik
+  // responseCache) BAŞARILI bir sezon sonucu bir süre bellekte tutuluyor;
+  // böylece art arda aç/kapatmalarda ve sekme geçişlerinde aynı (tutarlı)
+  // sonuç sunuluyor, üstelik gereksiz tekrar istek de atılmıyor. Yalnızca
+  // başarısız/boş sonuçlar cache'lenmediği için veri kalıcı olarak
+  // kaybolmuyor — bir sonraki TTL sonrası istek başarılı olursa otomatik
+  // tamamlanıyor.
   const allSeasonRaw = await Promise.all(
-    seasons.map((s) => safeApiFootballFetch<any>("/players", { id: playerId, season: s }, { cache: "no-store" })),
+    seasons.map((s) => safeApiFootballFetch<any>("/players", { id: playerId, season: s })),
   )
 
   // Aynı sezon içindeki tüm turnuva/takım kayıtlarını (lig, kupa, Şampiyonlar
