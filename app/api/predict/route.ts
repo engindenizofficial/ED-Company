@@ -15,6 +15,7 @@ import {
 } from "@/lib/redis"
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
+import { getAdaptiveWeights, STATIC_WEIGHTS } from "@/lib/model-weights"
 import type { MatchPrediction, ModelVote } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -30,12 +31,6 @@ const ENSEMBLE_MODELS = [
   { provider: "google",  model: google("gemini-3.6-flash"),      label: "Gemini 3.6 Flash" },
   { provider: "xai",     model: xai("grok-4.5"),                 label: "Grok 4.5"       },
 ] as const
-
-const WEIGHTS: Record<string, number> = {
-  "openai":  2.0,
-  "google":  1.5,
-  "xai":     1.5,
-}
 
 const PredictionSchema = z.object({
   homeScore:  z.number().int().min(0).max(20).describe("Ev sahibi takımın tahmin edilen gol sayısı"),
@@ -341,7 +336,11 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   // Özet çağrısında kullanmak için ortak bağlamı sakla
   const contextPrompt = sharedContext
 
-  // 5. 3 modeli paralel çalıştır — her biri kendi rolüne ait prompt'u alır
+  // 5. Ağırlıkları geçmiş isabet oranına göre hesapla (statik WEIGHTS yerine).
+  // Yeterli çözümlenmiş tahmin yoksa statik varsayılana yakın kalır (cold start).
+  const adaptiveWeights = await getAdaptiveWeights()
+
+  // 6. 3 modeli paralel çalıştır — her biri kendi rolüne ait prompt'u alır
   const modelResults = await Promise.allSettled(
     ENSEMBLE_MODELS.map(async ({ provider, model, label }) => {
       const { object } = await generateObject({
@@ -349,7 +348,8 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
         schema: PredictionSchema,
         prompt: modelPrompts[provider] ?? contextPrompt,
       })
-      return { provider, label, weight: WEIGHTS[provider] ?? 1.0, object }
+      const weight = adaptiveWeights[provider]?.weight ?? STATIC_WEIGHTS[provider] ?? 1.0
+      return { provider, label, weight, object }
     }),
   )
 
@@ -362,14 +362,14 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     return NextResponse.json({ error: "Tüm AI modelleri başarısız oldu." }, { status: 502 })
   }
 
-  // 6. Ağırlıklı oylama
+  // 7. Ağırlıklı oylama
   const ensemble = weightedVote(successfulVotes.map((v) => ({ vote: v.vote, weight: v.weight })))
 
-  // 7. Anahtar faktörler — tüm modellerden birleştir
+  // 8. Anahtar faktörler — tüm modellerden birleştir
   const allFactors = successfulVotes.flatMap((v) => v.vote.keyFactors)
   const uniqueFactors = [...new Set(allFactors)].slice(0, 5)
 
-    // 8. GPT-5.6 Terra ile özet oluştur
+    // 9. GPT-5.6 Terra ile özet oluştur
   let summary = "Modeller tahminlerini tamamladı."
   try {
     const voteSummary = successfulVotes.map((v) => (
@@ -386,7 +386,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     // Özet oluşturulamazsa devam et
   }
 
-  // 9. ModelVote dizisi — model alanı "provider/model-id" formatında olmalı (UI etiket eşleşmesi için)
+  // 10. ModelVote dizisi — model alanı "provider/model-id" formatında olmalı (UI etiket eşleşmesi için)
   const PROVIDER_MODEL_ID: Record<string, string> = {
     openai: "openai/gpt-5.6-terra",
     google: "google/gemini-3.6-flash",
@@ -403,7 +403,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     keyFactors: v.vote.keyFactors,
   }))
 
-  // 10. Nihai tahmin — cache'e yaz
+  // 11. Nihai tahmin — cache'e yaz
   const prediction: MatchPrediction = {
     fixtureId,
     homeScore:   ensemble.homeScore,
