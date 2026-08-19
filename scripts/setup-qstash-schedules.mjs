@@ -22,7 +22,12 @@
 const QSTASH_TOKEN = process.env.QSTASH_TOKEN
 const CRON_SECRET = process.env.CRON_SECRET
 const BYPASS_SECRET = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-const SITE_URL = process.env.SITE_URL || "https://edcompanyofficial.com"
+// ÖNEMLİ — mutlaka "www." ile: apex domain (edcompanyofficial.com) www'ye
+// 308 redirect yapıyor ve bu redirect takip edildiğinde Authorization
+// header'ı düşüyor (401 Unauthorized). QStash redirect'i takip etmiyor,
+// yani apex domain'e kurulan bir schedule ASLA başarılı olamaz (ya 308 alır
+// ya da header'sız 401 alır). Bu yüzden schedule'lar doğrudan www'ye kurulu.
+const SITE_URL = process.env.SITE_URL || "https://www.edcompanyofficial.com"
 
 if (!QSTASH_TOKEN) {
   console.error("[qstash-setup] QSTASH_TOKEN tanımlı değil, çıkılıyor.")
