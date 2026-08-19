@@ -1,7 +1,7 @@
 import { desc, eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { playerPositionCronRun } from "@/lib/db/schema"
-import { runPlayerPositionBackfillBatch } from "@/lib/player-position-sync"
+import { countRemainingCandidates, runPlayerPositionBackfillBatch } from "@/lib/player-position-sync"
 
 // ---------------------------------------------------------------------------
 // 7.500+ oyuncunun Transfermarkt mevki verisini kademeli, arka planda dolduran
@@ -81,6 +81,17 @@ export async function GET(request: Request) {
     logId = activeRun.id
     await db.update(playerPositionCronRun).set({ heartbeatAt: new Date() }).where(eq(playerPositionCronRun.id, logId))
   } else {
+    // ÖNEMLİ — devam eden bir koşu yoksa, YENİ bir satır açmadan ÖNCE
+    // gerçekten işlenecek oyuncu kalıp kalmadığını kontrol ediyoruz. Bunu
+    // yapmazsak, dış zamanlayıcı (GitHub Actions) tüm oyuncular bittikten
+    // SONRA da her 5 dakikada bir bu route'u çağırmaya devam edeceği için,
+    // her çağrıda 0 oyuncu işleyen boş bir "completed" satır açılır — bu
+    // veritabanında sonsuza kadar gereksiz satır birikmesine yol açardı.
+    const remaining = await countRemainingCandidates()
+    if (remaining === 0) {
+      return Response.json({ done: true, processed: 0, matched: 0, remaining: 0 })
+    }
+
     const runStartedAt = new Date()
     logId = `player-position-run-${runStartedAt.getTime()}`
     await db.insert(playerPositionCronRun).values({ id: logId, runStartedAt, status: "running", heartbeatAt: runStartedAt })
