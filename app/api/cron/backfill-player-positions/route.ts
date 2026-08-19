@@ -3,7 +3,17 @@ import { desc, eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { playerPositionCronRun } from "@/lib/db/schema"
 import { runPlayerPositionBackfillBatch } from "@/lib/player-position-sync"
-import { fireChainStepWithoutAwaitingResponse } from "@/lib/market-value-cron-run"
+import { triggerChainContinuation } from "@/lib/market-value-cron-run"
+
+/**
+ * Bir sonraki adımın TAM yanıtını bekleyecek zaman aşımı — bu adımın
+ * worst-case süresinden (bkz. lib/player-position-sync.ts SOFT_TIME_BUDGET_MS
+ * = 70s + son adayın tam 3 tekrar denemesi ~45s ≈ 115s) belirgin şekilde
+ * fazla olmalı, aksi halde triggerChainContinuation kendi zaman aşımına
+ * uğrayıp isteği tekrar gönderir ve ilk istek arka planda hâlâ çalışırken
+ * paralel bir çoklanmaya yol açabilir (bkz. o fonksiyonun kendi açıklaması).
+ */
+const NEXT_STEP_TIMEOUT_MS = 150_000
 
 // ---------------------------------------------------------------------------
 // 7.526 oyuncunun Transfermarkt mevki verisini kademeli, arka planda dolduran
@@ -27,7 +37,7 @@ export const maxDuration = 300
 /**
  * Her adımda işlenecek EN FAZLA oyuncu sayısı — ama fiili sayı bundan çok
  * daha küçük olabilir, çünkü `runPlayerPositionBackfillBatch` kendi içinde
- * SOFT_TIME_BUDGET_MS (bkz. lib/player-position-sync.ts, 190s) bütçesini
+ * SOFT_TIME_BUDGET_MS (bkz. lib/player-position-sync.ts, artık 70s) bütçesini
  * aşınca kendi isteğiyle erken durur. Yani bu sayı sadece bir "tavan" —
  * gerçek batch büyüklüğünü zaman bütçesi belirler.
  *
@@ -48,11 +58,13 @@ export const maxDuration = 300
  *
  * Çözüm: batch boyutunu tavan olarak büyük tut (500) ama gerçek işi
  * SOFT_TIME_BUDGET_MS'e bırak — böylece her adım güvenli bir şekilde
- * mümkün olduğunca çok oyuncuyu (tipik olarak ~190s / ~1.2s ≈ 150+ oyuncu)
- * işler, zincirin tamamlanması için gereken self-fetch sayısı ~7700'den
- * ~50'ye düşer — bu da zincirin kırılma olasılığını aynı oranda azaltır.
- * self-fetch timeout'u da (aşağıda) bu daha uzun adımın gerçek worst-case
- * süresine göre ayarlandı.
+ * mümkün olduğunca çok oyuncuyu (tipik olarak ~70s / ~3.4s ≈ 20 oyuncu)
+ * işler. Bu, ~50 self-fetch'lik önceki (190s bütçeli) sürüme göre daha
+ * FAZLA self-fetch (~380) gerektirir, ama artık her biri triggerChain-
+ * Continuation'ın dayanıklı (tam yanıt bekleyen, 3 kez deneyen) deseniyle
+ * yapılıyor — tek bir adımın "ateşleme anında iz bırakmadan kesilmesi"
+ * riski ortadan kalktığı için daha fazla adım gerekmesi artık bir dezavantaj
+ * değil, kırılmaya karşı bilinçli bir ödünleşim.
  */
 const BATCH_SIZE = 500
 
@@ -63,19 +75,26 @@ function isAuthorized(request: Request): boolean {
   return header === `Bearer ${secret}`
 }
 
-// ÖNEMLİ — bu route ARTIK bir sonraki adımın TAM yanıtını beklemiyor
-// (fireChainStepWithoutAwaitingResponse, bkz. lib/market-value-cron-run.ts).
+// ÖNEMLİ — bu route ARTIK market-value zinciriyle AYNI dayanıklı deseni
+// (triggerChainContinuation — bir sonraki adımın TAM yanıtını bekleyen,
+// başarısız/zaman aşımına uğrayan denemeleri 3 kez tekrar eden) kullanıyor.
 //
-// ESKİDEN burada triggerChainContinuation (tam yanıtı 270s'ye kadar
-// bekleyen) kullanılıyordu. Ama bu route'un HER adımı SOFT_TIME_BUDGET_MS'e
-// kadar (190-237s) sürüp ancak sonra yanıt döndüğü için, bu bekleme
-// çağıranın KENDİ after() bloğunun — invocation'ın kendi maxDuration'ından
-// (300s) geriye kalan, genelde sadece ~60-100s'lik — bütçesine sıkışıyordu.
-// Bu süre bitmeden invocation sert şekilde öldürülürse, henüz tam
-// gönderilmemiş self-fetch isteği de yarıda kesiliyor, bir sonraki adım hiç
-// başlamıyor ve zincir sessizce kırılıyordu — admin panelinin sürekli
-// "Zincir kırıldı" göstermesinin ve elle "Şimdi Tara"ya tekrar tekrar
-// basılması gerekmesinin asıl kök nedeni buydu.
+// ESKİDEN burada fireChainStepWithoutAwaitingResponse (tam yanıtı
+// beklemeyen, sadece isteği "ateşleyip" hemen dönen) kullanılıyordu — çünkü
+// o zamanki SOFT_TIME_BUDGET_MS (190s) her adımı invocation'ın 300s'lik
+// payının BÜYÜK KISMINI tüketecek kadar uzatıyordu, after() bloğuna sadece
+// ~60-100s kalıyordu. İstek ağa TAM çıkmadan invocation sert şekilde
+// öldürülürse, bir sonraki adım hiç başlamıyor ve zincir hiçbir hata izi
+// bırakmadan kırılıyordu — admin panelinin sürekli "Zincir kırıldı"
+// göstermesinin ve elle "Şimdi Tara"ya tekrar tekrar basılması gerekmesinin
+// asıl kök nedeni buydu.
+//
+// SOFT_TIME_BUDGET_MS artık 70s'e düşürüldüğü için (bkz. lib/player-
+// position-sync.ts) her adımın worst-case süresi ~115s'ye iniyor — after()
+// bloğuna ~185s'lik bol bir pay kalıyor. Bu pay, triggerChainContinuation'ın
+// tam yanıtı NEXT_STEP_TIMEOUT_MS'e (150s) kadar güvenle beklemesine, 401/5xx
+// gibi hataları yeniden denemesine yetiyor — istek artık asla "ateşleme
+// anında" iz bırakmadan kesilmiyor.
 async function triggerNextStep(request: Request): Promise<void> {
   const headers: Record<string, string> = {}
   const secret = process.env.CRON_SECRET
@@ -83,7 +102,7 @@ async function triggerNextStep(request: Request): Promise<void> {
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  await fireChainStepWithoutAwaitingResponse(request.url, headers)
+  await triggerChainContinuation(request.url, headers, NEXT_STEP_TIMEOUT_MS)
 }
 
 export async function GET(request: Request) {

@@ -9,8 +9,16 @@ import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { playerPosition, playerPositionCronRun } from "@/lib/db/schema"
 import { countRemainingCandidates } from "@/lib/player-position-sync"
-import { fireChainStepWithoutAwaitingResponse } from "@/lib/market-value-cron-run"
+import { triggerChainContinuation } from "@/lib/market-value-cron-run"
 import { getSiteUrl } from "@/lib/site-url"
+
+/**
+ * Bir sonraki adımın TAM yanıtını bekleyecek zaman aşımı — route.ts'teki
+ * NEXT_STEP_TIMEOUT_MS ile AYNI değer (bkz. o dosyadaki açıklama): worst-case
+ * adım süresi ~115s (SOFT_TIME_BUDGET_MS 70s + son adayın tam 3 tekrar
+ * denemesi ~45s), bu yüzden 150s güvenli bir pay bırakıyor.
+ */
+const CHAIN_STEP_TIMEOUT_MS = 150_000
 
 // ---------------------------------------------------------------------------
 // Admin panelinde oyuncu mevki (Transfermarkt) backfill'inin durumunu
@@ -170,21 +178,23 @@ export async function triggerPlayerPositionScanNow(): Promise<{ triggered: boole
   // "http://localhost:3000"e düşüyordu.
   const url = `${getSiteUrl()}/api/cron/backfill-player-positions`
 
-  // Piyasa değeri action'larıyla AYNI desen — `after()` ile fire-and-forget.
-  // Bu callback, yanıt gönderildikten SONRA ama fonksiyon dondurulmadan ÖNCE
-  // çalıştırılması garanti edilir; action anında "tetiklendi" döner, gerçek
-  // backfill arka planda (route'un kendi 300s maxDuration'ı içinde) devam eder.
+  // Piyasa değeri action'larıyla AYNI desen — `after()` ile fire-and-forget,
+  // ama bu callback'in İÇİNDE artık route'un TAM yanıtını bekleyen, başarısız
+  // denemeleri tekrar eden triggerChainContinuation kullanılıyor (bkz. lib/
+  // market-value-cron-run.ts). `after()`, callback'i yanıt gönderildikten
+  // SONRA ama fonksiyon dondurulmadan ÖNCE çalıştırmayı garanti eder; action
+  // anında "tetiklendi" döner, gerçek backfill arka planda devam eder.
   //
-  // ÖNEMLİ — burada route'un TAM yanıtını bekleyen triggerChainContinuation
-  // YERİNE fireChainStepWithoutAwaitingResponse (bkz. lib/market-value-cron-
-  // run.ts) kullanılıyor. Bu route'un bir batch'i işlemesi 190-237 saniyeye
-  // kadar sürebiliyor; tam yanıtı beklemek bu action'ın kendi after()
-  // bloğunun bütçesine gereksiz yere bağımlı kalırdı. Route zaten kendi
-  // içinde bir sonraki adımı aynı dayanıklı fire-and-forget deseniyle
-  // tetikliyor (bkz. route.ts triggerNextStep) — burada da SADECE ilk
-  // adımı başlatmak için isteği gönderip hızlı bir hatayı (401 vb.)
-  // yakalayacak kısa bir pencere beklemek yeterli ve daha güvenli.
-  after(() => fireChainStepWithoutAwaitingResponse(url, headersInit))
+  // ÖNEMLİ GEÇMİŞ — burada ÖNCEDEN fireChainStepWithoutAwaitingResponse
+  // (tam yanıtı beklemeyen, sadece isteği "ateşleyip" hemen dönen)
+  // kullanılıyordu, çünkü route'un bir batch'i işlemesi eskiden (SOFT_TIME_
+  // BUDGET_MS=190s) 190-237 saniyeye kadar sürebiliyordu. SOFT_TIME_BUDGET_MS
+  // artık 70s'e düşürüldüğü için (bkz. lib/player-position-sync.ts) route'un
+  // worst-case süresi ~115s'ye indi — bu action'ın kendi after() bloğunun
+  // (bu Server Action'ın maxDuration'ı yoksa dahi) CHAIN_STEP_TIMEOUT_MS
+  // (150s) kadar güvenle bekleyebilmesine yetiyor. Bu sayede ilk tetikleme de
+  // artık route.ts'teki triggerNextStep ile AYNI dayanıklı deseni kullanıyor.
+  after(() => triggerChainContinuation(url, headersInit, CHAIN_STEP_TIMEOUT_MS))
 
   revalidatePath(REVIEW_PATH)
   return { triggered: true }

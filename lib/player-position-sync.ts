@@ -75,12 +75,27 @@ const REQUEST_DELAY_MS = 3000
  * satırını doğru sayılarla güncelleyip bir sonraki adımı tetikleyerek düzgün
  * bir şekilde geri döner.
  *
- * 190s seçildi (300s'nin belirgin altında): kontrol her adaydan ÖNCE
- * yapılıyor, bu yüzden bütçeyi az aşmış olsak bile son adayın kendisi
- * worst-case ~40-45s sürebilir (3 tekrar denemenin tamamı + backoff'lar) —
- * 190s + ~45s = ~235s, hâlâ 300s'nin belirgin altında kalır.
+ * ÖNEMLİ — bu değer ÖNCEDEN 190s'ydi. Bu, her adımın invocation'ın 300s'lik
+ * payının BÜYÜK KISMINI tüketmesine yol açıyordu (worst-case ~235s); bir
+ * sonraki adımı tetikleyen after() bloğuna sadece ~60-65s'lik bir pay
+ * kalıyordu. Bu pay, bir sonraki adımın TAM YANITINI bekleyen
+ * triggerChainContinuation'ı güvenle kullanmaya yetmiyordu — bu yüzden
+ * route.ts, tam yanıtı beklemeyen, daha dayanıksız fireChainStepWithout-
+ * AwaitingResponse'a mecbur kalıyordu (bkz. o fonksiyonun kendi açıklaması).
+ * İstek ağa tam çıkmadan invocation sert şekilde öldürülürse zincir hiçbir
+ * iz bırakmadan kırılıyordu — admin panelinin sürekli "Zincir kırıldı"
+ * göstermesinin kök nedeni buydu.
+ *
+ * Çözüm: bu bütçeyi 70s'e düşürdük. Worst-case toplam süre artık
+ * 70s + ~45s (son adayın tam 3 tekrar denemesi + backoff) = ~115s —
+ * invocation'ın 300s'lik payından after() bloğuna ~185s'lik bol bir pay
+ * kalır. Bu sayede route.ts artık market-value zinciriyle AYNI dayanıklı
+ * deseni (triggerChainContinuation — tam yanıtı bekleyen, 3 kez deneyen)
+ * kullanabiliyor; adım başına daha az oyuncu işlenir (batch başına ~20
+ * yerine ~54-57) ama zincir artık "ateşleme anında kesilip sessizce kırılma"
+ * riskine karşı korunmuş oluyor.
  */
-const SOFT_TIME_BUDGET_MS = 190_000
+const SOFT_TIME_BUDGET_MS = 70_000
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
