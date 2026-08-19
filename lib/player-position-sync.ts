@@ -26,19 +26,29 @@ import { profile } from "./player-positions"
  * Transfermarkt'a art arda çok hızlı istek atmamamak için oyuncular arası
  * bekleme.
  *
- * HESAP: 700ms'de "agresif" gidip sık sık 403/429'a çarpıp 1.5s/4s/10s'lik
- * backoff cezaları ödemek, sabit 1500ms'de "orta hızlı ama bloksuz" gitmekten
- * daha YAVAŞ çıkıyor — çünkü tek bir ceza (en ucuzu 1.5s), aradaki farkın
- * (1500-700=800ms) neredeyse 2 katı. Yani engellenme oranı yeterince yüksekse
- * (gözlemlenen davranış buydu), sabit orta hız toplamda daha hızlı biter.
+ * ÖNEMLİ — DÜRÜST UYARI: Transfermarkt'ın bot koruması bizim kontrolümüzde
+ * değil ve algoritması bilinmiyor (IP başına istek sıklığı, günün saati,
+ * paralel başka trafik vs. hepsi etkileyebilir). Bu yüzden "her oyuncu
+ * KESİN aynı sürede, hiç engel yemeden çekilecek" diye %100 garanti
+ * VERİLEMEZ — hiçbir gecikme değeri bunu matematiksel olarak garanti
+ * edemez. Aşağıdaki değer, engellenme riskini pratikte ihmal edilebilir
+ * seviyeye indirmeyi hedefleyen, ölçülü/temkinli bir seçim.
  *
- * Oyuncu başı beklenen süre: ~1.5s bekleme + ~0.3-0.5s fetch ≈ 1.8-2s
- * (bloksuz senaryoda). 200'lük batch + 190s'lik yumuşak bütçeyle batch başına
- * ~95-105 oyuncu işlenir. ~7600 kalan oyuncu için tahmini toplam süre:
- * 7600 × ~2s ≈ ~15200s ≈ ~4.2 saat (Transfermarkt'ın hâlâ ara sıra
- * bloklaması ihtimaline karşı bu bir alt sınır, üst sınır değil).
+ * HESAP: Önceki 700ms'lik "agresif" ayar sık sık 403/429'a çarpıp 1.5s/4s/
+ * 10s'lik cezalar ödüyordu (senin gözlemlediğin dalgalı 1s/5s davranış).
+ * 1500ms bir ara adımdı ama hâlâ ara sıra blok riski taşıyordu. Şimdi bunu
+ * 3000ms'e çıkarıyoruz — gerçek bir kullanıcının sayfa gezinme hızına daha
+ * yakın, bot tespitini tetikleme ihtimali çok daha düşük bir aralık.
+ *
+ * Oyuncu başı beklenen süre: ~3s bekleme + ~0.3-0.5s fetch ≈ 3.3-3.5s
+ * (bloksuz senaryoda, ki artık büyük ölçüde bu senaryo bekleniyor).
+ * 200'lük batch + 190s'lik yumuşak bütçeyle batch başına ~54-57 oyuncu
+ * işlenir. ~7600 kalan oyuncu için tahmini toplam süre:
+ * 7600 × ~3.4s ≈ ~25840s ≈ ~7.2 saat — öncekinden (1500ms) daha uzun ama
+ * artık ekstra retry cezası ödenme ihtimali çok düşük olduğu için bu süre
+ * DAHA ÖNGÖRÜLEBİLİR (dalgalanma neredeyse yok).
  */
-const REQUEST_DELAY_MS = 1500
+const REQUEST_DELAY_MS = 3000
 
 /**
  * Route'un maxDuration'ından (300s) daha erken, kendi isteğimizle güvenli bir
