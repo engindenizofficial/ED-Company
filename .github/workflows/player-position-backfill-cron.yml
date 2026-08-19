@@ -1,0 +1,36 @@
+name: Oyuncu Mevki Taramasını Tetikle
+
+# ---------------------------------------------------------------------------
+# app/api/cron/backfill-player-positions route'u self-chaining DEĞİLDİR:
+# her çağrıda tek bir batch (küçük bir oyuncu grubu) işleyip döner. Bunun
+# sebebi Vercel platformunun bir fonksiyonun kendini art arda çağırmasına
+# (self-fetch zinciri) sabit ~5 sıçrama sınırı koyması — daha uzun zincirler
+# "508 Loop Detected" hatasıyla kesiliyordu.
+#
+# Bu yüzden 7684 oyuncunun tamamının taranması için route'un dışarıdan
+# düzenli aralıklarla tekrar tekrar çağrılması gerekiyor. Vercel Cron,
+# Hobby planda günde sadece 1 çalışmaya izin verdiği için bu işi bu GitHub
+# Actions workflow'u üstleniyor.
+#
+# Her çağrı küçük bir batch işler ve hemen döner; zaten süren bir batch
+# varsa (veya tarama tamamlandıysa) route no-op döner, tekrar başlatmaz.
+#
+# Gerekli GitHub repo secret'ları (Settings > Secrets and variables > Actions):
+#   SITE_URL     -> örn. https://example.com (sondaki / olmadan)
+#   CRON_SECRET  -> projedeki CRON_SECRET env var ile AYNI değer
+# ---------------------------------------------------------------------------
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Oyuncu mevki taramasının bir sonraki batch'ini tetikle
+        run: |
+          curl -sS -f \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/cron/backfill-player-positions"
