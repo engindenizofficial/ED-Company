@@ -1,6 +1,6 @@
 import { db } from "./db"
 import { playerPower, playerPowerProcessedFixture, playerMarketValue } from "./db/schema"
-import { and, inArray, isNotNull, ne, sql } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm"
 import { getFixturesByDate, getFixturePlayerStats, currentSeason } from "./api-football"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
 import type { FixturePlayerStat, Fixture } from "./types"
@@ -185,6 +185,108 @@ export async function applyPerformances(
   }
 
   return playersUpdated
+}
+
+/**
+ * Admin'in "Oyuncu Güçlerini Sıfırla" butonu — mevcut TÜM `player_power`
+ * satırlarını SİLMEZ, tüm güç alanlarını (marketPower/basePower/
+ * currentPower/formModifier/seasonRatingSum/seasonRatingCount/recentMatches)
+ * literal 0'a çeker. Satırları silmek YERİNE üstüne yazmayı seçtik çünkü
+ * okuma tarafı (app/api/games/manager-career/players/search/route.ts)
+ * `currentPower ?? computeLivePowerFromMarketValue(...)` deseni kullanıyor —
+ * `??` sadece null/undefined'da fallback'e düşer, 0 DÜŞMEZ. Yani satır
+ * silinseydi arama ekranı piyasa değerinden anlık hesaplanan bir güç
+ * gösterirdi, admin'in istediği "hepsi 0 görünsün" davranışı SİLİNEREK
+ * elde edilemez, sadece 0'a güncellenerek elde edilir.
+ *
+ * `player_power_processed_fixture` kaydına DOKUNMAZ — bu sadece "bu fixture
+ * zaten işlendi" işaretidir, sıfırlamayla ilgisizdir ve silinirse günlük
+ * cron aynı maçları tekrar tekrar işlemeye çalışır.
+ */
+export async function resetAllPlayerPowerData(): Promise<{ resetCount: number }> {
+  const now = new Date()
+  const updated = await db
+    .update(playerPower)
+    .set({
+      marketPower: 0,
+      seasonRatingSum: "0",
+      seasonRatingCount: 0,
+      basePower: 0,
+      formModifier: 0,
+      currentPower: 0,
+      recentMatches: [],
+      lastFormUpdateAt: now,
+      updatedAt: now,
+    })
+    .returning({ id: playerPower.id })
+
+  return { resetCount: updated.length }
+}
+
+/**
+ * Admin'in "Yeniden Hesapla" butonu — mevcut TÜM `player_power` satırlarının
+ * marketPower/basePower/currentPower'ını, GÜNCEL piyasa değeri
+ * (player_market_value) ve o satırda halihazırda biriken seasonRatingSum/
+ * Count kullanılarak baştan hesaplar ve DOĞRUDAN ÜSTÜNE YAZAR (örn. 90 -> 91).
+ * Sıfırlanmış (hepsi 0) bir satırda seasonRatingCount de 0 olduğu için bu
+ * satırlar için sonuç doğal olarak sadece marketPower'a eşit çıkar — yani bu
+ * fonksiyon "Sıfırla"dan önce veya sonra çalıştırılsa da fark etmeden aynı
+ * mantıkla üstüne yazar.
+ *
+ * ÖNEMLİ: bu, tam-sezon backfill'den (lib/player-power-backfill.ts) FARKLI
+ * bir işlemdir — backfill API-Football'dan YENİ fixture istatistikleri çeker
+ * (yavaş, zincirleme); bu fonksiyon ise SADECE zaten DB'de olan veriden
+ * (piyasa değeri + birikmiş rating) mevcut formülle yeniden hesaplar (hızlı,
+ * tek seferde biter, dış API çağrısı yapmaz) — bkz. scripts/recompute-
+ * player-power.mjs (aynı mantığın tek seferlik CLI script hali).
+ */
+export async function recomputeAllPlayerPowerData(): Promise<{ updated: number }> {
+  const rows = await db
+    .select({
+      playerId: playerPower.playerId,
+      seasonRatingSum: playerPower.seasonRatingSum,
+      seasonRatingCount: playerPower.seasonRatingCount,
+      valueEur: playerMarketValue.valueEur,
+    })
+    .from(playerPower)
+    .leftJoin(playerMarketValue, eq(playerMarketValue.playerId, playerPower.playerId))
+
+  if (rows.length === 0) return { updated: 0 }
+
+  // Tek tek await edilen 2500+ UPDATE round-trip'i yerine, her parçada tek bir
+  // SQL sorgusuyla (VALUES listesi + UPDATE...FROM) toplu güncelleme yapılır —
+  // hem çok daha hızlı hem de bir server action'ın zaman bütçesini zorlamaz.
+  const CHUNK_SIZE = 500
+  let updated = 0
+
+  for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + CHUNK_SIZE)
+    const valueTuples = chunk.map((r) => {
+      const valueEur = r.valueEur !== null ? Number(r.valueEur) : null
+      const seasonRatingSum = Number(r.seasonRatingSum)
+      const seasonRatingCount = r.seasonRatingCount
+      const marketPower = marketPowerFromValue(valueEur)
+      const basePower = computeBasePower({ valueEur, seasonRatingSum, seasonRatingCount })
+      const currentPower = computeCurrentPower(basePower)
+      return sql`(${r.playerId}, ${marketPower}, ${basePower}, ${currentPower})`
+    })
+
+    await db.execute(sql`
+      update player_power as pp
+      set
+        "marketPower" = v.market_power::int,
+        "basePower" = v.base_power::int,
+        "currentPower" = v.current_power::int,
+        "formModifier" = 0,
+        "updatedAt" = now()
+      from (values ${sql.join(valueTuples, sql`, `)}) as v(player_id, market_power, base_power, current_power)
+      where pp."playerId" = v.player_id::int
+    `)
+
+    updated += chunk.length
+  }
+
+  return { updated }
 }
 
 /**

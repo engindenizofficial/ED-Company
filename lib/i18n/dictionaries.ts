@@ -761,6 +761,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       pageTitle: "Piyasa Değeri Kontrol�� — ED Company",
       sectionMarketValue: "Piyasa Değeri Taraması",
       sectionPlayerPositions: "Oyuncu Mevki Taraması",
+      sectionPlayerPower: "Oyuncu Güç Motoru",
       cron: {
         heading: "Piyasa değeri senkron durumu",
         scanNow: "Şimdi Tara",
@@ -827,6 +828,24 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         cancel: "Vazgeç",
         confirmDelete: "Evet, tümünü sil",
         deleteFailedDefault: "Silme işlemi başarısız oldu.",
+      },
+      playerPowerMaintenance: {
+        heading: "Oyuncu Güç Motoru Bakımı",
+        description:
+          "Oyuncu güçlerini (piyasa değeri + sezon rating karışımı) sıfırlayın veya güncel verilerle yeniden hesaplayın. Hiçbiri dış API'ye gitmez, ikisi de anında biter.",
+        recompute: "Yeniden Hesapla",
+        recomputeDescription: "Tüm oyuncuların gücünü güncel piyasa değeri ve biriken sezon rating'inden yeniden hesaplayıp üstüne yazar (örn. 90 → 91). Silmeden de çalıştırılabilir.",
+        recomputeTriggered: "{{count}} oyuncunun gücü yeniden hesaplandı.",
+        recomputeFailedDefault: "Yeniden hesaplama başarısız oldu.",
+        resetAll: "Güçleri Sıfırla",
+        resetDescription: "Tüm oyuncuların gücünü (piyasa değeri, sezon rating birikimi dahil) 0'a çeker. Satırları silmez, sadece üstüne 0 yazar.",
+        confirmTitle: "Tüm oyuncu güçleri 0'a çekilsin mi?",
+        confirmDescription:
+          "Bu işlem tüm oyuncuların marketPower/basePower/currentPower ve biriken sezon rating verisini 0'a çeker. Piyasa değeri eşleşmelerine (player_market_value) dokunmaz. \"Yeniden Hesapla\" ile tekrar hesaplanabilir.",
+        cancel: "Vazgeç",
+        confirmReset: "Evet, sıfırla",
+        resetTriggered: "{{count}} oyuncunun gücü sıfırlandı.",
+        resetFailedDefault: "Sıfırlama işlemi başarısız oldu.",
       },
       review: {
         statusPending: "Bekleyen",
