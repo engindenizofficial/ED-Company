@@ -86,16 +86,26 @@ const REQUEST_DELAY_MS = 3000
  * iz bırakmadan kırılıyordu — admin panelinin sürekli "Zincir kırıldı"
  * göstermesinin kök nedeni buydu.
  *
- * Çözüm: bu bütçeyi 70s'e düşürdük. Worst-case toplam süre artık
- * 70s + ~45s (son adayın tam 3 tekrar denemesi + backoff) = ~115s —
- * invocation'ın 300s'lik payından after() bloğuna ~185s'lik bol bir pay
- * kalır. Bu sayede route.ts artık market-value zinciriyle AYNI dayanıklı
- * deseni (triggerChainContinuation — tam yanıtı bekleyen, 3 kez deneyen)
- * kullanabiliyor; adım başına daha az oyuncu işlenir (batch başına ~20
- * yerine ~54-57) ama zincir artık "ateşleme anında kesilip sessizce kırılma"
- * riskine karşı korunmuş oluyor.
+ * SON DURUM — route artık kendi kendini HİÇ tetiklemiyor (self-fetch chain
+ * kaldırıldı, bkz. app/api/cron/backfill-player-positions/route.ts başındaki
+ * açıklama — Vercel'in 5-sıçrama limiti self-fetch zincirlemeyi yapısal
+ * olarak imkansız kılıyordu). Devamını dışarıdan bir zamanlayıcı (GitHub
+ * Actions / cron-job.org) periyodik çağrılarla sağlıyor.
+ *
+ * Bu değişiklik sayesinde bu bütçeyi bir sonraki adımı tetiklemek için pay
+ * bırakma zorunluluğu olmadan, invocation'ın 300s'lik sert sınırına GÜVENLE
+ * yaklaştırabiliriz — tek kısıtlama, son adayın worst-case süresi (tam 3
+ * tekrar denemesi + backoff ≈ 45s) için pay bırakmak. 250s + ~45s = ~295s,
+ * 300s'nin hemen altında güvenli bir payla kalır.
+ *
+ * 250s'lik bütçeyle, çağrı başına ~250s / ~3.4s ≈ 73 oyuncu işlenir. GitHub
+ * Actions'ın minimum zamanlama aralığı 5 dakika olduğundan (ayrıca yoğun
+ * saatlerde birkaç dakika gecikebilir), her 5 dakikada bir ~73 oyuncu ≈
+ * dakikada ~14.6 oyuncu işlenir — eski 70s/1dk kombinasyonundan (dakikada
+ * ~20 oyuncu) biraz daha yavaş ama zamanlayıcı çok daha basit/güvenilir
+ * (GitHub'ın kendi altyapısı, üçüncü taraf hesabı gerektirmiyor).
  */
-const SOFT_TIME_BUDGET_MS = 70_000
+const SOFT_TIME_BUDGET_MS = 250_000
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -176,9 +186,9 @@ export async function runPlayerPositionBackfillBatch(batchSize: number): Promise
   let matched = 0
 
   for (const candidate of candidates) {
-    // Zaman bütçesini aştıysak burada dur — kalan adaylar bir sonraki
-    // (kendi kendini tetikleyen) adımda işlenecek. Fonksiyonun platformun
-    // sert zaman aşımı tarafından ortadan kesilmesini önler.
+    // Zaman bütçesini aştıysak burada dur — kalan adaylar dışarıdan gelecek
+    // bir sonraki çağrıda işlenecek. Fonksiyonun platformun sert zaman
+    // aşımı (maxDuration) tarafından ortadan kesilmesini önler.
     if (Date.now() - startedAt > SOFT_TIME_BUDGET_MS) break
 
     if (processed > 0) await sleep(REQUEST_DELAY_MS)
