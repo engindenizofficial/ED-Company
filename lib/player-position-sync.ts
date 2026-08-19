@@ -48,8 +48,9 @@ import { profile } from "./player-positions"
  *     korumasıyla değil, platformun zincir limitiyle ilgiliydi. Yani
  *     1500-3000ms aralığındaki veriler GÜVENİLİR DEĞİL; tek temiz kanıt
  *     700ms'in kötü olduğu.
- *   - Self-fetch zinciri artık tamamen kaldırıldığı için (dış zamanlayıcı
- *     tetikliyor, bkz. route.ts) bu karışıklık ortadan kalktı. Kanıtlanmış
+ *   - Self-fetch zinciri artık tamamen kaldırıldığı için (admin panelindeki
+ *     "Şimdi Tara" butonu tarayıcıdan tetikliyor, bkz. route.ts) bu karışıklık
+ *     ortadan kalktı. Kanıtlanmış
  *     tek kötü nokta olan 700ms'in üzerine güvenli bir pay bırakarak
  *     1200ms'e düşürüldü (700ms'in ~1.7 katı) — 3000ms'e çıkmanın gerçekten
  *     gerekli olduğuna dair sağlam kanıt yoktu.
@@ -99,8 +100,11 @@ const REQUEST_DELAY_MS = 1200
  * SON DURUM — route artık kendi kendini HİÇ tetiklemiyor (self-fetch chain
  * kaldırıldı, bkz. app/api/cron/backfill-player-positions/route.ts başındaki
  * açıklama — Vercel'in 5-sıçrama limiti self-fetch zincirlemeyi yapısal
- * olarak imkansız kılıyordu). Devamını dışarıdan bir zamanlayıcı (GitHub
- * Actions / cron-job.org) periyodik çağrılarla sağlıyor.
+ * olarak imkansız kılıyordu). Devamını, otomatik bir zamanlayıcı DEĞİL,
+ * admin panelindeki "Şimdi Tara" butonu sağlıyor — admin butona bastığı
+ * sürece TARAYICI bu route'u art arda çağırır (bkz. components/player-
+ * position-cron-status.tsx); admin sekmeyi kapatınca veya "Durdur"a basınca
+ * hiçbir şey arka planda çalışmaya devam etmez.
  *
  * Bu değişiklik sayesinde bu bütçeyi bir sonraki adımı tetiklemek için pay
  * bırakma zorunluluğu olmadan, invocation'ın 300s'lik sert sınırına GÜVENLE
@@ -108,12 +112,10 @@ const REQUEST_DELAY_MS = 1200
  * tekrar denemesi + backoff ≈ 45s) için pay bırakmak. 250s + ~45s = ~295s,
  * 300s'nin hemen altında güvenli bir payla kalır.
  *
- * 250s'lik bütçeyle, çağrı başına ~250s / ~3.4s ≈ 73 oyuncu işlenir. GitHub
- * Actions'ın minimum zamanlama aralığı 5 dakika olduğundan (ayrıca yoğun
- * saatlerde birkaç dakika gecikebilir), her 5 dakikada bir ~73 oyuncu ≈
- * dakikada ~14.6 oyuncu işlenir — eski 70s/1dk kombinasyonundan (dakikada
- * ~20 oyuncu) biraz daha yavaş ama zamanlayıcı çok daha basit/güvenilir
- * (GitHub'ın kendi altyapısı, üçüncü taraf hesabı gerektirmiyor).
+ * 250s'lik bütçeyle, çağrı başına ~250s / ~1.6s ≈ 155 oyuncu işlenir.
+ * Tarayıcı bir sonraki çağrıyı öncekinin yanıtı geldiği an gönderdiği için
+ * (ara boşluk yok), admin "Şimdi Tara"ya bastığı sürece ilerleme hızı ≈ 155
+ * oyuncu / ~250s ≈ dakikada ~37 oyuncu olur.
  */
 const SOFT_TIME_BUDGET_MS = 250_000
 

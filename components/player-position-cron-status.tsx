@@ -1,58 +1,66 @@
 "use client"
 
-import { useEffect, useRef, useState, useTransition } from "react"
-import { AlertTriangle, CheckCircle2, Loader2, PlayCircle } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { AlertTriangle, CheckCircle2, Loader2, PlayCircle, StopCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useLanguage } from "@/contexts/language-context"
-import {
-  getPlayerPositionCronStatus,
-  triggerPlayerPositionScanNow,
-  type PlayerPositionCronStatus,
-} from "@/app/actions/player-position-cron"
-
-// Piyasa değeri kartındaki (market-value-cron-status.tsx) AYNI polling
-// deseni: "Şimdi Tara"ya bastıktan sonra arka planda backfill gerçekten
-// ilerlese bile, admin manuel tam sayfa yenilemesi yapmadan kartta hiçbir
-// şey değişmez. Bu yüzden tetikleme sonrası veya zaten "running" bir batch
-// varken durumu periyodik olarak sunucudan tazeliyoruz.
-const POLL_INTERVAL_MS = 4000
+import { getPlayerPositionCronStatus, type PlayerPositionCronStatus } from "@/app/actions/player-position-cron"
 
 // ---------------------------------------------------------------------------
 // Oyuncu mevki (Transfermarkt "Main position"/"Other position") backfill'inin
 // (bkz. app/api/cron/backfill-player-positions, lib/player-position-sync.ts)
-// durumunu gösterir. Bu route'a HİÇBİR zamanlanmış (vercel.json) tetikleme
-// tanımlı değil — SADECE bu karttaki "Şimdi Tara" butonuyla (veya route'a
-// manuel bir istekle) başlar.
+// durumunu gösterir VE tetikler.
+//
+// ÖNEMLİ MİMARİ — bu route'a HİÇBİR otomatik/zamanlanmış tetikleyici YOK
+// (önceden bir GitHub Actions cron'u vardı, ama admin bunu istemedi — tarama
+// SADECE admin "Şimdi Tara"ya bastığında çalışsın istedi, kendiliğinden
+// sürekli arka planda dönmesin). Bu yüzden o workflow tamamen kaldırıldı.
+//
+// Bunun yerine "Şimdi Tara" butonu, TARAYICIDAN doğrudan app/api/cron/
+// backfill-player-positions route'una fetch atar (aynı origin, admin oturum
+// çerezi otomatik dahil olur — route artık bu çerezi kabul ediyor, CRON_
+// SECRET'i istemciye göndermemize gerek yok). Bu route her çağrıda tek bir
+// batch (~250s, ~150-165 oyuncu) işleyip döner; batch bitmeden taramanın
+// tamamı bitmiyorsa, bu bileşen SEKME AÇIK OLDUĞU SÜRECE otomatik olarak bir
+// sonraki batch'i tetikler (basit bir client-side döngü) — admin "Durdur"a
+// basarsa veya sekmeyi kapatırsa döngü hemen durur, hiçbir şey arka planda
+// devam etmez. Yani sistem tamamen admin'in kontrolünde.
 // ---------------------------------------------------------------------------
+
+const BATCH_ENDPOINT = "/api/cron/backfill-player-positions"
+
+interface BatchResult {
+  done: boolean
+  processed: number
+  matched: number
+  remaining: number
+}
 
 export function PlayerPositionCronStatus({ initialStatus }: { initialStatus: PlayerPositionCronStatus }) {
   const { locale, t } = useLanguage()
   const [status, setStatus] = useState(initialStatus)
-  const [isScanning, startScanTransition] = useTransition()
+  const [isScanning, setIsScanning] = useState(false)
+  const [stopRequested, setStopRequested] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
-  const statusRef = useRef(status)
-  statusRef.current = status
+  // `continueRef` — döngünün "devam et" bayrağı. State DEĞİL bilerek ref:
+  // döngü içindeki `while` koşulu her iterasyonda anlık son değeri okumalı,
+  // bir React render'ının tamamlanmasını beklememeli.
+  const continueRef = useRef(false)
+  const mountedRef = useRef(true)
 
   useEffect(() => {
-    const shouldPoll = () => isScanning || statusRef.current.status === "running"
-
-    if (!shouldPoll()) return
-
-    const interval = setInterval(async () => {
-      if (!shouldPoll()) return
-      try {
-        const fresh = await getPlayerPositionCronStatus()
-        setStatus(fresh)
-      } catch (err) {
-        console.error("[v0] Mevki durumu tazelenemedi:", err)
-      }
-    }, POLL_INTERVAL_MS)
-
-    return () => clearInterval(interval)
-  }, [isScanning, status.status])
+    mountedRef.current = true
+    return () => {
+      // Bileşen unmount olursa (admin başka bir sayfaya geçerse) döngü bir
+      // sonraki iterasyonun başında kendini durdurur — hiçbir şey admin
+      // ayrıldıktan sonra da çalışmaya devam etmez.
+      mountedRef.current = false
+      continueRef.current = false
+    }
+  }, [])
 
   function formatDateTime(iso: string): string {
     return new Date(iso).toLocaleString(locale === "tr" ? "tr-TR" : "en-US", {
@@ -61,38 +69,60 @@ export function PlayerPositionCronStatus({ initialStatus }: { initialStatus: Pla
     })
   }
 
-  const isBroken = status.hasRun && status.status === "running" && status.isStale
-  const isHealthyRunning = status.hasRun && status.status === "running" && !status.isStale
+  const isBroken = status.hasRun && status.status === "running" && status.isStale && !isScanning
+  const isHealthyRunning = status.hasRun && status.status === "running" && !status.isStale && !isScanning
 
-  const REASON_KEYS: Record<string, string> = {
-    scanAlreadyRunning: "admin.playerPositionCron.reasonScanAlreadyRunning",
-    noRemainingCandidates: "admin.playerPositionCron.reasonNoRemainingCandidates",
-  }
-
-  function translateReason(reason: string | undefined, fallbackKey: string): string {
-    if (reason && REASON_KEYS[reason]) return t(REASON_KEYS[reason])
-    return t(fallbackKey)
-  }
-
-  function handleScanNow() {
+  async function runScanLoop() {
+    continueRef.current = true
+    setIsScanning(true)
+    setStopRequested(false)
     setMessage(null)
-    startScanTransition(async () => {
-      try {
-        const result = await triggerPlayerPositionScanNow()
-        if (result.triggered) {
-          setMessage(t("admin.playerPositionCron.scanTriggered"))
-          setTimeout(() => {
-            getPlayerPositionCronStatus().then(setStatus).catch(() => {})
-          }, 1500)
-        } else {
-          setMessage(translateReason(result.reason, "admin.playerPositionCron.scanFailedDefault"))
+
+    try {
+      while (continueRef.current) {
+        const response = await fetch(BATCH_ENDPOINT, { cache: "no-store" })
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => null)
+          const detail = body && typeof body.error === "string" ? body.error : `HTTP ${response.status}`
+          throw new Error(detail)
         }
-      } catch (err) {
-        console.error("[v0] Mevki tarama isteği başarısız:", err)
+
+        const result = (await response.json()) as BatchResult
+
+        if (mountedRef.current) {
+          const fresh = await getPlayerPositionCronStatus()
+          if (mountedRef.current) setStatus(fresh)
+        }
+
+        if (result.done || !continueRef.current) break
+      }
+    } catch (err) {
+      console.error("[v0] Mevki tarama isteği başarısız:", err)
+      if (mountedRef.current) {
         const detail = err instanceof Error ? err.message : String(err)
         setMessage(`${t("admin.playerPositionCron.scanFailedDefault")} (${detail})`)
       }
-    })
+    } finally {
+      continueRef.current = false
+      if (mountedRef.current) {
+        setIsScanning(false)
+        setStopRequested(false)
+      }
+    }
+  }
+
+  function handleScanNow() {
+    if (isScanning || status.isDone) return
+    runScanLoop()
+  }
+
+  function handleStop() {
+    // Devam eden tek bir batch isteği zaten tarayıcıdan gitmiş durumda —
+    // onu iptal etmiyoruz (kendi hâlinde bitip veriyi kaydetsin), sadece bu
+    // batch bitince YENİ bir batch başlatılmasını önlüyoruz.
+    continueRef.current = false
+    setStopRequested(true)
   }
 
   return (
@@ -101,27 +131,34 @@ export function PlayerPositionCronStatus({ initialStatus }: { initialStatus: Pla
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           {isBroken ? (
             <AlertTriangle className="size-4 text-destructive" />
-          ) : isHealthyRunning ? (
+          ) : isScanning || isHealthyRunning ? (
             <Loader2 className="size-4 animate-spin text-muted-foreground" />
           ) : (
             <CheckCircle2 className="size-4 text-muted-foreground" />
           )}
           {t("admin.playerPositionCron.heading")}
         </CardTitle>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={isScanning || isHealthyRunning || status.isDone}
-          onClick={handleScanNow}
-          className="shrink-0"
-        >
-          {isScanning ? (
-            <Loader2 className="animate-spin" data-icon="inline-start" />
-          ) : (
+        {isScanning ? (
+          <Button size="sm" variant="destructive" disabled={stopRequested} onClick={handleStop} className="shrink-0">
+            {stopRequested ? (
+              <Loader2 className="animate-spin" data-icon="inline-start" />
+            ) : (
+              <StopCircle data-icon="inline-start" />
+            )}
+            {stopRequested ? t("admin.playerPositionCron.stopping") : t("admin.playerPositionCron.stopScan")}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isHealthyRunning || status.isDone}
+            onClick={handleScanNow}
+            className="shrink-0"
+          >
             <PlayCircle data-icon="inline-start" />
-          )}
-          {t("admin.playerPositionCron.scanNow")}
-        </Button>
+            {t("admin.playerPositionCron.scanNow")}
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {!status.hasRun ? (
@@ -136,7 +173,7 @@ export function PlayerPositionCronStatus({ initialStatus }: { initialStatus: Pla
                   ? t("admin.playerPositionCron.statusDone")
                   : isBroken
                     ? t("admin.playerPositionCron.statusBroken")
-                    : status.status === "running"
+                    : isScanning || status.status === "running"
                       ? t("admin.playerPositionCron.statusRunning")
                       : t("admin.playerPositionCron.statusIdle")}
               </Badge>
@@ -146,7 +183,7 @@ export function PlayerPositionCronStatus({ initialStatus }: { initialStatus: Pla
             </div>
 
             <p className="text-xs text-muted-foreground">
-              {isHealthyRunning
+              {isScanning
                 ? t("admin.playerPositionCron.currentlyProcessing", {
                     date: status.runStartedAt ? formatDateTime(status.runStartedAt) : "—",
                   })
