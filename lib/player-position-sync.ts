@@ -34,26 +34,36 @@ import { profile } from "./player-positions"
  * edemez.
  *
  * DENEY NOTU (kullanıcı isteğiyle, deneye deneye buluyoruz):
- *   - 700ms  → sık sık 403/429 (blok çok sık).
- *   - 1500ms → denendi, yine yavaşlama gözlemlendi (blok azalmadı/yeterince
- *     azalmadı). Demek ki 700→1500 farkı, Transfermarkt'ın eşiğinin altına
- *     inmeye yetmedi.
- *   - 2000ms → denendi. ~50 oyuncu sorunsuz gitti (öncekilere göre en uzun
- *     kesintisiz seri), sonra yine yavaşladı. Eşiğe önceki denemelerden daha
- *     yakın olduğumuzu gösteriyor ama hâlâ tam altında değiliz.
- *   - 2500ms → denendi, iyi gitti ama net sonuç belirsizdi.
- *   - 3000ms → şimdi deneniyor (kullanıcı tahmini: eşik burada olabilir).
+ *   - 700ms  → sık sık 403/429 (blok çok sık). Bu, HTTP 403/429 olarak
+ *     Transfermarkt'tan gelen GERÇEK, temiz bir sinyal — 508 hatasıyla
+ *     alakasız, tamamen güvenilir.
+ *   - 1500ms / 2000ms / 2500ms / 3000ms → bu denemeler sırasında gözlenen
+ *     "yavaşlama" YANLIŞ TEŞHİS EDİLMİŞ olabilir: o dönemde route hâlâ
+ *     kendi kendini self-fetch ile zincirliyordu ve Vercel'in 5-sıçrama
+ *     limiti her koşuyu sabit bir ~190s'lik adımda "HTTP 508 Loop
+ *     Detected" ile kesiyordu (bkz. route.ts'in başındaki açıklama).
+ *     Gecikme arttıkça bu sabit zaman diliminde daha az oyuncu işlendiği
+ *     için, "gecikmeyi artırınca engel erken/geç geldi" gibi bir korelasyon
+ *     izlenimi oluşmuş olabilir — ama bu aslında Transfermarkt'ın bot
+ *     korumasıyla değil, platformun zincir limitiyle ilgiliydi. Yani
+ *     1500-3000ms aralığındaki veriler GÜVENİLİR DEĞİL; tek temiz kanıt
+ *     700ms'in kötü olduğu.
+ *   - Self-fetch zinciri artık tamamen kaldırıldığı için (dış zamanlayıcı
+ *     tetikliyor, bkz. route.ts) bu karışıklık ortadan kalktı. Kanıtlanmış
+ *     tek kötü nokta olan 700ms'in üzerine güvenli bir pay bırakarak
+ *     1200ms'e düşürüldü (700ms'in ~1.7 katı) — 3000ms'e çıkmanın gerçekten
+ *     gerekli olduğuna dair sağlam kanıt yoktu.
  *   İzleme: admin panelindeki "Oyuncu Mevki Taraması" durumu (playersProcessed
- *   hızı, tekrar tekrar 1 oyuncunun birden çok saniyeye yayılması).
+ *   hızı, lastError alanında 403/429 tekrar görünüyor mu). 403/429 tekrar
+ *   görünürse bu değeri tekrar yükselt; hiç görünmezse daha da düşürülebilir.
  *
- * Oyuncu başı beklenen süre: ~3s bekleme + ~0.3-0.5s fetch ≈ 3.3-3.5s
- * (bloksuz senaryoda) — yani her oyuncu tek başına ~3.3-3.5 saniyede çekilir.
- * 200'lük batch + 190s'lik yumuşak bütçeyle batch başına ~54-57 oyuncu
- * işlenir. ~7600 kalan oyuncu için tahmini TOPLAM süre (bloksuz varsayımla):
- * 7600 × ~3.4s ≈ ~25840s ≈ ~7.2 saat — bu bir ALT SINIR; blok hâlâ oluyorsa
- * gerçek süre bunun üstüne çıkar.
+ * Oyuncu başı beklenen süre: ~1.2s bekleme + ~0.3-0.5s fetch ≈ 1.5-1.7s
+ * (bloksuz senaryoda). 250s'lik yumuşak bütçeyle batch başına ~145-165
+ * oyuncu işlenir. ~7600 kalan oyuncu için tahmini TOPLAM süre (bloksuz
+ * varsayımla): 7600 × ~1.6s ≈ ~12160s ≈ ~3.4 saat — bu bir ALT SINIR; engel
+ * oluşursa gerçek süre bunun üstüne çıkar.
  */
-const REQUEST_DELAY_MS = 3000
+const REQUEST_DELAY_MS = 1200
 
 /**
  * Route'un maxDuration'ından (300s) daha erken, kendi isteğimizle güvenli bir

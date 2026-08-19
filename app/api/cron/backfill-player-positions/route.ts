@@ -42,12 +42,12 @@ export const maxDuration = 300
 /**
  * Her çağrıda işlenecek EN FAZLA oyuncu sayısı — ama fiili sayı bundan çok
  * daha küçük olabilir, çünkü `runPlayerPositionBackfillBatch` kendi içinde
- * SOFT_TIME_BUDGET_MS (bkz. lib/player-position-sync.ts, 70s) bütçesini
- * aşınca kendi isteğiyle erken durur (tipik olarak ~70s / ~3.4s ≈ 20 oyuncu).
- * Bu sayı sadece bir "tavan" — gerçek batch büyüklüğünü zaman bütçesi
- * belirler. Dış zamanlayıcı bu route'u kaç dakikada bir çağırırsa, toplam
- * ilerleme hızı da o kadar olur (örn. 1 dakikada bir çağrı × ~20 oyuncu/çağrı
- * ≈ dakikada ~20 oyuncu).
+ * SOFT_TIME_BUDGET_MS (bkz. lib/player-position-sync.ts, 250s) bütçesini
+ * aşınca kendi isteğiyle erken durur (tipik olarak ~250s / ~1.6s ≈ 155
+ * oyuncu). Bu sayı sadece bir "tavan" — gerçek batch büyüklüğünü zaman
+ * bütçesi belirler. Dış zamanlayıcı (GitHub Actions, 5 dakikada bir) bu
+ * route'u çağırdığında toplam ilerleme hızı ≈ 155 oyuncu / 5 dk ≈ dakikada
+ * ~31 oyuncu olur.
  */
 const BATCH_SIZE = 500
 

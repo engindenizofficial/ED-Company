@@ -5,7 +5,7 @@ name: Oyuncu Mevki Taramasını Tetikle
 # (bkz. route.ts başındaki açıklama — Vercel'in 5-sıçrama self-fetch limiti
 # yüzden çıkarıldı, "HTTP 508 Loop Detected"'ın kök nedeni buydu). Bu route
 # her çağrıda SADECE tek bir batch (~250s'lik zaman bütçesi kadar oyuncu,
-# tipik olarak ~70-75 oyuncu) işleyip döner.
+# tipik olarak ~150-165 oyuncu) işleyip döner.
 #
 # Bu workflow, taramanın gerçekten uçtan uca (7000+ oyuncu) tamamlanması
 # için gereken DIŞARIDAN periyodik tetikleyicidir. Her çağrı platform için
@@ -13,7 +13,7 @@ name: Oyuncu Mevki Taramasını Tetikle
 #
 # "Şimdi Tara" butonu (admin panelinde) sadece ilk/bir sonraki batch'i elle
 # tetikler — bu workflow kurulu olmadan tarama pratikte bitmez (7684 oyuncu
-# / ~73 oyuncu-batch ≈ 105 elle tıklama gerekirdi).
+# / ~155 oyuncu-batch ≈ 50 elle tıklama gerekirdi).
 #
 # Gerekli GitHub repo secret'ları (Settings > Secrets and variables > Actions):
 #   SITE_URL     -> örn. https://example.com (sondaki / olmadan)
