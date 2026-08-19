@@ -800,12 +800,10 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       playerPositionCron: {
         heading: "Oyuncu mevki taraması durumu",
         scanNow: "Şimdi Tara",
-        scanTriggered:
-          "Tarama tetiklendi — birkaç saniye içinde ilerlemeye başlayacak, bu kartı yenileyerek takip edebilirsiniz.",
-        scanFailedDefault: "Tarama tetiklenemedi.",
+        stopScan: "Durdur",
+        stopping: "Durduruluyor…",
+        scanFailedDefault: "Tarama isteği başarısız oldu.",
         neverRun: "Henüz hiç tarama çalıştırılmadı. {{count}} oyuncunun mevkisi bekliyor.",
-        reasonScanAlreadyRunning: "Zaten devam eden bir tarama var, lütfen tamamlanmasını bekleyin.",
-        reasonNoRemainingCandidates: "Mevkisi eksik oyuncu kalmadı, tarama gerekmiyor.",
         statusDone: "Tamamlandı",
         statusBroken: "Zincir kırıldı",
         statusRunning: "Çalışıyor",
