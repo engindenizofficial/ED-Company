@@ -117,10 +117,20 @@ export async function GET(request: Request) {
   let logId: string
   if (activeRun) {
     logId = activeRun.id
+    // ÖNEMLİ — bu satırı bir batch için "ele aldığımızı" HEMEN (gerçek işe
+    // başlamadan önce) heartbeat'i tazeleyerek işaretliyoruz. Bunun nedeni:
+    // runPlayerPositionBackfillBatch tek bir adımda 190-237s sürebiliyor —
+    // eğer heartbeat SADECE batch bittiğinde güncellenirse, bu uzun pencere
+    // boyunca (batch hâlâ çalışırken) heartbeat eski görünür ve admin
+    // panelinden veya bir "resume" cron'undan gelen paralel bir tetikleme
+    // "stale, tekrar başlat" diyerek AYNI anda ikinci bir batch'i tetikleyip
+    // Transfermarkt'a çift istek göndertebilir (bkz. schema.ts heartbeatAt
+    // açıklaması) — asıl kırılmaya yol açan çoklanma budur.
+    await db.update(playerPositionCronRun).set({ heartbeatAt: new Date() }).where(eq(playerPositionCronRun.id, logId))
   } else {
     const runStartedAt = new Date()
     logId = `player-position-run-${runStartedAt.getTime()}`
-    await db.insert(playerPositionCronRun).values({ id: logId, runStartedAt, status: "running" })
+    await db.insert(playerPositionCronRun).values({ id: logId, runStartedAt, status: "running", heartbeatAt: runStartedAt })
   }
 
   try {
@@ -137,6 +147,9 @@ export async function GET(request: Request) {
         // sayısını gösterirdi, koşunun tamamının toplamını değil.
         playersProcessed: sql`${playerPositionCronRun.playersProcessed} + ${result.processed}`,
         playersMatched: sql`${playerPositionCronRun.playersMatched} + ${result.matched}`,
+        // Batch başarıyla bitti — heartbeat'i yeniden tazele (bir sonraki
+        // adım tetiklenmeden önce zincirin "az önce ilerlediğini" işaretle).
+        heartbeatAt: new Date(),
       })
       .where(eq(playerPositionCronRun.id, logId))
 
@@ -154,6 +167,7 @@ export async function GET(request: Request) {
       .set({
         status: "failed",
         runFinishedAt: new Date(),
+        heartbeatAt: new Date(),
         lastError: err instanceof Error ? err.message : String(err),
       })
       .where(eq(playerPositionCronRun.id, logId))

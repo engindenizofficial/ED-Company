@@ -388,6 +388,19 @@ export const playerPositionCronRun = pgTable('player_position_cron_run', {
   /** Bu koşuda mevki bulunan (mainPosition doldurulan) oyuncu sayısı. */
   playersMatched: integer('playersMatched').notNull().default(0),
   lastError: text('lastError'),
+  /**
+   * KRİTİK — market_value_cron_run'daki heartbeatAt ile AYNI amaç: her batch
+   * adımında (zincir devam ederken) güncellenir. `runStartedAt` YALNIZCA
+   * zincirin en başında (ilk batch açıldığında) bir kere yazılır ve tüm
+   * zincir boyunca (satır tek satır olarak yeniden kullanıldığı için,
+   * bkz. app/api/cron/backfill-player-positions) SABİT kalır — bu yüzden
+   * "zincir kırıldı mı" kontrolü runStartedAt'a bakarsa, zincir 6 dakikadan
+   * uzun sürer sürmez (binlerce oyuncu için normal, saatler sürer) SAĞLIKLI
+   * bir zincir bile hep "kırılmış" görünürdü. heartbeatAt bu yanlışı
+   * düzeltir: her batch bittiğinde tazelenir, sadece GERÇEKTEN bir süredir
+   * ilerlemeyen (bir sonraki adımı tetikleyemeyen) zincirler stale sayılır.
+   */
+  heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
 })
 

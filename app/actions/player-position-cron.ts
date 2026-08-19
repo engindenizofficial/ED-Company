@@ -31,11 +31,24 @@ import { getSiteUrl } from "@/lib/site-url"
 const REVIEW_PATH = "/admin/market-value-review"
 
 /**
- * Bir "running" satırın ne kadar süre sonra "zincir kırılmış" sayılacağı.
- * Her satır kendi maxDuration (300s) penceresi içinde ya "completed" olur ya
- * da bir sonraki batch'i (yeni bir satırla) tetikler — bu sürenin çok
- * üzerinde hâlâ "running" kalması (yeni satır da gelmemesi) self-fetch'in
- * veya sunucunun bir yerde durduğunu gösterir.
+ * Bir "running" satırın son batch'inden bu kadar süre sonra hâlâ heartbeat
+ * tazelenmemişse "zincir kırılmış" sayılır. Her batch kendi maxDuration
+ * (300s) penceresi içinde ya biter (heartbeat tazelenir) ya da bir sonraki
+ * batch'i tetikler (o da heartbeat'i tazeler) — bu sürenin çok üzerinde
+ * heartbeat'in hiç tazelenmemesi self-fetch'in veya sunucunun bir yerde
+ * durduğunu gösterir.
+ *
+ * ÖNEMLİ — bu kontrol `run.heartbeatAt`'e bakar, `run.runStartedAt`'a DEĞİL.
+ * Satır zincir boyunca (tüm batch'ler için) TEK ve aynı olduğundan
+ * (bkz. app/api/cron/backfill-player-positions), runStartedAt SADECE
+ * zincirin en başında bir kere yazılır ve tüm koşu boyunca sabit kalır.
+ * Eskiden bu kontrol runStartedAt'a bakıyordu — bu, saatlerce sürmesi normal
+ * olan (binlerce oyuncu) sapasağlam ilerleyen bir zincirin bile 6 dakika
+ * sonra hep "kırılmış" görünmesine yol açıyordu; daha da kötüsü, "Şimdi
+ * Tara"ya basıldığında bu yanlış "stale" bilgisiyle, hâlâ arka planda
+ * çalışan sağlıklı bir batch'in ÜSTÜNE paralel bir ikinci batch tetiklenip
+ * Transfermarkt'a çift istek gidiyor, bot koruması daha çok tetiklenip
+ * asıl kırılmaya yol açıyordu.
  */
 const STALE_RUN_MS = 6 * 60 * 1000
 
@@ -92,7 +105,7 @@ export async function getPlayerPositionCronStatus(): Promise<PlayerPositionCronS
   }
 
   const status = run.status as "running" | "completed" | "failed"
-  const isStale = status === "running" && Date.now() - run.runStartedAt.getTime() > STALE_RUN_MS
+  const isStale = status === "running" && Date.now() - run.heartbeatAt.getTime() > STALE_RUN_MS
 
   return {
     hasRun: true,
@@ -126,7 +139,7 @@ export async function triggerPlayerPositionScanNow(): Promise<{ triggered: boole
   const [latest] = await db.select().from(playerPositionCronRun).orderBy(desc(playerPositionCronRun.createdAt)).limit(1)
 
   if (latest && latest.status === "running") {
-    const isStale = Date.now() - latest.runStartedAt.getTime() > STALE_RUN_MS
+    const isStale = Date.now() - latest.heartbeatAt.getTime() > STALE_RUN_MS
     if (!isStale) {
       return { triggered: false, reason: "scanAlreadyRunning" }
     }
