@@ -171,7 +171,13 @@ export async function triggerPlayerPositionScanNow(): Promise<{ triggered: boole
   }
 
   const secret = process.env.CRON_SECRET
-  const headersInit: Record<string, string> = {}
+  // ÖNEMLİ — bu header, app/api/cron/backfill-player-positions/route.ts'e
+  // "bu çağrı admin'in Şimdi Tara butonundan geliyor, dış zamanlayıcıdan
+  // DEĞİL" bilgisini taşır. Route, devam eden bir koşu yoksa YENİ bir koşuyu
+  // SADECE bu header varsa açar — böylece GitHub Actions cron'u kullanıcı
+  // hiç dokunmadan kendiliğinden bir tarama başlatamaz, sadece admin'in
+  // başlattığı bir koşuyu devam ettirebilir.
+  const headersInit: Record<string, string> = { "x-player-position-manual-trigger": "1" }
   if (secret) headersInit.authorization = `Bearer ${secret}`
 
   // Bkz. app/api/cron/backfill-player-positions/route.ts — bu fetch de

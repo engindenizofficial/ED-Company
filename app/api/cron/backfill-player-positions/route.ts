@@ -58,6 +58,22 @@ function isAuthorized(request: Request): boolean {
   return header === `Bearer ${secret}`
 }
 
+// ÖNEMLİ — bu header'ı SADECE admin panelindeki "Şimdi Tara" butonu
+// (triggerPlayerPositionScanNow, app/actions/player-position-cron.ts) gönderir.
+// Dış zamanlayıcı (GitHub Actions cron, .github/workflows/
+// player-position-backfill-cron.yml) bunu HİÇ göndermez. Bunun sebebi:
+// kullanıcı taramayı kendisi başlatana kadar arka planda kendiliğinden
+// (ilk kez) başlamasını istemiyor — GitHub cron sadece ZATEN "running"
+// durumda olan bir koşuyu devam ettirebilir, YENİ bir koşu açamaz. Admin
+// "Şimdi Tara"ya bastıktan sonra GitHub cron o koşuyu bitirene kadar
+// otomatik ilerletir; koşu biterse (completed) bir dahaki "Şimdi Tara"ya
+// kadar hiçbir şey yapmaz.
+const MANUAL_TRIGGER_HEADER = "x-player-position-manual-trigger"
+
+function isManualTrigger(request: Request): boolean {
+  return request.headers.get(MANUAL_TRIGGER_HEADER) === "1"
+}
+
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -80,13 +96,16 @@ export async function GET(request: Request) {
   if (activeRun) {
     logId = activeRun.id
     await db.update(playerPositionCronRun).set({ heartbeatAt: new Date() }).where(eq(playerPositionCronRun.id, logId))
+  } else if (!isManualTrigger(request)) {
+    // ÖNEMLİ — devam eden bir koşu yok VE bu çağrı admin'in "Şimdi Tara"
+    // butonundan gelmiyor (yani dış zamanlayıcıdan geliyor demektir). Bu
+    // durumda YENİ bir koşu AÇMIYORUZ — sadece admin'in kendisi bir tarama
+    // başlatabilir. Aksi halde GitHub cron, kullanıcı hiç dokunmasa da her
+    // 5 dakikada bir kendiliğinden yeni bir tarama başlatırdı.
+    return Response.json({ done: false, processed: 0, matched: 0, skipped: "notStartedByAdmin" })
   } else {
-    // ÖNEMLİ — devam eden bir koşu yoksa, YENİ bir satır açmadan ÖNCE
-    // gerçekten işlenecek oyuncu kalıp kalmadığını kontrol ediyoruz. Bunu
-    // yapmazsak, dış zamanlayıcı (GitHub Actions) tüm oyuncular bittikten
-    // SONRA da her 5 dakikada bir bu route'u çağırmaya devam edeceği için,
-    // her çağrıda 0 oyuncu işleyen boş bir "completed" satır açılır — bu
-    // veritabanında sonsuza kadar gereksiz satır birikmesine yol açardı.
+    // Admin'in "Şimdi Tara" butonundan gelen İLK çağrı — yeni koşu açmadan
+    // önce gerçekten işlenecek oyuncu kalıp kalmadığını kontrol ediyoruz.
     const remaining = await countRemainingCandidates()
     if (remaining === 0) {
       return Response.json({ done: true, processed: 0, matched: 0, remaining: 0 })
