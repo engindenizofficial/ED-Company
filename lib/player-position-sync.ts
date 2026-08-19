@@ -22,8 +22,23 @@ import { profile } from "./player-positions"
 // olsa bile en kötü ihtimalle aynı oyuncu iki kez çekilir, veri bozulmaz.
 // ---------------------------------------------------------------------------
 
-/** Transfermarkt'a art arda çok hızlı istek atmamamak için oyuncular arası bekleme. */
-const REQUEST_DELAY_MS = 700
+/**
+ * Transfermarkt'a art arda çok hızlı istek atmamamak için oyuncular arası
+ * bekleme.
+ *
+ * HESAP: 700ms'de "agresif" gidip sık sık 403/429'a çarpıp 1.5s/4s/10s'lik
+ * backoff cezaları ödemek, sabit 1500ms'de "orta hızlı ama bloksuz" gitmekten
+ * daha YAVAŞ çıkıyor — çünkü tek bir ceza (en ucuzu 1.5s), aradaki farkın
+ * (1500-700=800ms) neredeyse 2 katı. Yani engellenme oranı yeterince yüksekse
+ * (gözlemlenen davranış buydu), sabit orta hız toplamda daha hızlı biter.
+ *
+ * Oyuncu başı beklenen süre: ~1.5s bekleme + ~0.3-0.5s fetch ≈ 1.8-2s
+ * (bloksuz senaryoda). 200'lük batch + 190s'lik yumuşak bütçeyle batch başına
+ * ~95-105 oyuncu işlenir. ~7600 kalan oyuncu için tahmini toplam süre:
+ * 7600 × ~2s ≈ ~15200s ≈ ~4.2 saat (Transfermarkt'ın hâlâ ara sıra
+ * bloklaması ihtimaline karşı bu bir alt sınır, üst sınır değil).
+ */
+const REQUEST_DELAY_MS = 1500
 
 /**
  * Route'un maxDuration'ından (300s) daha erken, kendi isteğimizle güvenli bir
