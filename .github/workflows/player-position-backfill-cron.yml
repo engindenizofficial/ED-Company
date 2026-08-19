@@ -16,8 +16,12 @@ name: Oyuncu Mevki Taramasını Tetikle
 # varsa (veya tarama tamamlandıysa) route no-op döner, tekrar başlatmaz.
 #
 # Gerekli GitHub repo secret'ları (Settings > Secrets and variables > Actions):
-#   SITE_URL     -> örn. https://example.com (sondaki / olmadan)
-#   CRON_SECRET  -> projedeki CRON_SECRET env var ile AYNI değer
+#   SITE_URL       -> örn. https://example.com (sondaki / olmadan)
+#   CRON_SECRET    -> projedeki CRON_SECRET env var ile AYNI değer
+#   BYPASS_SECRET  -> projedeki VERCEL_AUTOMATION_BYPASS_SECRET env var ile
+#                     AYNI değer. Proje Vercel Deployment Protection
+#                     kullandığından, bu header olmadan platform isteği route
+#                     koduna hiç ulaştırmadan 401 ile reddeder.
 # ---------------------------------------------------------------------------
 
 on:
@@ -33,4 +37,5 @@ jobs:
         run: |
           curl -sS -f \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "x-vercel-protection-bypass: ${{ secrets.BYPASS_SECRET }}" \
             "${{ secrets.SITE_URL }}/api/cron/backfill-player-positions"
