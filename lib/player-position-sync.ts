@@ -33,20 +33,24 @@ import { profile } from "./player-positions"
  * VERİLEMEZ — hiçbir gecikme değeri bunu matematiksel olarak garanti
  * edemez.
  *
- * DENEY NOTU (kullanıcı isteğiyle): 700ms'de sık sık 403/429 yiyorduk.
- * 3000ms'e hiç geçmeden, önce ARADAKİ 1500ms değeriyle deneyip blok
- * sıklığının gerçekte azalıp azalmadığını gözlemliyoruz — admin panelindeki
- * "Oyuncu Mevki Taraması" durumundan (playersProcessed hızı, tekrarlanan
- * yavaş oyuncular) izlenebilir. Blok hâlâ oluyorsa 3000ms'e çıkarız, hiç
- * olmuyorsa 1500ms'de kalıp süreyi kısaltırız.
+ * DENEY NOTU (kullanıcı isteğiyle, deneye deneye buluyoruz):
+ *   - 700ms  → sık sık 403/429 (blok çok sık).
+ *   - 1500ms → denendi, yine yavaşlama gözlemlendi (blok azalmadı/yeterince
+ *     azalmadı). Demek ki 700→1500 farkı, Transfermarkt'ın eşiğinin altına
+ *     inmeye yetmedi.
+ *   - 2000ms → şimdi deneniyor. Hâlâ yavaşlama/tekrar deneme gözlemlenirse
+ *     bir sonraki adım 3000ms olmalı; blok tamamen kesilirse burada
+ *     kalınabilir (kesilmeyen her 500ms'lik artış toplam süreyi uzatıyor).
+ *   İzleme: admin panelindeki "Oyuncu Mevki Taraması" durumu (playersProcessed
+ *   hızı, tekrar tekrar 1 oyuncunun birden çok saniyeye yayılması).
  *
- * Oyuncu başı beklenen süre: ~1.5s bekleme + ~0.3-0.5s fetch ≈ 1.8-2s
+ * Oyuncu başı beklenen süre: ~2s bekleme + ~0.3-0.5s fetch ≈ 2.3-2.5s
  * (bloksuz senaryoda). 200'lük batch + 190s'lik yumuşak bütçeyle batch
- * başına ~95-105 oyuncu işlenir. ~7600 kalan oyuncu için tahmini toplam
- * süre (bloksuz varsayımla): 7600 × ~2s ≈ ~15200s ≈ ~4.2 saat — bu bir ALT
- * SINIR; blok hâlâ oluyorsa gerçek süre bunun üstüne çıkar.
+ * başına ~76-82 oyuncu işlenir. ~7600 kalan oyuncu için tahmini toplam
+ * süre (bloksuz varsayımla): 7600 × ~2.4s ≈ ~18240s ≈ ~5.1 saat — bu bir
+ * ALT SINIR; blok hâlâ oluyorsa gerçek süre bunun üstüne çıkar.
  */
-const REQUEST_DELAY_MS = 1500
+const REQUEST_DELAY_MS = 2000
 
 /**
  * Route'un maxDuration'ından (300s) daha erken, kendi isteğimizle güvenli bir
