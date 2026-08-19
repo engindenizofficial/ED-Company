@@ -39,17 +39,11 @@ import { countRemainingCandidates, runPlayerPositionBackfillBatch } from "@/lib/
 // ---------------------------------------------------------------------------
 
 export const dynamic = "force-dynamic"
-// ÖNEMLİ — Vercel Hobby planında serverless fonksiyon süresi PLATFORM
-// TARAFINDAN sert şekilde 60 saniyeyle sınırlı; kodda daha yüksek bir
-// maxDuration bildirilse bile platform invocation'ı 60. saniyede hiçbir
-// yanıt döndürmeden kesiyor (çağıran taraf sonsuza kadar asılı kalıyor).
-// Bu değer önceden 300 idi ve gerçek limitle uyumsuzdu — bu yüzden
-// backfill her çağrıda platform tarafından ortasında kesiliyor, run satırı
-// güncellenmeden "running" durumunda asılı kalıyordu. Team Pro'ya
-// yükseltilirse (maxDuration üst sınırı artar) bu değer ve
-// SOFT_TIME_BUDGET_MS (bkz. lib/player-position-sync.ts) yeniden
-// yükseltilebilir.
-export const maxDuration = 60
+// Bu projede Fluid Compute aktif (vercel.json / proje ayarları), bu sayede
+// Hobby planında da fonksiyon süresi 300 saniyeye kadar çıkabiliyor (Fluid
+// Compute olmadan sınır 60s olurdu). Bu route, oyuncu başı zorunlu bekleme
+// nedeniyle tek çağrıda uzun sürdüğü için üst sınıra yakın bir değer kullanır.
+export const maxDuration = 300
 
 /**
  * Her çağrıda işlenecek EN FAZLA oyuncu sayısı — ama fiili sayı bundan çok

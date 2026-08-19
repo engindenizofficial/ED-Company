@@ -113,18 +113,7 @@ const REQUEST_DELAY_MS = 1200
  * ~20 oyuncu) biraz daha yavaş ama zamanlayıcı çok daha basit/güvenilir
  * (GitHub'ın kendi altyapısı, üçüncü taraf hesabı gerektirmiyor).
  */
-// ÖNEMLİ — bu değer önceden 250_000 (250s) idi ve route'un maxDuration'ının
-// (300s) hemen altında güvenli bir pay bırakıyordu — AMA bu proje Vercel
-// Hobby planında ve Hobby'de gerçek sert limit HER ZAMAN 60s'dir (bkz.
-// route.ts, maxDuration = 60 açıklaması). 250s'lik bir bütçe bu sert limitin
-// çok üzerinde olduğu için batch, platform tarafından ortasında kesiliyor,
-// hiç yanıt dönmüyordu (çağıran istemci sonsuza kadar asılı kalıyordu).
-// 40s'lik bütçe, 60s'lik sert sınırdan önce şu paylar için yer bırakır:
-// - Son adayın worst-case süresi (3 tekrar deneme + backoff ≈ 15-20s)
-// - DB'ye run satırı güncelleme + HTTP yanıtını oluşturup gönderme
-// Team Pro'ya yükseltilirse (maxDuration üst sınırı yükselir) bu değer
-// route.ts'teki maxDuration ile birlikte yeniden yükseltilebilir.
-const SOFT_TIME_BUDGET_MS = 40_000
+const SOFT_TIME_BUDGET_MS = 250_000
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
