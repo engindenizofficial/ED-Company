@@ -103,6 +103,14 @@ export async function GET(request: Request) {
         // Heartbeat'i yeniden tazele — dış zamanlayıcının bir sonraki
         // çağrısına kadar "az önce ilerledik" bilgisini işaretle.
         heartbeatAt: new Date(),
+        // Bu batch başarıyla tamamlandı — önceki (farklı bir koşuda veya
+        // aynı satırın daha önceki bir denemesinde oluşmuş) hatayı temizle.
+        // Aksi halde admin paneli, artık geçerli olmayan eski bir hatayı
+        // (örn. bir önceki koşuda oluşmuş "508 Loop Detected") süresiz
+        // göstermeye devam ederdi — bu satır her başarılı çağrıda yeniden
+        // kullanıldığından (bkz. dosya başı açıklaması) eski hata hiç
+        // silinmiyordu.
+        lastError: null,
       })
       .where(eq(playerPositionCronRun.id, logId))
 
