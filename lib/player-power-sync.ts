@@ -1,6 +1,6 @@
 import { db } from "./db"
 import { playerPower, playerPowerProcessedFixture, playerMarketValue } from "./db/schema"
-import { inArray } from "drizzle-orm"
+import { and, inArray, isNotNull, ne, sql } from "drizzle-orm"
 import { getFixturesByDate, getFixturePlayerStats, currentSeason } from "./api-football"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
 import type { FixturePlayerStat, Fixture } from "./types"
@@ -187,8 +187,46 @@ export async function applyPerformances(
   return playersUpdated
 }
 
+/**
+ * `applyPerformances` bir oyuncunun sezon rating birikimini sadece o oyuncu
+ * YENİ bir maça çıktığında sıfırlar (bkz. `sameSeason` kontrolü orada). Sezon
+ * değiştiğinde (Ağustos geçişi) henüz maça çıkmamış oyuncuların satırı hiç
+ * dokunulmadığı için eski sezonun `seasonYear`/`seasonRatingSum`/Count'u
+ * kalıcı olarak DB'de kalır ve basePower'a sızmaya devam eder.
+ *
+ * Bu fonksiyon, cron her çalıştığında ÖNCE çalışarak eski sezona ait tüm
+ * satırları proaktif olarak sıfırlar: seasonYear günceli, seasonRatingSum/
+ * Count/recentMatches boşa alınır, basePower/currentPower da (rating artık
+ * yok) doğrudan marketPower'a eşitlenir — computeBasePower'ın rating
+ * count=0 durumunda üreteceği sonuçla birebir aynıdır.
+ */
+export async function resetStaleSeasonRows(season: number): Promise<number> {
+  const now = new Date()
+  const updated = await db
+    .update(playerPower)
+    .set({
+      seasonYear: season,
+      seasonRatingSum: "0",
+      seasonRatingCount: 0,
+      recentMatches: [],
+      formModifier: 0,
+      basePower: sql`${playerPower.marketPower}`,
+      currentPower: sql`${playerPower.marketPower}`,
+      lastFormUpdateAt: now,
+      updatedAt: now,
+    })
+    .where(and(isNotNull(playerPower.seasonYear), ne(playerPower.seasonYear, season)))
+    .returning({ playerId: playerPower.playerId })
+
+  return updated.length
+}
+
 export async function runPlayerPowerSync(): Promise<PlayerPowerSyncResult> {
   const result: PlayerPowerSyncResult = { fixturesScanned: 0, fixturesProcessed: 0, playersUpdated: 0 }
+
+  // 0. Sezon değişmişse (Ağustos geçişi), henüz bu sezon maça çıkmadığı için
+  // applyPerformances'a hiç uğramayacak eski satırları proaktif sıfırla.
+  await resetStaleSeasonRows(currentSeason())
 
   // 1. Son LOOKBACK_DAYS + bugün içindeki, takip edilen liglerde biten maçları topla.
   const dates = Array.from({ length: LOOKBACK_DAYS + 1 }, (_, i) => isoDateDaysAgo(i))

@@ -3,7 +3,12 @@ import { db } from "./db"
 import { playerPowerBackfillCronRun, playerPowerProcessedFixture } from "./db/schema"
 import { getFixturesByLeagueSeason, getFixturePlayerStats, currentSeason } from "./api-football"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
-import { extractPerformancesFromFixture, applyPerformances, markFixtureProcessed } from "./player-power-sync"
+import {
+  extractPerformancesFromFixture,
+  applyPerformances,
+  markFixtureProcessed,
+  resetStaleSeasonRows,
+} from "./player-power-sync"
 import type { MatchPerformance } from "./player-power"
 
 // ---------------------------------------------------------------------------
@@ -44,7 +49,7 @@ export interface PowerBackfillBatchResult {
   totalPlayersUpdated: number
 }
 
-async function getOrCreateRunningProgress() {
+async function getOrCreateRunningProgress(season: number) {
   const existing = await db
     .select()
     .from(playerPowerBackfillCronRun)
@@ -53,6 +58,11 @@ async function getOrCreateRunningProgress() {
     .limit(1)
 
   if (existing.length > 0) return existing[0]
+
+  // Yeni bir backfill koşusu başlıyor — eski sezona ait, henüz bu sezon
+  // hiç maça çıkmamış oyuncuların satırlarını proaktif sıfırla (bkz.
+  // lib/player-power-sync.ts resetStaleSeasonRows).
+  await resetStaleSeasonRows(season)
 
   const id = `player-power-backfill-run-${Date.now()}`
   const now = new Date()
@@ -74,8 +84,8 @@ async function getOrCreateRunningProgress() {
  * örn. bu koşu daha önce kısmen çalışıp kesilmişse).
  */
 export async function runPlayerPowerBackfillBatch(): Promise<PowerBackfillBatchResult> {
-  const progress = await getOrCreateRunningProgress()
   const season = currentSeason()
+  const progress = await getOrCreateRunningProgress(season)
 
   let currentLeagueIndex = progress.currentLeagueIndex
   let currentFixtureIndex = progress.currentFixtureIndex
