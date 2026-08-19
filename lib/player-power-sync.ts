@@ -1,13 +1,11 @@
 import { db } from "./db"
-import { playerPower, playerPowerProcessedFixture, playerMarketValue, playerPosition } from "./db/schema"
+import { playerPower, playerPowerProcessedFixture, playerMarketValue } from "./db/schema"
 import { inArray } from "drizzle-orm"
 import { getFixturesByDate, getFixturePlayerStats, currentSeason } from "./api-football"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
 import type { FixturePlayerStat, Fixture } from "./types"
-import { isPlayerPosition, type PlayerPosition } from "./player-positions"
 import {
   computeBasePower,
-  computeFormModifier,
   computeCurrentPower,
   marketPowerFromValue,
   addMatchToRecent,
@@ -98,10 +96,9 @@ export function extractPerformancesFromFixture(
  * player_power tablosuna upsert eder. Her oyuncu için mevcut satır (varsa)
  * okunup sezon rating toplamı/sayısı ve son maçlar listesi üzerine eklenir.
  *
- * Form modifier, oyuncunun Transfermarkt kaynaklı doğrulanmış mevkisi
- * (player_position.mainPosition) varsa o mevkiye özel ağırlıklarla, yoksa
- * kaba (4 grup) fallback ile hesaplanır — bkz. lib/player-power.ts
- * computeFormModifier().
+ * basePower (marketPower + sezon rating ortalaması) sabittir; günlük
+ * performansa göre değişen bir form/momentum katmanı yoktur —
+ * currentPower = basePower (bkz. lib/player-power.ts computeCurrentPower()).
  */
 export async function applyPerformances(
   performancesByPlayer: Map<number, { teamId: number; perf: MatchPerformance }[]>,
@@ -110,22 +107,15 @@ export async function applyPerformances(
   if (performancesByPlayer.size === 0) return 0
 
   const playerIds = Array.from(performancesByPlayer.keys())
-  const [marketValueRows, existingPowerRows, positionRows] = await Promise.all([
+  const [marketValueRows, existingPowerRows] = await Promise.all([
     db
       .select({ playerId: playerMarketValue.playerId, valueEur: playerMarketValue.valueEur })
       .from(playerMarketValue)
       .where(inArray(playerMarketValue.playerId, playerIds)),
     db.select().from(playerPower).where(inArray(playerPower.playerId, playerIds)),
-    db
-      .select({ playerId: playerPosition.playerId, mainPosition: playerPosition.mainPosition })
-      .from(playerPosition)
-      .where(inArray(playerPosition.playerId, playerIds)),
   ])
   const marketValueMap = new Map(marketValueRows.map((r) => [r.playerId, r.valueEur !== null ? Number(r.valueEur) : null]))
   const existingPowerMap = new Map(existingPowerRows.map((r) => [r.playerId, r]))
-  const positionMap = new Map<number, PlayerPosition | null>(
-    positionRows.map((r) => [r.playerId, r.mainPosition && isPlayerPosition(r.mainPosition) ? r.mainPosition : null]),
-  )
 
   const now = new Date()
   let playersUpdated = 0
@@ -150,10 +140,10 @@ export async function applyPerformances(
       recentMatches = addMatchToRecent(recentMatches, perf)
     }
 
-    const position = positionMap.get(playerId) ?? null
     const basePower = computeBasePower({ valueEur, seasonRatingSum, seasonRatingCount })
-    const formModifier = computeFormModifier(recentMatches, position)
-    const currentPower = computeCurrentPower(basePower, formModifier)
+    // Momentum/form katmanı kaldırıldı — currentPower artık sabit basePower ile aynı.
+    const formModifier = 0
+    const currentPower = computeCurrentPower(basePower)
     const marketPower = marketPowerFromValue(valueEur)
 
     const id = `player-power-${playerId}`

@@ -1,9 +1,8 @@
 // Tek seferlik bakım betiği: lib/player-power.ts içindeki skorlama formülü
 // (örn. marketPowerFromValue eğrisi) değiştiğinde, mevcut player_power
 // satırlarının marketPower/basePower/currentPower alanlarını yeni formülle
-// yeniden hesaplar. formModifier ve recentMatches'e DOKUNMAZ (bunlar günlük
-// cron'un topladığı gerçek maç geçmişidir, formülün eski/yeni olmasından
-// etkilenmez).
+// yeniden hesaplar. Momentum/form katmanı kaldırıldı — currentPower artık
+// basePower ile aynıdır (formModifier her zaman 0 kabul edilir).
 //
 // Çalıştırma:
 //   node --env-file-if-exists=/vercel/share/.env.project scripts/recompute-player-power.mjs
@@ -77,7 +76,7 @@ async function main() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 
   const { rows } = await pool.query(`
-    select pp."playerId", pp."formModifier", pp."seasonRatingSum", pp."seasonRatingCount", pmv."valueEur"
+    select pp."playerId", pp."seasonRatingSum", pp."seasonRatingCount", pmv."valueEur"
     from player_power pp
     left join player_market_value pmv on pmv."playerId" = pp."playerId"
   `)
@@ -92,10 +91,10 @@ async function main() {
 
     const marketPower = marketPowerFromValue(valueEur)
     const basePower = computeBasePower({ valueEur, seasonRatingSum, seasonRatingCount })
-    const currentPower = basePower === null ? null : clampPower(basePower + row.formModifier)
+    const currentPower = basePower === null ? null : clampPower(basePower)
 
     await pool.query(
-      `update player_power set "marketPower" = $1, "basePower" = $2, "currentPower" = $3, "updatedAt" = now() where "playerId" = $4`,
+      `update player_power set "marketPower" = $1, "basePower" = $2, "currentPower" = $3, "formModifier" = 0, "updatedAt" = now() where "playerId" = $4`,
       [marketPower, basePower, currentPower, row.playerId],
     )
     updated++
