@@ -94,7 +94,14 @@ function diffFixtureEvents(
  */
 export async function scanLiveFixturesOnce(): Promise<{ liveCount: number; eventsSent: number }> {
   const date = todayIstanbulDate()
-  const fixtures = await getFixturesByDate(date)
+  // forceRefresh=true ZORUNLU — aksi halde getFixturesByDate, hem Next.js fetch
+  // veri cache'ini hem de api-football-client.ts'deki bellek içi cache'i
+  // (ikisi de revalidate=120 → 2 dakika TTL) kullanır. Bu döngü 30 saniyede
+  // bir tarasa da, cache'ten dönen aynı bayat anlık görüntüyü 4 kez üst üste
+  // okurdu — gol/devre arası gibi olaylar gerçek zamandan kopuk, gecikmeli ve
+  // tutarsız görünürdü. Canlı maç izleme HER taramada gerçekten taze veri
+  // istemelidir.
+  const fixtures = await getFixturesByDate(date, true)
   const liveFixtures = fixtures.filter((f) => LIVE_OR_FINISHED.has(f.statusShort))
 
   if (liveFixtures.length === 0) {

@@ -37,8 +37,23 @@ const LIVE_POLL_INTERVAL_MS = 30_000
 const IDLE_POLL_INTERVAL_MS = 2 * 60_000
 /** Her HTTP çağrısının en fazla bu kadar süre döngüde kalıp sonra kendini yeniden tetiklemesi — bkz. update-market-values/route.ts'deki STEP_BUDGET_MS açıklaması. */
 const STEP_BUDGET_MS = 260_000
-/** Redis kilidinin TTL'i — her adımda tazelenir; zincir kırılırsa (crash) kilit bu süre sonra kendiliğinden düşer. */
-const LOCK_TTL_SECONDS = 90
+/**
+ * Redis kilidinin TTL'i — her adımda tazelenir; zincir kırılırsa (crash) kilit
+ * bu süre sonra kendiliğinden düşer.
+ *
+ * ÖNEMLİ — bu değer IDLE_POLL_INTERVAL_MS'DEN (120s) KESİNLİKLE BÜYÜK olmalı.
+ * Kilit her taramadan SONRA, bir sonraki taramadan ÖNCEKİ uykudan ÖNCE
+ * tazeleniyor: tazele → uyu. Eskiden TTL 90s idi ama boşta modda 120s
+ * uyunuyordu — yani kilit, döngü hâlâ sağlıklı çalışırken (uykudayken)
+ * kendiliğinden düşüyordu. Bu pencerede GitHub Actions'ın 5 dakikalık
+ * heartbeat tetiklemesi denk gelirse, hâlâ çalışan zincirin üzerine BAĞIMSIZ
+ * bir ikinci zincir daha başlıyordu — tam olarak maçın başladığı/idle'dan
+ * live'a geçtiği an, iki paralel zincir aynı durum geçişini (örn. devre
+ * arası) ayrı ayrı tespit edip HER İKİSİ DE push gönderiyordu ("aynı
+ * bildirim arka arkaya 3-4 kez" şikayetinin kök nedeni). Kilit süresi her
+ * zaman en uzun bekleme aralığını rahatça kapsamalı.
+ */
+const LOCK_TTL_SECONDS = 180
 const LOCK_NAME = "live-fixture-notifications"
 
 /**
