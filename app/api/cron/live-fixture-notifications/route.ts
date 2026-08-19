@@ -1,6 +1,5 @@
 import { after } from "next/server"
 import { scanLiveFixturesOnce } from "@/lib/live-fixture-notify"
-import { triggerChainContinuation } from "@/lib/market-value-cron-run"
 import { acquireChainLock, refreshChainLock, releaseChainLock } from "@/lib/redis"
 
 // ---------------------------------------------------------------------------
@@ -57,25 +56,76 @@ const LOCK_TTL_SECONDS = 180
 const LOCK_NAME = "live-fixture-notifications"
 
 /**
- * Bir sonraki zincir adımını tetikleyen self-fetch'in zaman aşımı.
+ * Bir sonraki zincir adımını tetikleyen self-fetch'in, TAM YANITI beklemeden
+ * "istek gönderildi mi, hızlı bir hata (401/5xx) döndü mü" diye kontrol
+ * etmek için beklediği süre.
  *
- * ÖNEMLİ — triggerChainContinuation'ın varsayılan timeout'u (15s) burada
- * KULLANILAMAZ: bu route'un HER adımı, döngü içinde STEP_BUDGET_MS'e kadar
- * (260s) kalıp ancak sonra yanıt döner. 15s ile çağırırsak self-fetch her
- * seferinde "zaman aşımı" sanıp isteği TEKRAR gönderir, ama sunucudaki
- * önceki istek iptal olmaz — arka planda 260s'ye kadar çalışmaya devam
- * eder. Sonuç: aynı maçları aynı anda tarayan birden fazla paralel zincir
- * birikir, her biri DB'den aynı prevStatus'u okuyup aynı olayı (örn. devre
- * arası) tespit eder ve HEPSİ push gönderir — kullanıcıya aynı bildirim
- * arka arkaya 3-4 kez gelir, zamanlama da tutarsız görünür (bkz.
- * market-value-cron-run.ts'deki triggerChainContinuation açıklaması, aynı
- * "çoklanma felaketi" burada da yaşanıyordu). Timeout, gerçek worst-case
- * adım süresini KESİNLİKLE aşmalı.
+ * ÖNEMLİ — bu route'un market-value-cron zincirinden (bkz.
+ * market-value-cron-run.ts'deki triggerChainContinuation) TEMEL bir farkı
+ * var: market-value'da her adım HIZLIDIR (bir lig hazırlığı veya bir takım),
+ * o yüzden tam yanıtı beklemek güvenlidir. Burada ise her adım STEP_BUDGET_MS'e
+ * kadar (260s) döngüde kalıp ANCAK SONRA yanıt döner.
+ *
+ * `after()` bloğu, ana handler zaten ~260s tükettiği için Vercel'in
+ * maxDuration'ından (300s) geriye kalan SADECE ~40 saniyelik bütçeyle
+ * çalışıyor. Bir sonraki adımın (kendisi de 260s'ye kadar sürebilecek) TAM
+ * yanıtını `await` etmeye çalışsaydık, invocation bu yanıtı hiç görmeden
+ * Vercel tarafından sert şekilde öldürülürdü — bu da zincirin devamının
+ * SADECE "aşağıdaki invocation'ın kendi after()'ını tetikleyip tetiklemediğine"
+ * bağlı, garantisiz bir şansa kalmasına yol açıyordu. Eğer bu istek bir
+ * sebeple (401 — örn. Vercel Deployment Protection, veya ağ hatası) hemen
+ * başarısız olursa, zincir kimse fark etmeden tamamen ölüyordu ve tek
+ * güvenlik ağı GitHub Actions'ın 5 dakikalık (ve platformun kendi
+ * belgelerine göre yoğun saatlerde onlarca dakika gecikebilen) heartbeat'i
+ * oluyordu — "gol/devre arası bildirimi 20-40 dakika sonra geliyor"
+ * şikayetinin en olası kök nedeni tam olarak bu.
+ *
+ * Çözüm: TAM yanıtı beklemeyip sadece isteğin kabul edildiğini (ya da hızlı
+ * bir hata döndürdüğünü) doğrulayacak kadar kısa süre bekleriz, ardından
+ * — isteği İPTAL ETMEDEN — kendi invocation'ımızı bitiririz. Downstream
+ * invocation, HTTP isteği ağa gönderildiği anda bizim beklememizden
+ * bağımsız olarak çalışmaya başlar.
  */
-const CHAIN_CONTINUATION_TIMEOUT_MS = STEP_BUDGET_MS + 30_000
+const CHAIN_FIRE_CONFIRM_TIMEOUT_MS = 8_000
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Bir sonraki zincir adımını "ateşler" — tam yanıtını beklemeden. Yalnızca
+ * isteğin hemen (auth kontrolü gibi) başarısız olup olmadığını görmek için
+ * kısa bir pencere bekler; bu pencerede yanıt gelmezse (beklenen durum —
+ * downstream kendi 260s'lik taramasına başlamıştır) sessizce devam eder.
+ *
+ * KASITLI OLARAK AbortController KULLANILMAZ: bir zaman aşımı için isteği
+ * iptal etmek, bazı platformlarda alt taraftaki invocation'ı da (henüz tek
+ * bir tarama bile yapmadan) durdurabilir. Biz sadece kendi beklememizi
+ * durduruyoruz, ağa gönderilmiş olan isteği değil.
+ */
+async function fireNextChainStep(url: string, headers: Record<string, string>): Promise<void> {
+  try {
+    const outcome = await Promise.race([
+      fetch(url, { headers }).then((res) => ({ settled: true as const, res })),
+      sleep(CHAIN_FIRE_CONFIRM_TIMEOUT_MS).then(() => ({ settled: false as const, res: null })),
+    ])
+
+    if (!outcome.settled) {
+      // Beklenen durum: downstream adım kendi tarama döngüsüne başladı,
+      // yanıtı bu pencerede dönmedi. İstek zaten ağa gönderildi, bekleyip
+      // kendi invocation'ımızın bütçesini tüketmeye gerek yok.
+      return
+    }
+
+    if (!outcome.res.ok) {
+      const body = await outcome.res.text().catch(() => "")
+      console.error(
+        `[v0] Canlı maç zincir tetiklemesi hızlı bir hata döndürdü (HTTP ${outcome.res.status}) — zincir muhtemelen burada durdu, GitHub Actions heartbeat'i devreye girecek: ${body.slice(0, 300)}`,
+      )
+    }
+  } catch (err) {
+    console.error("[v0] Canlı maç zincir tetiklemesi ağ hatasıyla başarısız oldu:", err)
+  }
 }
 
 function isAuthorized(request: Request): boolean {
@@ -95,7 +145,7 @@ async function triggerNextChainStep(request: Request): Promise<void> {
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  await triggerChainContinuation(url.toString(), headers, CHAIN_CONTINUATION_TIMEOUT_MS)
+  await fireNextChainStep(url.toString(), headers)
 }
 
 export async function GET(request: Request) {

@@ -77,22 +77,6 @@ export class ApiFootballError extends Error {
   }
 }
 
-/**
- * API_FOOTBALL_KEY, API_FOOTBALL_KEY_2, API_FOOTBALL_KEY_3 — üç yedek anahtar
- * env'de tanımlı olabilir. ÖNEMLİ: sadece birincisi kullanılmıyordu; birincil
- * anahtar günlük/dakikalık kotasını doldurup 429 dönmeye başladığında TÜM
- * istekler (canlı maç tarama zinciri dahil) MAX_RETRIES'ı tüketip hata
- * fırlatıyordu — bu da canlı bildirim döngüsünü kırıp olayların onlarca
- * dakika gecikmeli/rastgele görünmesine (kota resetlenene kadar) yol
- * açıyordu. Artık 429 alan bir anahtar, aynı istek içinde otomatik olarak
- * sıradaki yedek anahtara geçiliyor.
- */
-function getApiKeys(): string[] {
-  return [process.env.API_FOOTBALL_KEY, process.env.API_FOOTBALL_KEY_2, process.env.API_FOOTBALL_KEY_3].filter(
-    (k): k is string => Boolean(k && k.trim()),
-  )
-}
-
 interface FetchOptions {
   /** Next.js data cache revalidation süresi (saniye). "no-store" ile birlikte kullanılmaz. */
   revalidate?: number
@@ -151,8 +135,8 @@ async function doFetch<T>(
   params: Record<string, string | number>,
   options: FetchOptions = {},
 ): Promise<T[]> {
-  const apiKeys = getApiKeys()
-  if (apiKeys.length === 0) {
+  const apiKey = process.env.API_FOOTBALL_KEY
+  if (!apiKey) {
     throw new ApiFootballError("API_FOOTBALL_KEY tanımlı değil.", 500)
   }
 
@@ -160,18 +144,14 @@ async function doFetch<T>(
   for (const [k, v] of Object.entries(params)) search.set(k, String(v))
   const url = `${BASE_URL}${path}?${search.toString()}`
 
+  const fetchInit: RequestInit & { next?: { revalidate: number } } =
+    options.cache === "no-store"
+      ? { headers: { "x-apisports-key": apiKey }, cache: "no-store" }
+      : { headers: { "x-apisports-key": apiKey }, next: { revalidate: options.revalidate ?? 60 } }
+
   let lastError: unknown = null
-  // Anahtar indeksi 429 (kota/rate-limit) durumunda ilerler — aynı istek
-  // içinde tüm yedek anahtarlar denenir, retry sayacı bundan bağımsızdır.
-  let keyIndex = 0
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const apiKey = apiKeys[Math.min(keyIndex, apiKeys.length - 1)]
-    const fetchInit: RequestInit & { next?: { revalidate: number } } =
-      options.cache === "no-store"
-        ? { headers: { "x-apisports-key": apiKey }, cache: "no-store" }
-        : { headers: { "x-apisports-key": apiKey }, next: { revalidate: options.revalidate ?? 60 } }
-
     await acquireSlot()
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -191,26 +171,7 @@ async function doFetch<T>(
     }
     releaseSlot()
 
-    if (res.status === 429) {
-      lastError = new ApiFootballError(`API-Football isteği başarısız (${res.status})`, res.status)
-      // Kota/rate-limit'e çarpan anahtardan hemen sıradaki yedek anahtara
-      // geç — bu anahtarın limiti resetlenene kadar aynı anahtarla beklemek
-      // (canlı maç zincirinde) bildirimleri onlarca dakika geciktirebiliyordu.
-      if (keyIndex < apiKeys.length - 1) {
-        keyIndex++
-        continue
-      }
-      // Tüm anahtarlar tükendi — normal üstel geri çekilmeye düş.
-      if (attempt < MAX_RETRIES) {
-        const retryAfterHeader = res.headers.get("retry-after")
-        const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : null
-        await sleep(retryAfterMs ?? Math.min(2 ** attempt * 400, 4000))
-        continue
-      }
-      throw lastError
-    }
-
-    if (res.status >= 500) {
+    if (res.status === 429 || res.status >= 500) {
       lastError = new ApiFootballError(`API-Football isteği başarısız (${res.status})`, res.status)
       if (attempt < MAX_RETRIES) {
         const retryAfterHeader = res.headers.get("retry-after")
