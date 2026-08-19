@@ -42,18 +42,26 @@ import { profile } from "./player-positions"
  *     kesintisiz seri), sonra yine yavaşladı. Eşiğe önceki denemelerden daha
  *     yakın olduğumuzu gösteriyor ama hâlâ tam altında değiliz.
  *   - 2500ms → denendi, iyi gitti ama net sonuç belirsizdi.
- *   - 3000ms → şimdi deneniyor (kullanıcı tahmini: eşik burada olabilir).
+ *   - 3000ms → denendi, en kararlı sonuç (kullanıcı tahmini: eşik burada
+ *     olabilir).
+ *   - 1200ms → kullanıcı isteğiyle hız için tekrar düşürüldü. DİKKAT: bu
+ *     değer, daha önce blok gözlenen 1500ms ve 2000ms'nin bile ALTINDA — yani
+ *     kod tabanının kendi deney geçmişine göre önceki denemelerden DAHA
+ *     YÜKSEK 403/429 blok riski taşıyor. "Risksiz" bir seçim değil, bilinçli
+ *     bir hız/güvenilirlik trade-off'u. Blok sıklığı artarsa admin panelinde
+ *     "Oyuncu Mevki Taraması" durumundaki hata oranı ve gerçek işlenen hız
+ *     (playersProcessed) izlenmeli; gerekirse tekrar yükseltilebilir.
  *   İzleme: admin panelindeki "Oyuncu Mevki Taraması" durumu (playersProcessed
  *   hızı, tekrar tekrar 1 oyuncunun birden çok saniyeye yayılması).
  *
- * Oyuncu başı beklenen süre: ~3s bekleme + ~0.3-0.5s fetch ≈ 3.3-3.5s
- * (bloksuz senaryoda) — yani her oyuncu tek başına ~3.3-3.5 saniyede çekilir.
- * 200'lük batch + 190s'lik yumuşak bütçeyle batch başına ~54-57 oyuncu
+ * Oyuncu başı beklenen süre: ~1.2s bekleme + ~0.3-0.5s fetch ≈ 1.5-1.7s
+ * (bloksuz senaryoda) — yani her oyuncu tek başına ~1.5-1.7 saniyede çekilir.
+ * 200'lük batch + 250s'lik yumuşak bütçeyle batch başına ~145-165 oyuncu
  * işlenir. ~7600 kalan oyuncu için tahmini TOPLAM süre (bloksuz varsayımla):
- * 7600 × ~3.4s ≈ ~25840s ≈ ~7.2 saat — bu bir ALT SINIR; blok hâlâ oluyorsa
- * gerçek süre bunun üstüne çıkar.
+ * 7600 × ~1.6s ≈ ~12160s ≈ ~3.4 saat — bu bir ALT SINIR; blok oluşursa
+ * (1200ms'de öncekilere göre daha olası) gerçek süre bunun üstüne çıkar.
  */
-const REQUEST_DELAY_MS = 3000
+const REQUEST_DELAY_MS = 1200
 
 /**
  * Route'un maxDuration'ından (300s) daha erken, kendi isteğimizle güvenli bir
