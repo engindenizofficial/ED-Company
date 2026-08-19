@@ -1695,6 +1695,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       pageTitle: "Market Value Review — ED Company",
       sectionMarketValue: "Market Value Scan",
       sectionPlayerPositions: "Player Position Scan",
+      sectionPlayerPower: "Player Power Engine",
       cron: {
         heading: "Market value sync status",
         scanNow: "Scan Now",
@@ -1728,6 +1729,26 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         cancel: "Cancel",
         confirmDelete: "Yes, delete everything",
         deleteFailedDefault: "The delete operation failed.",
+      },
+      playerPowerMaintenance: {
+        heading: "Player Power Engine Maintenance",
+        description:
+          "Reset player power values (market value + season rating blend) or recompute them from the latest data. Neither calls an external API, both finish instantly.",
+        recompute: "Recompute",
+        recomputeDescription:
+          "Recomputes every player's power from the latest market value and accumulated season rating, overwriting the current value (e.g. 90 → 91). Can be run whether or not you've reset first.",
+        recomputeTriggered: "{{count}} players' power recomputed.",
+        recomputeFailedDefault: "Recompute failed.",
+        resetAll: "Reset Power",
+        resetDescription:
+          "Sets every player's power (including accumulated season rating) to 0. Rows are not deleted, only overwritten with 0.",
+        confirmTitle: "Reset all player power to 0?",
+        confirmDescription:
+          'This sets every player\'s marketPower/basePower/currentPower and accumulated season rating data to 0. It does not touch market value matches (player_market_value). You can recompute afterward with "Recompute".',
+        cancel: "Cancel",
+        confirmReset: "Yes, reset",
+        resetTriggered: "{{count}} players' power was reset.",
+        resetFailedDefault: "Reset failed.",
       },
       review: {
         statusPending: "Pending",

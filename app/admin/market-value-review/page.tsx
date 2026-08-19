@@ -11,6 +11,7 @@ import { MarketValueCronStatus } from "@/components/market-value-cron-status"
 import { MarketValueDangerZone } from "@/components/market-value-danger-zone"
 import { PlayerPositionCronStatus } from "@/components/player-position-cron-status"
 import { PlayerPositionDangerZone } from "@/components/player-position-danger-zone"
+import { PlayerPowerMaintenance } from "@/components/player-power-maintenance"
 import { getMarketValueCronStatus } from "@/app/actions/market-value-cron"
 import { getPlayerPositionCronStatus } from "@/app/actions/player-position-cron"
 import { getServerLocale } from "@/lib/i18n/server-locale"
@@ -69,6 +70,12 @@ export default async function MarketValueReviewPage() {
         </h2>
         <PlayerPositionCronStatus initialStatus={playerPositionStatus} />
         <PlayerPositionDangerZone />
+      </div>
+      <div className="mb-6 flex flex-col gap-4 border-t pt-6">
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          {translate(locale, "admin.sectionPlayerPower")}
+        </h2>
+        <PlayerPowerMaintenance />
       </div>
       <MarketValueReviewBoard items={items} />
     </main>
