@@ -41,6 +41,24 @@ const STEP_BUDGET_MS = 260_000
 const LOCK_TTL_SECONDS = 90
 const LOCK_NAME = "live-fixture-notifications"
 
+/**
+ * Bir sonraki zincir adımını tetikleyen self-fetch'in zaman aşımı.
+ *
+ * ÖNEMLİ — triggerChainContinuation'ın varsayılan timeout'u (15s) burada
+ * KULLANILAMAZ: bu route'un HER adımı, döngü içinde STEP_BUDGET_MS'e kadar
+ * (260s) kalıp ancak sonra yanıt döner. 15s ile çağırırsak self-fetch her
+ * seferinde "zaman aşımı" sanıp isteği TEKRAR gönderir, ama sunucudaki
+ * önceki istek iptal olmaz — arka planda 260s'ye kadar çalışmaya devam
+ * eder. Sonuç: aynı maçları aynı anda tarayan birden fazla paralel zincir
+ * birikir, her biri DB'den aynı prevStatus'u okuyup aynı olayı (örn. devre
+ * arası) tespit eder ve HEPSİ push gönderir — kullanıcıya aynı bildirim
+ * arka arkaya 3-4 kez gelir, zamanlama da tutarsız görünür (bkz.
+ * market-value-cron-run.ts'deki triggerChainContinuation açıklaması, aynı
+ * "çoklanma felaketi" burada da yaşanıyordu). Timeout, gerçek worst-case
+ * adım süresini KESİNLİKLE aşmalı.
+ */
+const CHAIN_CONTINUATION_TIMEOUT_MS = STEP_BUDGET_MS + 30_000
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -62,7 +80,7 @@ async function triggerNextChainStep(request: Request): Promise<void> {
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  await triggerChainContinuation(url.toString(), headers)
+  await triggerChainContinuation(url.toString(), headers, CHAIN_CONTINUATION_TIMEOUT_MS)
 }
 
 export async function GET(request: Request) {
