@@ -14,41 +14,51 @@ import { getSiteUrl } from "@/lib/site-url"
 
 // ---------------------------------------------------------------------------
 // Admin panelinde oyuncu mevki (Transfermarkt) backfill'inin durumunu
-// göstermek ve manuel olarak başlatmak/silmek için kullanılan action'lar —
-// piyasa değeri sistemindeki app/actions/market-value-cron.ts ile aynı
-// desen (aynı requireAdmin kontrolü, aynı bypass/secret header'ları, aynı
-// after() ile fire-and-forget tetikleme).
+// göstermek ve manuel olarak başlatmak/silmek için kullanılan action'lar.
 //
-// ÖNEMLİ FARK: bu backfill'in market değeri döngüsü gibi TEK bir kalıcı
-// "run" satırı yok — app/api/cron/backfill-player-positions her batch'te
-// (bkz. lib/player-position-sync.ts BATCH_SIZE) YENİ bir
-// player_position_cron_run satırı oluşturup onu aynı istekte sonuçlandırır.
-// Yani "en son satır" sadece son işlenen batch'i gösterir; genel ilerleme
-// (kaç oyuncu kaldı) doğrudan veritabanından (countRemainingCandidates)
-// canlı hesaplanır — bu satırlarda tutulmaz.
+// ÖNEMLİ MİMARİ — bu backfill artık kendi kendini ZİNCİRLEMİYOR (self-fetch
+// chain YOK). Vercel platformu, bir fonksiyonun kendini art arda çağırmasına
+// sabit bir 5-sıçrama sınırı koyuyor; 7500+ oyuncu için yüzlerce adım
+// gerektiren bu backfill her zaman 5. adımda "508 Loop Detected" ile
+// kesiliyordu (bkz. app/api/cron/backfill-player-positions/route.ts'in
+// başındaki uzun açıklama). Artık her çağrı SADECE TEK bir batch işleyip
+// dönüyor; "Şimdi Tara" butonu (aşağıdaki triggerPlayerPositionScanNow) SADECE
+// İLK batch'i başlatıyor — devamını DIŞARIDAN periyodik bir zamanlayıcı
+// (örn. cron-job.org, her 1 dakikada bir bu route'a GET atarak) sağlıyor.
+// Dışarıdan gelen her çağrı platform için bağımsız/"hop 0" sayıldığından
+// 5-sıçrama sınırına hiç dokunulmuyor.
+//
+// "Şimdi Tara" düğmesi tek başına TÜM taramayı bitirmez — sadece zamanlayıcı
+// kurulana kadar birer birer ilerlemeyi elle tetiklemek için de kullanılabilir.
+//
+// Piyasa değeri sistemindeki app/actions/market-value-cron.ts ile ORTAK olan
+// tek şey: aynı requireAdmin kontrolü ve aynı bypass/secret header'ları.
+//
+// run satırı deseni: app/api/cron/backfill-player-positions devam eden
+// ("running") bir satır varsa onu yeniden kullanır, yoksa yeni bir satır
+// açar — "en son satır" tüm koşunun toplam ilerlemesini gösterir. Genel
+// ilerleme (kaç oyuncu kaldı) ayrıca doğrudan veritabanından
+// (countRemainingCandidates) canlı hesaplanır.
 // ---------------------------------------------------------------------------
 
 const REVIEW_PATH = "/admin/market-value-review"
 
 /**
  * Bir "running" satırın son batch'inden bu kadar süre sonra hâlâ heartbeat
- * tazelenmemişse "zincir kırılmış" sayılır. Her batch kendi maxDuration
- * (300s) penceresi içinde ya biter (heartbeat tazelenir) ya da bir sonraki
- * batch'i tetikler (o da heartbeat'i tazeler) — bu sürenin çok üzerinde
- * heartbeat'in hiç tazelenmemesi self-fetch'in veya sunucunun bir yerde
- * durduğunu gösterir.
+ * tazelenmemişse "kırılmış/durmuş" sayılır. Artık her batch'i DIŞARIDAN bir
+ * zamanlayıcı (örn. cron-job.org, önerilen aralık: 1 dakika) tetikliyor —
+ * her başarılı çağrı heartbeat'i tazeler. Bu eşik, zamanlayıcının bir-iki
+ * çağrıyı atlamasına tolerans tanıyacak kadar geniş (6 dakika ≈ zamanlayıcı
+ * aralığının 6 katı) ama zamanlayıcı tamamen durursa admin panelinin
+ * "kırıldı" uyarısını göstermesi için yeterince kısa tutuldu. Zamanlayıcı
+ * aralığını değiştirirsen bu değeri de ona göre (en az ~5-6x) ayarla.
  *
  * ÖNEMLİ — bu kontrol `run.heartbeatAt`'e bakar, `run.runStartedAt`'a DEĞİL.
- * Satır zincir boyunca (tüm batch'ler için) TEK ve aynı olduğundan
+ * Satır koşu boyunca (tüm dış çağrılar için) TEK ve aynı olduğundan
  * (bkz. app/api/cron/backfill-player-positions), runStartedAt SADECE
- * zincirin en başında bir kere yazılır ve tüm koşu boyunca sabit kalır.
- * Eskiden bu kontrol runStartedAt'a bakıyordu — bu, saatlerce sürmesi normal
- * olan (binlerce oyuncu) sapasağlam ilerleyen bir zincirin bile 6 dakika
- * sonra hep "kırılmış" görünmesine yol açıyordu; daha da kötüsü, "Şimdi
- * Tara"ya basıldığında bu yanlış "stale" bilgisiyle, hâlâ arka planda
- * çalışan sağlıklı bir batch'in ÜSTÜNE paralel bir ikinci batch tetiklenip
- * Transfermarkt'a çift istek gidiyor, bot koruması daha çok tetiklenip
- * asıl kırılmaya yol açıyordu.
+ * koşunun en başında bir kere yazılır ve tüm koşu boyunca sabit kalır — bu
+ * yüzden saatlerce sürmesi normal olan (binlerce oyuncu) bir koşuyu
+ * runStartedAt'a göre "eskimiş" saymak yanlış olurdu.
  */
 const STALE_RUN_MS = 6 * 60 * 1000
 
@@ -124,14 +134,21 @@ export async function getPlayerPositionCronStatus(): Promise<PlayerPositionCronS
 
 /**
  * Admin'in "Şimdi Tara" butonu — mevki backfill'ini (bkz. app/api/cron/
- * backfill-player-positions) hemen tetikler. Bu route'a vercel.json'da
- * hiçbir zaman otomatik bir zamanlama tanımlanmadı — bilinçli olarak SADECE
- * bu buton (veya route'a manuel bir istek) ile başlar.
+ * backfill-player-positions) hemen, TEK bir batch için tetikler.
+ *
+ * ÖNEMLİ — bu artık "tüm taramayı başlatıp bitirene kadar kendi kendine
+ * devam eden bir zincir" DEĞİL (bkz. yukarıdaki dosya başı açıklaması —
+ * self-fetch zincirleme Vercel'in 5-sıçrama limitine çarpıyordu). Bu buton
+ * sadece İLK/bir sonraki batch'i elle tetikler; taramanın gerçekten uçtan
+ * uca bitmesi için dışarıdan periyodik bir zamanlayıcının (örn. cron-job.org)
+ * bu route'a düzenli GET istekleri göndermesi gerekiyor. Zamanlayıcı kurulu
+ * değilse, bu butona tekrar tekrar basmak da işi (yavaşça, tıklama başına
+ * bir batch) bitirebilir ama pratik değildir.
  *
  * Sağlıklı ilerleyen (kısa süre önce başlamış, hâlâ "running") bir batch
- * zaten varsa ikinci bir zincir başlatıp aynı oyuncuları çift işlemeyi
- * önlemek için hiçbir şey yapmaz. Zaten işlenecek oyuncu kalmadıysa da
- * (isDone) tetiklemez.
+ * zaten varsa ikinci bir batch'i aynı anda tetikleyip aynı oyuncuları çift
+ * işlemeyi önlemek için hiçbir şey yapmaz. Zaten işlenecek oyuncu kalmadıysa
+ * da (isDone) tetiklemez.
  */
 export async function triggerPlayerPositionScanNow(): Promise<{ triggered: boolean; reason?: string }> {
   await requireAdmin()
@@ -170,21 +187,13 @@ export async function triggerPlayerPositionScanNow(): Promise<{ triggered: boole
   // "http://localhost:3000"e düşüyordu.
   const url = `${getSiteUrl()}/api/cron/backfill-player-positions`
 
-  // Piyasa değeri action'larıyla AYNI desen — `after()` ile fire-and-forget.
-  // Bu callback, yanıt gönderildikten SONRA ama fonksiyon dondurulmadan ÖNCE
-  // çalıştırılması garanti edilir; action anında "tetiklendi" döner, gerçek
-  // backfill arka planda (route'un kendi 300s maxDuration'ı içinde) devam eder.
-  //
-  // ÖNEMLİ — burada route'un TAM yanıtını bekleyen bir yöntem YERİNE
-  // fireChainStepWithoutAwaitingResponse kullanılıyor. Bu route'un bir
-  // batch'i işlemesi ~70-115s sürebiliyor; tam yanıtı beklemek (özellikle bir
-  // yeniden deneme gerekirse) bu action'ın kendi after() bloğunun bütçesini
-  // gereksiz yere zorlardı (bkz. app/api/cron/backfill-player-positions/
-  // route.ts triggerNextStep'in başındaki uzun açıklama — orada TAM olarak bu
-  // hataya bir kez düşülmüştü). Route zaten kendi içinde bir sonraki adımı
-  // aynı hafif fire-and-forget deseniyle tetikliyor — burada da SADECE ilk
-  // adımı başlatmak için isteği gönderip hızlı bir hatayı (401 vb.)
-  // yakalayacak kısa bir pencere beklemek yeterli ve daha güvenli.
+  // `after()` ile fire-and-forget: bu callback, yanıt gönderildikten SONRA
+  // ama fonksiyon dondurulmadan ÖNCE çalıştırılması garanti edilir; action
+  // anında "tetiklendi" döner, tek batch'lik gerçek işlem arka planda devam
+  // eder. fireChainStepWithoutAwaitingResponse SADECE hızlı bir hatayı (401
+  // vb.) yakalayacak kısa bir pencere bekler, isteği İPTAL ETMEDEN döner —
+  // route zaten bu TEK batch'i işleyip dönecek, kendi kendini tekrar
+  // tetiklemeyecek (bkz. dosya başı açıklaması).
   after(() => fireChainStepWithoutAwaitingResponse(url, headersInit))
 
   revalidatePath(REVIEW_PATH)

@@ -1,60 +1,53 @@
-import { after } from "next/server"
 import { desc, eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { playerPositionCronRun } from "@/lib/db/schema"
 import { runPlayerPositionBackfillBatch } from "@/lib/player-position-sync"
-import { fireChainStepWithoutAwaitingResponse } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
-// 7.526 oyuncunun Transfermarkt mevki verisini kademeli, arka planda dolduran
-// route. vercel.json'da otomatik bir cron ZAMANLAMASI YOK — bilinçli olarak
-// tek bir tetikleme ile (admin panelinden veya bu route'a bir GET isteğiyle)
-// başlatılır ve kendi kendini `after()` ile tetikleyerek (bkz.
-// app/api/cron/resume-market-values) tüm adaylar bitene kadar arka planda
-// devam eder.
+// 7.500+ oyuncunun Transfermarkt mevki verisini kademeli, arka planda dolduran
+// route.
 //
-// Durumsuz (stateless) ilerleme: her adım, henüz "player_position" satırı
+// ÖNEMLİ GEÇMİŞ — bu route ÖNCEDEN kendi kendini `after()` + self-fetch ile
+// tetikleyerek (bir adım bitince aynı URL'e kendi sunucusundan tekrar istek
+// göndererek) zinciri tek bir "Şimdi Tara" tıklamasıyla uçtan uca bitirmeye
+// çalışıyordu. Bu YAPISAL olarak asla düzgün çalışamazdı: Vercel platformu,
+// bir fonksiyonun kendini ZİNCİRLEME şekilde çağırmasına (self-fetch → o da
+// self-fetch → ...) SABİT bir 5 sıçrama (hop) sınırı koyuyor — maliyet/kötüye
+// kullanım koruması olarak, ve bu hiçbir kod/timeout/header değişikliğiyle
+// aşılamıyor. 7500+ oyuncu, oyuncu başı 3s zorunlu bekleme ile yüzlerce adım
+// gerektirdiği için, zincir her zaman 5. adımda "HTTP 508 Loop Detected /
+// INFINITE_LOOP_DETECTED" ile platform tarafından kesiliyordu — kaç kez adım
+// süresi/timeout ayarı değiştirilirse değiştirilsin bu limit hep aynı yerde
+// duruyordu. (Piyasa değeri zinciri hiç kırılmıyordu çünkü onun TOPLAM işi
+// 5 adıma hiç ulaşmadan bitiyor.)
+//
+// ÇÖZÜM: bu route artık kendini HİÇ tetiklemiyor — SADECE gelen TEK bir GET
+// isteğine karşılık TEK bir batch işler ve döner. Zincirin "devamını" DIŞARIDAN
+// (Vercel'in kendi fonksiyon-çağırma ağının dışından) gelen periyodik bir
+// zamanlayıcı (örn. cron-job.org, her 1 dakikada bir) sağlıyor. Dışarıdan
+// gelen her istek platform için "hop 0" / tamamen bağımsız bir çağrı olduğu
+// için, kaç yüz/bin kez çağrılırsa çağrılsın 5-sıçrama sınırına ASLA
+// dokunulmuyor.
+//
+// Durumsuz (stateless) ilerleme: her çağrı, henüz "player_position" satırı
 // olmayan en yüksek piyasa değerli oyuncuları işler (bkz.
-// lib/player-position-sync.ts). Zincir bir yerde kesilirse (deploy,
-// serverless zaman aşımı, ağ hatası), bu route'a tekrar bir GET isteği
-// atmak yeterlidir — kaldığı yerden (veritabanı durumundan) otomatik devam
-// eder, ayrı bir "resume" endpoint'ine gerek yoktur.
+// lib/player-position-sync.ts). Zamanlayıcı bir çağrıyı atlarsa ya da bir
+// çağrı ortada kesilirse, bir sonraki çağrı veritabanı durumundan otomatik
+// devam eder — ekstra bir "resume" endpoint'ine gerek yoktur.
 // ---------------------------------------------------------------------------
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
 /**
- * Her adımda işlenecek EN FAZLA oyuncu sayısı — ama fiili sayı bundan çok
+ * Her çağrıda işlenecek EN FAZLA oyuncu sayısı — ama fiili sayı bundan çok
  * daha küçük olabilir, çünkü `runPlayerPositionBackfillBatch` kendi içinde
- * SOFT_TIME_BUDGET_MS (bkz. lib/player-position-sync.ts, artık 70s) bütçesini
- * aşınca kendi isteğiyle erken durur. Yani bu sayı sadece bir "tavan" —
- * gerçek batch büyüklüğünü zaman bütçesi belirler.
- *
- * ÖNEMLİ GEÇMİŞ — bu değer sırasıyla 200, 10, sonra 1 oldu. 200 ve 10 aynı
- * ciddi soruna yol açtı: o zamanki self-fetch zaman aşımı (15s) bir
- * batch'in gerçek worst-case süresinden (Transfermarkt retry'ları yüzünden
- * 90+ saniye) KISAydı — self-fetch "zaman aşımı" deyip isteği TEKRAR
- * gönderiyordu, ama sunucudaki ilk istek iptal olmadan arka planda çalışmaya
- * devam ediyordu → aynı adım için paralel istekler Transfermarkt'a gidip
- * birbirini yavaşlatan bir çoklanma felaketi oluşuyordu. Buna karşı BATCH_
- * SIZE=1'e düşürüldü — ama bu da 7700+ oyuncu için ZİNCİRİN 7700+ kez ard
- * arda, HİÇ KIRILMADAN self-fetch etmesini gerektiriyordu; tek bir geçici
- * ağ/deployment-protection hatası (self-fetch'in 3 denemesinin hepsi
- * başarısız olursa, bkz. triggerChainContinuation) zinciri kalıcı olarak
- * durduruyordu — admin panelinin sürekli "Zincir kırıldı" göstermesinin ve
- * elle "Şimdi Tara"ya tekrar tekrar basılması gerekmesinin asıl sebebi
- * buydu.
- *
- * Çözüm: batch boyutunu tavan olarak büyük tut (500) ama gerçek işi
- * SOFT_TIME_BUDGET_MS'e bırak — böylece her adım güvenli bir şekilde
- * mümkün olduğunca çok oyuncuyu (tipik olarak ~70s / ~3.4s ≈ 20 oyuncu)
- * işler. Bu, ~50 self-fetch'lik önceki (190s bütçeli) sürüme göre daha
- * FAZLA self-fetch (~380) gerektirir, ama artık her biri triggerChain-
- * Continuation'ın dayanıklı (tam yanıt bekleyen, 3 kez deneyen) deseniyle
- * yapılıyor — tek bir adımın "ateşleme anında iz bırakmadan kesilmesi"
- * riski ortadan kalktığı için daha fazla adım gerekmesi artık bir dezavantaj
- * değil, kırılmaya karşı bilinçli bir ödünleşim.
+ * SOFT_TIME_BUDGET_MS (bkz. lib/player-position-sync.ts, 70s) bütçesini
+ * aşınca kendi isteğiyle erken durur (tipik olarak ~70s / ~3.4s ≈ 20 oyuncu).
+ * Bu sayı sadece bir "tavan" — gerçek batch büyüklüğünü zaman bütçesi
+ * belirler. Dış zamanlayıcı bu route'u kaç dakikada bir çağırırsa, toplam
+ * ilerleme hızı da o kadar olur (örn. 1 dakikada bir çağrı × ~20 oyuncu/çağrı
+ * ≈ dakikada ~20 oyuncu).
  */
 const BATCH_SIZE = 500
 
@@ -65,58 +58,17 @@ function isAuthorized(request: Request): boolean {
   return header === `Bearer ${secret}`
 }
 
-// ÖNEMLİ GEÇMİŞ — burada KISA bir süre "triggerChainContinuation" (bir
-// sonraki adımın TAM yanıtını, 150s'ye kadar bekleyen, başarısız olursa 3 kez
-// tekrar deneyen) denendi. Bu YANLIŞTI: bu bekleme çağıranın KENDİ after()
-// bloğunun İÇİNDE, yani ŞU ANKİ invocation'ın maxDuration'ının (300s)
-// İÇİNDE çalışıyor. Bu adımın kendi işi (~70-115s) bittikten sonra, "bir
-// sonraki adım da bitsin" diye TEKRAR ~70-115s beklemek, en kötü ihtimalle
-// (bir yeniden deneme gerekirse) 150s × 3 deneme = 450s'ye kadar sürebiliyordu
-// — bu da ŞU ANKİ invocation'ın 300s'lik toplam bütçesini fazlasıyla
-// aşıyordu. Sunucu bunu ortada zorla keserken (300s dolduğunda) hiçbir hata
-// izi bırakmıyordu — run satırı "running" olarak donup kalıyor, admin paneli
-// "Zincir kırıldı" gösteriyordu. Yani bu "düzeltme" aslında AYNI sorunu farklı
-// bir yerden yeniden yaratmıştı.
-//
-// Doğru çözüm: isteği gönder, SADECE hızlı bir hatayı (401, ağ hatası)
-// yakalayacak kısa bir pencere bekle (fireChainStepWithoutAwaitingResponse —
-// varsayılan olarak en fazla ~8s × 3 deneme ≈ 24-30s), sonra isteği İPTAL
-// ETMEDEN dön. SOFT_TIME_BUDGET_MS artık 70s'e düşürüldüğü için (bkz. lib/
-// player-position-sync.ts) bu adımın kendi işi bittiğinde invocation'ın
-// 300s'lik bütçesinden ~185s'lik bol bir pay kalıyor — bu kısa (~30s) confirm
-// penceresi bu payın çok küçük bir kısmını kullanıyor, invocation'ın ortada
-// zorla kesilme riski artık ihmal edilebilir seviyede.
-async function triggerNextStep(request: Request): Promise<void> {
-  const headers: Record<string, string> = {}
-  const secret = process.env.CRON_SECRET
-  if (secret) headers.authorization = `Bearer ${secret}`
-  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-  if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
-
-  await fireChainStepWithoutAwaitingResponse(request.url, headers)
-}
-
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // ÖNEMLİ — BATCH_SIZE=1 (bkz. yukarıdaki yorum) her GET'in TEK bir oyuncu
-  // işlemesi anlamına geliyor, ve zincir kendini yüzlerce/binlerce kez
-  // tetikleyerek devam ediyor. Öncesinde her GET burada YENİ bir satır
-  // insert ediyordu ("logId" her zaman `Date.now()`'a göre benzersizdi) —
-  // sadece EN SON satır "completed" olarak işaretleniyor, zincirdeki tüm ara
-  // adımların satırları SONSUZA KADAR "running" (0/0 sayaçlarla) kalıyordu.
-  // Bu, admin panelinin gösterdiği bilgiyi bozmuyordu (panel her zaman en
-  // son satırı okur), ama binlerce oyuncu tam bir taramadan geçtiğinde
-  // tabloya binlerce "yarım" satır birikiyordu.
-  //
-  // Düzeltme: devam eden ("running") bir koşu varsa onu SATIR olarak
-  // yeniden kullanıyoruz — yeni satır açmak yerine aynı satırın sayaçlarını
-  // (playersProcessed/playersMatched) her adımda ARTIRARAK güncelliyoruz.
-  // Böylece tüm zincir boyunca (ilk tetiklemeden "completed"e kadar) TEK bir
-  // satır var olur — market-value cron sistemindeki "tek satır, yerinde
-  // güncelle" deseninin aynısı (bkz. lib/market-value-cron-run.ts).
+  // ÖNEMLİ — devam eden ("running") bir koşu varsa onu SATIR olarak yeniden
+  // kullanıyoruz — yeni satır açmak yerine aynı satırın sayaçlarını
+  // (playersProcessed/playersMatched) her çağrıda ARTIRARAK güncelliyoruz.
+  // Böylece tüm koşu boyunca (ilk çağrıdan "completed"e kadar) TEK bir satır
+  // var olur — market-value cron sistemindeki "tek satır, yerinde güncelle"
+  // deseninin aynısı (bkz. lib/market-value-cron-run.ts).
   const [activeRun] = await db
     .select({ id: playerPositionCronRun.id })
     .from(playerPositionCronRun)
@@ -127,15 +79,6 @@ export async function GET(request: Request) {
   let logId: string
   if (activeRun) {
     logId = activeRun.id
-    // ÖNEMLİ — bu satırı bir batch için "ele aldığımızı" HEMEN (gerçek işe
-    // başlamadan önce) heartbeat'i tazeleyerek işaretliyoruz. Bunun nedeni:
-    // runPlayerPositionBackfillBatch tek bir adımda 190-237s sürebiliyor —
-    // eğer heartbeat SADECE batch bittiğinde güncellenirse, bu uzun pencere
-    // boyunca (batch hâlâ çalışırken) heartbeat eski görünür ve admin
-    // panelinden veya bir "resume" cron'undan gelen paralel bir tetikleme
-    // "stale, tekrar başlat" diyerek AYNI anda ikinci bir batch'i tetikleyip
-    // Transfermarkt'a çift istek göndertebilir (bkz. schema.ts heartbeatAt
-    // açıklaması) — asıl kırılmaya yol açan çoklanma budur.
     await db.update(playerPositionCronRun).set({ heartbeatAt: new Date() }).where(eq(playerPositionCronRun.id, logId))
   } else {
     const runStartedAt = new Date()
@@ -152,43 +95,22 @@ export async function GET(request: Request) {
       .set({
         status: done ? "completed" : "running",
         runFinishedAt: done ? new Date() : undefined,
-        // Bu adımın sayısını, önceki adımlardan gelen toplama EKLE — üzerine
-        // yazma. Aksi halde satır her zaman SADECE son adımın (1 oyuncu)
+        // Bu çağrının sayısını, önceki çağrılardan gelen toplama EKLE —
+        // üzerine yazma. Aksi halde satır her zaman SADECE son çağrının
         // sayısını gösterirdi, koşunun tamamının toplamını değil.
         playersProcessed: sql`${playerPositionCronRun.playersProcessed} + ${result.processed}`,
         playersMatched: sql`${playerPositionCronRun.playersMatched} + ${result.matched}`,
-        // Batch başarıyla bitti — heartbeat'i yeniden tazele (bir sonraki
-        // adım tetiklenmeden önce zincirin "az önce ilerlediğini" işaretle).
+        // Heartbeat'i yeniden tazele — dış zamanlayıcının bir sonraki
+        // çağrısına kadar "az önce ilerledik" bilgisini işaretle.
         heartbeatAt: new Date(),
       })
       .where(eq(playerPositionCronRun.id, logId))
 
-    if (!done) {
-      // Bir sonraki adımı arka planda tetikle — bu isteğin cevabı kullanıcıya
-      // hemen döner, backfill kesintisiz devam eder.
-      //
-      // triggerNextStep artık KESİN bir hatada (401, 5xx, ağ hatası — üç
-      // hızlı denemenin de başarısız olması) bir Error fırlatabiliyor (bkz.
-      // fireChainStepWithoutAwaitingResponse). Bunu yakalayıp run satırını
-      // "failed" + gerçek hata mesajıyla işaretliyoruz — böylece bir sonraki
-      // kırılmada admin paneli en azından GERÇEK sebebi gösterir, sadece
-      // "6 dakikadır heartbeat yok" genel uyarısı yerine.
-      after(async () => {
-        try {
-          await triggerNextStep(request)
-        } catch (err) {
-          console.error("[v0] Zincir devamı kesin olarak başarısız oldu, run satırı failed işaretleniyor:", err)
-          await db
-            .update(playerPositionCronRun)
-            .set({
-              status: "failed",
-              runFinishedAt: new Date(),
-              lastError: err instanceof Error ? err.message : String(err),
-            })
-            .where(eq(playerPositionCronRun.id, logId))
-        }
-      })
-    }
+    // ÖNEMLİ — burada BİLİNÇLİ olarak bir sonraki adımı KENDİ KENDİMİZE
+    // tetiklemiyoruz. `done` false ise, run satırı "running" olarak kalır ve
+    // dış zamanlayıcının bir sonraki periyodik çağrısı bu route'u tekrar
+    // çağırarak devam ettirir. Bu, Vercel'in 5-sıçrama self-fetch limitine
+    // hiç dokunmamamızı sağlıyor.
 
     return Response.json({ done, ...result })
   } catch (err) {
