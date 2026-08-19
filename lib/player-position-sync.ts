@@ -41,19 +41,19 @@ import { profile } from "./player-positions"
  *   - 2000ms → denendi. ~50 oyuncu sorunsuz gitti (öncekilere göre en uzun
  *     kesintisiz seri), sonra yine yavaşladı. Eşiğe önceki denemelerden daha
  *     yakın olduğumuzu gösteriyor ama hâlâ tam altında değiliz.
- *   - 2500ms → şimdi deneniyor. Hâlâ yavaşlama gözlemlenirse bir sonraki
- *     adım 3000ms olmalı; blok tamamen kesilirse (uzun süre sorunsuz gidiş)
- *     burada kalınabilir.
+ *   - 2500ms → denendi, iyi gitti ama net sonuç belirsizdi.
+ *   - 3000ms → şimdi deneniyor (kullanıcı tahmini: eşik burada olabilir).
  *   İzleme: admin panelindeki "Oyuncu Mevki Taraması" durumu (playersProcessed
  *   hızı, tekrar tekrar 1 oyuncunun birden çok saniyeye yayılması).
  *
- * Oyuncu başı beklenen süre: ~2.5s bekleme + ~0.3-0.5s fetch ≈ 2.8-3s
- * (bloksuz senaryoda). 200'lük batch + 190s'lik yumuşak bütçeyle batch
- * başına ~63-68 oyuncu işlenir. ~7600 kalan oyuncu için tahmini toplam
- * süre (bloksuz varsayımla): 7600 × ~2.9s ≈ ~22040s ≈ ~6.1 saat — bu bir
- * ALT SINIR; blok hâlâ oluyorsa gerçek süre bunun üstüne çıkar.
+ * Oyuncu başı beklenen süre: ~3s bekleme + ~0.3-0.5s fetch ≈ 3.3-3.5s
+ * (bloksuz senaryoda) — yani her oyuncu tek başına ~3.3-3.5 saniyede çekilir.
+ * 200'lük batch + 190s'lik yumuşak bütçeyle batch başına ~54-57 oyuncu
+ * işlenir. ~7600 kalan oyuncu için tahmini TOPLAM süre (bloksuz varsayımla):
+ * 7600 × ~3.4s ≈ ~25840s ≈ ~7.2 saat — bu bir ALT SINIR; blok hâlâ oluyorsa
+ * gerçek süre bunun üstüne çıkar.
  */
-const REQUEST_DELAY_MS = 2500
+const REQUEST_DELAY_MS = 3000
 
 /**
  * Route'un maxDuration'ından (300s) daha erken, kendi isteğimizle güvenli bir
