@@ -1,0 +1,103 @@
+// ---------------------------------------------------------------------------
+// Tüm cron tetiklemelerini (önceden GitHub Actions + Vercel Cron'da olan)
+// QStash schedule'larına taşıyan tek seferlik kurulum scripti.
+//
+// GitHub Actions'ın "en az bu aralıkla, garanti yok" schedule davranışı
+// (yoğun saatlerde 30-60dk gecikebiliyor) yüzünden 5 dakikalık cron'lar
+// güvenilir çalışmıyordu. QStash dakika hassasiyetinde garantili teslim +
+// otomatik retry sağlıyor.
+//
+// Her schedule sabit bir scheduleId ile oluşturulur — bu script yeniden
+// çalıştırılırsa (örn. secret değişince) aynı ID üzerine YAZAR, kopya
+// schedule oluşturmaz (QStash'in "overwrite an existing schedule" davranışı).
+//
+// Kullanım:
+//   set -a && source /vercel/share/.env.project && set +a
+//   node scripts/setup-qstash-schedules.mjs
+//
+// Gerekli env değişkenleri: QSTASH_TOKEN, CRON_SECRET,
+// VERCEL_AUTOMATION_BYPASS_SECRET, SITE_URL (örn. https://example.com)
+// ---------------------------------------------------------------------------
+
+const QSTASH_TOKEN = process.env.QSTASH_TOKEN
+const CRON_SECRET = process.env.CRON_SECRET
+const BYPASS_SECRET = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+const SITE_URL = process.env.SITE_URL || "https://edcompanyofficial.com"
+
+if (!QSTASH_TOKEN) {
+  console.error("[qstash-setup] QSTASH_TOKEN tanımlı değil, çıkılıyor.")
+  process.exit(1)
+}
+
+/**
+ * @typedef {Object} ScheduleDef
+ * @property {string} scheduleId
+ * @property {string} cron
+ * @property {string} path
+ * @property {boolean} withBypass
+ */
+
+/** @type {ScheduleDef[]} */
+const schedules = [
+  {
+    scheduleId: "live-fixture-notifications",
+    cron: "*/5 * * * *",
+    path: "/api/cron/live-fixture-notifications",
+    withBypass: false,
+  },
+  {
+    scheduleId: "backfill-player-positions",
+    cron: "*/5 * * * *",
+    path: "/api/cron/backfill-player-positions",
+    withBypass: true,
+  },
+  {
+    scheduleId: "revalidate-sitemap",
+    // 21:05 UTC = 00:05 TR (eski GitHub Actions workflow'uyla birebir aynı)
+    cron: "5 21 * * *",
+    path: "/api/cron/revalidate-sitemap",
+    withBypass: false,
+  },
+  {
+    scheduleId: "update-player-power",
+    // eski vercel.json girdisiyle birebir aynı: her gün 00:00 UTC
+    cron: "0 0 * * *",
+    path: "/api/cron/update-player-power",
+    withBypass: false,
+  },
+]
+
+async function createSchedule(def) {
+  const destination = `${SITE_URL}${def.path}`
+  const headers = {
+    Authorization: `Bearer ${QSTASH_TOKEN}`,
+    "Content-Type": "application/json",
+    "Upstash-Cron": def.cron,
+    "Upstash-Schedule-Id": def.scheduleId,
+    "Upstash-Method": "GET",
+  }
+  if (CRON_SECRET) {
+    headers["Upstash-Forward-Authorization"] = `Bearer ${CRON_SECRET}`
+  }
+  if (def.withBypass && BYPASS_SECRET) {
+    headers["Upstash-Forward-x-vercel-protection-bypass"] = BYPASS_SECRET
+  }
+
+  const res = await fetch(`https://qstash.upstash.io/v2/schedules/${destination}`, {
+    method: "POST",
+    headers,
+  })
+
+  const body = await res.text()
+  if (!res.ok) {
+    throw new Error(`[qstash-setup] ${def.scheduleId} oluşturulamadı (HTTP ${res.status}): ${body}`)
+  }
+  console.log(`[qstash-setup] ${def.scheduleId} -> ${def.cron} (${destination}) OK`)
+  return JSON.parse(body)
+}
+
+for (const def of schedules) {
+  await createSchedule(def)
+}
+
+console.log("[qstash-setup] Tüm schedule'lar oluşturuldu. Upstash Console > QStash > Schedules üzerinden doğrulayabilirsin.")

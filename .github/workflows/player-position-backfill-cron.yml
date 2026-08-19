@@ -1,19 +1,33 @@
 name: Oyuncu Mevki Taramasını Tetikle
 
 # ---------------------------------------------------------------------------
+# BU WORKFLOW'UN SCHEDULE TETİKLEYİCİSİ DEVRE DIŞI — tetikleme artık QStash
+# üzerinden geliyor (bkz. scripts/setup-qstash-schedules.mjs,
+# scheduleId: "backfill-player-positions", Upstash Console > QStash >
+# Schedules). Sebep: GitHub Actions'ın schedule tetiklemeleri "en az bu
+# aralıkla, birebir dakikasında değil" garantisi taşıyor ve yoğun saatlerde
+# ciddi gecikebiliyor — bu route'ta (self-chaining OLMADIĞI için) her
+# gecikme, taramanın toplam süresine doğrudan ekleniyordu. QStash dakika
+# hassasiyetinde garantili teslim + otomatik retry sağlıyor.
+#
 # app/api/cron/backfill-player-positions route'u self-chaining DEĞİLDİR:
 # her çağrıda tek bir batch (küçük bir oyuncu grubu) işleyip döner. Bunun
 # sebebi Vercel platformunun bir fonksiyonun kendini art arda çağırmasına
 # (self-fetch zinciri) sabit ~5 sıçrama sınırı koyması — daha uzun zincirler
 # "508 Loop Detected" hatasıyla kesiliyordu.
 #
-# Bu yüzden 7684 oyuncunun tamamının taranması için route'un dışarıdan
-# düzenli aralıklarla tekrar tekrar çağrılması gerekiyor. Vercel Cron,
-# Hobby planda günde sadece 1 çalışmaya izin verdiği için bu işi bu GitHub
-# Actions workflow'u üstleniyor.
-#
 # Her çağrı küçük bir batch işler ve hemen döner; zaten süren bir batch
 # varsa (veya tarama tamamlandıysa) route no-op döner, tekrar başlatmaz.
+#
+# ÖNEMLİ — QStash schedule'ı, bu workflow'un gönderdiği İKİ header'ı
+# (Authorization + x-vercel-protection-bypass) BİREBİR gönderir, admin
+# panelindeki "Şimdi Tara" butonunun kullandığı x-player-position-manual-trigger
+# header'ını GÖNDERMEZ — yani route'un "sadece admin başlatabilir, dış
+# zamanlayıcı yeni koşu AÇAMAZ, sadece devam ettirebilir" davranışı
+# değişmeden korunuyor.
+#
+# Bu workflow silinmedi — workflow_dispatch ile manuel tetikleme (debug /
+# acil durum) için hâlâ kullanılabilir, sadece otomatik schedule kaldırıldı.
 #
 # Gerekli GitHub repo secret'ları (Settings > Secrets and variables > Actions):
 #   SITE_URL       -> örn. https://example.com (sondaki / olmadan)
@@ -25,8 +39,6 @@ name: Oyuncu Mevki Taramasını Tetikle
 # ---------------------------------------------------------------------------
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 jobs:

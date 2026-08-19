@@ -15,13 +15,16 @@ import { acquireChainLock, refreshChainLock, releaseChainLock } from "@/lib/redi
 // `after()` ile kendini yeniden tetikler.
 //
 // Hobby planda dakikalık Vercel Cron kullanılamadığından, bu route dışarıdan
-// .github/workflows/live-fixture-notifications-cron.yml (GitHub Actions,
-// 5 dakikada bir) tarafından beslenir. Zincir zaten çalışıyorsa (kilit
-// tutuluyorsa) bu dıştan gelen tetiklemeler anında { alreadyRunning: true }
-// döner — asıl görevleri, zincir herhangi bir sebeple tamamen durursa onu
-// yeniden ateşlemek. Redis kilidi ("zaten çalışıyor" kaydı, market-value'daki
-// DB tabanlı "running" satırının basit karşılığı) aynı anda birden fazla
-// zincirin aynı maçları iki kez taramasının önüne geçer.
+// QStash (bkz. scripts/setup-qstash-schedules.mjs, scheduleId:
+// "live-fixture-notifications", 5 dakikada bir) tarafından beslenir. Eskiden
+// bu görevi .github/workflows/live-fixture-notifications-cron.yml
+// üstleniyordu, GitHub'ın garanti sunmayan schedule'ı yüzünden QStash'e
+// taşındı. Zincir zaten çalışıyorsa (kilit tutuluyorsa) bu dıştan gelen
+// tetiklemeler anında { alreadyRunning: true } döner — asıl görevleri,
+// zincir herhangi bir sebeple tamamen durursa onu yeniden ateşlemek. Redis
+// kilidi ("zaten çalışıyor" kaydı, market-value'daki DB tabanlı "running"
+// satırının basit karşılığı) aynı anda birden fazla zincirin aynı maçları
+// iki kez taramasının önüne geçer.
 //
 // Hiç canlı maç yoksa döngü daha uzun aralıklarla ("boşta" modu) kontrol
 // eder ama zinciri SONLANDIRMAZ — yeni bir maç her an başlayabilir.

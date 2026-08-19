@@ -1,8 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/update-player-power",
-      "schedule": "0 0 * * *"
-    }
-  ]
+  "_comment": "Vercel Cron kaldırıldı — update-player-power tetiklemesi artık QStash'ten geliyor (bkz. scripts/setup-qstash-schedules.mjs, scheduleId: 'update-player-power'). Diğer tüm cron'lar (live-fixture-notifications, backfill-player-positions, revalidate-sitemap) da aynı şekilde QStash'e taşındı; .github/workflows/*.yml dosyaları artık sadece workflow_dispatch ile manuel tetikleme için duruyor."
 }

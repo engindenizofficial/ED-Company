@@ -1,11 +1,11 @@
 import { revalidatePath } from "next/cache"
 
 // ---------------------------------------------------------------------------
-// Bu route Vercel Cron TARAFINDAN tetiklenmiyor (Hobby plandaki günlük cron
-// hakkı zaten update-market-values için ayrılmış durumda değil — o haftalık
-// çalışıyor — ama yeni bir günlük cron eklemek istemediğimiz için bu route
-// dışarıdan, GitHub Actions'ın kendi (Vercel'den bağımsız, ücretsiz) zamanlayıcısı
-// tarafından günde bir kez çağrılıyor (bkz. .github/workflows/revalidate-sitemap.yml).
+// Bu route günde bir kez QStash tarafından tetikleniyor (bkz.
+// scripts/setup-qstash-schedules.mjs, scheduleId: "revalidate-sitemap" —
+// "5 21 * * *" = 00:05 TR). Eskiden GitHub Actions kullanılıyordu (bkz.
+// .github/workflows/revalidate-sitemap.yml), GitHub'ın schedule
+// tetiklemelerinin garanti bir zamanlama sunmaması sonrası QStash'e taşındı.
 //
 // app/sitemap.ts içinde `revalidate = 3600` var — bu, sitemap'in en fazla 1
 // saat "bayat" (stale) kalabileceğini söyler ama bunu kendi kendine kontrol

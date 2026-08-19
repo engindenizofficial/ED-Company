@@ -24,10 +24,12 @@ import { countRemainingCandidates, runPlayerPositionBackfillBatch } from "@/lib/
 // ÇÖZÜM: bu route artık kendini HİÇ tetiklemiyor — SADECE gelen TEK bir GET
 // isteğine karşılık TEK bir batch işler ve döner. Zincirin "devamını" DIŞARIDAN
 // (Vercel'in kendi fonksiyon-çağırma ağının dışından) gelen periyodik bir
-// zamanlayıcı (örn. cron-job.org, her 1 dakikada bir) sağlıyor. Dışarıdan
-// gelen her istek platform için "hop 0" / tamamen bağımsız bir çağrı olduğu
-// için, kaç yüz/bin kez çağrılırsa çağrılsın 5-sıçrama sınırına ASLA
-// dokunulmuyor.
+// zamanlayıcı sağlıyor: QStash (bkz. scripts/setup-qstash-schedules.mjs,
+// scheduleId: "backfill-player-positions", 5 dakikada bir — eskiden GitHub
+// Actions kullanılıyordu, garanti sunmayan schedule'ı yüzünden taşındı).
+// Dışarıdan gelen her istek platform için "hop 0" / tamamen bağımsız bir
+// çağrı olduğu için, kaç yüz/bin kez çağrılırsa çağrılsın 5-sıçrama
+// sınırına ASLA dokunulmuyor.
 //
 // Durumsuz (stateless) ilerleme: her çağrı, henüz "player_position" satırı
 // olmayan en yüksek piyasa değerli oyuncuları işler (bkz.
@@ -60,14 +62,14 @@ function isAuthorized(request: Request): boolean {
 
 // ÖNEMLİ — bu header'ı SADECE admin panelindeki "Şimdi Tara" butonu
 // (triggerPlayerPositionScanNow, app/actions/player-position-cron.ts) gönderir.
-// Dış zamanlayıcı (GitHub Actions cron, .github/workflows/
-// player-position-backfill-cron.yml) bunu HİÇ göndermez. Bunun sebebi:
-// kullanıcı taramayı kendisi başlatana kadar arka planda kendiliğinden
-// (ilk kez) başlamasını istemiyor — GitHub cron sadece ZATEN "running"
-// durumda olan bir koşuyu devam ettirebilir, YENİ bir koşu açamaz. Admin
-// "Şimdi Tara"ya bastıktan sonra GitHub cron o koşuyu bitirene kadar
-// otomatik ilerletir; koşu biterse (completed) bir dahaki "Şimdi Tara"ya
-// kadar hiçbir şey yapmaz.
+// Dış zamanlayıcı (QStash schedule, bkz. scripts/setup-qstash-schedules.mjs
+// — eskiden .github/workflows/player-position-backfill-cron.yml) bunu HİÇ
+// göndermez. Bunun sebebi: kullanıcı taramayı kendisi başlatana kadar arka
+// planda kendiliğinden (ilk kez) başlamasını istemiyor — dış zamanlayıcı
+// sadece ZATEN "running" durumda olan bir koşuyu devam ettirebilir, YENİ bir
+// koşu açamaz. Admin "Şimdi Tara"ya bastıktan sonra dış zamanlayıcı o koşuyu
+// bitirene kadar otomatik ilerletir; koşu biterse (completed) bir dahaki
+// "Şimdi Tara"ya kadar hiçbir şey yapmaz.
 const MANUAL_TRIGGER_HEADER = "x-player-position-manual-trigger"
 
 function isManualTrigger(request: Request): boolean {

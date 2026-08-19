@@ -5,8 +5,11 @@ import { playerPowerCronRun } from "@/lib/db/schema"
 import { runPlayerPowerSync } from "@/lib/player-power-sync"
 
 // ---------------------------------------------------------------------------
-// Vercel Cron her gün 03:00 (İstanbul saati) bu endpoint'i tetikler (bkz.
-// vercel.json — "0 0 * * *" = her gün 00:00 UTC = 03:00 TR).
+// QStash her gün 00:00 UTC (03:00 TR) bu endpoint'i tetikler (bkz.
+// scripts/setup-qstash-schedules.mjs, scheduleId: "update-player-power" —
+// "0 0 * * *"). Eskiden Vercel Cron kullanılıyordu (vercel.json), GitHub
+// Actions'ta yaşanan güvenilmez schedule sorunları sonrası tüm cron'lar
+// (bu dahil) tutarlılık için QStash'e taşındı.
 //
 // Piyasa değeri cron'unun (haftalık, 24 lig zincirleme) aksine bu iş yükü
 // küçüktür: sadece son 1-3 gündeki biten maçların oyuncu istatistiklerini

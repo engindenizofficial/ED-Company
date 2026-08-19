@@ -1,14 +1,19 @@
 name: Sitemap'i Günlük Yenile
 
 # ---------------------------------------------------------------------------
-# Bu workflow, Vercel'in kendi cron kotasını (Hobby planda proje başına
-# sınırlı) kullanmadan, /sitemap.xml cache'ini her gün TR saatiyle gece
-# yarısı hemen sonra tazeler. Böylece update-market-values (haftalık, Vercel
-# Cron) hakkı bundan hiç etkilenmez.
+# BU WORKFLOW'UN SCHEDULE TETİKLEYİCİSİ DEVRE DIŞI — günlük tetikleme artık
+# QStash üzerinden geliyor (bkz. scripts/setup-qstash-schedules.mjs,
+# scheduleId: "revalidate-sitemap", cron "5 21 * * *" = 00:05 TR, Upstash
+# Console > QStash > Schedules). Sebep: GitHub Actions'ın schedule
+# tetiklemeleri garanti bir zamanlama sunmuyor; QStash dakika hassasiyetinde
+# garantili teslim + otomatik retry sağlıyor.
 #
 # app/api/cron/revalidate-sitemap route'unu çağırır; o route da
 # revalidatePath('/sitemap.xml') ile cache'i geçersiz kılar. Bu sayede gün
 # değiştiğinde, kimse siteye girmese bile sitemap'teki maçlar güncel olur.
+#
+# Bu workflow silinmedi — workflow_dispatch ile manuel tetikleme (debug /
+# acil durum) için hâlâ kullanılabilir, sadece otomatik schedule kaldırıldı.
 #
 # Gerekli GitHub repo secret'ları (Settings > Secrets and variables > Actions):
 #   SITE_URL     -> örn. https://example.com (sondaki / olmadan)
@@ -16,9 +21,6 @@ name: Sitemap'i Günlük Yenile
 # ---------------------------------------------------------------------------
 
 on:
-  schedule:
-    # 21:05 UTC = 00:05 TR (Türkiye UTC+3, DST uygulamıyor)
-    - cron: "5 21 * * *"
   workflow_dispatch: {}
 
 jobs:

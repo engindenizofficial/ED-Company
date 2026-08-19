@@ -1,23 +1,24 @@
 name: Canlı Maç Bildirimlerini Tetikle
 
 # ---------------------------------------------------------------------------
-# Vercel Cron, Hobby planda sadece günde 1 kez çalışan job'lara izin veriyor
-# (dakikalık/5 dakikalık schedule'lar Hobby'de deploy sırasında reddedilir).
-# Bu yüzden canlı maç tarama zincirini Vercel Cron yerine bu GitHub Actions
-# workflow'u besliyor.
+# BU WORKFLOW'UN SCHEDULE TETİKLEYİCİSİ DEVRE DIŞI — heartbeat artık QStash
+# üzerinden geliyor (bkz. scripts/setup-qstash-schedules.mjs,
+# scheduleId: "live-fixture-notifications", Upstash Console > QStash >
+# Schedules). Sebep: GitHub Actions'ın schedule tetiklemeleri "en az bu
+# aralıkla, birebir dakikasında değil" garantisi taşıyor ve resmi
+# dokümantasyona göre yoğun saatlerde 30-60 dakikaya kadar gecikebiliyor.
+# QStash dakika hassasiyetinde garantili teslim + otomatik retry sağlıyor.
 #
 # app/api/cron/live-fixture-notifications route'u zaten "self-chaining":
 # tetiklendiğinde ~260 saniye boyunca kendi içinde 30s (canlı maç varken) /
 # 2dk (boştayken) aralıklarla tarama yapıp after() ile kendini yeniden
-# çağırıyor — bu workflow'un tek görevi, zincir herhangi bir sebeple
+# çağırıyor — bu tetiklemenin tek görevi, zincir herhangi bir sebeple
 # (platform recycle, geçici hata vb.) tamamen durursa onu yeniden ateşlemek.
 # Zincir zaten çalışıyorsa route Redis kilidi sayesinde anında
 # { alreadyRunning: true } döner, ekstra bir tarama başlatmaz.
 #
-# GitHub Actions'ın minimum cron aralığı 5 dakikadır (daha sık çalıştırılamaz)
-# ve schedule tetiklemeleri "en az bu aralıkla, birebir dakikasında değil"
-# garantisi taşır — zincir kendi 30s'lik döngüsünü bu workflow'dan bağımsız
-# sürdürdüğü için bu gecikme bildirim gecikmesi anlamına gelmez.
+# Bu workflow silinmedi — workflow_dispatch ile manuel tetikleme (debug /
+# acil durum) için hâlâ kullanılabilir, sadece otomatik schedule kaldırıldı.
 #
 # Gerekli GitHub repo secret'ları (Settings > Secrets and variables > Actions):
 #   SITE_URL     -> örn. https://example.com (sondaki / olmadan)
@@ -25,8 +26,6 @@ name: Canlı Maç Bildirimlerini Tetikle
 # ---------------------------------------------------------------------------
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 jobs:
