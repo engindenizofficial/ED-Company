@@ -148,6 +148,16 @@ export async function triggerChainContinuation(
  * kısa aralıklarla yeniden dener; pencere içinde hiçbir şey olmazsa
  * (beklenen durum — downstream kendi uzun işine başlamıştır) sessizce
  * başarı sayar.
+ *
+ * ÖNEMLİ — bu fonksiyon, TÜM hızlı denemeler KESİN bir hatayla (401, 5xx,
+ * ağ hatası) sonuçlanırsa artık bir Error FIRLATIYOR (öncesinde sadece
+ * console.error basıp sessizce dönüyordu). Çağıran taraf bunu yakalayıp
+ * run satırını "failed" + gerçek hata mesajıyla işaretleyebilir — böylece
+ * admin paneli en azından GERÇEK bir sebep gösterebilir, "stale" (6 dakika
+ * heartbeat yok) genel uyarısı yerine. Beklenen "hiç yanıt gelmedi, downstream
+ * kendi işine başladı" durumu (outcome.settled === false) HÂLÂ başarı
+ * sayılır ve fırlatma yapılmaz — bu, KESİN bir hatayı, "henüz bilmiyoruz"
+ * durumundan ayırt eder.
  */
 export async function fireChainStepWithoutAwaitingResponse(
   url: string,
@@ -155,6 +165,8 @@ export async function fireChainStepWithoutAwaitingResponse(
   confirmTimeoutMs = 8_000,
   maxQuickRetries = 2,
 ): Promise<void> {
+  let lastConfirmedError: string | null = null
+
   for (let attempt = 1; attempt <= maxQuickRetries + 1; attempt++) {
     try {
       const outcome = await Promise.race([
@@ -172,10 +184,12 @@ export async function fireChainStepWithoutAwaitingResponse(
       if (outcome.res.ok) return
 
       const body = await outcome.res.text().catch(() => "")
+      lastConfirmedError = `HTTP ${outcome.res.status} ${outcome.res.statusText}${body ? ` — ${body.slice(0, 300)}` : ""}`
       console.error(
         `[v0] Zincir tetiklemesi hızlı bir hata döndürdü (HTTP ${outcome.res.status}, deneme ${attempt}/${maxQuickRetries + 1}): ${body.slice(0, 300)}`,
       )
     } catch (err) {
+      lastConfirmedError = err instanceof Error ? err.message : String(err)
       console.error(
         `[v0] Zincir tetiklemesi ağ hatasıyla başarısız oldu (deneme ${attempt}/${maxQuickRetries + 1}):`,
         err,
@@ -187,6 +201,7 @@ export async function fireChainStepWithoutAwaitingResponse(
     }
   }
   console.error(`[v0] Zincir tetiklemesi tüm hızlı denemelerden sonra başarısız oldu, zincir burada duracak: ${url}`)
+  throw new Error(lastConfirmedError ?? "Zincir tetiklemesi tüm hızlı denemelerden sonra başarısız oldu")
 }
 
 export type LeagueRunStatus = "pending" | "success" | "failed"

@@ -3,17 +3,7 @@ import { desc, eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { playerPositionCronRun } from "@/lib/db/schema"
 import { runPlayerPositionBackfillBatch } from "@/lib/player-position-sync"
-import { triggerChainContinuation } from "@/lib/market-value-cron-run"
-
-/**
- * Bir sonraki adımın TAM yanıtını bekleyecek zaman aşımı — bu adımın
- * worst-case süresinden (bkz. lib/player-position-sync.ts SOFT_TIME_BUDGET_MS
- * = 70s + son adayın tam 3 tekrar denemesi ~45s ≈ 115s) belirgin şekilde
- * fazla olmalı, aksi halde triggerChainContinuation kendi zaman aşımına
- * uğrayıp isteği tekrar gönderir ve ilk istek arka planda hâlâ çalışırken
- * paralel bir çoklanmaya yol açabilir (bkz. o fonksiyonun kendi açıklaması).
- */
-const NEXT_STEP_TIMEOUT_MS = 150_000
+import { fireChainStepWithoutAwaitingResponse } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
 // 7.526 oyuncunun Transfermarkt mevki verisini kademeli, arka planda dolduran
@@ -75,26 +65,27 @@ function isAuthorized(request: Request): boolean {
   return header === `Bearer ${secret}`
 }
 
-// ÖNEMLİ — bu route ARTIK market-value zinciriyle AYNI dayanıklı deseni
-// (triggerChainContinuation — bir sonraki adımın TAM yanıtını bekleyen,
-// başarısız/zaman aşımına uğrayan denemeleri 3 kez tekrar eden) kullanıyor.
+// ÖNEMLİ GEÇMİŞ — burada KISA bir süre "triggerChainContinuation" (bir
+// sonraki adımın TAM yanıtını, 150s'ye kadar bekleyen, başarısız olursa 3 kez
+// tekrar deneyen) denendi. Bu YANLIŞTI: bu bekleme çağıranın KENDİ after()
+// bloğunun İÇİNDE, yani ŞU ANKİ invocation'ın maxDuration'ının (300s)
+// İÇİNDE çalışıyor. Bu adımın kendi işi (~70-115s) bittikten sonra, "bir
+// sonraki adım da bitsin" diye TEKRAR ~70-115s beklemek, en kötü ihtimalle
+// (bir yeniden deneme gerekirse) 150s × 3 deneme = 450s'ye kadar sürebiliyordu
+// — bu da ŞU ANKİ invocation'ın 300s'lik toplam bütçesini fazlasıyla
+// aşıyordu. Sunucu bunu ortada zorla keserken (300s dolduğunda) hiçbir hata
+// izi bırakmıyordu — run satırı "running" olarak donup kalıyor, admin paneli
+// "Zincir kırıldı" gösteriyordu. Yani bu "düzeltme" aslında AYNI sorunu farklı
+// bir yerden yeniden yaratmıştı.
 //
-// ESKİDEN burada fireChainStepWithoutAwaitingResponse (tam yanıtı
-// beklemeyen, sadece isteği "ateşleyip" hemen dönen) kullanılıyordu — çünkü
-// o zamanki SOFT_TIME_BUDGET_MS (190s) her adımı invocation'ın 300s'lik
-// payının BÜYÜK KISMINI tüketecek kadar uzatıyordu, after() bloğuna sadece
-// ~60-100s kalıyordu. İstek ağa TAM çıkmadan invocation sert şekilde
-// öldürülürse, bir sonraki adım hiç başlamıyor ve zincir hiçbir hata izi
-// bırakmadan kırılıyordu — admin panelinin sürekli "Zincir kırıldı"
-// göstermesinin ve elle "Şimdi Tara"ya tekrar tekrar basılması gerekmesinin
-// asıl kök nedeni buydu.
-//
-// SOFT_TIME_BUDGET_MS artık 70s'e düşürüldüğü için (bkz. lib/player-
-// position-sync.ts) her adımın worst-case süresi ~115s'ye iniyor — after()
-// bloğuna ~185s'lik bol bir pay kalıyor. Bu pay, triggerChainContinuation'ın
-// tam yanıtı NEXT_STEP_TIMEOUT_MS'e (150s) kadar güvenle beklemesine, 401/5xx
-// gibi hataları yeniden denemesine yetiyor — istek artık asla "ateşleme
-// anında" iz bırakmadan kesilmiyor.
+// Doğru çözüm: isteği gönder, SADECE hızlı bir hatayı (401, ağ hatası)
+// yakalayacak kısa bir pencere bekle (fireChainStepWithoutAwaitingResponse —
+// varsayılan olarak en fazla ~8s × 3 deneme ≈ 24-30s), sonra isteği İPTAL
+// ETMEDEN dön. SOFT_TIME_BUDGET_MS artık 70s'e düşürüldüğü için (bkz. lib/
+// player-position-sync.ts) bu adımın kendi işi bittiğinde invocation'ın
+// 300s'lik bütçesinden ~185s'lik bol bir pay kalıyor — bu kısa (~30s) confirm
+// penceresi bu payın çok küçük bir kısmını kullanıyor, invocation'ın ortada
+// zorla kesilme riski artık ihmal edilebilir seviyede.
 async function triggerNextStep(request: Request): Promise<void> {
   const headers: Record<string, string> = {}
   const secret = process.env.CRON_SECRET
@@ -102,7 +93,7 @@ async function triggerNextStep(request: Request): Promise<void> {
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  await triggerChainContinuation(request.url, headers, NEXT_STEP_TIMEOUT_MS)
+  await fireChainStepWithoutAwaitingResponse(request.url, headers)
 }
 
 export async function GET(request: Request) {
@@ -175,7 +166,28 @@ export async function GET(request: Request) {
     if (!done) {
       // Bir sonraki adımı arka planda tetikle — bu isteğin cevabı kullanıcıya
       // hemen döner, backfill kesintisiz devam eder.
-      after(() => triggerNextStep(request))
+      //
+      // triggerNextStep artık KESİN bir hatada (401, 5xx, ağ hatası — üç
+      // hızlı denemenin de başarısız olması) bir Error fırlatabiliyor (bkz.
+      // fireChainStepWithoutAwaitingResponse). Bunu yakalayıp run satırını
+      // "failed" + gerçek hata mesajıyla işaretliyoruz — böylece bir sonraki
+      // kırılmada admin paneli en azından GERÇEK sebebi gösterir, sadece
+      // "6 dakikadır heartbeat yok" genel uyarısı yerine.
+      after(async () => {
+        try {
+          await triggerNextStep(request)
+        } catch (err) {
+          console.error("[v0] Zincir devamı kesin olarak başarısız oldu, run satırı failed işaretleniyor:", err)
+          await db
+            .update(playerPositionCronRun)
+            .set({
+              status: "failed",
+              runFinishedAt: new Date(),
+              lastError: err instanceof Error ? err.message : String(err),
+            })
+            .where(eq(playerPositionCronRun.id, logId))
+        }
+      })
     }
 
     return Response.json({ done, ...result })
