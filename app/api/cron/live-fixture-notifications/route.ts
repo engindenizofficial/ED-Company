@@ -22,17 +22,20 @@ import { acquireChainLock, releaseChainLock } from "@/lib/redis"
 // kendini HİÇ tetiklemiyor — SADECE gelen TEK bir GET isteğine karşılık TEK
 // bir tarama yapar ve döner. Sürekliliği DIŞARIDAN, QStash'in kendisi
 // sağlıyor (bkz. scripts/setup-qstash-schedules.mjs, scheduleId:
-// "live-fixture-notifications", 30 saniyede bir — canlı maç olsun olmasın
-// SABİT bu aralıkla). Dışarıdan gelen her istek platform için "hop 0" /
+// "live-fixture-notifications", 1 dakikada bir — canlı maç olsun olmasın
+// SABİT bu aralıkla; QStash'in cron çözünürlüğü en fazla 1 dakikadır,
+// saniye bazlı ifadeler desteklenmiyor, o yüzden eski 30s hedefine tam
+// ulaşılamıyor ama eski "boşta 2dk" moduna göre hâlâ daha sık ve —en
+// önemlisi— GARANTİLİ). Dışarıdan gelen her istek platform için "hop 0" /
 // tamamen bağımsız bir çağrı olduğundan, 5-sıçrama sınırına ASLA
 // dokunulmuyor ve bir tetikleme başarısız olsa bile bir sonraki QStash
-// çağrısı (30s sonra, garantili retry ile) sorunsuz devam eder.
+// çağrısı (1dk sonra, garantili retry ile) sorunsuz devam eder.
 //
 // Redis kilidi burada bir ZİNCİR kilidi DEĞİL — sadece aynı anda üst üste
 // binen iki çağrının (örn. QStash'in bir retry'ı, önceki çağrı henüz
 // bitmeden gelirse) aynı maçları iki kez taramasını önleyen kısa ömürlü bir
-// "meşgul" işareti. TTL kasıtlı olarak QStash aralığından (30s) kısa
-// tutulmuyor — normalde her çağrı saniyeler içinde bitip kilidi hemen
+// "meşgul" işareti. TTL kasıtlı olarak QStash aralığından (1dk) kısa
+// tutuluyor — normalde her çağrı saniyeler içinde bitip kilidi hemen
 // serbest bırakıyor, TTL sadece invocation crash olursa kilidin sonsuza dek
 // takılı kalmamasını garanti ediyor.
 // ---------------------------------------------------------------------------

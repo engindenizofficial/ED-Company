@@ -41,9 +41,12 @@ if (!QSTASH_TOKEN) {
 const schedules = [
   {
     scheduleId: "live-fixture-notifications",
-    // 30 saniyede bir — route artık self-chaining yapmıyor (bkz. route.ts),
-    // her çağrı TEK bir tarama yapıp döner, sürekliliği QStash sağlıyor.
-    cron: "*/30 * * * * *",
+    // QStash'in izin verdiği en sık aralık 1 dakikadır (6 alanlı/saniye
+    // bazlı cron ifadeleri DESTEKLENMİYOR — resmi dokümantasyon minimum
+    // çözünürlüğün 1 dakika olduğunu belirtiyor). Route artık self-chaining
+    // yapmıyor (bkz. route.ts), her çağrı TEK bir tarama yapıp döner,
+    // sürekliliği QStash'in kendisi sağlıyor.
+    cron: "* * * * *",
     path: "/api/cron/live-fixture-notifications",
     withBypass: false,
   },
