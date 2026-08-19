@@ -9,7 +9,7 @@ import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { playerPosition, playerPositionCronRun } from "@/lib/db/schema"
 import { countRemainingCandidates } from "@/lib/player-position-sync"
-import { triggerChainContinuation } from "@/lib/market-value-cron-run"
+import { fireChainStepWithoutAwaitingResponse } from "@/lib/market-value-cron-run"
 import { getSiteUrl } from "@/lib/site-url"
 
 // ---------------------------------------------------------------------------
@@ -162,16 +162,16 @@ export async function triggerPlayerPositionScanNow(): Promise<{ triggered: boole
   // çalıştırılması garanti edilir; action anında "tetiklendi" döner, gerçek
   // backfill arka planda (route'un kendi 300s maxDuration'ı içinde) devam eder.
   //
-  // ÖNEMLİ — özel (varsayılandan uzun) bir timeout veriyoruz, route.ts'teki
-  // SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS ile TAM OLARAK AYNI değer (270s) —
-  // bu iki sayı senkronize kalmalı, aksi halde aynı çoklanma felaketi
-  // tekrar oluşabilir (bkz. route.ts'teki detaylı worst-case hesabı). Bu
-  // route'un varsayılan 15s'lik self-fetch zaman aşımından çok daha uzun
-  // sürebilecek adımları olduğu için (bkz. route.ts BATCH_SIZE/SOFT_TIME_
-  // BUDGET_MS yorumu) — uyuşmazlık, aynı adım için sunucuda çalışan bir
-  // isteği "başarısız" sayıp paralel bir ikincisini başlatan çoklanma
-  // felaketine yol açar.
-  after(() => triggerChainContinuation(url, headersInit, 270_000))
+  // ÖNEMLİ — burada route'un TAM yanıtını bekleyen triggerChainContinuation
+  // YERİNE fireChainStepWithoutAwaitingResponse (bkz. lib/market-value-cron-
+  // run.ts) kullanılıyor. Bu route'un bir batch'i işlemesi 190-237 saniyeye
+  // kadar sürebiliyor; tam yanıtı beklemek bu action'ın kendi after()
+  // bloğunun bütçesine gereksiz yere bağımlı kalırdı. Route zaten kendi
+  // içinde bir sonraki adımı aynı dayanıklı fire-and-forget deseniyle
+  // tetikliyor (bkz. route.ts triggerNextStep) — burada da SADECE ilk
+  // adımı başlatmak için isteği gönderip hızlı bir hatayı (401 vb.)
+  // yakalayacak kısa bir pencere beklemek yeterli ve daha güvenli.
+  after(() => fireChainStepWithoutAwaitingResponse(url, headersInit))
 
   revalidatePath(REVIEW_PATH)
   return { triggered: true }

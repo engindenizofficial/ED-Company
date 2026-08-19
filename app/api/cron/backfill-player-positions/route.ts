@@ -3,7 +3,7 @@ import { desc, eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { playerPositionCronRun } from "@/lib/db/schema"
 import { runPlayerPositionBackfillBatch } from "@/lib/player-position-sync"
-import { triggerChainContinuation } from "@/lib/market-value-cron-run"
+import { fireChainStepWithoutAwaitingResponse } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
 // 7.526 oyuncunun Transfermarkt mevki verisini kademeli, arka planda dolduran
@@ -56,29 +56,6 @@ export const maxDuration = 300
  */
 const BATCH_SIZE = 500
 
-/**
- * Bu route için self-fetch zaman aşımı — triggerChainContinuation'ın
- * varsayılanından (15s, piyasa değeri zinciri için doğru) KASITLI olarak
- * farklı. Bir ADIMIN (SOFT_TIME_BUDGET_MS'e kadar süren, bkz. yukarıdaki
- * BATCH_SIZE yorumu) gerçek worst-case süresini bolca aşacak şekilde
- * ayarlanmalı — AKSİ HALDE self-fetch sunucu hâlâ çalışırken "zaman aşımı"
- * deyip ikinci bir paralel istek başlatır (BATCH_SIZE yorumundaki çoklanma
- * felaketi).
- *
- * Gerçek worst-case hesabı:
- *   SOFT_TIME_BUDGET_MS (190s, lib/player-position-sync.ts) bütçe kontrolü
- *   her adaydan ÖNCE yapılıyor — bu yüzden bütçeyi az aşmış olsak bile son
- *   adayın kendisi worst-case'te 4 deneme + 3 backoff sürebilir (bkz.
- *   transfermarkt-scraper.ts: FETCH_TIMEOUT_MS=8s, BLOCKING_RETRY_DELAYS_
- *   MS=[1.5s, 4s, 10s]): 8+1.5+8+4+8+10+8 = 47.5s.
- *   Toplam worst-case: 190s + 47.5s = 237.5s.
- *
- * 270s seçildi: 237.5s gerçek worst-case'in üzerine ~32.5s pay bırakıyor,
- * ve route'un kendi maxDuration'ından (300s) hâlâ belirgin şekilde altta
- * kalıyor (DB yazma/yanıt dönüşü gibi ek gecikmelere yer bırakır).
- */
-const SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS = 270_000
-
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) return true
@@ -86,14 +63,19 @@ function isAuthorized(request: Request): boolean {
   return header === `Bearer ${secret}`
 }
 
-// ÖNEMLİ — bu self-fetch, piyasa değeri zincirindeki AYNI dayanıklı
-// triggerChainContinuation'ı (bkz. lib/market-value-cron-run.ts) kullanır:
-// zaman aşımı + 3 deneme ile yeniden dener, başarısız HTTP kodlarını da hata
-// sayar. Eskiden burada tek seferlik, yeniden denemesiz bir fetch vardı —
-// geçici bir ağ hatası veya Vercel'in isteği bir an bloklaması zinciri
-// sessizce ve kalıcı olarak durduruyordu (site kapalıyken/kısa kesintilerde
-// piyasa değeri zinciri devam ederken mevki zincirinin durmasının sebebi
-// buydu).
+// ÖNEMLİ — bu route ARTIK bir sonraki adımın TAM yanıtını beklemiyor
+// (fireChainStepWithoutAwaitingResponse, bkz. lib/market-value-cron-run.ts).
+//
+// ESKİDEN burada triggerChainContinuation (tam yanıtı 270s'ye kadar
+// bekleyen) kullanılıyordu. Ama bu route'un HER adımı SOFT_TIME_BUDGET_MS'e
+// kadar (190-237s) sürüp ancak sonra yanıt döndüğü için, bu bekleme
+// çağıranın KENDİ after() bloğunun — invocation'ın kendi maxDuration'ından
+// (300s) geriye kalan, genelde sadece ~60-100s'lik — bütçesine sıkışıyordu.
+// Bu süre bitmeden invocation sert şekilde öldürülürse, henüz tam
+// gönderilmemiş self-fetch isteği de yarıda kesiliyor, bir sonraki adım hiç
+// başlamıyor ve zincir sessizce kırılıyordu — admin panelinin sürekli
+// "Zincir kırıldı" göstermesinin ve elle "Şimdi Tara"ya tekrar tekrar
+// basılması gerekmesinin asıl kök nedeni buydu.
 async function triggerNextStep(request: Request): Promise<void> {
   const headers: Record<string, string> = {}
   const secret = process.env.CRON_SECRET
@@ -101,7 +83,7 @@ async function triggerNextStep(request: Request): Promise<void> {
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  await triggerChainContinuation(request.url, headers, SELF_FETCH_TIMEOUT_FOR_THIS_ROUTE_MS)
+  await fireChainStepWithoutAwaitingResponse(request.url, headers)
 }
 
 export async function GET(request: Request) {

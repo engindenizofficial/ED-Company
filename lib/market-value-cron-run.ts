@@ -121,6 +121,74 @@ export async function triggerChainContinuation(
   console.error(`[v0] Zincir devam tetiklemesi tüm denemelerden sonra başarısız oldu, zincir burada duracak: ${url}`)
 }
 
+/**
+ * Adım süresi UZUN olabilecek zincirler (örn. player-position backfill,
+ * bkz. app/api/cron/backfill-player-positions) için: bir sonraki adımı,
+ * TAM YANITINI BEKLEMEDEN tetikler.
+ *
+ * NEDEN triggerChainContinuation BURADA KULLANILAMAZ: o fonksiyon, sonraki
+ * adımın TAM yanıtını (timeoutMs'e kadar) bekler. Adım KISA sürdüğünde
+ * (market-value zinciri — saniyeler) bu güvenlidir. Ama adım UZUN
+ * sürdüğünde (player-position — 190-237s), bu bekleme çağıranın KENDİ
+ * after() bloğunun, kendi invocation'ının maxDuration'ından (300s) geriye
+ * kalan bütçesi içinde sıkışır: çağıran zaten kendi batch'ini 190-237s'de
+ * işlemişse, after() için sadece ~60-100s kalır — ama triggerChainContinuation
+ * 270s'ye kadar bekler. Bu süre bitmeden invocation platform tarafından
+ * sert şekilde öldürülürse, HENÜZ TAM GÖNDERİLMEMİŞ olan self-fetch isteği
+ * de yarıda kesilebilir; bir sonraki adım hiç başlamaz ve zincir sessizce,
+ * iz bırakmadan kırılır — admin panelinin defalarca gösterdiği "Zincir
+ * kırıldı" durumunun kök nedeni tam olarak buydu (kullanıcı siteden çıkıp
+ * geri girdiğinde zincirin kırılmış görünmesi, aslında ayrılmasıyla
+ * ilgisizdi — bu darboğaz her adım geçişinde oluşuyordu, sadece fark
+ * edilmesi zaman aldı).
+ *
+ * Çözüm: isteği gönder, SADECE hızlı bir hatayı (401, DNS, bağlantı reddi)
+ * yakalayacak kısa bir pencere (confirmTimeoutMs) bekle, sonra — isteği
+ * İPTAL ETMEDEN — dön. Hızlı bir hata görülürse birkaç kez (maxQuickRetries)
+ * kısa aralıklarla yeniden dener; pencere içinde hiçbir şey olmazsa
+ * (beklenen durum — downstream kendi uzun işine başlamıştır) sessizce
+ * başarı sayar.
+ */
+export async function fireChainStepWithoutAwaitingResponse(
+  url: string,
+  headers: Record<string, string>,
+  confirmTimeoutMs = 8_000,
+  maxQuickRetries = 2,
+): Promise<void> {
+  for (let attempt = 1; attempt <= maxQuickRetries + 1; attempt++) {
+    try {
+      const outcome = await Promise.race([
+        fetch(url, { headers }).then((res) => ({ settled: true as const, res })),
+        sleep(confirmTimeoutMs).then(() => ({ settled: false as const, res: null })),
+      ])
+
+      if (!outcome.settled) {
+        // Beklenen durum: downstream kendi uzun batch'ine başladı, yanıt bu
+        // kısa pencerede dönmedi. İstek zaten ağa gönderildi, daha fazla
+        // beklemeye gerek yok.
+        return
+      }
+
+      if (outcome.res.ok) return
+
+      const body = await outcome.res.text().catch(() => "")
+      console.error(
+        `[v0] Zincir tetiklemesi hızlı bir hata döndürdü (HTTP ${outcome.res.status}, deneme ${attempt}/${maxQuickRetries + 1}): ${body.slice(0, 300)}`,
+      )
+    } catch (err) {
+      console.error(
+        `[v0] Zincir tetiklemesi ağ hatasıyla başarısız oldu (deneme ${attempt}/${maxQuickRetries + 1}):`,
+        err,
+      )
+    }
+
+    if (attempt <= maxQuickRetries) {
+      await sleep(2_000)
+    }
+  }
+  console.error(`[v0] Zincir tetiklemesi tüm hızlı denemelerden sonra başarısız oldu, zincir burada duracak: ${url}`)
+}
+
 export type LeagueRunStatus = "pending" | "success" | "failed"
 
 export interface LeagueStatusEntry {

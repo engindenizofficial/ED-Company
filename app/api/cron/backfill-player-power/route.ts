@@ -1,6 +1,6 @@
 import { after } from "next/server"
 import { runPlayerPowerBackfillBatch } from "@/lib/player-power-backfill"
-import { triggerChainContinuation } from "@/lib/market-value-cron-run"
+import { fireChainStepWithoutAwaitingResponse } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
 // Tam sezon güç motoru backfill'i. vercel.json'da otomatik bir cron
@@ -26,8 +26,14 @@ function isAuthorized(request: Request): boolean {
   return header === `Bearer ${secret}`
 }
 
-// Bkz. app/api/cron/backfill-player-positions/route.ts — aynı sebeple aynı
-// dayanıklı triggerChainContinuation'a geçildi (zaman aşımı + 3 deneme).
+// Bkz. app/api/cron/backfill-player-positions/route.ts — bu adım da (25
+// fikstürün istatistiğini paralel çeken bir batch) worst-case'te
+// triggerChainContinuation'ın varsayılan 15s self-fetch timeout'unu kolayca
+// aşabiliyordu; bu da AYNI çoklanma felaketine (self-fetch "zaman aşımı"
+// deyip ikinci bir paralel istek başlatır, sunucudaki ilki iptal olmaz) yol
+// açabiliyordu. fireChainStepWithoutAwaitingResponse, tam yanıtı beklemek
+// yerine sadece hızlı bir hatayı yakalayacak kısa bir pencere bekleyip
+// güvenle döner.
 async function triggerNextStep(request: Request): Promise<void> {
   const headers: Record<string, string> = {}
   const secret = process.env.CRON_SECRET
@@ -35,7 +41,7 @@ async function triggerNextStep(request: Request): Promise<void> {
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
-  await triggerChainContinuation(request.url, headers)
+  await fireChainStepWithoutAwaitingResponse(request.url, headers)
 }
 
 export async function GET(request: Request) {
