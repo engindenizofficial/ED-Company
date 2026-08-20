@@ -62,6 +62,17 @@ const schedules = [
     withBypass: true,
   },
   {
+    // Piyasa değeri zinciri de mevki (player-position) zinciriyle AYNI
+    // "self-fetch sonsuz döngü" sorununu yaşadığı için (bkz. dosya başı
+    // açıklaması + app/api/cron/update-market-values/route.ts), aynı çözümü
+    // kullanır: route kendini hiç tetiklemez, devamlılığı bu QStash
+    // schedule'ı sağlar.
+    scheduleId: "update-market-values",
+    cron: "*/5 * * * *",
+    path: "/api/cron/update-market-values",
+    withBypass: true,
+  },
+  {
     scheduleId: "revalidate-sitemap",
     // 21:05 UTC = 00:05 TR (eski GitHub Actions workflow'uyla birebir aynı)
     cron: "5 21 * * *",
