@@ -4,6 +4,7 @@ import Script from 'next/script'
 import { cookies } from 'next/headers'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { NavTabs } from '@/components/nav-tabs'
+import { SiteFooter } from '@/components/site-footer'
 import { LoginPromptModal } from '@/components/login-prompt-modal'
 import { TeamProvider } from '@/contexts/team-context'
 import { TeamPanel } from '@/components/team-panel'
@@ -32,6 +33,7 @@ const geistSans = Geist({ subsets: ['latin', 'latin-ext'], variable: '--font-gei
 const geistMono = Geist_Mono({ subsets: ['latin', 'latin-ext'], variable: '--font-geist-mono' })
 
 const GA_MEASUREMENT_ID = 'G-HT84HW4PPM'
+const ADSENSE_CLIENT_ID = 'ca-pub-1552985197555443'
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getServerLocale()
@@ -107,6 +109,17 @@ export default async function RootLayout({
       data-accent={accentColor !== DEFAULT_ACCENT_COLOR ? accentColor : undefined}
       suppressHydrationWarning
     >
+      <head>
+        {/* Google AdSense site doğrulama/reklam yükleme scripti — AdSense'in
+            <head> içine eklenmesini istediği ham script etiketi. Next.js App
+            Router'da kök layout'a ham bir <head> elemanı eklemek desteklenir
+            ve buraya eklenen etiketler dokümanın gerçek <head>'ine yazılır. */}
+        <script
+          async
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="font-sans antialiased">
         {process.env.NODE_ENV === 'production' && (
           <>
@@ -145,6 +158,7 @@ export default async function RootLayout({
                     <NavTabs />
                     <LoginPromptModal />
                     {children}
+                    <SiteFooter />
                     <TeamPanel />
                     <LeaguePanel />
                     <PlayerPanel />
