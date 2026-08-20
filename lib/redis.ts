@@ -101,13 +101,22 @@ export async function releaseChainLock(name: string): Promise<void> {
 //
 // 2) Blok seviyesi (tmBlockLevel): Herhangi bir çağrı 403/429/5xx, ağ
 //    hatası/timeout veya "soft block" (200 dönen ama Cloudflare meydan okuma
-//    sayfası) ile karşılaşırsa seviye 1 artırılır ve 15 dakika TTL ile
-//    kalıcı tutulur. Tüm istekler arası bekleme süreleri (bkz.
-//    transfermarkt-scraper.ts -> getAdaptiveDelayMs) bu seviyeye göre
-//    otomatik uzar — yani bir kez blok sinyali alındığında SADECE o istek
-//    değil, o andan sonraki TÜM istekler (hatta farklı bir cron çağrısında
-//    olsa bile, 15dk içinde) daha temkinli/yavaş hale gelir. Blok sinyali
-//    kesilirse TTL sayesinde seviye kendiliğinden 0'a döner.
+//    sayfası) ile karşılaşırsa seviye 1 artırılır. Tüm istekler arası
+//    bekleme süreleri (bkz. transfermarkt-scraper.ts -> getAdaptiveDelayMs)
+//    bu seviyeye göre otomatik uzar — yani bir kez blok sinyali alındığında
+//    SADECE o istek değil, o andan sonraki istekler de (hatta farklı bir
+//    cron çağrısında olsa bile) daha temkinli/yavaş hale gelir.
+//
+//    KADEMELİ SÖNÜMLEME (decay) — ÖNEMLİ TASARIM NOTU: İlk versiyon burada
+//    düz bir TTL kullanıyordu (seviye artışında TTL 15dk'ya sıfırlanıyordu).
+//    Bu "hepsi ya da hiçbir şey" davranışına yol açıyordu: TTL süresi boyunca
+//    seviye SABİT kalıyor (örn. 15 dakika boyunca hep 8s), TTL dolunca ise
+//    ANİDEN sıfıra düşüyordu (cliff). Kullanıcı bunun yerine zamanla
+//    KADEMELİ olarak yumuşayan bir davranış istedi. Bu yüzden artık sadece
+//    bir sayı değil, { level, lastBumpAt } kaydediliyor ve okuma anında
+//    "son bloktan bu yana kaç TM_BLOCK_LEVEL_DECAY_MS'lik dilim geçti" hesabıyla
+//    seviye kademeli düşürülüyor (5 → 4 → 3 → 2 → 1 → 0), 15 dakika boyunca
+//    sabit kalıp aniden düşmek yerine.
 // ---------------------------------------------------------------------------
 
 export interface TmSession {
@@ -115,8 +124,17 @@ export interface TmSession {
   userAgent: string
 }
 
+interface TmBlockRecord {
+  level: number
+  lastBumpAt: number // epoch ms
+}
+
 const TM_SESSION_TTL = 60 * 20 // 20 dakika
-const TM_BLOCK_LEVEL_TTL = 60 * 15 // 15 dakika
+// Her seviye, son bloktan bu yana bu kadar zaman geçince 1 azalır (kademeli
+// sönümleme). Kayıt için Redis'te tutulan güvenlik TTL'i (temizlik amaçlı)
+// bunun biraz üzerinde tutulur.
+const TM_BLOCK_LEVEL_DECAY_MS = 90_000 // 90 saniye / seviye
+const TM_BLOCK_RECORD_SAFETY_TTL = 60 * 20 // 20 dakika (temizlik amaçlı, decay mantığı bundan bağımsız çalışır)
 export const TM_BLOCK_LEVEL_MAX = 5
 
 export async function getTmSession(): Promise<TmSession | null> {
@@ -138,22 +156,27 @@ export async function setTmSession(session: TmSession): Promise<void> {
   }
 }
 
+/** Ham kayıttan, geçen süreye göre kademeli sönümlenmiş EFEKTİF seviyeyi hesaplar. */
+function decayedLevel(record: TmBlockRecord | null, now: number): number {
+  if (!record) return 0
+  const elapsedMs = Math.max(0, now - record.lastBumpAt)
+  const decaySteps = Math.floor(elapsedMs / TM_BLOCK_LEVEL_DECAY_MS)
+  return Math.max(0, Math.min(record.level, TM_BLOCK_LEVEL_MAX) - decaySteps)
+}
+
 /**
- * Şu anki blok seviyesini okur (Redis yoksa veya hiç blok görülmediyse 0).
+ * Şu anki (kademeli sönümlenmiş) blok seviyesini okur (Redis yoksa veya hiç
+ * blok görülmediyse / son bloktan uzun süre geçtiyse 0).
  *
- * ÖNEMLİ: sonuç HER ZAMAN TM_BLOCK_LEVEL_MAX ile sınırlanır (bkz.
- * bumpTmBlockLevel'daki not — Redis'teki ham değer bumpTmBlockLevel'ın kendi
- * incr çağrıları yüzünden MAX'in üzerine çıkabilir). Bu sınırlama önceden
- * SADECE bumpTmBlockLevel'ın geri döndürdüğü değerde vardı, getAdaptiveDelayMs
- * ise burayı (ham değeri) okuyordu — bu yüzden ardışık birden çok blok
- * sinyali seviyeyi 21'e kadar çıkarabiliyor ve gecikme 21 × 2000ms = 42
- * saniyeye kadar şişip sistemin "durmuş gibi" görünmesine yol açıyordu.
+ * Örnek: seviye 3'e çıktıktan 3 dakika sonra okunursa (3dk / 90s = 2 adım)
+ * efektif seviye 1 olur — 15 dakika boyunca sabit 3'te kalıp aniden 0'a
+ * düşmek yerine, zamanla yumuşak bir şekilde iner.
  */
 export async function getTmBlockLevel(): Promise<number> {
   if (!redis) return 0
   try {
-    const level = await redis.get<number>(K.tmBlockLevel())
-    return Math.min(level ?? 0, TM_BLOCK_LEVEL_MAX)
+    const record = await redis.get<TmBlockRecord>(K.tmBlockLevel())
+    return decayedLevel(record, Date.now())
   } catch (err) {
     console.log("[v0] redis getTmBlockLevel failed:", err instanceof Error ? err.message : err)
     return 0
@@ -161,24 +184,22 @@ export async function getTmBlockLevel(): Promise<number> {
 }
 
 /**
- * Bir blok/timeout sinyali görüldüğünde çağrılır; seviyeyi 1 artırır ve
- * TTL'i tazeler. `redis.incr` ham değeri sınırsız artırır (Upstash'te "clamp
- * eden incr" yok) — bu yüzden ham değer TM_BLOCK_LEVEL_MAX'i aşarsa açıkça
- * MAX'e geri yazılır (`redis.set`). Bu adım olmadan ham değer sınırsız
- * büyüyebilir ve getTmBlockLevel'daki Math.min'e güvenmek yeterli olmaz çünkü
- * TTL her bump'ta tazelendiği için şişmiş değer asla kendiliğinden sıfıra
- * dönmez.
+ * Bir blok/timeout sinyali görüldüğünde çağrılır. Önce mevcut kaydın
+ * kademeli sönümlenmiş halini hesaplar (yani bir süredir blok yoksa seviye
+ * zaten kendiliğinden düşmüş olur), SONRA bunun üzerine +1 ekler ve
+ * `lastBumpAt`'i şimdiki zamana günceller — böylece sönümleme sayacı bu yeni
+ * bloktan itibaren yeniden başlar. Sonuç TM_BLOCK_LEVEL_MAX ile sınırlanır.
  */
 export async function bumpTmBlockLevel(): Promise<number> {
   if (!redis) return 0
   try {
-    const next = await redis.incr(K.tmBlockLevel())
-    if (next > TM_BLOCK_LEVEL_MAX) {
-      await redis.set(K.tmBlockLevel(), TM_BLOCK_LEVEL_MAX, { ex: TM_BLOCK_LEVEL_TTL })
-    } else {
-      await redis.expire(K.tmBlockLevel(), TM_BLOCK_LEVEL_TTL)
-    }
-    return Math.min(next, TM_BLOCK_LEVEL_MAX)
+    const now = Date.now()
+    const existing = await redis.get<TmBlockRecord>(K.tmBlockLevel())
+    const currentEffective = decayedLevel(existing, now)
+    const next = Math.min(currentEffective + 1, TM_BLOCK_LEVEL_MAX)
+    const record: TmBlockRecord = { level: next, lastBumpAt: now }
+    await redis.set(K.tmBlockLevel(), record, { ex: TM_BLOCK_RECORD_SAFETY_TTL })
+    return next
   } catch (err) {
     console.log("[v0] redis bumpTmBlockLevel failed:", err instanceof Error ? err.message : err)
     return 0
