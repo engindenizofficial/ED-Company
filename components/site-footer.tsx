@@ -32,15 +32,24 @@ export function SiteFooter() {
           <p className="text-xs text-muted-foreground">{t("footer.tagline")}</p>
         </div>
 
-        <nav aria-label={t("footer.ariaLabel")} className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {link.label}
-            </Link>
+        <nav
+          aria-label={t("footer.ariaLabel")}
+          className="flex flex-nowrap items-center gap-x-2 overflow-x-auto"
+        >
+          {links.map((link, index) => (
+            <span key={link.href} className="flex items-center gap-x-2 whitespace-nowrap">
+              <Link
+                href={link.href}
+                className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {link.label}
+              </Link>
+              {index < links.length - 1 && (
+                <span aria-hidden="true" className="text-xs text-muted-foreground/50">
+                  •
+                </span>
+              )}
+            </span>
           ))}
         </nav>
       </div>
