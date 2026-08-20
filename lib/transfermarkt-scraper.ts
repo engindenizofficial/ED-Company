@@ -156,23 +156,43 @@ function sleep(ms: number): Promise<void> {
  *
  * 8s olarak ayarlandı (önceden 20s): gerçek sayfa yanıtları normalde 1-2s
  * içinde gelir, bu yüzden 20s'lik bekleme pratikte sadece "askıda kalan"
- * isteklerde worst-case süreyi gereksiz yere şişiriyordu (bir oyuncu 20s
- * timeout + retry'da başarı ~25s'ye çıkıyordu). 8s hâlâ yavaş ama gerçek
- * bir sunucu yanıtı için yeterli pay bırakırken worst-case'i büyük ölçüde
- * kısaltıyor.
+ * isteklerde worst-case süreyi gereksiz yere şişiriyordu.
+ *
+ * SONRADAN 6s'e düşürüldü — bkz. BLOCKING_RETRY_DELAYS_MS'deki not: tek bir
+ * çağrının worst-case süresi bilinçli olarak küçültüldü.
  */
-const FETCH_TIMEOUT_MS = 8_000
+const FETCH_TIMEOUT_MS = 6_000
 
 /**
  * Transfermarkt'ın rate-limit / bot koruması (403 Forbidden, 429 Too Many
  * Requests) ve geçici sunucu hataları (5xx) için kullanılan, giderek uzayan
- * bekleme süreleri. Transfermarkt'ın bot engelleri genelde birkaç saniyelik
- * bir 5xx hiçbirinden daha uzun sürdüğü için buradaki gecikmeler kasıtlı
- * olarak daha büyük — ama çok agresif küçültmek Transfermarkt'ı tekrar
- * tekrar hızlı çarpıp tüm sistemin bloklanmasına yol açabileceği için
- * ölçülü tutuldu (1.5s / 4s / 10s).
+ * bekleme süreleri.
+ *
+ * ÖNEMLİ TASARIM DEĞİŞİKLİĞİ (kullanıcı geri bildirimiyle): önceden bu dizi
+ * [1500, 4000, 10000] idi — yani 4 deneme × 8s timeout + 15.5s toplam bekleme
+ * = worst-case TEK BİR OYUNCU İÇİN ~47.5 SANİYE. Bu, kullanıcının gözlemlediği
+ * "bir oyuncuda 30 saniye falan durdu" şikayetinin doğrudan kök nedeniydi.
+ *
+ * Bunun ARKASINDAKİ VARSAYIM YANLIŞTI: bir istek Cloudflare tarafından
+ * bloklanmışsa, aynı çağrı içinde 10 saniye daha bekleyip yeniden denemek
+ * bloğu kaldırmaz — Transfermarkt'ın bloğu bizim ne kadar beklediğimizle
+ * ilgili değil, KENDİ zamanlamasıyla ilgili. Yani o 47.5 saniyenin büyük
+ * kısmı gerçek bir koruma sağlamadan harcanıyordu; asıl koruma zaten
+ * İSTEKLER ARASI adaptif gecikmede (getAdaptiveDelayMs) sağlanıyor.
+ *
+ * YENİ YAKLAŞIM: "hızlı-başarısız-ol, sonra devam et" — bu dizi artık SADECE
+ * gerçekten geçici/ağ kaynaklı hatalar için TEK bir kısa retry içeriyor (2s).
+ * Kalıcı/tekrarlayan bloklar için koruma artık burada değil,
+ * lib/redis.ts -> markPlayerCooldown / getPlayersInCooldown üzerinden
+ * sağlanıyor: bir oyuncu bu tek retry'dan sonra da başarısız olursa hemen
+ * atlanır (havuzda YOK edilmez, sadece ~8dk soğumaya alınır) ve SIRADAKİ
+ * oyuncuya geçilir — böylece bloklu bir oyuncuda ısrar edip kuyruğun tamamını
+ * geciktirmek yerine, geçici olarak atlanıp diğer oyunculara hız kazandırılır.
+ *
+ * Yeni worst-case: 2 deneme × 6s timeout + 2s bekleme = ~14s (öncekinin
+ * ~üçte biri).
  */
-const BLOCKING_RETRY_DELAYS_MS = [1500, 4000, 10000]
+const BLOCKING_RETRY_DELAYS_MS = [2000]
 
 /**
  * Transfermarkt bazen 403/429/5xx DÖNMEDEN, düz 200 ile bir Cloudflare

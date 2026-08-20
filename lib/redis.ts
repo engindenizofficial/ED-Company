@@ -44,6 +44,7 @@ const K = {
   chainLock: (name: string) => `ed:chain-lock:${name}`,
   tmSession: () => `ed:tm:session`,
   tmBlockLevel: () => `ed:tm:block-level`,
+  tmPlayerCooldown: (playerId: number) => `ed:tm:cooldown:${playerId}`,
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +204,62 @@ export async function bumpTmBlockLevel(): Promise<number> {
   } catch (err) {
     console.log("[v0] redis bumpTmBlockLevel failed:", err instanceof Error ? err.message : err)
     return 0
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Oyuncu-mevki backfill'i için "soğuma" (cooldown) mekanizması.
+//
+// SORUN: lib/player-position-sync.ts, işlenmemiş oyuncuları HER ÇAĞRIDA aynı
+// sırayla (piyasa değerine göre) sorguluyor. Bir oyuncu geçici olarak
+// bloklanıp fetchHtml'in tüm retry'ları tükenirse satır yazılmıyor — o
+// oyuncu havuzda kalıyor. Sonuç: bloklanan oyuncu bir SONRAKİ cron
+// çağrısında da kuyruğun EN BAŞINA geliyor ve aynı ~30-45s'lik retry
+// döngüsünü tekrar tetikliyor — bu da ondan sonraki oyuncuların hepsinin
+// gecikmeli başlamasına yol açıyor. Kullanıcı bunu "ilk oyuncularda iyi
+// gidiyor, sonra takılıyor, ondan sonrakiler de yavaş" olarak gözlemledi.
+//
+// ÇÖZÜM: bir oyuncu başarısız olduğunda kısa bir soğuma süresiyle
+// işaretlenir. getPositionBackfillCandidates bu oyuncuyu bir süre (bkz.
+// TM_PLAYER_COOLDOWN_TTL) ATLAR — yani her koşuda kuyruğun başını tıkamaz,
+// sırası gelince (soğuma bitince) tekrar denenir. Bu, kullanıcının "hata
+// yiyip hızlı devam eden sistem, hata yemeden yavaş ilerleyen sistemden daha
+// hızlı sonuca ulaşır" önerisinin doğrudan uygulanması: bloklu bir oyuncuda
+// ısrar etmek yerine ona geçici olarak devam edip diğer oyunculara hız
+// kazandırıyoruz.
+// ---------------------------------------------------------------------------
+
+const TM_PLAYER_COOLDOWN_TTL = 60 * 8 // 8 dakika
+
+/** Bir oyuncunun scrape'i başarısız olduğunda çağrılır; kısa bir süre bu oyuncuyu aday listesinden çıkarır. */
+export async function markPlayerCooldown(playerId: number): Promise<void> {
+  if (!redis) return
+  try {
+    await redis.set(K.tmPlayerCooldown(playerId), 1, { ex: TM_PLAYER_COOLDOWN_TTL })
+  } catch (err) {
+    console.log("[v0] redis markPlayerCooldown failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+/**
+ * Verilen oyuncu id'lerinden hangilerinin şu an soğumada olduğunu döner.
+ * Tek tek GET yerine pipeline ile toplu okunur (batchSize kadar oyuncu için
+ * bile tek round-trip).
+ */
+export async function getPlayersInCooldown(playerIds: number[]): Promise<Set<number>> {
+  if (!redis || playerIds.length === 0) return new Set()
+  try {
+    const pipeline = redis.pipeline()
+    for (const id of playerIds) pipeline.exists(K.tmPlayerCooldown(id))
+    const results = await pipeline.exec<number[]>()
+    const inCooldown = new Set<number>()
+    playerIds.forEach((id, i) => {
+      if (results[i]) inCooldown.add(id)
+    })
+    return inCooldown
+  } catch (err) {
+    console.log("[v0] redis getPlayersInCooldown failed:", err instanceof Error ? err.message : err)
+    return new Set()
   }
 }
 
