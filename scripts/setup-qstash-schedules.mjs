@@ -86,6 +86,17 @@ const schedules = [
     path: "/api/cron/update-player-power",
     withBypass: false,
   },
+  {
+    // AI tahmin sistemi: bekleyen tahminleri sonuçlanan maçlarla eşleştirip
+    // adaptif model ağırlıklarını güncelleyen kontrol. Önceden SADECE sitede
+    // açık bir sekmenin 30 saniyelik otomatik yenilemesiyle (istemci
+    // tarafında) tetikleniyordu — kimse siteye bakmıyorsa hiç çalışmıyordu.
+    // Bu schedule, ziyaretçiden bağımsız sunucu taraflı garanti sağlar.
+    scheduleId: "predict-pending-check",
+    cron: "*/10 * * * *",
+    path: "/api/predict/pending-check",
+    withBypass: true,
+  },
 ]
 
 async function createSchedule(def) {

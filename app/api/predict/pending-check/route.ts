@@ -51,15 +51,22 @@ async function discoverOrphanedPredictions(): Promise<{ fixtureId: number; pred:
   }
 }
 
+// QStash cron'undan gelen çağrıyı doğrular. CRON_SECRET tanımlı değilse
+// (yerel geliştirme) kontrolü atlar — diğer /api/cron/* route'larıyla aynı desen.
+function isAuthorizedCron(request: Request): boolean {
+  const secret = process.env.CRON_SECRET
+  if (!secret) return true
+  const header = request.headers.get("authorization")
+  return header === `Bearer ${secret}`
+}
+
 /**
- * POST /api/predict/pending-check
- * Yenile butonuna basıldığında çağrılır.
- * Redis'teki bekleyen tahminlerin her birini API-Football'dan kontrol eder.
- * Bitmiş maçları başarı paneline işler ve bekleyen listesinden çıkarır.
- * Pending listesinde olmayan eski tahminleri de (ed:prediction:* taramasıyla) kontrol eder.
+ * Bekleyen tahminlerin her birini API-Football'dan kontrol eder, bitmiş
+ * maçları başarı paneline işler ve bekleyen listesinden çıkarır. Hem manuel
+ * POST çağrısından hem de QStash'in GET cron çağrısından ortak kullanılır.
  */
-export async function POST() {
-  // Her basışta orphan taraması yap — pending listesinde olmayan tahminleri ekle
+async function checkPendingPredictions() {
+  // Her çağrıda orphan taraması yap — pending listesinde olmayan tahminleri ekle
   const orphans = await discoverOrphanedPredictions()
   for (const { fixtureId, pred } of orphans) {
     await addPendingPrediction({
@@ -72,7 +79,7 @@ export async function POST() {
 
   const pending = await getPendingPredictions()
   if (pending.length === 0) {
-    return NextResponse.json({ checked: 0, resolved: [] })
+    return { checked: 0, resolved: [] as PredictionResult[] }
   }
 
   const resolved: PredictionResult[] = []
@@ -168,5 +175,33 @@ export async function POST() {
     })
   )
 
-  return NextResponse.json({ checked: pending.length, resolved })
+  return { checked: pending.length, resolved }
+}
+
+/**
+ * GET /api/predict/pending-check
+ * QStash schedule'ından (bkz. scripts/setup-qstash-schedules.mjs) düzenli
+ * olarak çağrılır — böylece adaptif ağırlıklar, sitede o an açık bir
+ * sekme/ziyaretçi olmasa da sunucu tarafında güvenilir şekilde güncellenir.
+ * CRON_SECRET ile korunur, aynı /api/cron/* route'larındaki desen.
+ */
+export async function GET(request: Request) {
+  if (!isAuthorizedCron(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const { checked, resolved } = await checkPendingPredictions()
+  return NextResponse.json({ checked, resolved })
+}
+
+/**
+ * POST /api/predict/pending-check
+ * Yenile butonuna basıldığında (veya 30 saniyelik otomatik yenilemede)
+ * istemciden çağrılır. Redis'teki bekleyen tahminlerin her birini
+ * API-Football'dan kontrol eder. Bitmiş maçları başarı paneline işler ve
+ * bekleyen listesinden çıkarır. Pending listesinde olmayan eski tahminleri
+ * de (ed:prediction:* taramasıyla) kontrol eder.
+ */
+export async function POST() {
+  const { checked, resolved } = await checkPendingPredictions()
+  return NextResponse.json({ checked, resolved })
 }
