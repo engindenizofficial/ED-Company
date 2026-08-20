@@ -62,6 +62,15 @@ const SummarySchema = z.object({
   ),
 })
 
+// İngilizce kullanıcılar için: nihai Türkçe özet + anahtar faktörler tek bir
+// ek çağrıyla İngilizce'ye çevrilir. Ensemble'ın tamamı (3 model x N örnek)
+// tekrar çalıştırılmaz — sadece bu tek, ucuz çeviri çağrısı eklenir ve sonuç
+// diğer alanlarla birlikte cache'lenir (fikstür başına tek seferlik maliyet).
+const TranslationSchema = z.object({
+  summary: z.string().describe("The Turkish summary translated into natural, fluent English."),
+  keyFactors: z.array(z.string()).describe("The Turkish key factors translated into natural, fluent English, same order and count as the input."),
+})
+
 // ---------------------------------------------------------------------------
 // Formatlayıcılar
 // ---------------------------------------------------------------------------
@@ -588,6 +597,23 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     // Özet oluşturulamazsa devam et
   }
 
+  // 9b. İngilizce çeviri — tek ek çağrı, ensemble tekrar çalıştırılmaz.
+  // Sonuç summaryEn/keyFactorsEn olarak cache'e yazılır; başarısız olursa
+  // İngilizce alanlar boş kalır ve UI Türkçe metne geri döner (fallback).
+  let summaryEn: string | undefined
+  let keyFactorsEn: string[] | undefined
+  try {
+    const { object: translationObj } = await generateObject({
+      model: openai("gpt-5.6-terra"),
+      schema: TranslationSchema,
+      prompt: `Translate the following Turkish football match analysis into natural, fluent English. Keep team names and numbers unchanged.\n\nSummary:\n${summary}\n\nKey factors:\n${uniqueFactors.map((f, i) => `${i + 1}. ${f}`).join("\n")}`,
+    })
+    summaryEn = translationObj.summary
+    keyFactorsEn = translationObj.keyFactors.length === uniqueFactors.length ? translationObj.keyFactors : undefined
+  } catch {
+    // Çeviri başarısız olursa İngilizce alanlar boş kalır, UI Türkçe'ye döner
+  }
+
   // 10. ModelVote dizisi — model alanı "provider/model-id" formatında olmalı (UI etiket eşleşmesi için)
   const PROVIDER_MODEL_ID: Record<string, string> = {
     openai:  "openai/gpt-5.6-terra",
@@ -616,6 +642,8 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     confidence:  ensemble.confidence,
     summary,
     keyFactors:  uniqueFactors,
+    summaryEn,
+    keyFactorsEn,
     btts:        ensemble.btts,
     overUnder:   ensemble.overUnder,
     modelVotes,

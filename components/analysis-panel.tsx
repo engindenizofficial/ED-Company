@@ -1998,7 +1998,7 @@ function PredictionCard({
   isAdmin?: boolean
   onDelete?: () => Promise<void> | void
 }) {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const [showVotes, setShowVotes] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -2074,6 +2074,12 @@ function PredictionCard({
   // gösterilmez — sayaç ve oy listesi sadece görünür (LLM) modelleri kapsar.
   const visibleModelVotes = prediction.modelVotes?.filter((v) => !isHiddenModel(v.model)) ?? []
   const modelCount = visibleModelVotes.length
+
+  // İngilizce kullanıcılar için çeviri varsa onu göster, yoksa Türkçe'ye geri dön
+  // (özet/faktörler için tek bir ek çeviri çağrısı ile üretilir, bkz. app/api/predict/route.ts)
+  const displaySummary = locale === "en" && prediction.summaryEn ? prediction.summaryEn : prediction.summary
+  const displayKeyFactors =
+    locale === "en" && prediction.keyFactorsEn?.length ? prediction.keyFactorsEn : prediction.keyFactors
 
   return (
     <>
@@ -2151,12 +2157,12 @@ function PredictionCard({
         </div>
 
         {/* Özet */}
-        <p className="text-xs leading-relaxed text-muted-foreground">{prediction.summary}</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">{displaySummary}</p>
 
         {/* Anahtar faktörler */}
-        {prediction.keyFactors.length > 0 && (
+        {displayKeyFactors.length > 0 && (
           <ul className="flex flex-col gap-1.5">
-            {prediction.keyFactors.map((factor, i) => (
+            {displayKeyFactors.map((factor, i) => (
               <li key={i} className="flex items-start gap-2 text-xs text-foreground">
                 <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
                 {factor}

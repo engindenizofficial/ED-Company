@@ -56,7 +56,10 @@ export const MatchSharePoster = forwardRef<
   const dateLocale = locale === "tr" ? "tr-TR" : "en-US"
   const { home, away, league } = fixture
   const winner = winnerLabel(prediction, home.name, away.name, t)
-  const factors = prediction.keyFactors.slice(0, 2)
+  // İngilizce kullanıcılar için çeviri varsa onu göster, yoksa Türkçe'ye geri dön
+  // (bkz. app/api/predict/route.ts — özet/faktörler için tek ek çeviri çağrısı)
+  const displaySummary = locale === "en" && prediction.summaryEn ? prediction.summaryEn : prediction.summary
+  const factors = (locale === "en" && prediction.keyFactorsEn?.length ? prediction.keyFactorsEn : prediction.keyFactors).slice(0, 2)
   const generatedAt = new Date(prediction.cachedAt || fixture.date)
   const generatedDate = generatedAt.toLocaleDateString(dateLocale, {
     day: "2-digit",
@@ -346,7 +349,7 @@ export const MatchSharePoster = forwardRef<
                 color: PALETTE.foreground,
               }}
             >
-              {prediction.summary}
+              {displaySummary}
             </div>
           )}
         </div>

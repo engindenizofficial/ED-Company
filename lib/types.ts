@@ -362,6 +362,10 @@ export interface MatchPrediction {
   summary: string
   /** En önemli 1-5 etken (tüm modellerden birleştirilmiş) */
   keyFactors: string[]
+  /** `summary`'nin İngilizce çevirisi — tek bir ek AI çağrısıyla üretilir (en-US kullanıcılar için) */
+  summaryEn?: string
+  /** `keyFactors`'ın İngilizce çevirisi */
+  keyFactorsEn?: string[]
   /** İki takım da gol atar mı */
   btts: boolean
   /** 2.5 üstü / altı */
