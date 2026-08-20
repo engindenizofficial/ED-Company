@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
+import { cookies } from 'next/headers'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { NavTabs } from '@/components/nav-tabs'
 import { LoginPromptModal } from '@/components/login-prompt-modal'
@@ -20,6 +21,8 @@ import { getServerLocale } from '@/lib/i18n/server-locale'
 import { translate } from '@/lib/i18n/dictionaries'
 import { Toaster } from '@/components/ui/sonner'
 import { getSiteUrl } from '@/lib/site-url'
+import { DEFAULT_ACCENT_COLOR, isValidAccentColor } from '@/lib/accent-colors'
+import { THEME_COOKIE, ACCENT_COOKIE } from '@/lib/theme-cookies'
 import './globals.css'
 
 // Standart "latin" alt kümesi Türkçe'ye özgü karakterleri (ş, ğ, ı, İ, ç, ö, ü)
@@ -87,10 +90,21 @@ export default async function RootLayout({
   children: React.ReactNode
 }>) {
   const locale = await getServerLocale()
+
+  // Tema/renk tercihini localStorage yerine (veya ona ek olarak) çerezden
+  // okuyup <html> etiketine sunucuda uygularız. Böylece PWA'da localStorage
+  // temizlense veya gecikmeli okunsa bile ilk render doğru temayla gelir —
+  // istemci scripti sadece localStorage->çerez göçünü tamamlar.
+  const cookieStore = await cookies()
+  const isDark = cookieStore.get(THEME_COOKIE)?.value === 'dark'
+  const accentCookieValue = cookieStore.get(ACCENT_COOKIE)?.value
+  const accentColor = isValidAccentColor(accentCookieValue) ? accentCookieValue : DEFAULT_ACCENT_COLOR
+
   return (
     <html
       lang={locale}
-      className={`bg-background ${geistSans.variable} ${geistMono.variable}`}
+      className={`bg-background ${isDark ? 'dark' : ''} ${geistSans.variable} ${geistMono.variable}`}
+      data-accent={accentColor !== DEFAULT_ACCENT_COLOR ? accentColor : undefined}
       suppressHydrationWarning
     >
       <body className="font-sans antialiased">
@@ -113,13 +127,16 @@ export default async function RootLayout({
         <script
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark');}var a=localStorage.getItem('ed-accent-color');if(a&&a!=='green'){document.documentElement.setAttribute('data-accent',a);}}catch(e){}})();`,
+            // Sunucu zaten çerezden doğru temayı uyguladı; bu script sadece
+            // eski localStorage-only tercihleri çereze göçürür (self-heal),
+            // böylece bir sonraki sunucu render'ında da kalıcı olur.
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark');document.cookie='theme=dark; path=/; max-age=31536000; SameSite=Lax';}var a=localStorage.getItem('ed-accent-color');if(a&&a!=='green'){document.documentElement.setAttribute('data-accent',a);document.cookie='ed-accent-color='+a+'; path=/; max-age=31536000; SameSite=Lax';}}catch(e){}})();`,
           }}
         />
         <PwaUpdateWatcher />
         <PushSoundListener />
         <LanguageProvider initialLocale={locale}>
-          <ThemeColorProvider>
+          <ThemeColorProvider initialAccentColor={accentColor}>
             <LeagueProvider>
               <TeamProvider>
                 <PlayerProvider>

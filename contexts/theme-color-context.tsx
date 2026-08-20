@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { DEFAULT_ACCENT_COLOR, isValidAccentColor } from "@/lib/accent-colors"
+import { ACCENT_COOKIE, setPreferenceCookie } from "@/lib/theme-cookies"
 
 interface ThemeColorContextValue {
   accentColor: string
@@ -23,21 +24,33 @@ function applyAccentColor(id: string) {
   }
 }
 
-export function ThemeColorProvider({ children }: { children: React.ReactNode }) {
-  const [accentColor, setAccentColorState] = useState(DEFAULT_ACCENT_COLOR)
+export function ThemeColorProvider({
+  children,
+  initialAccentColor,
+}: {
+  children: React.ReactNode
+  // Sunucu (app/layout.tsx) çerezden okuyup ilk render'ı bu değerle yapar.
+  // Bu sayede localStorage boş/temizlenmiş olsa bile (örn. PWA'da) doğru
+  // renk state'i baştan doğru gelir, "orijinale dönme" hissi oluşmaz.
+  initialAccentColor?: string
+}) {
+  const [accentColor, setAccentColorState] = useState(
+    isValidAccentColor(initialAccentColor) ? initialAccentColor : DEFAULT_ACCENT_COLOR,
+  )
 
-  // İlk yüklemede kayıtlı seçimi oku. Flaşı önlemek için attribute'un kendisi
-  // zaten layout.tsx'teki satır-öncesi script tarafından uygulanmış olur;
-  // burada sadece React state'ini o değerle senkronlarız.
+  // localStorage'daki eski tercihi de kontrol edip senkron kalmasını
+  // sağlarız (çerezler kapalıyken hâlâ bir yedek olarak çalışsın diye).
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY)
-      if (isValidAccentColor(stored)) {
+      if (isValidAccentColor(stored) && stored !== accentColor) {
         setAccentColorState(stored)
+        applyAccentColor(stored)
       }
     } catch {
       // sessizce geç (örn. localStorage kapalı)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const setAccentColor = useCallback((id: string) => {
@@ -49,6 +62,9 @@ export function ThemeColorProvider({ children }: { children: React.ReactNode }) 
     } catch {
       // sessizce geç
     }
+    // Çereze de yazarız — sunucu render'ı ve PWA yeniden başlatmaları için
+    // localStorage'dan daha dayanıklı kalıcı depolama.
+    setPreferenceCookie(ACCENT_COOKIE, id)
   }, [])
 
   return (

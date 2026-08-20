@@ -3,6 +3,7 @@
 import { Moon, Sun } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useLanguage } from "@/contexts/language-context"
+import { THEME_COOKIE, setPreferenceCookie } from "@/lib/theme-cookies"
 
 export function ThemeToggle() {
   const { t } = useLanguage()
@@ -23,6 +24,10 @@ export function ThemeToggle() {
     } catch {
       // ignore
     }
+    // Çereze de yazarız — localStorage'dan daha dayanıklı: PWA'da uygulama
+    // yeniden başlatıldığında veya localStorage temizlendiğinde sunucu
+    // (app/layout.tsx) yine bu çerezden doğru temayı uygulayabilir.
+    setPreferenceCookie(THEME_COOKIE, next ? "dark" : "light")
   }
 
   return (
