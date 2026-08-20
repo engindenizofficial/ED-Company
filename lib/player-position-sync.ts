@@ -58,25 +58,21 @@ import { profile } from "./player-positions"
  * ATLANMAZ, ısrarla (giderek uzayan beklemelerle) tekrar denenir. ÜSTÜNE, iki
  * ek katman eklendi:
  *
- *   1) Jitter (±500ms, bkz. getAdaptiveDelayMs) — her istek arasının BİREBİR
+ *   1) Jitter (±800ms, bkz. getAdaptiveDelayMs) — her istek arasının BİREBİR
  *      aynı sabit aralıkta olması, kendisi bir bot imzasıdır; küçük rastgele
  *      sapma bunu kırar.
- *   2) Adaptif eskalasyon — bir istek 403/429/5xx/timeout/soft-block ile
- *      karşılaşırsa (bkz. transfermarkt-scraper.ts -> onBlockSignal), bu
- *      sinyal Redis'e (~15dk TTL ile) yazılır ve SONRAKİ TÜM istekler arası
- *      bekleme otomatik olarak +2s/seviye uzar (üst sınır 5 seviye = +10s).
- *      Yani blok gördüğümüz anda sistem kendiliğinden daha temkinli hale
- *      gelir, blok kesilirse birkaç dakika içinde kendiliğinden normale
- *      döner — sabit bir değer yerine gerçek zamanlı geri besleme.
+ *
+ * NOT: Daha önce burada, bir blok/timeout sinyali görüldüğünde Redis'teki
+ * paylaşımlı bir "blok seviyesi"ne göre istekler arası beklemeyi otomatik
+ * uzatan bir adaptif eskalasyon mekanizması vardı. Bu mekanizma kalıcı
+ * olarak kaldırıldı — bu sistem artık lib/market-value-sync.ts'in blok
+ * sinyallerinden etkilenmiyor, sadece kendi sabit taban gecikmesini (+jitter)
+ * kullanıyor.
  *
  * SON KARAR — kullanıcı 3000ms taban ile bile blok gördüğünü bildirdi ve
  * "blok olmasın" isteğini hız kaygısının kesin olarak önüne koydu. Bu
  * yüzden taban, kod tabanının kendi deneyinde denenmiş en yüksek değer olan
- * 3000ms'in de ÜZERİNE, 5000ms'e çıkarıldı. Bununla birlikte
- * transfermarkt-scraper.ts'teki escalation çarpanı (2000→4000ms/seviye) ve
- * decay süresi (90s→180s/seviye, bkz. redis.ts) de artırıldı — üçü birlikte
- * "bir blok görüldüğünde eskisinden daha sert ve daha uzun süre yavaşla"
- * davranışını oluşturuyor.
+ * 3000ms'in de ÜZERİNE, 5000ms'e çıkarıldı.
  *
  * Oyuncu başı beklenen süre (bloksuz, seviye 0): ~5s bekleme + ~0.3-0.5s
  * fetch ≈ 5.3-5.5s. 250s'lik yumuşak bütçeyle çağrı başına ~45-47 oyuncu

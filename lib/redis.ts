@@ -43,7 +43,6 @@ const K = {
   voteChoices: (fixtureId: number) => `ed:vote:choices:${fixtureId}`,
   chainLock: (name: string) => `ed:chain-lock:${name}`,
   tmSession: () => `ed:tm:session`,
-  tmBlockLevel: () => `ed:tm:block-level`,
 }
 
 // ---------------------------------------------------------------------------
@@ -87,36 +86,22 @@ export async function releaseChainLock(name: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Transfermarkt scraping oturumu — "hiç blok yeme" hedefi için iki parça:
+// Transfermarkt scraping oturumu — çerez + User-Agent kimliği (tmSession):
+// Serverless her invocation'da (her cron çağrısında) module state SIFIRLANIR
+// — yani sharedCookieJar öncesinde her çağrı Cloudflare'a "yepyeni bir
+// ziyaretçi" gibi görünürdü. Burada bu kimlik Redis'e kalıcı yazılır ve bir
+// sonraki invocation'da geri yüklenir; böylece art arda gelen cron çağrıları
+// da (aynı 20dk'lık pencere içinde) Cloudflare'ın gözünde "devam eden aynı
+// oturum" gibi görünür. User-Agent, kimlikle BİRLİKTE sabitlenir çünkü aynı
+// çerezle farklı User-Agent göndermek (kimlik tutarsızlığı) bazı bot
+// korumalarında çerezden bile daha güçlü bir şüphe sinyalidir.
 //
-// 1) Çerez + User-Agent kimliği (tmSession): Serverless her invocation'da
-//    (her cron çağrısında) module state SIFIRLANIR — yani sharedCookieJar
-//    öncesinde her çağrı Cloudflare'a "yepyeni bir ziyaretçi" gibi görünürdü.
-//    Burada bu kimlik Redis'e kalıcı yazılır ve bir sonraki invocation'da
-//    geri yüklenir; böylece art arda gelen cron çağrıları da (aynı 20dk'lık
-//    pencere içinde) Cloudflare'ın gözünde "devam eden aynı oturum" gibi
-//    görünür. User-Agent, kimlikle BİRLİKTE sabitlenir çünkü aynı çerezle
-//    farklı User-Agent göndermek (kimlik tutarsızlığı) bazı bot korumalarında
-//    çerezden bile daha güçlü bir şüphe sinyalidir.
-//
-// 2) Blok seviyesi (tmBlockLevel): Herhangi bir çağrı 403/429/5xx, ağ
-//    hatası/timeout veya "soft block" (200 dönen ama Cloudflare meydan okuma
-//    sayfası) ile karşılaşırsa seviye 1 artırılır. Tüm istekler arası
-//    bekleme süreleri (bkz. transfermarkt-scraper.ts -> getAdaptiveDelayMs)
-//    bu seviyeye göre otomatik uzar — yani bir kez blok sinyali alındığında
-//    SADECE o istek değil, o andan sonraki istekler de (hatta farklı bir
-//    cron çağrısında olsa bile) daha temkinli/yavaş hale gelir.
-//
-//    KADEMELİ SÖNÜMLEME (decay) — ÖNEMLİ TASARIM NOTU: İlk versiyon burada
-//    düz bir TTL kullanıyordu (seviye artışında TTL 15dk'ya sıfırlanıyordu).
-//    Bu "hepsi ya da hiçbir şey" davranışına yol açıyordu: TTL süresi boyunca
-//    seviye SABİT kalıyor (örn. 15 dakika boyunca hep 8s), TTL dolunca ise
-//    ANİDEN sıfıra düşüyordu (cliff). Kullanıcı bunun yerine zamanla
-//    KADEMELİ olarak yumuşayan bir davranış istedi. Bu yüzden artık sadece
-//    bir sayı değil, { level, lastBumpAt } kaydediliyor ve okuma anında
-//    "son bloktan bu yana kaç TM_BLOCK_LEVEL_DECAY_MS'lik dilim geçti" hesabıyla
-//    seviye kademeli düşürülüyor (5 → 4 → 3 → 2 → 1 → 0), 15 dakika boyunca
-//    sabit kalıp aniden düşmek yerine.
+// NOT: Daha önce burada, herhangi bir blok/timeout sinyalinde artan ve
+// mevki taraması ile piyasa değeri taramasının istekler arası bekleme
+// sürelerini PAYLAŞIMLI olarak uzatan bir "blok seviyesi" (tmBlockLevel)
+// mekanizması vardı. Bu mekanizma kalıcı olarak kaldırıldı — iki sistem
+// artık birbirinin blok sinyalinden etkilenmiyor, her biri sadece kendi
+// sabit taban gecikmesini kullanıyor.
 // ---------------------------------------------------------------------------
 
 export interface TmSession {
@@ -124,24 +109,7 @@ export interface TmSession {
   userAgent: string
 }
 
-interface TmBlockRecord {
-  level: number
-  lastBumpAt: number // epoch ms
-}
-
 const TM_SESSION_TTL = 60 * 20 // 20 dakika
-// Her seviye, son bloktan bu yana bu kadar zaman geçince 1 azalır (kademeli
-// sönümleme). Kayıt için Redis'te tutulan güvenlik TTL'i (temizlik amaçlı)
-// bunun biraz üzerinde tutulur.
-//
-// KARAR (kullanıcı geri bildirimiyle) — kullanıcı 3000ms taban ile bile blok
-// gördüğünü bildirdi ve "blok olmasın" isteğini net şekilde hız kaygısının
-// önüne koydu. Bu yüzden decay süresi 90s → 180s/seviyeye çıkarıldı: bir blok
-// görüldüğünde sistem eskisinden İKİ KAT daha uzun süre temkinli kalıyor,
-// normale çok çabuk dönüp aynı bloğu tekrar tetikleme riskini azaltıyor.
-const TM_BLOCK_LEVEL_DECAY_MS = 180_000 // 180 saniye / seviye
-const TM_BLOCK_RECORD_SAFETY_TTL = 60 * 30 // 30 dakika (temizlik amaçlı, decay mantığı bundan bağımsız çalışır)
-export const TM_BLOCK_LEVEL_MAX = 5
 
 export async function getTmSession(): Promise<TmSession | null> {
   if (!redis) return null
@@ -159,56 +127,6 @@ export async function setTmSession(session: TmSession): Promise<void> {
     await redis.set(K.tmSession(), session, { ex: TM_SESSION_TTL })
   } catch (err) {
     console.log("[v0] redis setTmSession failed:", err instanceof Error ? err.message : err)
-  }
-}
-
-/** Ham kayıttan, geçen süreye göre kademeli sönümlenmiş EFEKTİF seviyeyi hesaplar. */
-function decayedLevel(record: TmBlockRecord | null, now: number): number {
-  if (!record) return 0
-  const elapsedMs = Math.max(0, now - record.lastBumpAt)
-  const decaySteps = Math.floor(elapsedMs / TM_BLOCK_LEVEL_DECAY_MS)
-  return Math.max(0, Math.min(record.level, TM_BLOCK_LEVEL_MAX) - decaySteps)
-}
-
-/**
- * Şu anki (kademeli sönümlenmiş) blok seviyesini okur (Redis yoksa veya hiç
- * blok görülmediyse / son bloktan uzun süre geçtiyse 0).
- *
- * Örnek: seviye 3'e çıktıktan 3 dakika sonra okunursa (3dk / 90s = 2 adım)
- * efektif seviye 1 olur — 15 dakika boyunca sabit 3'te kalıp aniden 0'a
- * düşmek yerine, zamanla yumuşak bir şekilde iner.
- */
-export async function getTmBlockLevel(): Promise<number> {
-  if (!redis) return 0
-  try {
-    const record = await redis.get<TmBlockRecord>(K.tmBlockLevel())
-    return decayedLevel(record, Date.now())
-  } catch (err) {
-    console.log("[v0] redis getTmBlockLevel failed:", err instanceof Error ? err.message : err)
-    return 0
-  }
-}
-
-/**
- * Bir blok/timeout sinyali görüldüğünde çağrılır. Önce mevcut kaydın
- * kademeli sönümlenmiş halini hesaplar (yani bir süredir blok yoksa seviye
- * zaten kendiliğinden düşmüş olur), SONRA bunun üzerine +1 ekler ve
- * `lastBumpAt`'i şimdiki zamana günceller — böylece sönümleme sayacı bu yeni
- * bloktan itibaren yeniden başlar. Sonuç TM_BLOCK_LEVEL_MAX ile sınırlanır.
- */
-export async function bumpTmBlockLevel(): Promise<number> {
-  if (!redis) return 0
-  try {
-    const now = Date.now()
-    const existing = await redis.get<TmBlockRecord>(K.tmBlockLevel())
-    const currentEffective = decayedLevel(existing, now)
-    const next = Math.min(currentEffective + 1, TM_BLOCK_LEVEL_MAX)
-    const record: TmBlockRecord = { level: next, lastBumpAt: now }
-    await redis.set(K.tmBlockLevel(), record, { ex: TM_BLOCK_RECORD_SAFETY_TTL })
-    return next
-  } catch (err) {
-    console.log("[v0] redis bumpTmBlockLevel failed:", err instanceof Error ? err.message : err)
-    return 0
   }
 }
 

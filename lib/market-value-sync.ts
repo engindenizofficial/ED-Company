@@ -111,13 +111,15 @@ export async function syncTeamPlayers(
   const counts: PlayerSyncCounts = { matched: 0, review: 0, unmatched: 0 }
 
   // Transfermarkt'a art arda çok hızlı istek atmamak için takımlar arası
-  // bekleme. Taban değer + Redis'teki paylaşımlı blok seviyesine göre
-  // otomatik uzayan kısım (bkz. transfermarkt-scraper.ts -> getAdaptiveDelayMs)
-  // — "hiç blok yemeyelim" hedefiyle bu artık lib/player-position-sync.ts ile
-  // aynı adaptif mekanizmayı paylaşıyor (bir yerde blok görülürse, buradaki
-  // istekler de otomatik olarak temkinli hale gelir). Taban değerler,
-  // player-position-sync.ts'teki REQUEST_DELAY_MS ile aynı kararla (kullanıcı
-  // "blok olmasın" isteğini hız kaygısının önüne koydu) yükseltildi.
+  // bekleme (taban değer + jitter, bkz. transfermarkt-scraper.ts ->
+  // getAdaptiveDelayMs). Taban değerler, player-position-sync.ts'teki
+  // REQUEST_DELAY_MS ile aynı kararla (kullanıcı "blok olmasın" isteğini hız
+  // kaygısının önüne koydu) yükseltildi.
+  //
+  // NOT: Daha önce burada, lib/player-position-sync.ts ile Redis üzerinden
+  // PAYLAŞIMLI bir blok seviyesi kullanılıyordu — biri bloklandığında
+  // diğerinin gecikmesi de otomatik uzuyordu. Bu paylaşım kalıcı olarak
+  // kaldırıldı; bu sistem artık sadece kendi sabit taban gecikmesini kullanır.
   await sleep(await getAdaptiveDelayMs(3000))
   let scrapedPlayers = await scrapeTeamSquad(transfermarktTeamId)
   if (scrapedPlayers.length === 0) {
@@ -270,8 +272,8 @@ export async function prepareLeagueTeamSync(leagueId: number, runStartedAt: Date
   // Gerçek bloklanma durumunda artık scrapeLeagueTeams sessizce boş dönmüyor,
   // hata fırlatıyor (bkz. transfermarkt-scraper.ts fetchHtml) — bu bekleme
   // sadece bloklanma riskini azaltmak için, hatayı gizlemek için değil.
-  // Adaptif: Redis'teki paylaşımlı blok seviyesine göre otomatik uzar.
-  // Taban, kullanıcının "blok olmasın" kararıyla yükseltildi.
+  // Taban gecikme + jitter (bkz. getAdaptiveDelayMs). Taban, kullanıcının
+  // "blok olmasın" kararıyla yükseltildi.
   await sleep(await getAdaptiveDelayMs(3000))
 
   const [apiFootballTeams, scrapedTeams] = await Promise.all([
