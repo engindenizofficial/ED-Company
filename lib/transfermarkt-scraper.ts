@@ -227,18 +227,30 @@ async function onBlockSignal(): Promise<void> {
 
 /**
  * İstekler arası bekleme süresini hesaplar. `baseMs` çağıranın istediği
- * taban gecikmedir; buna (a) son ~15dk içinde görülen blok sinyaline göre
- * kademeli bir ek (seviye × 2s) ve (b) sabit aralık deseninin kendisinin bir
- * bot imzası olmaması için ±500ms rastgele jitter eklenir.
+ * taban gecikmedir; buna (a) son bir süre içinde görülen blok sinyaline göre
+ * kademeli bir ek (seviye × 4s, bkz. TM_BLOCK_LEVEL_MAX ile birlikte üst
+ * sınır) ve (b) sabit aralık deseninin kendisinin bir bot imzası olmaması
+ * için ±800ms rastgele jitter eklenir.
  *
- * DÜRÜST UYARI: Bu hesaplama blok riskini azaltmayı hedefler, "asla blok
- * yenmez" garantisi vermez — Transfermarkt'ın bot koruma algoritması bizim
- * kontrolümüzde değil.
+ * KARAR (kullanıcı geri bildirimiyle) — kullanıcı "blok olmasın" isteğini
+ * hız kaygısının önüne koydu ve 3000ms taban ile bile blok gördüğünü
+ * bildirdi. Bu yüzden:
+ *   - escalation çarpanı 2000 → 4000ms/seviyeye çıkarıldı (bir blok
+ *     görüldüğünde sistem eskisinden daha sert yavaşlıyor).
+ *   - jitter aralığı ±500 → ±800ms'e çıkarıldı (istek deseni daha az
+ *     makine-gibi görünsün diye).
+ * Bu, lib/player-position-sync.ts'teki taban gecikmenin de 3000ms'den
+ * 5000ms'e çıkarılmasıyla BİRLİKTE okunmalı — ikisi birbirini tamamlıyor.
+ *
+ * DÜRÜST UYARI (tekrar): Bu hesaplama blok riskini azaltmayı hedefler,
+ * "asla blok yenmez" garantisi vermez — Transfermarkt'ın bot koruma
+ * algoritması bizim kontrolümüzde değil. Elimizdeki tek araç, isteklerin
+ * sıklığını ve deseninin insan davranışına yakınlığını artırmak.
  */
 export async function getAdaptiveDelayMs(baseMs: number): Promise<number> {
   const level = await getTmBlockLevel()
-  const escalation = level * 2000
-  const jitter = Math.floor(Math.random() * 1000) - 500
+  const escalation = level * 4000
+  const jitter = Math.floor(Math.random() * 1600) - 800
   return Math.max(1000, baseMs + escalation + jitter)
 }
 

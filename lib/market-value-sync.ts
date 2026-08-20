@@ -115,12 +115,14 @@ export async function syncTeamPlayers(
   // otomatik uzayan kısım (bkz. transfermarkt-scraper.ts -> getAdaptiveDelayMs)
   // — "hiç blok yemeyelim" hedefiyle bu artık lib/player-position-sync.ts ile
   // aynı adaptif mekanizmayı paylaşıyor (bir yerde blok görülürse, buradaki
-  // istekler de otomatik olarak temkinli hale gelir).
-  await sleep(await getAdaptiveDelayMs(1500))
+  // istekler de otomatik olarak temkinli hale gelir). Taban değerler,
+  // player-position-sync.ts'teki REQUEST_DELAY_MS ile aynı kararla (kullanıcı
+  // "blok olmasın" isteğini hız kaygısının önüne koydu) yükseltildi.
+  await sleep(await getAdaptiveDelayMs(3000))
   let scrapedPlayers = await scrapeTeamSquad(transfermarktTeamId)
   if (scrapedPlayers.length === 0) {
     // Geçici bir rate-limit (503) olabilir — biraz daha bekleyip bir kez tekrar dene.
-    await sleep(await getAdaptiveDelayMs(2000))
+    await sleep(await getAdaptiveDelayMs(4000))
     scrapedPlayers = await scrapeTeamSquad(transfermarktTeamId)
   }
   if (scrapedPlayers.length === 0) return counts
@@ -269,7 +271,8 @@ export async function prepareLeagueTeamSync(leagueId: number, runStartedAt: Date
   // hata fırlatıyor (bkz. transfermarkt-scraper.ts fetchHtml) — bu bekleme
   // sadece bloklanma riskini azaltmak için, hatayı gizlemek için değil.
   // Adaptif: Redis'teki paylaşımlı blok seviyesine göre otomatik uzar.
-  await sleep(await getAdaptiveDelayMs(1500))
+  // Taban, kullanıcının "blok olmasın" kararıyla yükseltildi.
+  await sleep(await getAdaptiveDelayMs(3000))
 
   const [apiFootballTeams, scrapedTeams] = await Promise.all([
     getLeagueTeamsForMatching(leagueId, season),

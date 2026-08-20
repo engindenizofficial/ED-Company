@@ -69,13 +69,21 @@ import { profile } from "./player-positions"
  *      gelir, blok kesilirse birkaç dakika içinde kendiliğinden normale
  *      döner — sabit bir değer yerine gerçek zamanlı geri besleme.
  *
- * Oyuncu başı beklenen süre (bloksuz, seviye 0): ~3s bekleme + ~0.3-0.5s
- * fetch ≈ 3.3-3.5s. 250s'lik yumuşak bütçeyle çağrı başına ~70-75 oyuncu
- * işlenir — önceki 1200ms tahminine (~73 oyuncu) yakın, ama artık bu sayı
- * gerçek dünyada blok+retry döngüleri yüzünden EKSİK ÇIKMA riski taşımıyor.
+ * SON KARAR — kullanıcı 3000ms taban ile bile blok gördüğünü bildirdi ve
+ * "blok olmasın" isteğini hız kaygısının kesin olarak önüne koydu. Bu
+ * yüzden taban, kod tabanının kendi deneyinde denenmiş en yüksek değer olan
+ * 3000ms'in de ÜZERİNE, 5000ms'e çıkarıldı. Bununla birlikte
+ * transfermarkt-scraper.ts'teki escalation çarpanı (2000→4000ms/seviye) ve
+ * decay süresi (90s→180s/seviye, bkz. redis.ts) de artırıldı — üçü birlikte
+ * "bir blok görüldüğünde eskisinden daha sert ve daha uzun süre yavaşla"
+ * davranışını oluşturuyor.
+ *
+ * Oyuncu başı beklenen süre (bloksuz, seviye 0): ~5s bekleme + ~0.3-0.5s
+ * fetch ≈ 5.3-5.5s. 250s'lik yumuşak bütçeyle çağrı başına ~45-47 oyuncu
+ * işlenir (öncekinden daha az, ama kullanıcının önceliği artık hız değil).
  * İzleme: admin panelindeki "Oyuncu Mevki Taraması" durumu.
  */
-const REQUEST_DELAY_MS = 3000
+const REQUEST_DELAY_MS = 5000
 
 /**
  * Route'un maxDuration'ından (300s) daha erken, kendi isteğimizle güvenli bir
@@ -124,7 +132,7 @@ const REQUEST_DELAY_MS = 3000
  * Actions'ın minimum zamanlama aralığı 5 dakika olduğundan (ayrıca yoğun
  * saatlerde birkaç dakika gecikebilir), her 5 dakikada bir ~73 oyuncu ≈
  * dakikada ~14.6 oyuncu işlenir — eski 70s/1dk kombinasyonundan (dakikada
- * ~20 oyuncu) biraz daha yavaş ama zamanlayıcı çok daha basit/güvenilir
+ * ~20 oyuncu) biraz daha yavaş ama zamanlayıcı ��ok daha basit/güvenilir
  * (GitHub'ın kendi altyapısı, üçüncü taraf hesabı gerektirmiyor).
  */
 const SOFT_TIME_BUDGET_MS = 250_000

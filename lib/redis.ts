@@ -133,8 +133,14 @@ const TM_SESSION_TTL = 60 * 20 // 20 dakika
 // Her seviye, son bloktan bu yana bu kadar zaman geçince 1 azalır (kademeli
 // sönümleme). Kayıt için Redis'te tutulan güvenlik TTL'i (temizlik amaçlı)
 // bunun biraz üzerinde tutulur.
-const TM_BLOCK_LEVEL_DECAY_MS = 90_000 // 90 saniye / seviye
-const TM_BLOCK_RECORD_SAFETY_TTL = 60 * 20 // 20 dakika (temizlik amaçlı, decay mantığı bundan bağımsız çalışır)
+//
+// KARAR (kullanıcı geri bildirimiyle) — kullanıcı 3000ms taban ile bile blok
+// gördüğünü bildirdi ve "blok olmasın" isteğini net şekilde hız kaygısının
+// önüne koydu. Bu yüzden decay süresi 90s → 180s/seviyeye çıkarıldı: bir blok
+// görüldüğünde sistem eskisinden İKİ KAT daha uzun süre temkinli kalıyor,
+// normale çok çabuk dönüp aynı bloğu tekrar tetikleme riskini azaltıyor.
+const TM_BLOCK_LEVEL_DECAY_MS = 180_000 // 180 saniye / seviye
+const TM_BLOCK_RECORD_SAFETY_TTL = 60 * 30 // 30 dakika (temizlik amaçlı, decay mantığı bundan bağımsız çalışır)
 export const TM_BLOCK_LEVEL_MAX = 5
 
 export async function getTmSession(): Promise<TmSession | null> {
