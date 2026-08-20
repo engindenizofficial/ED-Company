@@ -43,9 +43,20 @@ import { profile } from "./player-positions"
  *   - 1200ms → hız için tekrar düşürüldü, ama gerçek kullanımda tek oyuncu
  *     başına ~13s'ye kadar süren blok+retry döngülerine yol açtığı gözlendi.
  *
- * KARAR — kullanıcı "hiç blok yemeyelim" önceliğini "hız"ın önüne koydu.
- * Bu yüzden taban gecikme kod tabanının kendi deneyinde en kararlı sonucu
- * veren 3000ms'e geri çekildi. ÜSTÜNE, iki ek katman eklendi:
+ * KARAR — kullanıcı önceliği netleştirdi: "sistem yavaş olsun ama hiç hata
+ * olmasın" (yani: bir oyuncunun verisi hiç alınamadan es geçilmesi kabul
+ * edilemez; buna karşılık gecikme/yavaşlık kabul edilebilir bir maliyettir).
+ * Bu netleşmeden önce "bloklu bir istekte ısrar etmek yerine atlayıp devam
+ * et" yönünde bir deneme yapılmıştı (transfermarkt-scraper.ts'teki retry
+ * merdiveni kısaltılmış, oyuncu bazlı "soğuma" eklenmişti) — bu YANLIŞTI ve
+ * geri alındı, çünkü kullanıcının tanımında bu tam olarak istemediği "hata"
+ * (veri kaybı) demekti. Doğru strateji: taban gecikmeyi kod tabanının kendi
+ * deneyinde en kararlı sonucu veren 3000ms'de sabit tutmak (bloklanma
+ * olasılığını EN BAŞTAN düşürmek) + fetchHtml'deki 3 adımlı retry merdivenini
+ * (1.5s/4s/10s, transfermarkt-scraper.ts) bir "pes et" mekanizması değil,
+ * gerçek bir güvenlik ağı olarak korumak — yani bir istek bloklanırsa
+ * ATLANMAZ, ısrarla (giderek uzayan beklemelerle) tekrar denenir. ÜSTÜNE, iki
+ * ek katman eklendi:
  *
  *   1) Jitter (±500ms, bkz. getAdaptiveDelayMs) — her istek arasının BİREBİR
  *      aynı sabit aralıkta olması, kendisi bir bot imzasıdır; küçük rastgele

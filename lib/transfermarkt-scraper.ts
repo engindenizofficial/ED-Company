@@ -154,45 +154,37 @@ function sleep(ms: number): Promise<void> {
  * nedeni buydu). Zaman aşımı burada AbortController ile catch bloğuna
  * düşürülüyor, böylece aşağıdaki mevcut retry mantığı devreye giriyor.
  *
- * 8s olarak ayarlandı (önceden 20s): gerçek sayfa yanıtları normalde 1-2s
- * içinde gelir, bu yüzden 20s'lik bekleme pratikte sadece "askıda kalan"
- * isteklerde worst-case süreyi gereksiz yere şişiriyordu.
- *
- * SONRADAN 6s'e düşürüldü — bkz. BLOCKING_RETRY_DELAYS_MS'deki not: tek bir
- * çağrının worst-case süresi bilinçli olarak küçültüldü.
+ * 8s: gerçek sayfa yanıtları normalde 1-2s içinde gelir, bu yüzden 8s
+ * "askıda kalan" bir isteği makul bir sürede fark edip retry'a düşürmeye
+ * yeter, ama gerçek (biraz yavaş) bir sunucu yanıtını da erken kesip
+ * gereksiz bir retry'a yol açmayacak kadar geniş bir pay bırakır.
  */
-const FETCH_TIMEOUT_MS = 6_000
+const FETCH_TIMEOUT_MS = 8_000
 
 /**
  * Transfermarkt'ın rate-limit / bot koruması (403 Forbidden, 429 Too Many
  * Requests) ve geçici sunucu hataları (5xx) için kullanılan, giderek uzayan
  * bekleme süreleri.
  *
- * ÖNEMLİ TASARIM DEĞİŞİKLİĞİ (kullanıcı geri bildirimiyle): önceden bu dizi
- * [1500, 4000, 10000] idi — yani 4 deneme × 8s timeout + 15.5s toplam bekleme
- * = worst-case TEK BİR OYUNCU İÇİN ~47.5 SANİYE. Bu, kullanıcının gözlemlediği
- * "bir oyuncuda 30 saniye falan durdu" şikayetinin doğrudan kök nedeniydi.
+ * KARAR (kullanıcı geri bildirimiyle netleşti): önceki "hızlı-başarısız-ol,
+ * atla, devam et" yaklaşımı burada TERK EDİLDİ. Kullanıcı açıkça "hiç hata
+ * istemiyorum, sistem yavaş olsun ama hiçbir oyuncu atlanmasın/kalıcı hata
+ * yemesin" dedi — yani onun tanımında "hata" = bir oyuncunun verisinin hiç
+ * alınamadan es geçilmesi, "yavaşlık" ise kabul edilebilir bir maliyet.
+ * Bu iki tanım birbirinden ayrıldığında doğru strateji de değişiyor: bloklu
+ * bir istekte ısrar edip retry yapmak (yavaş ama veri kaybı yok) burada
+ * "atlayıp devam etmek"ten (hızlı ama veri kaybı riski var) DAHA DOĞRU
+ * çünkü kullanıcı hız > veri bütünlüğü tercih etmiyor, tam tersini istiyor.
  *
- * Bunun ARKASINDAKİ VARSAYIM YANLIŞTI: bir istek Cloudflare tarafından
- * bloklanmışsa, aynı çağrı içinde 10 saniye daha bekleyip yeniden denemek
- * bloğu kaldırmaz — Transfermarkt'ın bloğu bizim ne kadar beklediğimizle
- * ilgili değil, KENDİ zamanlamasıyla ilgili. Yani o 47.5 saniyenin büyük
- * kısmı gerçek bir koruma sağlamadan harcanıyordu; asıl koruma zaten
- * İSTEKLER ARASI adaptif gecikmede (getAdaptiveDelayMs) sağlanıyor.
- *
- * YENİ YAKLAŞIM: "hızlı-başarısız-ol, sonra devam et" — bu dizi artık SADECE
- * gerçekten geçici/ağ kaynaklı hatalar için TEK bir kısa retry içeriyor (2s).
- * Kalıcı/tekrarlayan bloklar için koruma artık burada değil,
- * lib/redis.ts -> markPlayerCooldown / getPlayersInCooldown üzerinden
- * sağlanıyor: bir oyuncu bu tek retry'dan sonra da başarısız olursa hemen
- * atlanır (havuzda YOK edilmez, sadece ~8dk soğumaya alınır) ve SIRADAKİ
- * oyuncuya geçilir — böylece bloklu bir oyuncuda ısrar edip kuyruğun tamamını
- * geciktirmek yerine, geçici olarak atlanıp diğer oyunculara hız kazandırılır.
- *
- * Yeni worst-case: 2 deneme × 6s timeout + 2s bekleme = ~14s (öncekinin
- * ~üçte biri).
+ * Bu yüzden bu dizi 3 adımlı, giderek uzayan (1.5s / 4s / 10s) haline geri
+ * döndürüldü — worst-case tek oyuncu için ~4×8s+15.5s ≈ 47.5s olabilir, ama
+ * bu YALNIZCA gerçekten üst üste 4 kez engellenirse gerçekleşir. Bunun
+ * SIKLIĞINI düşürmek için asıl güvence burada değil, istekler arası TABAN
+ * gecikmenin kod tabanının kendi deneyinde "en kararlı" bulunan seviyede
+ * (3000ms, bkz. player-position-sync.ts) sabit tutulmasında — yani retry
+ * merdiveni bir GÜVENLİK AĞI, günlük çalışma modu değil.
  */
-const BLOCKING_RETRY_DELAYS_MS = [2000]
+const BLOCKING_RETRY_DELAYS_MS = [1500, 4000, 10000]
 
 /**
  * Transfermarkt bazen 403/429/5xx DÖNMEDEN, düz 200 ile bir Cloudflare
