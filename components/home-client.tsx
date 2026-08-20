@@ -493,7 +493,7 @@ export function HomeClient({ initialFixtureId, initialFixture }: HomeClientProps
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Header */}
-      <header className="sticky top-[49px] z-10 isolate border-b border-border bg-background [backface-visibility:hidden] [transform:translateZ(0)] [will-change:transform]">
+      <header className="border-b border-border bg-background">
         <div className="mx-auto max-w-4xl px-5">
           {/* Top row: date label + actions */}
           <div className="flex items-center justify-between gap-3 py-3">
