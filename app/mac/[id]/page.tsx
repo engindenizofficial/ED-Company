@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { cache } from "react"
 import { getFixtureById } from "@/lib/api-football"
 import { getServerLocale } from "@/lib/i18n/server-locale"
 import { translate } from "@/lib/i18n/dictionaries"
@@ -10,10 +11,20 @@ interface MatchPageProps {
   params: Promise<{ id: string }>
 }
 
+// generateMetadata VE sayfa component'i aynı fixture'ı ayrı ayrı çekiyordu —
+// yani her sayfa görüntülemesinde harici API-Football'a 2 istek gidiyordu.
+// React'in cache() sarmalayıcısı, aynı istek (request) içinde aynı argümanla
+// yapılan çağrıları tekilleştirir: ikinci çağrı ağa gitmez, ilk sonucu
+// paylaşır. Bu, harici API'nin gecikmesini/rate-limit riskini yarıya
+// indiriyor ve sayfanın gerçekte "dönüp sonra açılması" hissinin başlıca
+// sebebiydi — takım sayfası daha hafif bir uç noktaya (getTeamBasicInfo) tek
+// seferde bağlanıyordu, maç sayfası ise iki kat daha ağır ve iki kat yavaştı.
+const getCachedFixture = cache((id: number) => getFixtureById(id).catch(() => null))
+
 export async function generateMetadata({ params }: MatchPageProps): Promise<Metadata> {
   const { id } = await params
   const locale = await getServerLocale()
-  const fixture = await getFixtureById(Number(id)).catch(() => null)
+  const fixture = await getCachedFixture(Number(id))
   const home = fixture?.home.name || "Ev Sahibi"
   const away = fixture?.away.name || "Konuk"
   const title = translate(locale, "meta.match.title", { home, away })
@@ -48,7 +59,7 @@ export async function generateMetadata({ params }: MatchPageProps): Promise<Meta
 // render ediyorlardı).
 export default async function MatchPage({ params }: MatchPageProps) {
   const { id } = await params
-  const fixture = await getFixtureById(Number(id)).catch(() => null)
+  const fixture = await getCachedFixture(Number(id))
   const home = fixture?.home.name || "Ev Sahibi"
   const away = fixture?.away.name || "Konuk"
   const hasScore = fixture && (fixture.goalsHome !== null || fixture.goalsAway !== null)
