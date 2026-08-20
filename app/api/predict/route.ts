@@ -305,6 +305,16 @@ async function sampleWithSelfConsistency(
 // Route handler
 // ---------------------------------------------------------------------------
 export async function POST(request: Request) {
+  // Güvenlik: bu endpoint gerçek para maliyeti doğuran 11 LLM çağrısı
+  // tetikler (3 model x 3 örnek + özet + çeviri). UI'da butonun sadece
+  // admin'e gösterilmesi yeterli değil — istemci tarafı gizleme, endpoint'in
+  // kendisini korumaz. DELETE /api/predict ile aynı desen: oturumdaki
+  // e-postayı kontrol et.
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!isAdminEmail(session?.user?.email)) {
+    return NextResponse.json({ error: "Yetkiniz yok." }, { status: 403 })
+  }
+
   const body = await request.json().catch(() => ({}))
   const fixtureId = Number(body?.fixtureId)
 
