@@ -6,20 +6,20 @@ import { cn } from "@/lib/utils"
 import { useLanguage } from "@/contexts/language-context"
 import type { PredictionResult } from "@/lib/types"
 
+// İstatistik (Poisson) modeli arka planda tahmin sürecine katılır ama
+// kullanıcıya asla gösterilmez — bu yüzden başarı panelinden filtreleriz.
+function isHiddenModel(model: string): boolean {
+  return model.includes("poisson")
+}
+
 // Model etiket haritası — model string'inden okunabilir isim üret.
-// Geçmiş sonuçlarda eski model sürümleri de olabileceği için versiyon
-// numarasına bakarak ayırt ediyoruz (örn. eski gemini-3.6 vs güncel 3.7).
+// Gemini ve Grok'un farklı sürümleri (3.6/3.7, 4.5/4.6) kullanıcıya tek bir
+// model gibi gösterilsin diye tek etikette birleştiriliyor; istatistikleri
+// de bu sayede toplu görünür.
 function modelLabel(model: string): string {
   if (model.includes("gpt")) return "GPT-5.6 Terra"
-  if (model.includes("gemini")) {
-    if (model.includes("gemini-3.6")) return "Gemini 3.6 Flash"
-    return "Gemini 3.7 Flash"
-  }
-  if (model.includes("grok")) {
-    if (model.includes("grok-4.5")) return "Grok 4.5"
-    return "Grok 4.6"
-  }
-  if (model.includes("poisson")) return "İstatistik Modeli (Poisson)"
+  if (model.includes("gemini")) return "Gemini"
+  if (model.includes("grok")) return "Grok"
   return model
 }
 
@@ -36,9 +36,13 @@ function buildModelStats(results: PredictionResult[]): ModelStat[] {
   for (const r of results) {
     if (!r.modelResults?.length) continue
     for (const m of r.modelResults) {
-      const key = m.label || m.model
+      if (isHiddenModel(m.model)) continue
+      // Gruplama anahtarı olarak normalize edilmiş etiketi kullanırız (m.label
+      // değil), böylece Grok 4.5/4.6 ve Gemini 3.6/3.7 gibi sürüm farklılıkları
+      // tek bir satırda toplanır.
+      const key = modelLabel(m.model)
       if (!map.has(key)) {
-        map.set(key, { label: modelLabel(m.model), total: 0, scoreHits: 0, sideHits: 0 })
+        map.set(key, { label: key, total: 0, scoreHits: 0, sideHits: 0 })
       }
       const stat = map.get(key)!
       stat.total++

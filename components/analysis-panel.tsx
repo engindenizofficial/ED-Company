@@ -1877,25 +1877,22 @@ function InjuryList({ injuries }: { injuries: InjuryItem[] }) {
 // PredictionCard — AI tahmin kartı (ensemble)
 // ---------------------------------------------------------------------------
 
+// İstatistik (Poisson) modeli arka planda ensemble'a katılır ama kullanıcıya
+// hiçbir yerde gösterilmez — model oyları listesinden ve sayaçtan filtrelenir.
+function isHiddenModel(modelId: string): boolean {
+  return modelId.startsWith("poisson/")
+}
+
 /**
  * Model adını kısa etiket + renk sınıfına çevirir.
- * Geçmiş tahminlerde eski model sürümleri de görünebileceği için versiyon
- * numarasına bakarak ayırt ediyoruz (örn. eski gemini-3.6 vs güncel 3.7).
+ * Gemini ve Grok'un farklı sürümleri (3.6/3.7, 4.5/4.6) kullanıcıya tek bir
+ * model gibi gösterilsin diye tek etikette birleştirilir.
  */
 function modelLabel(modelId: string): { short: string; colorCls: string } {
   if (modelId.startsWith("openai/"))    return { short: "GPT-5.6 Terra", colorCls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" }
   if (modelId.startsWith("anthropic/")) return { short: "Claude",        colorCls: "bg-orange-500/10  text-orange-600  border-orange-500/20  dark:text-orange-400"  }
-  if (modelId.startsWith("google/")) {
-    const short = modelId.includes("gemini-3.6") ? "Gemini 3.6 Flash" : "Gemini 3.7 Flash"
-    return { short, colorCls: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" }
-  }
-  if (modelId.startsWith("xai/")) {
-    const short = modelId.includes("grok-4.5") ? "Grok 4.5" : "Grok 4.6"
-    return { short, colorCls: "bg-violet-500/10 text-violet-600 border-violet-500/20 dark:text-violet-400" }
-  }
-  if (modelId.startsWith("poisson/")) {
-    return { short: "İstatistik Modeli", colorCls: "bg-slate-500/10 text-slate-600 border-slate-500/20 dark:text-slate-400" }
-  }
+  if (modelId.startsWith("google/"))    return { short: "Gemini",       colorCls: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" }
+  if (modelId.startsWith("xai/"))       return { short: "Grok",         colorCls: "bg-violet-500/10 text-violet-600 border-violet-500/20 dark:text-violet-400" }
   return { short: modelId.split("/")[0], colorCls: "bg-secondary text-muted-foreground border-border/60" }
 }
 
@@ -2072,7 +2069,10 @@ function PredictionCard({
         ? "text-yellow-600 dark:text-yellow-400"
         : "text-muted-foreground"
 
-  const modelCount = prediction.modelVotes?.length ?? 0
+  // İstatistik (Poisson) modeli arka planda ensemble'a katılır ama kullanıcıya
+  // gösterilmez — sayaç ve oy listesi sadece görünür (LLM) modelleri kapsar.
+  const visibleModelVotes = prediction.modelVotes?.filter((v) => !isHiddenModel(v.model)) ?? []
+  const modelCount = visibleModelVotes.length
 
   return (
     <>
@@ -2182,7 +2182,7 @@ function PredictionCard({
 
             {showVotes && (
               <div className="mt-2.5 flex flex-col gap-1.5">
-                {prediction.modelVotes.map((vote, i) => (
+                {visibleModelVotes.map((vote, i) => (
                   <ModelVoteRow
                     key={i}
                     vote={vote}
