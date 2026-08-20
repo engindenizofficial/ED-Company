@@ -20,13 +20,14 @@ export function ThemeColorPicker() {
       <div className="mt-5 grid grid-cols-5 gap-3">
         {ACCENT_COLORS.map((color) => {
           const active = accentColor === color.id
+          const colorName = t(`themeColorPicker.colors.${color.id}`)
           return (
             <button
               key={color.id}
               type="button"
               onClick={() => setAccentColor(color.id)}
               aria-pressed={active}
-              aria-label={t("themeColorPicker.colorLabel", { color: color.label })}
+              aria-label={t("themeColorPicker.colorLabel", { color: colorName })}
               className="group flex flex-col items-center gap-1.5"
             >
               <span
@@ -41,7 +42,7 @@ export function ThemeColorPicker() {
                 ) : null}
               </span>
               <span className="text-[10px] font-medium text-muted-foreground group-hover:text-foreground">
-                {color.label}
+                {colorName}
               </span>
             </button>
           )
