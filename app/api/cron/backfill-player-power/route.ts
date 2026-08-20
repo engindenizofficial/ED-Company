@@ -38,7 +38,7 @@ async function triggerNextStep(request: Request): Promise<void> {
   const headers: Record<string, string> = {}
   const secret = process.env.CRON_SECRET
   if (secret) headers.authorization = `Bearer ${secret}`
-  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+  const bypassSecret = process.env.QSTASH_BYPASS_SECRET
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
 
   await fireChainStepWithoutAwaitingResponse(request.url, headers)
