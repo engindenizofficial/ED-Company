@@ -138,24 +138,46 @@ export async function setTmSession(session: TmSession): Promise<void> {
   }
 }
 
-/** Şu anki blok seviyesini okur (Redis yoksa veya hiç blok görülmediyse 0). */
+/**
+ * Şu anki blok seviyesini okur (Redis yoksa veya hiç blok görülmediyse 0).
+ *
+ * ÖNEMLİ: sonuç HER ZAMAN TM_BLOCK_LEVEL_MAX ile sınırlanır (bkz.
+ * bumpTmBlockLevel'daki not — Redis'teki ham değer bumpTmBlockLevel'ın kendi
+ * incr çağrıları yüzünden MAX'in üzerine çıkabilir). Bu sınırlama önceden
+ * SADECE bumpTmBlockLevel'ın geri döndürdüğü değerde vardı, getAdaptiveDelayMs
+ * ise burayı (ham değeri) okuyordu — bu yüzden ardışık birden çok blok
+ * sinyali seviyeyi 21'e kadar çıkarabiliyor ve gecikme 21 × 2000ms = 42
+ * saniyeye kadar şişip sistemin "durmuş gibi" görünmesine yol açıyordu.
+ */
 export async function getTmBlockLevel(): Promise<number> {
   if (!redis) return 0
   try {
     const level = await redis.get<number>(K.tmBlockLevel())
-    return level ?? 0
+    return Math.min(level ?? 0, TM_BLOCK_LEVEL_MAX)
   } catch (err) {
     console.log("[v0] redis getTmBlockLevel failed:", err instanceof Error ? err.message : err)
     return 0
   }
 }
 
-/** Bir blok/timeout sinyali görüldüğünde çağrılır; seviyeyi 1 artırır (üst sınır TM_BLOCK_LEVEL_MAX) ve TTL'i tazeler. */
+/**
+ * Bir blok/timeout sinyali görüldüğünde çağrılır; seviyeyi 1 artırır ve
+ * TTL'i tazeler. `redis.incr` ham değeri sınırsız artırır (Upstash'te "clamp
+ * eden incr" yok) — bu yüzden ham değer TM_BLOCK_LEVEL_MAX'i aşarsa açıkça
+ * MAX'e geri yazılır (`redis.set`). Bu adım olmadan ham değer sınırsız
+ * büyüyebilir ve getTmBlockLevel'daki Math.min'e güvenmek yeterli olmaz çünkü
+ * TTL her bump'ta tazelendiği için şişmiş değer asla kendiliğinden sıfıra
+ * dönmez.
+ */
 export async function bumpTmBlockLevel(): Promise<number> {
   if (!redis) return 0
   try {
     const next = await redis.incr(K.tmBlockLevel())
-    await redis.expire(K.tmBlockLevel(), TM_BLOCK_LEVEL_TTL)
+    if (next > TM_BLOCK_LEVEL_MAX) {
+      await redis.set(K.tmBlockLevel(), TM_BLOCK_LEVEL_MAX, { ex: TM_BLOCK_LEVEL_TTL })
+    } else {
+      await redis.expire(K.tmBlockLevel(), TM_BLOCK_LEVEL_TTL)
+    }
     return Math.min(next, TM_BLOCK_LEVEL_MAX)
   } catch (err) {
     console.log("[v0] redis bumpTmBlockLevel failed:", err instanceof Error ? err.message : err)
