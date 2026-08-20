@@ -106,20 +106,30 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
   // /mac/[id] üzerinden geldiysek, o ID zaten (tekli fetch ile) açıldı mı?
   const openedInitialRef = useRef(false)
 
-  // İlk yüklemede cache'den fikstürleri çek (refresh=0).
-  // "Maçlar yükleniyor" animasyonu sadece ilk yüklemede gösterilir —
-  // arka planda otomatik yenilenirken (fixturesData zaten varsa) liste
+  // Ekranda gösterilen fixturesData hangi tarihe ait, onu tutar. "Maçlar
+  // yükleniyor" animasyonu sadece istenen tarih henüz ekranda değilse
+  // (ilk yükleme veya sekme değişimi) gösterilir — arka planda otomatik
+  // yenilenirken (aynı tarih için, fixturesData zaten güncelse) liste
   // sessizce güncellenir, kullanıcı bir yükleniyor ekranı görmez.
+  //
+  // Önceden bu kontrol sadece `fixturesData === null` olup olmadığına
+  // bakıyordu; bu yüzden "Dün/Bugün/Yarın" sekmesi değiştirildiğinde eski
+  // tarihin listesi ekranda donuk kalıyor, yeni veri gelene kadar hiçbir
+  // görsel geri bildirim olmuyordu (kullanıcıya "birkaç saniye hiçbir şey
+  // olmuyor, sonra birden değişiyor" hissi veriyordu).
+  const loadedDateRef = useRef<string | null>(null)
+
   const loadFixtures = useCallback(async (forceRefresh = false) => {
-    setFixturesData((current) => {
-      if (current === null) setFixturesLoading(true)
-      return current
-    })
+    const requestedDate = date
+    if (loadedDateRef.current !== requestedDate) {
+      setFixturesLoading(true)
+    }
     try {
-      const url = `/api/fixtures?date=${date}${forceRefresh ? "&refresh=1" : ""}`
+      const url = `/api/fixtures?date=${requestedDate}${forceRefresh ? "&refresh=1" : ""}`
       const res = await fetch(url, { cache: "no-store" })
       const data = await res.json() as FixturesResponse
       setFixturesData(data)
+      loadedDateRef.current = requestedDate
     } catch {
       // sessizce geç
     } finally {
