@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio"
 import { FEATURED_LEAGUE_IDS } from "./api-football"
 import { toTurkishCountry } from "./tr-aliases"
-import { getTmSession, setTmSession, getTmBlockLevel, bumpTmBlockLevel } from "./redis"
+import { getTmSession, setTmSession } from "./redis"
 
 // ---------------------------------------------------------------------------
 // Transfermarkt scraping katmanı.
@@ -214,44 +214,20 @@ function looksLikeBlockPage(html: string): boolean {
 }
 
 /**
- * Blok/timeout sinyali görüldüğünde çağrılır: sadece o anki denemeyi
- * etkilemez, Redis'teki paylaşımlı blok seviyesini artırır — bu seviye
- * lib/player-position-sync.ts ve lib/market-value-sync.ts'deki istekler
- * arası beklemeleri (bkz. getAdaptiveDelayMs) otomatik olarak uzatır. Yani
- * bir çağrı bloklanırsa, ondan sonraki TÜM istekler (farklı bir invocation'da
- * olsa bile, ~15dk içinde) daha temkinli hale gelir.
- */
-async function onBlockSignal(): Promise<void> {
-  await bumpTmBlockLevel()
-}
-
-/**
  * İstekler arası bekleme süresini hesaplar. `baseMs` çağıranın istediği
- * taban gecikmedir; buna (a) son bir süre içinde görülen blok sinyaline göre
- * kademeli bir ek (seviye × 4s, bkz. TM_BLOCK_LEVEL_MAX ile birlikte üst
- * sınır) ve (b) sabit aralık deseninin kendisinin bir bot imzası olmaması
- * için ±800ms rastgele jitter eklenir.
+ * taban gecikmedir; sabit aralık deseninin kendisinin bir bot imzası
+ * olmaması için ±800ms rastgele jitter eklenir.
  *
- * KARAR (kullanıcı geri bildirimiyle) — kullanıcı "blok olmasın" isteğini
- * hız kaygısının önüne koydu ve 3000ms taban ile bile blok gördüğünü
- * bildirdi. Bu yüzden:
- *   - escalation çarpanı 2000 → 4000ms/seviyeye çıkarıldı (bir blok
- *     görüldüğünde sistem eskisinden daha sert yavaşlıyor).
- *   - jitter aralığı ±500 → ±800ms'e çıkarıldı (istek deseni daha az
- *     makine-gibi görünsün diye).
- * Bu, lib/player-position-sync.ts'teki taban gecikmenin de 3000ms'den
- * 5000ms'e çıkarılmasıyla BİRLİKTE okunmalı — ikisi birbirini tamamlıyor.
- *
- * DÜRÜST UYARI (tekrar): Bu hesaplama blok riskini azaltmayı hedefler,
- * "asla blok yenmez" garantisi vermez — Transfermarkt'ın bot koruma
- * algoritması bizim kontrolümüzde değil. Elimizdeki tek araç, isteklerin
- * sıklığını ve deseninin insan davranışına yakınlığını artırmak.
+ * NOT: Daha önce burada, herhangi bir blok/timeout sinyalinde Redis'teki
+ * paylaşımlı bir "blok seviyesi"ne göre bu gecikmeyi otomatik uzatan bir
+ * eskalasyon mekanizması vardı. Bu mekanizma kalıcı olarak kaldırıldı —
+ * mevki taraması ile piyasa değeri taraması artık birbirinin blok
+ * sinyalinden etkilenmiyor, her çağrı sadece kendi sabit taban gecikmesini
+ * kullanıyor.
  */
 export async function getAdaptiveDelayMs(baseMs: number): Promise<number> {
-  const level = await getTmBlockLevel()
-  const escalation = level * 4000
   const jitter = Math.floor(Math.random() * 1600) - 800
-  return Math.max(1000, baseMs + escalation + jitter)
+  return Math.max(1000, baseMs + jitter)
 }
 
 /**
@@ -275,19 +251,6 @@ export async function getAdaptiveDelayMs(baseMs: number): Promise<number> {
 async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length): Promise<string | null> {
   await ensureIdentityHydrated()
   let lastError: string | null = null
-  // Bir tek fetchHtml çağrısı içindeki 3 retry denemesi TEK bir gerçek olay
-  // sayılmalı — öncesinde onBlockSignal() her denemede ayrı ayrı çağrılıyordu,
-  // yani tek bir bloklanan oyuncu (3 retry tükenince) blok seviyesini bir
-  // çağrıda 3 birden artırıp anında üst sınıra (5, +10s) sıçratıyordu. Bu da
-  // "önce ~15 oyuncu sorunsuz gidiyor, sonra bir blok görülüyor ve ondan sonra
-  // HER istek aniden ~10-13s'ye sabitleniyor" davranışının kök nedeniydi. Bu
-  // bayrak, aynı çağrı içinde seviyeyi en fazla 1 kez artırmayı garantiler.
-  let blockSignaledThisCall = false
-  const signalBlockOnce = async () => {
-    if (blockSignaledThisCall) return
-    blockSignaledThisCall = true
-    await onBlockSignal()
-  }
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController()
@@ -327,7 +290,6 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
           return null
         }
         const isBlockOrTransient = res.status >= 500 || res.status === 429 || res.status === 403
-        if (isBlockOrTransient) await signalBlockOnce()
         if (isBlockOrTransient && attempt < retries) {
           const retryAfterHeader = res.headers.get("retry-after")
           const retryAfterMs = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) * 1000 : Number.NaN
@@ -344,7 +306,6 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
 
       const html = await res.text()
       if (looksLikeBlockPage(html)) {
-        await signalBlockOnce()
         if (attempt < retries) {
           const delay = BLOCKING_RETRY_DELAYS_MS[attempt]
           console.warn(
@@ -359,7 +320,6 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
       return html
     } catch (err) {
       lastError = err instanceof Error ? err.message : "Bilinmeyen hata"
-      await signalBlockOnce()
       if (attempt < retries) {
         await sleep(BLOCKING_RETRY_DELAYS_MS[attempt])
         continue
