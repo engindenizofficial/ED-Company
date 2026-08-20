@@ -85,11 +85,19 @@ function sleep(ms: number): Promise<void> {
  * kendi adımının gerçek worst-case süresine göre daha uzun bir `timeoutMs`
  * vermelidir.
  */
+export interface ChainContinuationResult {
+  ok: boolean
+  /** Tüm denemeler tükendiyse en son görülen hata mesajı — DB'ye kalıcı yazılıp admin panelinde gösterilmesi için. */
+  error: string | null
+}
+
 export async function triggerChainContinuation(
   url: string,
   headers: Record<string, string>,
   timeoutMs: number = SELF_FETCH_TIMEOUT_MS,
-): Promise<void> {
+): Promise<ChainContinuationResult> {
+  let lastError: string | null = null
+
   for (let attempt = 1; attempt <= SELF_FETCH_MAX_ATTEMPTS; attempt++) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -105,8 +113,9 @@ export async function triggerChainContinuation(
         const body = await response.text().catch(() => "")
         throw new Error(`HTTP ${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 300)}` : ""}`)
       }
-      return
+      return { ok: true, error: null }
     } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err)
       console.error(
         `[v0] Zincir devam tetiklemesi başarısız (deneme ${attempt}/${SELF_FETCH_MAX_ATTEMPTS}): ${url}`,
         err,
@@ -119,6 +128,13 @@ export async function triggerChainContinuation(
     }
   }
   console.error(`[v0] Zincir devam tetiklemesi tüm denemelerden sonra başarısız oldu, zincir burada duracak: ${url}`)
+  // ÖNEMLİ — daha önce bu fonksiyon burada sessizce dönüyordu (void); çağıran
+  // taraflar (route.ts'lerdeki triggerNextStep/triggerNextResumeStep) bu
+  // fire-and-forget çağrıyı `after()` içinde yapıyordu ve sonucu hiç
+  // okumuyordu — GERÇEK hata (örn. "HTTP 401") hiçbir yerde kalıcı olmadan
+  // kayboluyordu, admin panelinde sadece "heartbeat eskimiş" görünüyordu.
+  // Artık çağıran taraf bu sonucu DB'ye (lastChainError) yazabiliyor.
+  return { ok: false, error: lastError ?? "Bilinmeyen hata" }
 }
 
 /**
@@ -230,6 +246,9 @@ export interface CronRunRow {
   hadErrors: boolean
   leagueStatuses: LeagueStatusEntry[]
   heartbeatAt: Date
+  /** Zincirin bir sonraki adımını tetikleyen self-fetch'in son (tüm denemeler tükendikten sonraki) hatası — bkz. triggerChainContinuation. */
+  lastChainError: string | null
+  lastChainErrorAt: Date | null
   createdAt: Date
   updatedAt: Date
 }
@@ -525,5 +544,24 @@ export async function completeCronRun(runId: string): Promise<void> {
   await db
     .update(marketValueCronRun)
     .set({ status: "completed", heartbeatAt: new Date(), updatedAt: new Date() })
+    .where(eq(marketValueCronRun.id, runId))
+}
+
+/**
+ * Zincirin bir sonraki adımını tetikleyen self-fetch'in (triggerChainContinuation)
+ * sonucunu kalıcı olarak kaydeder. `error` null verilirse (tetikleme başarılı
+ * olduysa) önceki hatayı temizler — böylece panelde eski/çözülmüş bir hata
+ * asılı kalmaz. Bu, admin'in "16. ligde durdu" gibi şikayetlerde GERÇEK
+ * sebebi (örn. "HTTP 401 ...") görebilmesi için eklendi; öncesinde bu bilgi
+ * sadece sunucu loglarında kalıp kayboluyordu.
+ */
+export async function setChainError(runId: string, error: string | null): Promise<void> {
+  await db
+    .update(marketValueCronRun)
+    .set({
+      lastChainError: error,
+      lastChainErrorAt: error ? new Date() : null,
+      updatedAt: new Date(),
+    })
     .where(eq(marketValueCronRun.id, runId))
 }

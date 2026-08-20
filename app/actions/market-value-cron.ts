@@ -52,6 +52,15 @@ export interface CronRunStatus {
   isStale: boolean
   failedLeagueIds: number[]
   heartbeatAt: string
+  /**
+   * Zincirin bir sonraki adımını tetikleyen self-fetch'in son (tüm
+   * denemeler tükendikten sonraki) GERÇEK hata mesajı — örn. "HTTP 401
+   * Unauthorized". Bu ÖNCEDEN sadece sunucu loglarında kalıyordu; admin
+   * panelinde sadece "zincir kırıldı" (heartbeat eskimiş) görünüyordu, asıl
+   * sebep hiç gösterilmiyordu. Bkz. lib/market-value-cron-run.ts -> setChainError.
+   */
+  lastChainError: string | null
+  lastChainErrorAt: string | null
 }
 
 function toStatus(run: CronRunRow): CronRunStatus {
@@ -65,6 +74,8 @@ function toStatus(run: CronRunRow): CronRunStatus {
     isStale: run.status === "running" && isCronRunStale(run),
     failedLeagueIds: run.leagueStatuses.filter((entry) => entry.status === "failed").map((entry) => entry.leagueId),
     heartbeatAt: run.heartbeatAt.toISOString(),
+    lastChainError: run.lastChainError,
+    lastChainErrorAt: run.lastChainErrorAt ? run.lastChainErrorAt.toISOString() : null,
   }
 }
 

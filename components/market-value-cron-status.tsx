@@ -226,6 +226,26 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
                 </Button>
               </div>
             )}
+
+            {/*
+              ÖNEMLİ — bu blok ÖNCEDEN yoktu: zincirin bir sonraki adımını
+              tetikleyen self-fetch tüm denemelerden sonra başarısız olduğunda
+              (örn. VERCEL_AUTOMATION_BYPASS_SECRET eksikken "HTTP 401") gerçek
+              sebep sadece sunucu loglarında kalıyordu, admin panelinde SADECE
+              "zincir kırıldı / heartbeat eskimiş" görünüyordu — asıl sebep hiç
+              görünmüyordu. Artık status.lastChainError (bkz.
+              lib/market-value-cron-run.ts -> setChainError) doğrudan burada
+              gösteriliyor.
+            */}
+            {status.lastChainError && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+                <p className="text-xs font-medium text-destructive">{t("admin.cron.lastChainErrorLabel")}</p>
+                <p className="mt-1 break-all text-xs text-destructive/90">{status.lastChainError}</p>
+                {status.lastChainErrorAt && (
+                  <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(status.lastChainErrorAt)}</p>
+                )}
+              </div>
+            )}
           </>
         )}
 

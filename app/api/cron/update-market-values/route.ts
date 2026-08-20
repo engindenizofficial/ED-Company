@@ -8,6 +8,7 @@ import {
   isCronRunStale,
   runMatchesCurrentLeagueList,
   triggerChainContinuation,
+  setChainError,
   type CronRunRow,
 } from "@/lib/market-value-cron-run"
 
@@ -84,7 +85,11 @@ async function triggerNextStep(request: Request, runId: string): Promise<void> {
   // içindeki triggerChainContinuation açıklaması: bunlar OLMADAN, askıda
   // kalan tek bir self-fetch isteği after()'ı maxDuration'a kadar bekletip
   // zinciri hiçbir hata izi bırakmadan sessizce kırabiliyordu.
-  await triggerChainContinuation(url.toString(), headers)
+  const result = await triggerChainContinuation(url.toString(), headers)
+  // ÖNEMLİ — sonucu DB'ye yazıyoruz: başarısız olduysa GERÇEK hata mesajı
+  // (örn. "HTTP 401 ...") admin panelinde "Zincir kırıldı" uyarısının
+  // yanında görünür; başarılı olduysa önceki hata (varsa) temizlenir.
+  await setChainError(runId, result.ok ? null : result.error)
 }
 
 export async function GET(request: Request) {

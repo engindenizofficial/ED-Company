@@ -7,6 +7,7 @@ import {
   isCronRunStale,
   runMatchesCurrentLeagueList,
   triggerChainContinuation,
+  setChainError,
 } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
@@ -62,7 +63,10 @@ async function triggerNextResumeStep(request: Request, runId: string): Promise<v
 
   // Zaman aşımı + yeniden deneme ile — bkz. lib/market-value-cron-run.ts
   // içindeki triggerChainContinuation açıklaması.
-  await triggerChainContinuation(url.toString(), headers)
+  const result = await triggerChainContinuation(url.toString(), headers)
+  // ÖNEMLİ — sonucu DB'ye yazıyoruz: başarısız olduysa GERÇEK hata mesajı
+  // admin panelinde görünür; başarılı olduysa önceki hata temizlenir.
+  await setChainError(runId, result.ok ? null : result.error)
 }
 
 export async function GET(request: Request) {

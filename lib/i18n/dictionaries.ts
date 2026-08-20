@@ -784,6 +784,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         brokenWarning:
           "Zincir {{minutes}} dakikadır ilerlemedi. Otomatik bir devam ettirme yapılmaz — devam etmesi için aşağıdaki butonla manuel olarak tetiklemeniz gerekir.",
         resume: "Devam Ettir",
+        lastChainErrorLabel: "Son zincir hatası:",
       },
       dangerZone: {
         heading: "Tehlikeli Bölge",
@@ -1717,6 +1718,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         brokenWarning:
           "The chain hasn't progressed in {{minutes}} minutes. It won't resume automatically — use the button below to trigger it manually.",
         resume: "Resume",
+        lastChainErrorLabel: "Last chain error:",
       },
       dangerZone: {
         heading: "Danger Zone",

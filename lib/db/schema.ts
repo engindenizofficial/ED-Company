@@ -244,6 +244,15 @@ export const marketValueCronRun = pgTable('market_value_cron_run', {
   leagueStatuses: jsonb('leagueStatuses').notNull(),
   /** Zincirin hâlâ "canlı" ilerlediğini gösterir — her adımda güncellenir. Eskime (stale) kontrolü için buna bakılır. */
   heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
+  /**
+   * Zincirin bir sonraki adımını tetikleyen self-fetch isteğinin (bkz.
+   * triggerChainContinuation) tüm denemelerden sonra başarısız olması
+   * durumunda kalan GERÇEK hata mesajı (örn. "HTTP 401 ..."). Bu OLMADAN,
+   * zincir kırıldığında admin panelinde SADECE "heartbeat eskimiş" genel
+   * uyarısı görünüyordu — asıl sebep sadece sunucu loglarındaydı.
+   */
+  lastChainError: text('lastChainError'),
+  lastChainErrorAt: timestamp('lastChainErrorAt'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })
