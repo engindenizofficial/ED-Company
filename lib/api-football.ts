@@ -171,8 +171,6 @@ function mapFixture(r: RawFixture): Fixture {
 // ---------------------------------------------------------------------------
 
 export async function getFixturesByDate(date: string, forceRefresh = false): Promise<Fixture[]> {
-  const MAX_FIXTURES = 200
-
   const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: "Europe/Istanbul" }, 120, forceRefresh)
 
   const fixtures = raw.map(mapFixture)
@@ -217,35 +215,7 @@ export async function getFixturesByDate(date: string, forceRefresh = false): Pro
     return a.timestamp - b.timestamp
   })
 
-  // Apply 200-match limit but never cut a league in half:
-  // once the running total reaches 200, finish the current league then stop.
-  if (fixtures.length <= MAX_FIXTURES) return fixtures
-
-  const result: Fixture[] = []
-  let limitReached = false
-  let currentLeagueId: number | null = null
-
-  for (const fixture of fixtures) {
-    const leagueId = fixture.league.id
-
-    if (!limitReached) {
-      result.push(fixture)
-      currentLeagueId = leagueId
-      if (result.length >= MAX_FIXTURES) {
-        limitReached = true
-      }
-    } else {
-      // Limit already reached — only continue while we are still in the same league
-      if (leagueId === currentLeagueId) {
-        result.push(fixture)
-      } else {
-        // New league encountered after the limit — stop completely
-        break
-      }
-    }
-  }
-
-  return result
+  return fixtures
 }
 
 export async function getFixtureById(id: number): Promise<Fixture | null> {

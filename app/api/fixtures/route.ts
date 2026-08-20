@@ -10,9 +10,22 @@ function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
 }
 
+// Türkiye saatiyle dünün tarihini döndürür (YYYY-MM-DD).
+function yesterdayTR(): string {
+  const now = new Date()
+  const trNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Istanbul" }))
+  trNow.setDate(trNow.getDate() - 1)
+  return trNow.toLocaleDateString("sv-SE")
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const date = todayTR()
+  const requested = searchParams.get("date")
+  const today = todayTR()
+  const yesterday = yesterdayTR()
+  // Sadece TR saatiyle "dün" ve "bugün" desteklenir — başka bir tarih
+  // istenirse (veya hiç istenmezse) güvenli varsayılan olarak bugüne düşülür.
+  const date = requested === yesterday ? yesterday : today
   const refresh = searchParams.get("refresh") === "1"
 
   // Yenile butonuna basılmadıysa cache'den döndür

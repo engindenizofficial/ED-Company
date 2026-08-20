@@ -99,6 +99,8 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       loadingMatches: "Maçlar yükleniyor",
       noMatchesToday: "Bu tarihte planlanmış maç bulunamadı.",
       matchAnalysis: "maç analizi",
+      dateTabToday: "Bugün",
+      dateTabYesterday: "Dün",
     },
     games: {
       testYourKnowledge: "Bilgini Test Et",
@@ -1030,7 +1032,9 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       loadingMatches: "Loading matches",
       noMatchesToday: "No matches scheduled for this date.",
       matchAnalysis: "match analysis",
-    },
+      dateTabToday: "Today",
+      dateTabYesterday: "Yesterday",
+      },
     games: {
       testYourKnowledge: "Test Your Knowledge",
       title: "Games",

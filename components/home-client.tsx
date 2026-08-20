@@ -18,10 +18,20 @@ import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
 import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { useSession } from "@/lib/auth-client"
 import { isAdminEmail } from "@/lib/admin"
+import { cn } from "@/lib/utils"
 import type { Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
 
 function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
+}
+
+// Türkiye saatiyle dünün tarihini döndürür (YYYY-MM-DD). Gece 00:00'da
+// (TR saatiyle) hem bu hem de todayTR() otomatik olarak bir gün kayar.
+function yesterdayTR(): string {
+  const now = new Date()
+  const trNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Istanbul" }))
+  trNow.setDate(trNow.getDate() - 1)
+  return trNow.toLocaleDateString("sv-SE")
 }
 
 function formatDateLabel(iso: string, locale: string): string {
@@ -53,7 +63,11 @@ interface HomeClientProps {
 }
 
 export function HomeClient({ initialFixtureId }: HomeClientProps) {
-  const date = todayTR()
+  // Kullanıcının ana sayfadan geçiş yapabildiği "Dün" / "Bugün" sekmesi.
+  // Her iki tarih de TR saatiyle hesaplanır, gece 00:00'da (TR saati)
+  // otomatik olarak bir gün kayar.
+  const [dateTab, setDateTab] = useState<"yesterday" | "today">("today")
+  const date = dateTab === "yesterday" ? yesterdayTR() : todayTR()
   const router = useRouter()
   const { favorites } = useFavorites()
   const { t, locale } = useLanguage()
@@ -103,6 +117,16 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
       setFixturesLoading(false)
     }
   }, [date])
+
+  // Kullanıcı "Dün" / "Bugün" sekmesini değiştirdiğinde (dolayısıyla `date`
+  // değiştiğinde) fikstür listesini o tarih için yeniden yükler. `useAutoRefresh`
+  // aşağıda sadece mount'ta ve 30 saniyelik döngüde çalışır — `date` değişimini
+  // tek başına yakalamaz, bu yüzden ayrı bir effect gerekiyor. İlk mount'ta da
+  // çalışır ama bu zararsızdır (aynı isteği `useAutoRefresh` da atar, ikisi de
+  // cache'den okuduğu için ekstra maliyeti yoktur).
+  useEffect(() => {
+    loadFixtures(false)
+  }, [loadFixtures])
 
   // Tüm zamanlar tahmin sonuçlarını çek
   const loadPredictionResults = useCallback(async () => {
@@ -458,6 +482,44 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
 
             <div className="flex items-center gap-2">
               <ThemeToggle />
+            </div>
+          </div>
+
+          {/* Date tab row: Yesterday / Today */}
+          <div className="pb-3">
+            <div
+              role="tablist"
+              aria-label={t("home.dateTabLabel")}
+              className="inline-flex items-center gap-0.5 rounded-full border border-border/70 bg-card p-0.5"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={dateTab === "yesterday"}
+                onClick={() => setDateTab("yesterday")}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                  dateTab === "yesterday"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {t("home.dateTabYesterday")}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={dateTab === "today"}
+                onClick={() => setDateTab("today")}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                  dateTab === "today"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {t("home.dateTabToday")}
+              </button>
             </div>
           </div>
 

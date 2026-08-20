@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useTransition } from "react"
-import { AlertTriangle, CheckCircle2, Loader2, PlayCircle, Timer } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Loader2, PlayCircle, RotateCcw, Timer } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -95,11 +95,17 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
   // `message` hiç güncellenmiyordu. Admin butona bastığında (örn. oturumu
   // sona ermişse) EKRANDA HİÇBİR ŞEY DEĞİŞMİYORDU — sanki tıklama hiç
   // olmamış gibi görünüyordu. Şimdi hata her durumda `message`'a yazılıyor.
+  // ÖNEMLİ — ayrı bir "resume" server action'ı YOK (bkz.
+  // app/actions/market-value-cron.ts dosya başı açıklaması): zincir artık
+  // kendi kendini tetiklemiyor, kırılmış/stale bir koşuyu devam ettirmek de
+  // yeni bir koşu başlatmak da AYNI action (triggerMarketValueScanNow) ile
+  // yapılıyor — o action zaten sağlıklı ilerleyen bir koşu varsa ikinci bir
+  // tetiklemeyi engelliyor, stale ise kaldığı yerden devam ettiriyor.
   function handleResume() {
     setMessage(null)
     startResumeTransition(async () => {
       try {
-        const result = await resumeMarketValueCronNow()
+        const result = await triggerMarketValueScanNow()
         if (result.triggered) {
           setMessage(t("admin.cron.resumeTriggered"))
           // Zincir DB satırını hemen güncellemeye başlar — kısa bir gecikmeden
