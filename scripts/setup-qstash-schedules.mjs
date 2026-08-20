@@ -21,7 +21,7 @@
 
 const QSTASH_TOKEN = process.env.QSTASH_TOKEN
 const CRON_SECRET = process.env.CRON_SECRET
-const BYPASS_SECRET = process.env.QSTASH_BYPASS_SECRET
+const BYPASS_SECRET = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
 // ÖNEMLİ — mutlaka "www." ile: apex domain (edcompanyofficial.com) www'ye
 // 308 redirect yapıyor ve bu redirect takip edildiğinde Authorization
 // header'ı düşüyor (401 Unauthorized). QStash redirect'i takip etmiyor,

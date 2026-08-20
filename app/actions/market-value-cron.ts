@@ -144,7 +144,7 @@ export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean;
   // Bkz. app/api/cron/update-market-values/route.ts — bu fetch de deployment
   // URL'ine gittiği için Vercel Authentication korumasından geçiyor, bypass
   // secret'ı gerekiyor.
-  const bypassSecret = process.env.QSTASH_BYPASS_SECRET
+  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headersInit["x-vercel-protection-bypass"] = bypassSecret
 
   const url = `${getSiteUrl()}/api/cron/update-market-values`
