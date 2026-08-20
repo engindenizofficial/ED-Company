@@ -202,10 +202,32 @@ export async function runPlayerPositionBackfillBatch(batchSize: number): Promise
     if (processed > 0) await sleep(REQUEST_DELAY_MS)
 
     let scraped: Awaited<ReturnType<typeof scrapePlayerPosition>> = null
+    let scrapeFailed = false
     try {
       scraped = await scrapePlayerPosition(candidate.transfermarktPlayerId)
     } catch (err) {
-      console.error(`[v0] Mevki scrape hatası (playerId=${candidate.playerId}):`, err)
+      // ÖNEMLİ — BURASI GERÇEK "VERİ YOK" DEĞİL, GEÇİCİ BİR HATA.
+      // scrapePlayerPosition/fetchHtml SADECE 404'te (sayfa gerçekten yok)
+      // null döner; buraya düşen exception 403/429 bot koruması (3 tekrar
+      // denemesi tükendi), 5xx veya ağ/timeout hatası anlamına gelir — yani
+      // Transfermarkt'ta bu oyuncu için mevki verisi VAR ama şu an
+      // çekilemedi. Bu durumu "unverified" olarak yazmak KALICI bir yanlış
+      // negatif oluşturuyordu: getPositionBackfillCandidates sadece
+      // player_position satırı OLMAYAN oyuncuları aday sayar, bu yüzden bir
+      // kez (geçici bir 403 bloğu yüzünden) "unverified" yazılan oyuncu bir
+      // daha ASLA yeniden denenmiyordu. Canlı doğrulamada "unverified"
+      // işaretli 4 örnek oyuncunun (hepsi tanınmış, aktif futbolcu) 4'ünde
+      // de gerçek mevki verisi bulundu — düşük eşleşme oranının kök nedeni
+      // buydu, Transfermarkt'ta veri eksikliği değildi.
+      console.error(`[v0] Mevki scrape hatası (playerId=${candidate.playerId}), bu batch'te atlanıyor, sonraki koşuda tekrar denenecek:`, err)
+      scrapeFailed = true
+    }
+
+    if (scrapeFailed) {
+      // Satır YAZILMAZ — oyuncu candidate havuzunda kalır, bir sonraki
+      // çağrıda (en yüksek değerli işlenmemiş aday olarak) tekrar denenir.
+      processed++
+      continue
     }
 
     const now = new Date()
