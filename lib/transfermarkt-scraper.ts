@@ -19,6 +19,38 @@ const USER_AGENT =
 
 const BASE_URL = "https://www.transfermarkt.com"
 
+// Tüm modül boyunca (yani tek bir cron/backfill batch'i içinde) TEK bir
+// çerez kutusu paylaşılıyor. Öncesinde her istek hiçbir çerez taşımadan
+// gidiyordu — Cloudflare'ın gözünden bu, "her seferinde yepyeni bir
+// ziyaretçi" gibi görünüyor ve gerçek bir tarayıcının aynı oturumda art
+// arda sayfa gezmesinden belirgin şekilde farklı bir imza oluşturuyordu.
+// Bu farklılık, bot korumasının (403/429) tetiklenme sıklığını artıran
+// asıl sebeplerden biriydi. Cloudflare genelde ilk yanıtta bir çerez
+// (örn. __cf_bm) döner; bunu sonraki isteklerde geri göndermek "devam eden
+// bir oturum" görüntüsü verip blok oranını düşürmeyi hedefler.
+let sharedCookieJar = ""
+
+function mergeCookiesFromResponse(res: Response) {
+  const setCookie = res.headers.get("set-cookie")
+  if (!setCookie) return
+  const incoming = setCookie
+    .split(/,(?=[^;]+?=)/)
+    .map((c) => c.split(";")[0].trim())
+    .filter(Boolean)
+  const jar = new Map<string, string>()
+  for (const c of sharedCookieJar.split("; ")) {
+    const [k, v] = c.split("=")
+    if (k && v) jar.set(k, v)
+  }
+  for (const c of incoming) {
+    const [k, v] = c.split("=")
+    if (k && v) jar.set(k, v)
+  }
+  sharedCookieJar = Array.from(jar.entries())
+    .map(([k, v]) => `${k}=${v}`)
+    .join("; ")
+}
+
 /** API-Football lig id'si -> Transfermarkt competition kodu. */
 export const LEAGUE_TO_TRANSFERMARKT_CODE: Record<number, string> = {
   2: "CL", // Champions League
@@ -141,10 +173,15 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
           "Sec-Fetch-Dest": "document",
           "Sec-Fetch-Mode": "navigate",
           "Sec-Fetch-Site": "none",
+          // Bkz. modül üstündeki sharedCookieJar açıklaması — Cloudflare'ın
+          // önceki yanıtta verdiği çerezi geri göndererek "devam eden aynı
+          // oturum" görüntüsü veriyoruz.
+          ...(sharedCookieJar ? { Cookie: sharedCookieJar } : {}),
         },
         redirect: "follow",
         signal: controller.signal,
       })
+      mergeCookiesFromResponse(res)
       if (!res.ok) {
         if (res.status === 404) {
           // Sayfa gerçekten yok — bu bir hata değil, "veri yok" sonucudur.
