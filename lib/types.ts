@@ -356,8 +356,10 @@ export interface MatchPrediction {
   awayScore: number
   /** "home" | "away" | "draw" */
   winner: "home" | "away" | "draw"
-  /** 0-100 arası güven skoru (ağırlıklı ortalama) */
+  /** 0-100 arası güven skoru (ağırlıklı ortalama, geçmiş isabet oranına göre kalibre edilmiş) */
   confidence: number
+  /** Kalibrasyon öncesi ham ensemble güven skoru — şeffaflık amaçlı, sadece admin panelinde gösterilir */
+  rawConfidence?: number
   /** Kısa Türkçe analiz özeti */
   summary: string
   /** En önemli 1-5 etken (tüm modellerden birleştirilmiş) */

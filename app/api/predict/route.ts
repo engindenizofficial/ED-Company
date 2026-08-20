@@ -16,6 +16,7 @@ import {
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { getAdaptiveWeights, getAdaptiveScoreWeights, STATIC_WEIGHTS } from "@/lib/model-weights"
+import { getConfidenceCalibrationCurve, calibrateConfidence } from "@/lib/confidence-calibration"
 import {
   computeExpectedGoals,
   predictFromExpectedGoals,
@@ -586,6 +587,15 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     successfulVotes.map((v) => ({ vote: v.vote, weight: v.weight, scoreWeight: v.scoreWeight })),
   )
 
+  // 7b. Confidence kalibrasyonu — LLM'ler doğası gereği overconfident olma
+  // eğilimindedir (örn. "%85 güven" dediklerinde gerçekte %60 tutması gibi).
+  // Ensemble'ın ham güven skorunu, geçmiş çözümlenmiş tahminlerin o güven
+  // aralığında GERÇEKTE ne oranda tuttuğuna göre düzeltiyoruz (bkz.
+  // lib/confidence-calibration.ts). Yeterli geçmiş veri yoksa (cold start)
+  // ham skor değişmeden kalır.
+  const calibrationCurve = await getConfidenceCalibrationCurve()
+  const calibratedConfidence = calibrateConfidence(ensemble.confidence, calibrationCurve)
+
   // 8. Anahtar faktörler — tüm modellerden birleştir
   const allFactors = successfulVotes.flatMap((v) => v.vote.keyFactors)
   const uniqueFactors = [...new Set(allFactors)].slice(0, 5)
@@ -649,7 +659,8 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     homeScore:   ensemble.homeScore,
     awayScore:   ensemble.awayScore,
     winner:      ensemble.winner,
-    confidence:  ensemble.confidence,
+    confidence:  calibratedConfidence,
+    rawConfidence: ensemble.confidence,
     summary,
     keyFactors:  uniqueFactors,
     summaryEn,
