@@ -251,6 +251,19 @@ export async function getAdaptiveDelayMs(baseMs: number): Promise<number> {
 async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length): Promise<string | null> {
   await ensureIdentityHydrated()
   let lastError: string | null = null
+  // Bir tek fetchHtml çağrısı içindeki 3 retry denemesi TEK bir gerçek olay
+  // sayılmalı — öncesinde onBlockSignal() her denemede ayrı ayrı çağrılıyordu,
+  // yani tek bir bloklanan oyuncu (3 retry tükenince) blok seviyesini bir
+  // çağrıda 3 birden artırıp anında üst sınıra (5, +10s) sıçratıyordu. Bu da
+  // "önce ~15 oyuncu sorunsuz gidiyor, sonra bir blok görülüyor ve ondan sonra
+  // HER istek aniden ~10-13s'ye sabitleniyor" davranışının kök nedeniydi. Bu
+  // bayrak, aynı çağrı içinde seviyeyi en fazla 1 kez artırmayı garantiler.
+  let blockSignaledThisCall = false
+  const signalBlockOnce = async () => {
+    if (blockSignaledThisCall) return
+    blockSignaledThisCall = true
+    await onBlockSignal()
+  }
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController()
@@ -290,7 +303,7 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
           return null
         }
         const isBlockOrTransient = res.status >= 500 || res.status === 429 || res.status === 403
-        if (isBlockOrTransient) await onBlockSignal()
+        if (isBlockOrTransient) await signalBlockOnce()
         if (isBlockOrTransient && attempt < retries) {
           const retryAfterHeader = res.headers.get("retry-after")
           const retryAfterMs = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) * 1000 : Number.NaN
@@ -307,7 +320,7 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
 
       const html = await res.text()
       if (looksLikeBlockPage(html)) {
-        await onBlockSignal()
+        await signalBlockOnce()
         if (attempt < retries) {
           const delay = BLOCKING_RETRY_DELAYS_MS[attempt]
           console.warn(
@@ -322,7 +335,7 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
       return html
     } catch (err) {
       lastError = err instanceof Error ? err.message : "Bilinmeyen hata"
-      await onBlockSignal()
+      await signalBlockOnce()
       if (attempt < retries) {
         await sleep(BLOCKING_RETRY_DELAYS_MS[attempt])
         continue
