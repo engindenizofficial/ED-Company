@@ -22,7 +22,7 @@ export function SiteFooter() {
 
   return (
     <footer aria-label={t("footer.ariaLabel")} className="border-t border-border/60 bg-background">
-      <div className="mx-auto flex max-w-4xl flex-col gap-4 px-5 py-8 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto flex max-w-4xl flex-col gap-4 px-3 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex flex-col gap-1">
           <span className="select-none text-[12px] font-black tracking-[0.14em] uppercase">
             <span className="brand-gradient bg-clip-text text-transparent">ED</span>
@@ -32,17 +32,20 @@ export function SiteFooter() {
           <p className="text-xs text-muted-foreground">{t("footer.tagline")}</p>
         </div>
 
-        <nav aria-label={t("footer.ariaLabel")} className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        <nav
+          aria-label={t("footer.ariaLabel")}
+          className="flex flex-nowrap items-center justify-center gap-x-1 sm:justify-end sm:gap-x-2"
+        >
           {links.map((link, index) => (
-            <span key={link.href} className="flex items-center gap-x-2">
+            <span key={link.href} className="flex shrink-0 items-center gap-x-1 sm:gap-x-2">
               <Link
                 href={link.href}
-                className="text-xs font-medium text-muted-foreground whitespace-nowrap transition-colors hover:text-foreground"
+                className="text-[10px] font-medium tracking-tight text-muted-foreground whitespace-nowrap transition-colors hover:text-foreground sm:text-xs sm:tracking-normal"
               >
                 {link.label}
               </Link>
               {index < links.length - 1 && (
-                <span aria-hidden="true" className="text-xs text-muted-foreground/50">
+                <span aria-hidden="true" className="text-[10px] text-muted-foreground/50 sm:text-xs">
                   •
                 </span>
               )}
