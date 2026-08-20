@@ -34,6 +34,15 @@ function yesterdayTR(): string {
   return trNow.toLocaleDateString("sv-SE")
 }
 
+// Türkiye saatiyle yarının tarihini döndürür (YYYY-MM-DD). Gece 00:00'da
+// (TR saatiyle) todayTR() ile birlikte otomatik olarak bir gün kayar.
+function tomorrowTR(): string {
+  const now = new Date()
+  const trNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Istanbul" }))
+  trNow.setDate(trNow.getDate() + 1)
+  return trNow.toLocaleDateString("sv-SE")
+}
+
 function formatDateLabel(iso: string, locale: string): string {
   return new Date(iso + "T12:00:00").toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
     weekday: "long",
@@ -63,11 +72,11 @@ interface HomeClientProps {
 }
 
 export function HomeClient({ initialFixtureId }: HomeClientProps) {
-  // Kullanıcının ana sayfadan geçiş yapabildiği "Dün" / "Bugün" sekmesi.
-  // Her iki tarih de TR saatiyle hesaplanır, gece 00:00'da (TR saati)
-  // otomatik olarak bir gün kayar.
-  const [dateTab, setDateTab] = useState<"yesterday" | "today">("today")
-  const date = dateTab === "yesterday" ? yesterdayTR() : todayTR()
+  // Kullanıcının ana sayfadan geçiş yapabildiği "Dün" / "Bugün" / "Yarın"
+  // sekmesi. Her üç tarih de TR saatiyle hesaplanır, gece 00:00'da (TR
+  // saati) otomatik olarak bir gün kayar.
+  const [dateTab, setDateTab] = useState<"yesterday" | "today" | "tomorrow">("today")
+  const date = dateTab === "yesterday" ? yesterdayTR() : dateTab === "tomorrow" ? tomorrowTR() : todayTR()
   const router = useRouter()
   const { favorites } = useFavorites()
   const { t, locale } = useLanguage()
@@ -390,7 +399,7 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
   // performansları / maç istatistikleri sekmelerinde de kullanılıyor.
   useAutoRefresh(handleRefresh, true)
 
-  // Fikstür listesi her yenilendiğinde, o an açık olan maç paneli (varsa)
+  // Fikstür listesi her yenilendi��inde, o an açık olan maç paneli (varsa)
   // da aynı listeden gelen en güncel fixture nesnesiyle senkronize edilir.
   // Bunu yapmazsak "selected" ilk tıklandığı andaki skor/dakika bilgisinde
   // donuk kalır — panel açıkken 30 saniyelik otomatik yenilemeler fixturesData'yı
@@ -519,6 +528,20 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
                 )}
               >
                 {t("home.dateTabToday")}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={dateTab === "tomorrow"}
+                onClick={() => setDateTab("tomorrow")}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                  dateTab === "tomorrow"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {t("home.dateTabTomorrow")}
               </button>
             </div>
           </div>

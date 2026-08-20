@@ -101,6 +101,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       matchAnalysis: "maç analizi",
       dateTabToday: "Bugün",
       dateTabYesterday: "Dün",
+      dateTabTomorrow: "Yarın",
     },
     games: {
       testYourKnowledge: "Bilgini Test Et",
@@ -1034,6 +1035,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       matchAnalysis: "match analysis",
       dateTabToday: "Today",
       dateTabYesterday: "Yesterday",
+      dateTabTomorrow: "Tomorrow",
       },
     games: {
       testYourKnowledge: "Test Your Knowledge",

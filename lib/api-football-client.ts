@@ -130,11 +130,21 @@ export async function apiFootballFetch<T>(
   return promise
 }
 
-async function doFetch<T>(
+/**
+ * Tek bir sayfayı çeker. API-Football, bir günde çok sayıda maç olduğunda
+ * (örn. yoğun bir gün için 200+ maç) sonucu SAYFALARA bölüyor ve
+ * `response.paging = { current, total }` döndürüyor — biz bunu görmezden
+ * gelip sadece ilk sayfayı okursak, ilk sayfadan sonraki maçlar sessizce
+ * kaybolur (yoğun günlerde fikstür listesi "eksik" görünürdü, bu da bir
+ * sabit "200 maç sınırı" gibi hissettiriyordu). `doFetch` artık paging
+ * bilgisini de döndürüyor; `apiFootballFetch` gerekirse kalan sayfaları da
+ * çekip tek bir diziye birleştiriyor.
+ */
+async function doFetchPage<T>(
   path: string,
   params: Record<string, string | number>,
   options: FetchOptions = {},
-): Promise<T[]> {
+): Promise<{ data: T[]; paging: { current: number; total: number } | null }> {
   const apiKey = process.env.API_FOOTBALL_KEY
   if (!apiKey) {
     throw new ApiFootballError("API_FOOTBALL_KEY tanımlı değil.", 500)
@@ -191,10 +201,33 @@ async function doFetch<T>(
       const msg = Object.values(json.errors).join(" ")
       throw new ApiFootballError(String(msg || "API-Football hatası"), 502)
     }
-    return (json.response as T[]) ?? []
+    const data = (json.response as T[]) ?? []
+    const rawPaging = json.paging as { current?: number; total?: number } | undefined
+    const paging =
+      rawPaging && typeof rawPaging.current === "number" && typeof rawPaging.total === "number"
+        ? { current: rawPaging.current, total: rawPaging.total }
+        : null
+    return { data, paging }
   }
 
   throw lastError instanceof Error ? lastError : new ApiFootballError("Bilinmeyen hata", 500)
+}
+
+/** Bir yol için TÜM sayfaları sırayla çekip tek bir diziye birleştirir. */
+async function doFetch<T>(
+  path: string,
+  params: Record<string, string | number>,
+  options: FetchOptions = {},
+): Promise<T[]> {
+  const first = await doFetchPage<T>(path, params, options)
+  if (!first.paging || first.paging.total <= 1) return first.data
+
+  const all = [...first.data]
+  for (let page = first.paging.current + 1; page <= first.paging.total; page++) {
+    const next = await doFetchPage<T>(path, { ...params, page }, options)
+    all.push(...next.data)
+  }
+  return all
 }
 
 /**
