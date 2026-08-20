@@ -13,13 +13,13 @@ function isHiddenModel(model: string): boolean {
 }
 
 // Model etiket haritası — model string'inden okunabilir isim üret.
-// Gemini ve Grok'un farklı sürümleri (3.6/3.7, 4.5/4.6) kullanıcıya tek bir
-// model gibi gösterilsin diye tek etikette birleştiriliyor; istatistikleri
-// de bu sayede toplu görünür.
+// Gerçek sağlayıcı/model adları (GPT, Gemini, Grok) kullanıcıya hiçbir yerde
+// gösterilmez; bunun yerine nötr kod adları kullanılır. Aynı sağlayıcının
+// farklı sürümleri (3.6/3.7, 4.5/4.6) de tek etikette birleştiriliyor.
 function modelLabel(model: string): string {
-  if (model.includes("gpt")) return "GPT-5.6 Terra"
-  if (model.includes("gemini")) return "Gemini"
-  if (model.includes("grok")) return "Grok"
+  if (model.includes("gpt")) return "Orion"
+  if (model.includes("gemini")) return "Atlas"
+  if (model.includes("grok")) return "Vega"
   return model
 }
 

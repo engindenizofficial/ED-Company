@@ -1885,14 +1885,15 @@ function isHiddenModel(modelId: string): boolean {
 
 /**
  * Model adını kısa etiket + renk sınıfına çevirir.
- * Gemini ve Grok'un farklı sürümleri (3.6/3.7, 4.5/4.6) kullanıcıya tek bir
- * model gibi gösterilsin diye tek etikette birleştirilir.
+ * Gerçek sağlayıcı/model adları (GPT, Gemini, Grok) kullanıcıya hiçbir yerde
+ * gösterilmez; bunun yerine nötr kod adları kullanılır. Aynı sağlayıcının
+ * farklı sürümleri (3.6/3.7, 4.5/4.6) de tek etikette birleştirilir.
  */
 function modelLabel(modelId: string): { short: string; colorCls: string } {
-  if (modelId.startsWith("openai/"))    return { short: "GPT-5.6 Terra", colorCls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" }
-  if (modelId.startsWith("anthropic/")) return { short: "Claude",        colorCls: "bg-orange-500/10  text-orange-600  border-orange-500/20  dark:text-orange-400"  }
-  if (modelId.startsWith("google/"))    return { short: "Gemini",       colorCls: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" }
-  if (modelId.startsWith("xai/"))       return { short: "Grok",         colorCls: "bg-violet-500/10 text-violet-600 border-violet-500/20 dark:text-violet-400" }
+  if (modelId.startsWith("openai/"))    return { short: "Orion", colorCls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" }
+  if (modelId.startsWith("anthropic/")) return { short: "Claude", colorCls: "bg-orange-500/10  text-orange-600  border-orange-500/20  dark:text-orange-400"  }
+  if (modelId.startsWith("google/"))    return { short: "Atlas", colorCls: "bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400" }
+  if (modelId.startsWith("xai/"))       return { short: "Vega",  colorCls: "bg-violet-500/10 text-violet-600 border-violet-500/20 dark:text-violet-400" }
   return { short: modelId.split("/")[0], colorCls: "bg-secondary text-muted-foreground border-border/60" }
 }
 
