@@ -302,11 +302,22 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
     }
   }, [])
 
+  // Sadece gerçekten farklı bir maça geçildiğinde tahmini yeniden yükleriz.
+  // "selected" objesi 30 saniyelik otomatik yenilemede aynı maç için de yeni
+  // bir referansla güncellenir (bkz. fixturesData senkron effect'i aşağıda);
+  // id aynı kalırken bu effect'i tekrar tetiklemek, AI tahmin kartını her
+  // yenilemede "hazırlanıyor" spinner'ına düşürüp animasyonun geri gelmesine
+  // yol açıyordu. Diğer bölümler (maç olayları, istatistikler vb.) sessiz
+  // yenileme kuralına uyarken bu kart uymuyordu — id bazlı kontrolle eşitliyoruz.
+  const loadedPredictionFixtureIdRef = useRef<number | null>(null)
   useEffect(() => {
     if (!selected) {
+      loadedPredictionFixtureIdRef.current = null
       setPrediction(null)
       return
     }
+    if (loadedPredictionFixtureIdRef.current === selected.id) return
+    loadedPredictionFixtureIdRef.current = selected.id
     loadPrediction(selected)
   }, [selected, loadPrediction])
 
