@@ -72,7 +72,15 @@ export default async function MatchPage({ params }: MatchPageProps) {
         {dateLabel && <p>{dateLabel}</p>}
         {fixture?.venue && <p>{fixture.venue}</p>}
       </main>
-      <HomeClient initialFixtureId={Number(id)} />
+      {/*
+        fixture zaten burada (sunucuda) çekildiği için initialFixture olarak
+        da geçiyoruz — HomeClient bu sayede maç panelini ilk render'da
+        anında açar, "ana ekranda dönüp sonra panel açılması" (bugünün
+        fikstür listesinin client'ta yüklenmesini bekleme) ortadan kalkar.
+        Maç bulunamazsa (fixture null) HomeClient eski davranışına
+        (initialFixtureId ile tekli fetch) geri döner.
+      */}
+      <HomeClient initialFixtureId={Number(id)} initialFixture={fixture ?? undefined} />
     </>
   )
 }

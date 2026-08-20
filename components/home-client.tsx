@@ -69,9 +69,17 @@ interface HomeClientProps {
    * (maç bugün oynanmıyorsa) tek başına /api/fixtures/[id] üzerinden çekilir.
    */
   initialFixtureId?: number
+  /**
+   * /mac/[id] sayfasının sunucu tarafında (generateMetadata ile aynı anda)
+   * zaten çekmiş olduğu maç verisi. Doluysa panel, fikstür listesinin
+   * yüklenmesini veya ayrıca bir client-side fetch'i beklemeden ilk
+   * render'da anında açılır — böylece kullanıcı önce ana sayfanın "dönen"
+   * halini görüp sonra panelin açılmasını beklemek zorunda kalmaz.
+   */
+  initialFixture?: Fixture
 }
 
-export function HomeClient({ initialFixtureId }: HomeClientProps) {
+export function HomeClient({ initialFixtureId, initialFixture }: HomeClientProps) {
   // Kullanıcının ana sayfadan geçiş yapabildiği "Dün" / "Bugün" / "Yarın"
   // sekmesi. Her üç tarih de TR saatiyle hesaplanır, gece 00:00'da (TR
   // saati) otomatik olarak bir gün kayar.
@@ -82,7 +90,10 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
   const { t, locale } = useLanguage()
   const { data: session } = useSession()
   const isAdmin = isAdminEmail(session?.user?.email)
-  const [selected, setSelected] = useState<Fixture | null>(null)
+  // initialFixture varsa panel state'i baştan doldurulur (lazy initializer) —
+  // böylece ilk render'da bile panel zaten açık gelir, ayrı bir effect/render
+  // turuna gerek kalmaz.
+  const [selected, setSelected] = useState<Fixture | null>(() => initialFixture ?? null)
 
   const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(null)
   const [fixturesLoading, setFixturesLoading] = useState(true)
@@ -104,7 +115,10 @@ export function HomeClient({ initialFixtureId }: HomeClientProps) {
   const savedResultIds = useRef<Set<number>>(new Set())
 
   // /mac/[id] üzerinden geldiysek, o ID zaten (tekli fetch ile) açıldı mı?
-  const openedInitialRef = useRef(false)
+  // initialFixture sunucudan zaten geldiyse (bkz. app/mac/[id]/page.tsx),
+  // panel ilk render'da doğrudan açıldığı için burada ayrıca bir fetch'e
+  // gerek yok — ref baştan true olarak başlar.
+  const openedInitialRef = useRef(!!initialFixture)
 
   // Ekranda gösterilen fixturesData hangi tarihe ait, onu tutar. "Maçlar
   // yükleniyor" animasyonu sadece istenen tarih henüz ekranda değilse
