@@ -37,7 +37,42 @@ export async function generateMetadata({ params }: MatchPageProps): Promise<Meta
 // panelini otomatik açar. Böylece bir maça paylaşılabilir/yenilenebilir bir
 // URL kazandırılırken ana sayfanın tüm mantığı (canlı yenileme, tahminler,
 // favori takımlar vb.) tekrar yazılmadan aynen kullanılır.
+//
+// Bkz. app/takim/[id]/page.tsx — SEO/crawler için aynı düzeltme: bu sayfa
+// artık sunucuda maçın gerçek içeriğini (ev sahibi - konuk, skor, tarih)
+// sr-only bir <main> içinde render ediyor. Önceden ilk HTML'de görünür
+// içerik hiç yoktu — HomeClient client tarafında fikstür listesini çekip
+// panel içinde bu bilgiyi gösteriyordu, bu da Google'ın ilk indirmede boş
+// bir kabuk görüp "soft 404" olarak işaretlemesine yol açıyordu (takım
+// sayfaları aynı sorunu yaşamıyordu çünkü zaten sunucuda sr-only içerik
+// render ediyorlardı).
 export default async function MatchPage({ params }: MatchPageProps) {
   const { id } = await params
-  return <HomeClient initialFixtureId={Number(id)} />
+  const fixture = await getFixtureById(Number(id)).catch(() => null)
+  const home = fixture?.home.name || "Ev Sahibi"
+  const away = fixture?.away.name || "Konuk"
+  const hasScore = fixture && (fixture.goalsHome !== null || fixture.goalsAway !== null)
+  const dateLabel = fixture
+    ? new Date(fixture.date).toLocaleDateString("tr-TR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : null
+
+  return (
+    <>
+      <main className="sr-only">
+        <h1>
+          {home} - {away}
+          {hasScore ? ` (${fixture.goalsHome ?? 0} - ${fixture.goalsAway ?? 0})` : ""}
+        </h1>
+        {fixture?.league?.name && <p>{fixture.league.name}</p>}
+        {dateLabel && <p>{dateLabel}</p>}
+        {fixture?.venue && <p>{fixture.venue}</p>}
+      </main>
+      <HomeClient initialFixtureId={Number(id)} />
+    </>
+  )
 }
