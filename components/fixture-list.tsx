@@ -40,7 +40,10 @@ function FavoriteStarButton({
   }
   className={cn(
   "relative flex shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-primary pointer-events-auto",
-  size === "sm" ? "h-6 w-6 before:absolute before:-inset-2 before:content-['']" : "h-5 w-5 before:absolute before:-inset-3 before:content-['']",
+      // before:-inset-* görünmez bir dokunma alanı ekler: yıldız ikonu görsel
+      // olarak küçük kalır ama gerçek tıklanabilir alan ~44x44px'e ulaşır
+      // (Lighthouse "dokunma hedefleri yeterli boyuta sahip değil" uyarısı).
+      size === "sm" ? "h-6 w-6 before:absolute before:-inset-2.5 before:content-['']" : "h-5 w-5 before:absolute before:-inset-3 before:content-['']",
   )}
   >
       <Star

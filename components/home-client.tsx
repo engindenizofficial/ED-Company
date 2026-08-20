@@ -525,13 +525,16 @@ export function HomeClient({ initialFixtureId, initialFixture }: HomeClientProps
               aria-label={t("home.dateTabLabel")}
               className="inline-flex items-center gap-0.5 rounded-full border border-border/70 bg-card p-0.5"
             >
+              {/* relative + before:-inset-y-* : görsel pill boyutu (py-1) aynı kalır,
+                  ama gerçek dokunma alanı dikeyde ~44px'e çıkar (Lighthouse
+                  "dokunma hedefleri yeterli boyuta sahip değil" uyarısı). */}
               <button
                 type="button"
                 role="tab"
                 aria-selected={dateTab === "yesterday"}
                 onClick={() => setDateTab("yesterday")}
                 className={cn(
-                  "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                  "relative rounded-full px-3 py-1 text-xs font-semibold transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-['']",
                   dateTab === "yesterday"
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground",
@@ -545,7 +548,7 @@ export function HomeClient({ initialFixtureId, initialFixture }: HomeClientProps
                 aria-selected={dateTab === "today"}
                 onClick={() => setDateTab("today")}
                 className={cn(
-                  "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                  "relative rounded-full px-3 py-1 text-xs font-semibold transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-['']",
                   dateTab === "today"
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground",
@@ -559,7 +562,7 @@ export function HomeClient({ initialFixtureId, initialFixture }: HomeClientProps
                 aria-selected={dateTab === "tomorrow"}
                 onClick={() => setDateTab("tomorrow")}
                 className={cn(
-                  "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                  "relative rounded-full px-3 py-1 text-xs font-semibold transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-['']",
                   dateTab === "tomorrow"
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground",

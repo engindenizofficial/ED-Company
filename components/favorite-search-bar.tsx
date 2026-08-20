@@ -167,7 +167,10 @@ export function FavoriteSearchBar() {
           role="combobox"
           aria-expanded={isActive}
           aria-haspopup="listbox"
-          aria-controls="favorite-search-results"
+          // Listbox sadece isActive olduğunda DOM'a giriyor (aşağıda koşullu render).
+          // aria-controls'u da aynı koşula bağlıyoruz; aksi halde kapalıyken var
+          // olmayan bir ID'ye işaret eder (axe/Lighthouse "aria-valid-attr-value" hatası).
+          aria-controls={isActive ? "favorite-search-results" : undefined}
           aria-autocomplete="list"
           autoComplete="off"
         />
