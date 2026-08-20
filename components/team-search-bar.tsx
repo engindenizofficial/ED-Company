@@ -134,7 +134,7 @@ export function TeamSearchBar() {
           {loading ? (
             <LoaderCircle className="h-3.5 w-3.5 animate-spin text-primary" />
           ) : (
-            <Search className={`h-3.5 w-3.5 transition-colors ${query.length > 0 ? "text-primary" : "text-muted-foreground/75"}`} />
+            <Search className={`h-3.5 w-3.5 transition-colors ${query.length > 0 ? "text-primary" : "text-muted-foreground"}`} />
           )}
         </span>
 
@@ -150,15 +150,18 @@ export function TeamSearchBar() {
           className="
             w-full rounded-xl border bg-secondary/50 py-2.5 pl-10 pr-10
             text-sm font-medium text-foreground outline-none
-            placeholder:font-normal placeholder:text-muted-foreground/60
+            placeholder:font-normal placeholder:text-muted-foreground
             transition-all duration-150
             border-border/50
             focus:border-primary/60 focus:bg-card focus:shadow-sm
             [&::-webkit-search-cancel-button]:hidden
           "
           aria-label={t("search.favoritePlaceholder")}
+          role="combobox"
           aria-expanded={isActive}
           aria-haspopup="listbox"
+          aria-controls="team-search-results"
+          aria-autocomplete="list"
           autoComplete="off"
         />
 
@@ -178,13 +181,14 @@ export function TeamSearchBar() {
       {/* Dropdown */}
       {isActive && (
         <div
+          id="team-search-results"
           role="listbox"
           aria-label={t("search.results")}
           className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-border/60 bg-card/98 shadow-2xl backdrop-blur-xl"
         >
           {!hasAnyResults && !loading ? (
             <div className="flex flex-col items-center gap-1.5 px-4 py-8 text-center">
-              <Search className="h-5 w-5 text-muted-foreground/50" />
+              <Search className="h-5 w-5 text-muted-foreground" />
               <p className="text-xs text-muted-foreground">{t("search.noResultsFor", { query })}</p>
             </div>
           ) : (
@@ -193,11 +197,11 @@ export function TeamSearchBar() {
               {hasTeams && (
                 <>
                   <li className="flex items-center gap-2 px-3.5 py-2">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
                       {t("search.teams")}
                     </span>
                     <span className="h-px flex-1 bg-border/50" />
-                    <span className="text-[10px] tabular-nums text-muted-foreground/60">{teamResults.length}</span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground">{teamResults.length}</span>
                   </li>
                   {teamResults.map((r) => (
                     <li key={`team-${r.id}`} role="option">
@@ -227,13 +231,13 @@ export function TeamSearchBar() {
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={r.leagueLogo} alt="" className="h-3 w-3 object-contain opacity-70" width={12} height={12} loading="lazy" decoding="async" />
                             )}
-                            <span className="truncate text-[11px] text-muted-foreground/85">
+                            <span className="truncate text-[11px] text-muted-foreground">
                               {r.leagueName}{r.country ? ` · ${toDisplayCountry(r.country, locale)}` : ""}
                             </span>
                           </div>
                         </div>
                         {/* Arrow hint */}
-                        <span className="shrink-0 text-[10px] text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100">
+                        <span className="shrink-0 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
                           →
                         </span>
                       </button>
@@ -246,11 +250,11 @@ export function TeamSearchBar() {
               {hasLeagues && (
                 <>
                   <li className={`flex items-center gap-2 px-3.5 py-2${hasTeams ? " mt-1 border-t border-border/40 pt-3" : ""}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
                       {t("search.leagues")}
                     </span>
                     <span className="h-px flex-1 bg-border/50" />
-                    <span className="text-[10px] tabular-nums text-muted-foreground/60">{leagueResults.length}</span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground">{leagueResults.length}</span>
                   </li>
                   {leagueResults.map((r) => (
                     <li key={`league-${r.id}`} role="option">
@@ -280,13 +284,13 @@ export function TeamSearchBar() {
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={r.flagUrl} alt="" className="h-3 w-4 rounded-sm object-cover opacity-80" width={16} height={12} loading="lazy" decoding="async" />
                             )}
-                            <span className="truncate text-[11px] text-muted-foreground/85">
+                            <span className="truncate text-[11px] text-muted-foreground">
                               {toDisplayCountry(r.country, locale)}
                             </span>
                           </div>
                         </div>
                         {/* Arrow hint */}
-                        <span className="shrink-0 text-[10px] text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100">
+                        <span className="shrink-0 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
                           →
                         </span>
                       </button>

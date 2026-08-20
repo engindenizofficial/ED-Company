@@ -19,7 +19,23 @@ const nextConfig = {
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          // "same-origin-allow-popups" (değil "same-origin") kullanılıyor çünkü
+          // Google giriş akışı bir OAuth popup'ı açıyor; daha sıkı değer bu
+          // popup'ın window.opener referansını koparıp girişi kırabilir.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
         ],
+      },
+      {
+        // İkonlar, manifest ve OG görseli build çıktısına gömülü, içerik
+        // değiştiğinde dosya adı/deploy değişir — bu yüzden agresif ve
+        // "immutable" cache'lenebilirler. Service worker (sw.js) burada
+        // KASITLI olarak hariç: PWA güncellemelerinin anında yayılması için
+        // her zaman yeniden doğrulanmalı, aksi halde kullanıcılar eski bir
+        // service worker'a kilitlenebilir.
+        source: '/:path(icon-192.png|icon-512.png|apple-touch-icon.png|opengraph-image.png|manifest.json)',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
     ]
   },

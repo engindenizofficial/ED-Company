@@ -187,7 +187,7 @@ function SectionEmptyState({ leagueName, label }: { leagueName: string; label: s
   const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-      <Inbox className="h-5 w-5 text-muted-foreground/65" />
+      <Inbox className="h-5 w-5 text-muted-foreground" />
       <p className="text-xs text-muted-foreground">
         {t("league.noDataFor", { league: leagueName, label })}
       </p>
@@ -270,7 +270,7 @@ function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; 
               {Object.entries(groups).map(([group, rows]) => (
                 <div key={group}>
                   {Object.keys(groups).length > 1 && (
-                    <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">
+                    <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
                       {group}
                     </p>
                   )}

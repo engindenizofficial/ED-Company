@@ -141,7 +141,7 @@ function SectionEmptyState({ playerName, label }: { playerName: string; label: s
   const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-      <Inbox className="h-5 w-5 text-muted-foreground/65" />
+      <Inbox className="h-5 w-5 text-muted-foreground" />
       <p className="text-xs text-muted-foreground">
         {t("playerPanel.emptyFor", { name: playerName, label })}
       </p>
@@ -158,7 +158,7 @@ function StatRow({ label, value, sub }: { label: string; value: string; sub?: st
     <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
       <div className="flex flex-col gap-0.5">
         <span className="text-muted-foreground">{label}</span>
-        {sub && <span className="text-[10px] text-muted-foreground/85">{sub}</span>}
+        {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
       </div>
       <span className="shrink-0 font-black tabular-nums text-foreground">{value}</span>
     </div>
@@ -793,7 +793,7 @@ function PlayerPanelInner({
                       <Calendar className="h-3 w-3" />
                       {profile.age} {t("playerPanel.ageSuffix")}
                       {profile.birthDate && (
-                        <span className="text-muted-foreground/75">
+                        <span className="text-muted-foreground">
                           ({new Date(profile.birthDate).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", { day: "2-digit", month: "short", year: "numeric" })})
                         </span>
                       )}

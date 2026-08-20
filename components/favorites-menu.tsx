@@ -237,7 +237,7 @@ export function FavoritesMenu() {
                       <span className="truncate text-sm font-semibold text-foreground">{t("menu.myAccount")}</span>
                       <span className="truncate text-[11px] text-muted-foreground">{session.user.name}</span>
                     </div>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
                 ) : null}
 
@@ -252,7 +252,7 @@ export function FavoritesMenu() {
                       <ShieldCheck className="h-4 w-4 text-primary" />
                     </div>
                     <span className="flex-1 text-sm font-semibold text-foreground">{t("menu.adminPanel")}</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                   </Link>
                 ) : null}
 
@@ -271,7 +271,7 @@ export function FavoritesMenu() {
                       {favorites.length}
                     </span>
                   ) : null}
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
 
                 {/* Tema Rengi — Favorilerim'in altında, hem misafir hem giriş yapmış kullanıcılarda */}
@@ -289,7 +289,7 @@ export function FavoritesMenu() {
                     className="h-4 w-4 shrink-0 rounded-full ring-1 ring-border"
                     style={{ backgroundColor: activeAccent.swatch }}
                   />
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
 
                 {/* Bildirimler — Tema Rengi'nin altında, hem misafir hem giriş yapmış kullanıcılarda */}
@@ -306,7 +306,7 @@ export function FavoritesMenu() {
                     )}
                   </div>
                   <span className="flex-1 text-sm font-semibold text-foreground">{t("menu.notifications")}</span>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/65" />
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
 
                 {/* Çıkış Yap (giriş yapmışsa) / Giriş Yap daveti (misafirse) — en altta */}
@@ -462,7 +462,7 @@ export function FavoritesMenu() {
                 <div className="mt-4 flex flex-col gap-1">
                   {favorites.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border/60 px-4 py-8 text-center">
-                      <Star className="h-5 w-5 text-muted-foreground/50" />
+                      <Star className="h-5 w-5 text-muted-foreground" />
                       <p className="text-xs text-muted-foreground">
                         {t("menu.noFavoritesYet")}
                       </p>
@@ -533,7 +533,7 @@ function SortableFavoriteRow({
         {...attributes}
         {...listeners}
         aria-label={t("menu.dragToReorder")}
-        className="flex h-8 w-6 shrink-0 cursor-grab touch-none select-none items-center justify-center text-muted-foreground/65 hover:text-muted-foreground active:cursor-grabbing"
+        className="flex h-8 w-6 shrink-0 cursor-grab touch-none select-none items-center justify-center text-muted-foreground hover:text-muted-foreground active:cursor-grabbing"
       >
         <GripVertical className="h-4 w-4" />
       </button>
@@ -563,7 +563,7 @@ function SortableFavoriteRow({
         type="button"
         onClick={onRemove}
         aria-label={`${favorite.name} ${t("menu.removeFromFavorites")}`}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground/65 transition-colors hover:bg-destructive/10 hover:text-destructive"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>

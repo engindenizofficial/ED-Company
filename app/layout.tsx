@@ -80,10 +80,9 @@ export const viewport: Viewport = {
     { media: '(prefers-color-scheme: light)', color: '#0f172a' },
     { media: '(prefers-color-scheme: dark)', color: '#0f172a' },
   ],
-  userScalable: false,
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  maximumScale: 5,
 }
 
 export default async function RootLayout({

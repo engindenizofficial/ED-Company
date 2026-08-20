@@ -502,6 +502,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
     fixtureList: {
       removeFromFavorites: "{{name}} favorilerden kaldır",
       addToFavorites: "{{name}} favorilere ekle",
+      viewMatch: "{{home}} - {{away}} maçını görüntüle",
       matchCount: "{{count}} maç",
       empty: "Gösterilecek maç bulunamadı.",
     },

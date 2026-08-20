@@ -259,7 +259,7 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
         )}
         <span className="text-[11px] font-semibold text-muted-foreground tracking-wide">
           {fixture.league.name}
-          {fixture.league.round ? <span className="font-normal opacity-60"> · {fixture.league.round}</span> : ""}
+          {fixture.league.round ? <span className="font-normal"> · {fixture.league.round}</span> : ""}
         </span>
       </div>
 
@@ -279,7 +279,7 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
             <>
               <div className="flex items-center gap-2">
                 <span className={cn("text-4xl font-black tabular-nums", isLive ? "text-foreground" : homeGoals > awayGoals ? "text-primary" : "text-foreground")}>{homeGoals}</span>
-                <span className="text-2xl font-light text-muted-foreground/65">:</span>
+                <span className="text-2xl font-light text-muted-foreground">:</span>
                 <span className={cn("text-4xl font-black tabular-nums", isLive ? "text-foreground" : awayGoals > homeGoals ? "text-primary" : "text-foreground")}>{awayGoals}</span>
               </div>
               {isLive ? (
@@ -295,20 +295,20 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
             </>
           ) : (
             <div className="flex flex-col items-center gap-1.5">
-              <span className="text-2xl font-bold text-muted-foreground/60">vs</span>
+              <span className="text-2xl font-bold text-muted-foreground">vs</span>
               <span className="text-[11px] font-medium text-muted-foreground">{statusTr}</span>
             </div>
           )}
           {/* Venue */}
           {fixture.venue && (
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground/75">
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <MapPin className="h-2.5 w-2.5 shrink-0" />
               <span className="truncate max-w-[90px]">{fixture.venue}</span>
             </span>
           )}
           {/* Referee */}
           {fixture.referee && (
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground/75">
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <Flag className="h-2.5 w-2.5 shrink-0" />
               {fixture.refereeCountry && (
                 <span aria-label={fixture.refereeCountry}>
@@ -501,7 +501,7 @@ function SectionEmptyState({ label }: { label: string }) {
   const { t } = useLanguage()
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-      <Inbox className="h-5 w-5 text-muted-foreground/65" />
+      <Inbox className="h-5 w-5 text-muted-foreground" />
       <p className="text-xs text-muted-foreground">{t("analysis.emptyFor", { label })}</p>
     </div>
   )
@@ -774,7 +774,7 @@ function PlayerStatsTable({
                           </PlayerButton>
                           {p.captain && <span className="text-[9px] font-black text-amber-500">©</span>}
                         </span>
-                        <span className="text-[10px] text-muted-foreground/75">
+                        <span className="text-[10px] text-muted-foreground">
                           {p.player.pos ?? ""}
                           {p.substitute ? t("analysis.substituteSuffix") : ""}
                         </span>
@@ -796,7 +796,7 @@ function PlayerStatsTable({
                     ) : p.yellowCard ? (
                       <span className="inline-block h-3.5 w-2.5 rounded-sm bg-yellow-400" title={t("analysis.yellowCard")} />
                     ) : (
-                      <span className="text-muted-foreground/50">—</span>
+                      <span className="text-muted-foreground">—</span>
                     )}
                   </td>
                 </tr>
@@ -1107,7 +1107,7 @@ function LegacyLineupCard({ lineup: l }: { lineup: TeamLineup }) {
 
       {l.substitutes.length > 0 && (
         <div>
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">{t("analysis.substitutes")}</p>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">{t("analysis.substitutes")}</p>
           <ol className="grid grid-cols-2 gap-x-3 gap-y-1.5">
             {l.substitutes.map((p, idx) => (
               <PlayerLineupRow key={idx} player={p} isStarter={false} />
@@ -1136,7 +1136,7 @@ function PlayerLineupRow({ player, isStarter }: { player: LineupPlayer; isStarte
         <span className="truncate text-foreground">{player.name}</span>
       )}
       {player.pos && (
-        <span className="shrink-0 text-[9px] font-semibold text-muted-foreground/75">
+        <span className="shrink-0 text-[9px] font-semibold text-muted-foreground">
           {player.pos}
         </span>
       )}
@@ -1378,7 +1378,7 @@ function BenchColumn({ team, subs, side }: { team: TeamInfo; subs: LineupPlayer[
             ) : (
               <span className="truncate text-foreground">{p.name}</span>
             )}
-            {p.pos && <span className="ml-auto shrink-0 text-[9px] font-semibold text-muted-foreground/75">{p.pos}</span>}
+            {p.pos && <span className="ml-auto shrink-0 text-[9px] font-semibold text-muted-foreground">{p.pos}</span>}
           </li>
         ))}
       </ol>
@@ -1460,7 +1460,7 @@ function StandingsTable({ standings, homeId, awayId }: { standings: StandingRow[
                 <td className="py-2 text-center tabular-nums text-foreground">{row.goalsAgainst}</td>
                 <td className="py-2 text-center tabular-nums font-black text-foreground">{row.points}</td>
                 <td className="py-2">
-                  {row.form ? <FormBadge form={row.form.slice(-5)} /> : <span className="text-muted-foreground/60">—</span>}
+                  {row.form ? <FormBadge form={row.form.slice(-5)} /> : <span className="text-muted-foreground">—</span>}
                 </td>
               </tr>
             )
@@ -1542,7 +1542,7 @@ function TeamStatsCard({ stats, label }: { stats: TeamSeasonStats; label: string
       </div>
       {stats.recent.length > 0 && (
         <div>
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/85">{t("analysis.recentMatches")}</p>
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">{t("analysis.recentMatches")}</p>
           <ul className="flex flex-col gap-1">
             {stats.recent.map((g, i) => (
               <li key={i} className="flex items-center justify-between gap-2 rounded-lg border border-border/40 bg-card px-2.5 py-1.5 text-xs">
@@ -1563,7 +1563,7 @@ function StatCell({ label, value, accent }: { label: string; value: string | num
   return (
     <div className="flex flex-col items-center rounded-lg border border-border/40 bg-card px-2 py-2 text-center">
       <span className={`text-sm font-bold tabular-nums ${accent ?? "text-foreground"}`}>{value}</span>
-      <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/85">{label}</span>
+      <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
     </div>
   )
 }
@@ -1688,9 +1688,9 @@ function H2HList({
             >
               <span className={cn("truncate text-xs", homeWon ? "font-bold text-foreground" : "text-muted-foreground")}>{displayHome}</span>
               <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[10px] tabular-nums text-muted-foreground/75">{g.date.slice(0, 10)}</span>
+                <span className="text-[10px] tabular-nums text-muted-foreground">{g.date.slice(0, 10)}</span>
                 <span className={cn("text-xs font-black tabular-nums", homeWon ? leftWinColor : "text-foreground")}>{homeGoals}</span>
-                <span className="text-muted-foreground/60 text-xs">-</span>
+                <span className="text-muted-foreground text-xs">-</span>
                 <span className={cn("text-xs font-black tabular-nums", awayWon ? rightWinColor : "text-foreground")}>{awayGoals}</span>
               </div>
               <span className={cn("truncate text-xs text-right", awayWon ? "font-bold text-foreground" : "text-muted-foreground")}>{displayAway}</span>
@@ -1754,8 +1754,8 @@ function OddsSection({
                   key={entry.key}
                   className="flex flex-col items-center gap-1 rounded-xl border border-border/40 bg-secondary/20 px-2 py-3 text-center"
                 >
-                  <span className="text-[10px] font-semibold text-muted-foreground/70">{entry.label}</span>
-                  <span className="text-sm font-bold text-muted-foreground/50">—</span>
+                  <span className="text-[10px] font-semibold text-muted-foreground">{entry.label}</span>
+                  <span className="text-sm font-bold text-muted-foreground">—</span>
                 </div>
               ) : (
                 <div
@@ -2122,7 +2122,7 @@ function PredictionCard({
             </span>
             <div className="flex items-baseline gap-1.5">
               <span className="text-3xl font-black tabular-nums text-foreground">{prediction.homeScore}</span>
-              <span className="text-xl font-light text-muted-foreground/65">:</span>
+              <span className="text-xl font-light text-muted-foreground">:</span>
               <span className="text-3xl font-black tabular-nums text-foreground">{prediction.awayScore}</span>
             </div>
           </div>

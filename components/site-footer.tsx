@@ -45,7 +45,7 @@ export function SiteFooter() {
                 {link.label}
               </Link>
               {index < links.length - 1 && (
-                <span aria-hidden="true" className="text-[10px] text-muted-foreground/50 sm:text-xs">
+                <span aria-hidden="true" className="text-[10px] text-muted-foreground sm:text-xs">
                   •
                 </span>
               )}

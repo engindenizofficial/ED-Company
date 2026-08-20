@@ -33,16 +33,16 @@ function FavoriteStarButton({
         onToggle()
       }}
       aria-pressed={active}
-      aria-label={
-        active
-          ? t("fixtureList.removeFromFavorites", { name: label })
-          : t("fixtureList.addToFavorites", { name: label })
-      }
-      className={cn(
-        "flex shrink-0 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:text-primary",
-        size === "sm" ? "h-6 w-6" : "h-5 w-5",
-      )}
-    >
+  aria-label={
+  active
+  ? t("fixtureList.removeFromFavorites", { name: label })
+  : t("fixtureList.addToFavorites", { name: label })
+  }
+  className={cn(
+  "relative flex shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-primary pointer-events-auto",
+  size === "sm" ? "h-6 w-6 before:absolute before:-inset-2 before:content-['']" : "h-5 w-5 before:absolute before:-inset-3 before:content-['']",
+  )}
+  >
       <Star
         className={cn(size === "sm" ? "h-4 w-4" : "h-3.5 w-3.5", active && "fill-primary text-primary")}
       />
@@ -268,7 +268,7 @@ export function FixtureList({
               className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-primary"
             >
               {group.name}
-              <span className="ml-1.5 font-normal opacity-60">{toDisplayCountry(group.country, locale)}</span>
+              <span className="ml-1.5 font-normal">{toDisplayCountry(group.country, locale)}</span>
             </LeagueButton>
             <FavoriteStarButton
               active={leagueIsFavorite}
@@ -286,7 +286,7 @@ export function FixtureList({
               }
             />
             <div className="ml-auto h-px flex-1 bg-border/60" />
-            <span className="text-[10px] tabular-nums text-muted-foreground/65">{group.items.length}</span>
+            <span className="text-[10px] tabular-nums text-muted-foreground">{group.items.length}</span>
           </div>
 
           {/* Fixture cards */}
@@ -298,24 +298,21 @@ export function FixtureList({
               return (
                 <li key={f.id}>
                   <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onSelect(f)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        onSelect(f)
-                      }
-                    }}
-                    aria-pressed={active}
                     className={cn(
-                      "group w-full cursor-pointer rounded-xl border px-4 py-3 text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "group relative w-full rounded-xl border px-4 py-3 text-left transition-all duration-150",
                       active
                         ? "border-primary/60 bg-primary/[0.07] shadow-sm"
                         : "border-border/70 bg-card hover:border-border hover:bg-card/80",
                     )}
                   >
-                    <div className="flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => onSelect(f)}
+                      aria-pressed={active}
+                      aria-label={t("fixtureList.viewMatch", { home: f.home.name, away: f.away.name })}
+                      className="absolute inset-0 z-0 cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                    <div className="relative z-10 flex items-center gap-4 pointer-events-none">
                       {/* Teams column */}
                       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                         <TeamRow
@@ -371,12 +368,12 @@ export function FixtureList({
                           </>
                         ) : played ? (
                           <>
-                            <span className="text-[10px] font-medium text-muted-foreground/75">{t("matchStatus.completed")}</span>
+                            <span className="text-[10px] font-medium text-muted-foreground">{t("matchStatus.completed")}</span>
                             <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{statusLabel(f.statusShort, t)}</span>
                           </>
                         ) : (
                           <>
-                            <span className="text-[10px] text-muted-foreground/75">{t("matchStatus.kickoffLabel")}</span>
+                            <span className="text-[10px] text-muted-foreground">{t("matchStatus.kickoffLabel")}</span>
                             <span className="flex items-center gap-1 text-[13px] font-bold tabular-nums text-foreground">
                               <Clock className="h-3 w-3 text-muted-foreground" />
                               {kickoff(f.date, locale)}
