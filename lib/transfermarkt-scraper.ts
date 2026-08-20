@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio"
 import { FEATURED_LEAGUE_IDS } from "./api-football"
 import { toTurkishCountry } from "./tr-aliases"
-import { getTmSession, setTmSession } from "./redis"
+import { getTmSession, setTmSession, getTmDelayMs, recordTmSuccess, recordTmBlock, type TmSystem } from "./redis"
 
 // ---------------------------------------------------------------------------
 // Transfermarkt scraping katmanı.
@@ -177,7 +177,7 @@ const FETCH_TIMEOUT_MS = 8_000
  * çünkü kullanıcı hız > veri bütünlüğü tercih etmiyor, tam tersini istiyor.
  *
  * Bu yüzden bu dizi 3 adımlı, giderek uzayan (1.5s / 4s / 10s) haline geri
- * döndürüldü — worst-case tek oyuncu için ~4×8s+15.5s ≈ 47.5s olabilir, ama
+ * döndürüld�� — worst-case tek oyuncu için ~4×8s+15.5s ≈ 47.5s olabilir, ama
  * bu YALNIZCA gerçekten üst üste 4 kez engellenirse gerçekleşir. Bunun
  * SIKLIĞINI düşürmek için asıl güvence burada değil, istekler arası TABAN
  * gecikmenin kod tabanının kendi deneyinde "en kararlı" bulunan seviyede
@@ -214,20 +214,18 @@ function looksLikeBlockPage(html: string): boolean {
 }
 
 /**
- * İstekler arası bekleme süresini hesaplar. `baseMs` çağıranın istediği
- * taban gecikmedir; sabit aralık deseninin kendisinin bir bot imzası
- * olmaması için ±800ms rastgele jitter eklenir.
+ * İstekler arası bekleme süresini döndürür. Sabit bir taban değer DEĞİL,
+ * `system`'e (bkz. TmSystem) özel, kendi kendine kalibre olan bir AIMD
+ * mekanizmasının şu anki değeridir (bkz. lib/redis.ts -> getTmDelayMs /
+ * recordTmSuccess / recordTmBlock). Jitter YOK — kullanıcı kararıyla
+ * kaldırıldı, gecikme artık tamamen bu mekanizmanın ürettiği değere sabit.
  *
- * NOT: Daha önce burada, herhangi bir blok/timeout sinyalinde Redis'teki
- * paylaşımlı bir "blok seviyesi"ne göre bu gecikmeyi otomatik uzatan bir
- * eskalasyon mekanizması vardı. Bu mekanizma kalıcı olarak kaldırıldı —
- * mevki taraması ile piyasa değeri taraması artık birbirinin blok
- * sinyalinden etkilenmiyor, her çağrı sadece kendi sabit taban gecikmesini
- * kullanıyor.
+ * mevki taraması ("player-position") ve piyasa değeri taraması
+ * ("market-value") birbirinden TAMAMEN BAĞIMSIZ kalibre olur — biri
+ * bloklansa da diğerinin gecikmesi etkilenmez.
  */
-export async function getAdaptiveDelayMs(baseMs: number): Promise<number> {
-  const jitter = Math.floor(Math.random() * 1600) - 800
-  return Math.max(1000, baseMs + jitter)
+export async function getAdaptiveDelayMs(system: TmSystem): Promise<number> {
+  return getTmDelayMs(system)
 }
 
 /**
@@ -248,9 +246,22 @@ export async function getAdaptiveDelayMs(baseMs: number): Promise<number> {
  * propagate olur; o katman ligi yeniden dener ve son çare olarak "failed"
  * işaretleyip admin panelindeki "X lig başarısız" göstergesine yansıtır.
  */
-async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length): Promise<string | null> {
+async function fetchHtml(
+  url: string,
+  system: TmSystem,
+  retries = BLOCKING_RETRY_DELAYS_MS.length,
+): Promise<string | null> {
   await ensureIdentityHydrated()
   let lastError: string | null = null
+  // Bir tek fetchHtml çağrısı içindeki retry denemeleri TEK bir gerçek AIMD
+  // olayı sayılmalı — yoksa tek bir bloklanan istek (3 retry tükenince)
+  // gecikmeyi bir çağrıda 3 kez ×1.8 artırıp anında üst sınıra sıçratabilir.
+  let blockRecordedThisCall = false
+  const recordBlockOnce = async () => {
+    if (blockRecordedThisCall) return
+    blockRecordedThisCall = true
+    await recordTmBlock(system)
+  }
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController()
@@ -287,9 +298,12 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
       if (!res.ok) {
         if (res.status === 404) {
           // Sayfa gerçekten yok — bu bir hata değil, "veri yok" sonucudur.
+          // Blok sinyali de değildir; AIMD açısından da "başarılı" sayılır.
+          if (!blockRecordedThisCall) await recordTmSuccess(system)
           return null
         }
         const isBlockOrTransient = res.status >= 500 || res.status === 429 || res.status === 403
+        if (isBlockOrTransient) await recordBlockOnce()
         if (isBlockOrTransient && attempt < retries) {
           const retryAfterHeader = res.headers.get("retry-after")
           const retryAfterMs = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) * 1000 : Number.NaN
@@ -306,6 +320,7 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
 
       const html = await res.text()
       if (looksLikeBlockPage(html)) {
+        await recordBlockOnce()
         if (attempt < retries) {
           const delay = BLOCKING_RETRY_DELAYS_MS[attempt]
           console.warn(
@@ -317,9 +332,11 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
         lastError = "Soft block (meydan okuma sayfası)"
         break
       }
+      if (!blockRecordedThisCall) await recordTmSuccess(system)
       return html
     } catch (err) {
       lastError = err instanceof Error ? err.message : "Bilinmeyen hata"
+      await recordBlockOnce()
       if (attempt < retries) {
         await sleep(BLOCKING_RETRY_DELAYS_MS[attempt])
         continue
@@ -369,7 +386,7 @@ export async function scrapeLeagueTeams(leagueId: number): Promise<ScrapedTeam[]
   }
 
   const url = `${BASE_URL}/wettbewerb/startseite/wettbewerb/${code}`
-  const html = await fetchHtml(url)
+  const html = await fetchHtml(url, "market-value")
   if (!html) return []
 
   const $ = cheerio.load(html)
@@ -401,7 +418,7 @@ export async function scrapeLeagueTeams(leagueId: number): Promise<ScrapedTeam[]
  */
 export async function scrapeTeamSquad(transfermarktTeamId: string): Promise<ScrapedPlayer[]> {
   const url = `${BASE_URL}/x/kader/verein/${transfermarktTeamId}/plus/1`
-  const html = await fetchHtml(url)
+  const html = await fetchHtml(url, "market-value")
   if (!html) return []
 
   const $ = cheerio.load(html)
@@ -431,7 +448,7 @@ export async function scrapeTeamSquad(transfermarktTeamId: string): Promise<Scra
  */
 export async function scrapeTeamCountry(transfermarktTeamId: string): Promise<string | null> {
   const url = `${BASE_URL}/x/startseite/verein/${transfermarktTeamId}`
-  const html = await fetchHtml(url)
+  const html = await fetchHtml(url, "market-value")
   if (!html) return null
 
   const $ = cheerio.load(html)
@@ -449,7 +466,7 @@ export async function scrapeTeamCountry(transfermarktTeamId: string): Promise<st
  */
 export async function scrapePlayerNationality(transfermarktPlayerId: string): Promise<string | null> {
   const url = `${BASE_URL}/x/profil/spieler/${transfermarktPlayerId}`
-  const html = await fetchHtml(url)
+  const html = await fetchHtml(url, "market-value")
   if (!html) return null
 
   const $ = cheerio.load(html)
@@ -482,7 +499,7 @@ export interface ScrapedPlayerPosition {
  */
 export async function scrapePlayerPosition(transfermarktPlayerId: string): Promise<ScrapedPlayerPosition | null> {
   const url = `${BASE_URL}/x/profil/spieler/${transfermarktPlayerId}`
-  const html = await fetchHtml(url)
+  const html = await fetchHtml(url, "player-position")
   if (!html) return null
 
   const $ = cheerio.load(html)

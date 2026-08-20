@@ -24,8 +24,11 @@ import { profile } from "./player-positions"
 
 /**
  * Transfermarkt'a art arda çok hızlı istek atmamamak için oyuncular arası
- * TABAN bekleme (gerçekte kullanılan gecikme bundan büyük olabilir — bkz.
- * altta getAdaptiveDelayMs).
+ * bekleme. Sabit bir ms değeri DEĞİL — "player-position" sistemine özel,
+ * kendi kendine kalibre olan bir AIMD (Multiplicative-Increase /
+ * Multiplicative-Decrease) mekanizmasının şu anki değeri (bkz.
+ * transfermarkt-scraper.ts -> getAdaptiveDelayMs, lib/redis.ts ->
+ * getTmDelayMs/recordTmSuccess/recordTmBlock).
  *
  * ÖNEMLİ — DÜRÜST UYARI: Transfermarkt'ın bot koruması bizim kontrolümüzde
  * değil ve algoritması bilinmiyor (IP başına istek sıklığı, günün saati,
@@ -34,52 +37,34 @@ import { profile } from "./player-positions"
  * VERİLEMEZ — hiçbir gecikme değeri bunu matematiksel olarak garanti
  * edemez.
  *
- * DENEY NOTU (kullanıcı isteğiyle, deneye deneye buluyoruz):
+ * DENEY GEÇMİŞİ (kullanıcı isteğiyle, önceden deneye deneye bulunmuştu, sabit
+ * bir taban değerle):
  *   - 700ms  → sık sık 403/429 (blok çok sık).
  *   - 1500ms → yine yavaşlama gözlemlendi (blok azalmadı/yeterince azalmadı).
  *   - 2000ms → ~50 oyuncu sorunsuz gitti, sonra yine yavaşladı.
  *   - 2500ms → iyi gitti ama net sonuç belirsizdi.
- *   - 3000ms → en kararlı sonuç (kullanıcı tahmini: eşik burada olabilir).
- *   - 1200ms → hız için tekrar düşürüldü, ama gerçek kullanımda tek oyuncu
- *     başına ~13s'ye kadar süren blok+retry döngülerine yol açtığı gözlendi.
+ *   - 3000ms → kullanıcı bu değerde bile blok gördüğünü bildirdi.
+ *   - 5000ms → sabit taban olarak kullanılmaya başlandı.
  *
  * KARAR — kullanıcı önceliği netleştirdi: "sistem yavaş olsun ama hiç hata
  * olmasın" (yani: bir oyuncunun verisi hiç alınamadan es geçilmesi kabul
  * edilemez; buna karşılık gecikme/yavaşlık kabul edilebilir bir maliyettir).
- * Bu netleşmeden önce "bloklu bir istekte ısrar etmek yerine atlayıp devam
- * et" yönünde bir deneme yapılmıştı (transfermarkt-scraper.ts'teki retry
- * merdiveni kısaltılmış, oyuncu bazlı "soğuma" eklenmişti) — bu YANLIŞTI ve
- * geri alındı, çünkü kullanıcının tanımında bu tam olarak istemediği "hata"
- * (veri kaybı) demekti. Doğru strateji: taban gecikmeyi kod tabanının kendi
- * deneyinde en kararlı sonucu veren 3000ms'de sabit tutmak (bloklanma
- * olasılığını EN BAŞTAN düşürmek) + fetchHtml'deki 3 adımlı retry merdivenini
- * (1.5s/4s/10s, transfermarkt-scraper.ts) bir "pes et" mekanizması değil,
- * gerçek bir güvenlik ağı olarak korumak — yani bir istek bloklanırsa
- * ATLANMAZ, ısrarla (giderek uzayan beklemelerle) tekrar denenir. ÜSTÜNE, iki
- * ek katman eklendi:
+ * fetchHtml'deki 3 adımlı retry merdiveni (1.5s/4s/10s,
+ * transfermarkt-scraper.ts) bir "pes et" mekanizması değil, gerçek bir
+ * güvenlik ağı olarak çalışır — bir istek bloklanırsa ATLANMAZ, ısrarla
+ * (giderek uzayan beklemelerle) tekrar denenir.
  *
- *   1) Jitter (±800ms, bkz. getAdaptiveDelayMs) — her istek arasının BİREBİR
- *      aynı sabit aralıkta olması, kendisi bir bot imzasıdır; küçük rastgele
- *      sapma bunu kırar.
+ * SON KARAR — sabit bir taban değeri elle deneyip artırmak yerine, sistem
+ * artık KENDİ KENDİNE kalibre olur: 5000ms'den başlar, jitter YOK (kullanıcı
+ * kararıyla kaldırıldı), bir blok/timeout sinyali görüldüğünde anında sertçe
+ * artar (×1.8), uzun bir başarı serisinde yavaşça azalır (20 başarılı
+ * istekte bir %5) — ama bilinen kötü bölgenin (3000ms'in bile blok verdiği)
+ * bir tık üzerinde kalacak şekilde 4000ms'in altına asla inmez. Bu sistem
+ * lib/market-value-sync.ts'in ("market-value") blok sinyallerinden
+ * TAMAMEN BAĞIMSIZ kalibre olur.
  *
- * NOT: Daha önce burada, bir blok/timeout sinyali görüldüğünde Redis'teki
- * paylaşımlı bir "blok seviyesi"ne göre istekler arası beklemeyi otomatik
- * uzatan bir adaptif eskalasyon mekanizması vardı. Bu mekanizma kalıcı
- * olarak kaldırıldı — bu sistem artık lib/market-value-sync.ts'in blok
- * sinyallerinden etkilenmiyor, sadece kendi sabit taban gecikmesini (+jitter)
- * kullanıyor.
- *
- * SON KARAR — kullanıcı 3000ms taban ile bile blok gördüğünü bildirdi ve
- * "blok olmasın" isteğini hız kaygısının kesin olarak önüne koydu. Bu
- * yüzden taban, kod tabanının kendi deneyinde denenmiş en yüksek değer olan
- * 3000ms'in de ÜZERİNE, 5000ms'e çıkarıldı.
- *
- * Oyuncu başı beklenen süre (bloksuz, seviye 0): ~5s bekleme + ~0.3-0.5s
- * fetch ≈ 5.3-5.5s. 250s'lik yumuşak bütçeyle çağrı başına ~45-47 oyuncu
- * işlenir (öncekinden daha az, ama kullanıcının önceliği artık hız değil).
  * İzleme: admin panelindeki "Oyuncu Mevki Taraması" durumu.
  */
-const REQUEST_DELAY_MS = 5000
 
 /**
  * Route'un maxDuration'ından (300s) daha erken, kendi isteğimizle güvenli bir
@@ -195,10 +180,11 @@ export interface PositionBackfillBatchResult {
   remaining: number
 }
 
-/**
- * `batchSize` kadar adayı sırayla (Transfermarkt'ı bloklamamak için aralarda
- * `REQUEST_DELAY_MS` bekleyerek) işler; her biri için profil sayfasını
- * çeker, normalize eder ve `player_position` tablosuna yazar.
+  /**
+  * `batchSize` kadar adayı sırayla (Transfermarkt'ı bloklamamak için aralarda
+  * "player-position" sisteminin AIMD gecikmesi kadar bekleyerek) işler; her
+  * biri için profil sayfasını çeker, normalize eder ve `player_position`
+  * tablosuna yazar.
  *
  * Profilde hiç pozisyon bulunamazsa (404, silinmiş profil, veri yok) satır
  * yine de "source: unverified" olarak yazılır — böylece bu oyuncu bir
@@ -217,7 +203,7 @@ export async function runPlayerPositionBackfillBatch(batchSize: number): Promise
     // aşımı (maxDuration) tarafından ortadan kesilmesini önler.
     if (Date.now() - startedAt > SOFT_TIME_BUDGET_MS) break
 
-    if (processed > 0) await sleep(await getAdaptiveDelayMs(REQUEST_DELAY_MS))
+    if (processed > 0) await sleep(await getAdaptiveDelayMs("player-position"))
 
     let scraped: Awaited<ReturnType<typeof scrapePlayerPosition>> = null
     let scrapeFailed = false

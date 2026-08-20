@@ -43,6 +43,7 @@ const K = {
   voteChoices: (fixtureId: number) => `ed:vote:choices:${fixtureId}`,
   chainLock: (name: string) => `ed:chain-lock:${name}`,
   tmSession: () => `ed:tm:session`,
+  tmDelay: (system: TmSystem) => `ed:tm:delay:${system}`,
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +129,103 @@ export async function setTmSession(session: TmSession): Promise<void> {
   } catch (err) {
     console.log("[v0] redis setTmSession failed:", err instanceof Error ? err.message : err)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Transfermarkt istekler arası gecikme — AIMD (Additive-Increase /
+// Multiplicative-Decrease... burada tam tersi yönde: "Multiplicative-Increase
+// / Multiplicative-Decrease") kendi kendine kalibre olan mekanizma.
+//
+// NEDEN: Transfermarkt'ın gerçek blok eşiği sabit, dışarıdan bilinen bir
+// sayı değil — trafiğe/saate/IP geçmişine göre değişiyor. Önceki yaklaşımlar
+// (sabit bir ms değeri elle deneyip "olmadı, artır") hiçbir zaman gerçek
+// eşiği BULMUYOR, sadece "son denenen değerin bir tık üstünde" kalıyordu ve
+// hiçbir zaman kendiliğinden hızlanmıyordu. Bu yüzden:
+//
+//   - Bir blok/timeout sinyali görüldüğünde (bkz. transfermarkt-scraper.ts)
+//     gecikme ANINDA ve SERT artırılır (×1.8) — TCP congestion control'deki
+//     "multiplicative decrease" gibi, riskli bölgeden hızla çekilmek için.
+//   - Ardışık TM_DELAY_SUCCESS_THRESHOLD (20) başarılı istekten sonra
+//     gecikme YAVAŞÇA azaltılır (×0.95, yani %5) — sistem zamanla kendi
+//     optimal noktasını arar, ama tedbirli ve kademeli şekilde.
+//
+// mevki taraması ve piyasa değeri taraması birbirinden TAMAMEN BAĞIMSIZ
+// (ayrı TmSystem, ayrı Redis kaydı) kalibre olur — biri bloklansa da
+// diğerinin gecikmesi etkilenmez.
+// ---------------------------------------------------------------------------
+
+export type TmSystem = "market-value" | "player-position"
+
+interface TmDelayState {
+  delayMs: number
+  successStreak: number
+}
+
+const TM_DELAY_START_MS = 5000
+// Kod tabanının kendi deneme geçmişinde 3000ms'in bile blok verdiği
+// gözlendi — bu yüzden gecikme, ne kadar hızlanırsa hızlansın, bilinen kötü
+// bölgenin bir tık üzerinde kalacak şekilde bu tabanın altına asla inmez.
+const TM_DELAY_MIN_MS = 4000
+// Üst sınır — art arda çok fazla blok görülse bile gecikme sonsuza dek
+// büyümesin (30 saniye/istek'ten sonra artık pratik fayda yok, sadece
+// zincirin tamamlanma süresini gereksiz uzatır).
+const TM_DELAY_MAX_MS = 30_000
+const TM_DELAY_SUCCESS_THRESHOLD = 20
+const TM_DELAY_SUCCESS_FACTOR = 0.95
+const TM_DELAY_BLOCK_FACTOR = 1.8
+const TM_DELAY_STATE_TTL = 60 * 60 * 24 * 30 // 30 gün (hijyen amaçlı, mantık bundan bağımsız çalışır)
+
+async function getTmDelayState(system: TmSystem): Promise<TmDelayState> {
+  if (!redis) return { delayMs: TM_DELAY_START_MS, successStreak: 0 }
+  try {
+    const state = await redis.get<TmDelayState>(K.tmDelay(system))
+    return state ?? { delayMs: TM_DELAY_START_MS, successStreak: 0 }
+  } catch (err) {
+    console.log("[v0] redis getTmDelayState failed:", err instanceof Error ? err.message : err)
+    return { delayMs: TM_DELAY_START_MS, successStreak: 0 }
+  }
+}
+
+async function setTmDelayState(system: TmSystem, state: TmDelayState): Promise<void> {
+  if (!redis) return
+  try {
+    await redis.set(K.tmDelay(system), state, { ex: TM_DELAY_STATE_TTL })
+  } catch (err) {
+    console.log("[v0] redis setTmDelayState failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+/** Şu anki (jitter'sız) istekler arası gecikmeyi döndürür. */
+export async function getTmDelayMs(system: TmSystem): Promise<number> {
+  const state = await getTmDelayState(system)
+  return state.delayMs
+}
+
+/**
+ * Blok/timeout sinyali görülmeden tamamlanan bir istek sonrası çağrılır.
+ * Ardışık başarı sayacı TM_DELAY_SUCCESS_THRESHOLD'a ulaştığında gecikme
+ * %5 azaltılır (TM_DELAY_MIN_MS'in altına inmez) ve sayaç sıfırlanır.
+ */
+export async function recordTmSuccess(system: TmSystem): Promise<void> {
+  const state = await getTmDelayState(system)
+  const nextStreak = state.successStreak + 1
+  if (nextStreak >= TM_DELAY_SUCCESS_THRESHOLD) {
+    const nextDelay = Math.max(TM_DELAY_MIN_MS, Math.round(state.delayMs * TM_DELAY_SUCCESS_FACTOR))
+    await setTmDelayState(system, { delayMs: nextDelay, successStreak: 0 })
+  } else {
+    await setTmDelayState(system, { delayMs: state.delayMs, successStreak: nextStreak })
+  }
+}
+
+/**
+ * Bir blok/timeout sinyali (403/429/5xx/soft-block/ağ hatası) görüldüğünde
+ * çağrılır. Gecikmeyi anında ×1.8 artırır (TM_DELAY_MAX_MS'i aşmaz) ve
+ * başarı sayacını sıfırlar — sistem riskli bölgeden hızla çekilir.
+ */
+export async function recordTmBlock(system: TmSystem): Promise<void> {
+  const state = await getTmDelayState(system)
+  const nextDelay = Math.min(TM_DELAY_MAX_MS, Math.round(state.delayMs * TM_DELAY_BLOCK_FACTOR))
+  await setTmDelayState(system, { delayMs: nextDelay, successStreak: 0 })
 }
 
 export interface PendingPrediction {

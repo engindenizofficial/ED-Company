@@ -111,20 +111,17 @@ export async function syncTeamPlayers(
   const counts: PlayerSyncCounts = { matched: 0, review: 0, unmatched: 0 }
 
   // Transfermarkt'a art arda çok hızlı istek atmamak için takımlar arası
-  // bekleme (taban değer + jitter, bkz. transfermarkt-scraper.ts ->
-  // getAdaptiveDelayMs). Taban değerler, player-position-sync.ts'teki
-  // REQUEST_DELAY_MS ile aynı kararla (kullanıcı "blok olmasın" isteğini hız
-  // kaygısının önüne koydu) yükseltildi.
-  //
-  // NOT: Daha önce burada, lib/player-position-sync.ts ile Redis üzerinden
-  // PAYLAŞIMLI bir blok seviyesi kullanılıyordu — biri bloklandığında
-  // diğerinin gecikmesi de otomatik uzuyordu. Bu paylaşım kalıcı olarak
-  // kaldırıldı; bu sistem artık sadece kendi sabit taban gecikmesini kullanır.
-  await sleep(await getAdaptiveDelayMs(3000))
+  // bekleme. Sabit bir taban değer DEĞİL — "market-value" sistemine özel,
+  // kendi kendine kalibre olan AIMD gecikmesi (bkz. lib/redis.ts ->
+  // getTmDelayMs/recordTmSuccess/recordTmBlock, transfermarkt-scraper.ts ->
+  // getAdaptiveDelayMs). Blok görülürse anında sertçe artar, uzun bir başarı
+  // serisinde yavaşça azalır; lib/player-position-sync.ts'teki
+  // "player-position" sisteminden TAMAMEN BAĞIMSIZ kalibre olur.
+  await sleep(await getAdaptiveDelayMs("market-value"))
   let scrapedPlayers = await scrapeTeamSquad(transfermarktTeamId)
   if (scrapedPlayers.length === 0) {
     // Geçici bir rate-limit (503) olabilir — biraz daha bekleyip bir kez tekrar dene.
-    await sleep(await getAdaptiveDelayMs(4000))
+    await sleep(await getAdaptiveDelayMs("market-value"))
     scrapedPlayers = await scrapeTeamSquad(transfermarktTeamId)
   }
   if (scrapedPlayers.length === 0) return counts
@@ -272,9 +269,8 @@ export async function prepareLeagueTeamSync(leagueId: number, runStartedAt: Date
   // Gerçek bloklanma durumunda artık scrapeLeagueTeams sessizce boş dönmüyor,
   // hata fırlatıyor (bkz. transfermarkt-scraper.ts fetchHtml) — bu bekleme
   // sadece bloklanma riskini azaltmak için, hatayı gizlemek için değil.
-  // Taban gecikme + jitter (bkz. getAdaptiveDelayMs). Taban, kullanıcının
-  // "blok olmasın" kararıyla yükseltildi.
-  await sleep(await getAdaptiveDelayMs(3000))
+  // "market-value" sistemine özel AIMD gecikmesi (bkz. getAdaptiveDelayMs).
+  await sleep(await getAdaptiveDelayMs("market-value"))
 
   const [apiFootballTeams, scrapedTeams] = await Promise.all([
     getLeagueTeamsForMatching(leagueId, season),
@@ -593,7 +589,7 @@ export interface CleanupResult {
  * yeniden hesaplama" işlemini engeller, "artık var olmayan bir varlığı
  * sonsuza dek DB'de tutma" işlemini değil.
  *
- * hadErrors=true ise hiçbir şey silinmez — bu döngüde bir veya daha fazla
+ * hadErrors=true ise hi��bir şey silinmez — bu döngüde bir veya daha fazla
  * lig transient bir hata yüzünden atlanmış olabilir, bu da o ligin
  * takımlarının lastSeenAt'inin yanlışlıkla geride kalmasına (ve gerçek,
  * hâlâ aktif takımların silinmesine) yol açabilir. Bir dahaki hatasız
