@@ -1,17 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState, useTransition } from "react"
-import { AlertTriangle, CheckCircle2, Loader2, PlayCircle, RotateCcw, Timer } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Loader2, PlayCircle, Timer } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useLanguage } from "@/contexts/language-context"
-import {
-  getMarketValueCronStatus,
-  resumeMarketValueCronNow,
-  triggerMarketValueScanNow,
-  type CronRunStatus,
-} from "@/app/actions/market-value-cron"
+import { getMarketValueCronStatus, triggerMarketValueScanNow, type CronRunStatus } from "@/app/actions/market-value-cron"
 
 // Kart, sunucudan sadece ilk yüklemede bir kez `initialStatus` alır ve onu
 // `useState` ile local state'e alır — React, prop değişse de bu başlangıç

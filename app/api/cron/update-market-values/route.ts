@@ -1,55 +1,59 @@
-import { after } from "next/server"
 import { cleanupStaleMarketValueRows, SCRAPABLE_LEAGUE_IDS } from "@/lib/market-value-sync"
 import {
   startNewCronRun,
   getActiveCronRun,
   processCronRunStep,
   completeCronRun,
-  isCronRunStale,
   runMatchesCurrentLeagueList,
-  triggerChainContinuation,
-  setChainError,
   type CronRunRow,
 } from "@/lib/market-value-cron-run"
 
 // ---------------------------------------------------------------------------
-// ÖNEMLİ — bu route ÖNCEDEN vercel.json'daki bir Vercel Cron zamanlamasıyla
-// (her Çarşamba 03:00 TR) otomatik tetikleniyordu. Bu otomatik zamanlama
-// KALDIRILDI — artık bu endpoint SADECE admin panelindeki "Şimdi Tara"
-// butonuyla (bkz. app/actions/market-value-cron.ts triggerMarketValueScanNow)
-// manuel olarak tetiklenir. Route'un kendisi (zincirleme, devam ettirme,
-// stale/broken tespiti) hiç değişmedi — sadece dışarıdan otomatik çağıran
-// zamanlayıcı yok artık.
+// ÖNEMLİ GEÇMİŞ — bu route ÖNCEDEN kendi kendini `after()` + self-fetch ile
+// tetikleyerek (bir adım/lig bitince aynı URL'e kendi sunucusundan tekrar
+// istek göndererek) 24 ligin TÜMÜNÜ tek bir "Şimdi Tara" tıklamasıyla uçtan
+// uca bitirmeye çalışıyordu. Bu YAPISAL olarak asla güvenilir çalışamazdı:
+// Vercel platformu, bir fonksiyonun kendini ZİNCİRLEME şekilde çağırmasına
+// (self-fetch → o da self-fetch → ...) SABİT bir 5 sıçrama (hop) sınırı
+// koyuyor — maliyet/kötüye kullanım koruması olarak, ve bu hiçbir
+// kod/timeout/header değişikliğiyle aşılamıyor. 24 lig × takım bazlı adımlar
+// STEP_BUDGET_MS içinde bitmeyince zincir birkaç self-fetch sonra HER ZAMAN
+// "HTTP 508 Loop Detected / INFINITE_LOOP_DETECTED" ile platform tarafından
+// kesiliyordu (tıpkı app/api/cron/backfill-player-positions'ta yaşanan ve
+// oradaki dosya başı açıklamada detaylandırılan sorunun aynısı).
 //
-// 24 lig tek bir istekte işlenmiyor (Transfermarkt + API-Football'a yüzlerce
-// istek gidiyor, serverless zaman aşımı riski var). Bunun yerine bu route
-// kendi kendini zincirler: her çağrı SADECE bir ligi işler, sonra bir sonraki
-// ligi tetikleyip (after() ile, cevabı bekletmeden) hemen yanıt döner.
+// ÇÖZÜM: bu route artık kendini HİÇ tetiklemiyor — SADECE gelen TEK bir GET
+// isteğine karşılık, zaman bütçesi (STEP_BUDGET_MS) dolana veya döngü
+// tamamlanana kadar art arda adım işler, sonra döner. Zincirin "devamını"
+// DIŞARIDAN (Vercel'in kendi fonksiyon-çağırma ağının dışından) gelen
+// periyodik bir zamanlayıcı sağlıyor: QStash (bkz.
+// scripts/setup-qstash-schedules.mjs, scheduleId: "update-market-values",
+// 5 dakikada bir). Dışarıdan gelen her istek platform için "hop 0" /
+// tamamen bağımsız bir çağrı olduğu için, kaç yüz kez çağrılırsa çağrılsın
+// 5-sıçrama sınırına ASLA dokunulmuyor.
 //
-// ÖNEMLİ — durum artık URL parametrelerinde değil, DB'de (market_value_cron_run)
-// kalıcı tutulur (bkz. lib/market-value-cron-run.ts). Her adımda (her lig
-// işlendiğinde) o satır güncellenir: hangi ligde kalındığı, kaç kez denendiği,
-// son hatası. Zincir bir yerde kesilirse (crash, zaman aşımı, ağ hatası) bu
-// satır tam olarak nerede kalındığını gösterir. Devam ettirme otomatik
-// gerçekleşmez — admin panelindeki "Devam Ettir" butonu (bkz. app/api/cron/
-// resume-market-values) manuel olarak tetiklenmelidir.
+// Durumsuz DEĞİL ama kalıcı ilerleme: durum URL parametrelerinde değil,
+// DB'de (market_value_cron_run, bkz. lib/market-value-cron-run.ts) tutulur.
+// Zamanlayıcı bir çağrıyı atlarsa ya da bir çağrı ortada kesilirse, bir
+// sonraki çağrı DB'deki currentLeagueIndex/teamProgress'ten otomatik devam
+// eder — ekstra bir "resume" endpoint'ine gerek yoktur (eskiden
+// app/api/cron/resume-market-values vardı, bu route'un kendisi artık aynı
+// işi yaptığı için kaldırıldı).
 //
 // Ayrıca her lig, geçici hatalara (rate limit, 503, ağ) karşı tek istek
-// içinde birkaç kez yeniden denenir (bkz. runSingleLeagueWithRetries).
+// içinde birkaç kez yeniden denenir (bkz. lib/market-value-cron-run.ts
+// prepareLeagueWithRetries / syncSingleTeamWithRetries).
 // ---------------------------------------------------------------------------
 
 export const dynamic = "force-dynamic"
+// Bu projede Fluid Compute aktif, bu sayede Hobby planında da fonksiyon
+// süresi 300 saniyeye kadar çıkabiliyor.
 export const maxDuration = 300
 
-// ÖNEMLİ — zincir eskiden HER HTTP çağrısında SADECE BİR takım işleyip kendi
-// kendini yeniden tetikliyordu (self-fetch). ~24 lig × ortalama birkaç
-// takım = yüzlerce ayrı self-fetch demekti; bunlardan biri engellenirse
-// (örn. Vercel Deployment Protection) ya da ağ hatası alırsa zincir tam
-// olarak orada kırılıyordu. Şimdi her çağrı, aşağıdaki zaman bütçesi
-// dolana kadar (veya döngü tamamlanana kadar) ARKA ARKAYA birden çok adım
-// işler — bu, gereken self-fetch sayısını (ve dolayısıyla kırılma riskini)
-// yüzlerce yerine tek haneli sayılara indirir. Buffer, self-fetch'in kendi
-// zaman aşımı (15s) + yeniden denemeleri için maxDuration'dan pay bırakır.
+// Her çağrı, bu süre dolana ya da döngü tamamlanana kadar art arda lig/takım
+// adımı işler. Dış zamanlayıcı (QStash) bu route'u ne sıklıkla çağırırsa,
+// toplam ilerleme hızı da o kadar olur. maxDuration'dan (300s) biraz pay
+// bırakır (DB yazma/cleanup gibi ek işler için).
 const STEP_BUDGET_MS = 260_000
 
 function isAuthorized(request: Request): boolean {
@@ -61,35 +65,19 @@ function isAuthorized(request: Request): boolean {
   return header === `Bearer ${secret}`
 }
 
-async function triggerNextStep(request: Request, runId: string): Promise<void> {
-  const url = new URL(request.url)
-  // "runId" parametresi bu çağrının zincirin İÇİNDEN geldiğini işaretler —
-  // bu sayede aşağıdaki GET handler'ı, az önce kendisinin tazelediği
-  // heartbeat'e bakıp yanlışlıkla "zaten çalışıyor, dokunma" demez (bkz.
-  // GET içindeki isInternalContinuation kontrolü).
-  url.searchParams.set("runId", runId)
+// ÖNEMLİ — bu header'ı SADECE admin panelindeki "Şimdi Tara" butonu
+// (triggerMarketValueScanNow, app/actions/market-value-cron.ts) gönderir.
+// Dış zamanlayıcı (QStash schedule, bkz. scripts/setup-qstash-schedules.mjs)
+// bunu HİÇ göndermez. Bunun sebebi: haftalık taramanın admin taramayı kendisi
+// başlatana kadar arka planda kendiliğinden (ilk kez) başlamasını
+// istemiyoruz — dış zamanlayıcı sadece ZATEN "running" durumda olan bir
+// koşuyu devam ettirebilir, YENİ bir koşu açamaz. Admin "Şimdi Tara"ya
+// bastıktan sonra dış zamanlayıcı o koşuyu bitirene kadar otomatik ilerletir;
+// koşu biterse (completed) bir dahaki "Şimdi Tara"ya kadar hiçbir şey yapmaz.
+const MANUAL_TRIGGER_HEADER = "x-market-value-manual-trigger"
 
-  const headers: Record<string, string> = {}
-  const secret = process.env.CRON_SECRET
-  if (secret) headers.authorization = `Bearer ${secret}`
-
-  // Vercel Authentication (Deployment Protection) tüm ".vercel.app"
-  // URL'lerini korumaya alıyor. Vercel Cron'un İLK çağrısı bu korumayı
-  // otomatik atlar, ama bu self-fetch (zincirin kendi kendini tetiklemesi)
-  // normal bir dış istek gibi görülür ve engellenir. Bunu aşmak için
-  // Protection Bypass for Automation secret'ı header olarak eklenir.
-  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-  if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret
-
-  // Zaman aşımı + yeniden deneme ile — bkz. lib/market-value-cron-run.ts
-  // içindeki triggerChainContinuation açıklaması: bunlar OLMADAN, askıda
-  // kalan tek bir self-fetch isteği after()'ı maxDuration'a kadar bekletip
-  // zinciri hiçbir hata izi bırakmadan sessizce kırabiliyordu.
-  const result = await triggerChainContinuation(url.toString(), headers)
-  // ÖNEMLİ — sonucu DB'ye yazıyoruz: başarısız olduysa GERÇEK hata mesajı
-  // (örn. "HTTP 401 ...") admin panelinde "Zincir kırıldı" uyarısının
-  // yanında görünür; başarılı olduysa önceki hata (varsa) temizlenir.
-  await setChainError(runId, result.ok ? null : result.error)
+function isManualTrigger(request: Request): boolean {
+  return request.headers.get(MANUAL_TRIGGER_HEADER) === "1"
 }
 
 export async function GET(request: Request) {
@@ -97,58 +85,43 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { searchParams } = new URL(request.url)
-  const continuationRunId = searchParams.get("runId")
+  const active = await getActiveCronRun()
 
-  let run: CronRunRow | null
+  let run: CronRunRow
 
-  if (continuationRunId) {
-    // Zincirin içinden gelen bir devam çağrısı — bu isteği BİZ ürettik
-    // (triggerNextStep), dolayısıyla heartbeat'in "az önce" güncellenmiş
-    // olması normaldir; stale/already-running kontrolüne gerek yok, doğrudan
-    // aynı döngüye devam et.
-    run = await getActiveCronRun()
-    if (!run || run.id !== continuationRunId) {
-      // Döngü bu arada başka bir yoldan (örn. admin panelinden manuel devam
-      // ettirme) tamamlanmış olabilir.
-      return Response.json({ done: true, message: "Döngü zaten tamamlanmış." })
-    }
+  if (active && runMatchesCurrentLeagueList(active)) {
+    // Devam eden (ya da sağlıklı ilerleyen) bir döngü varsa onu HER ZAMAN
+    // devam ettiriyoruz — çağrı admin'in "Şimdi Tara" butonundan mı yoksa
+    // dış zamanlayıcıdan mı geldiği önemli değil. "Kırık zincir" kavramı
+    // artık gerekli değil: ilerleme tamamen bu route'a yapılan dış
+    // çağrılara bağlı olduğu için her çağrı basitçe bir sonraki adımı işler.
+    run = active
   } else {
-    // Dıştan gelen tetikleme: admin'in "Şimdi Tara" isteği (artık otomatik bir
-    // haftalık zamanlama yok). Devam eden bir "running" döngü varsa ona devam
-    // edilir; yoksa yeni bir döngü başlatılır.
-    const active = await getActiveCronRun()
-
     if (active && !runMatchesCurrentLeagueList(active)) {
-      // Bu satır, lig listesi (FEATURED_LEAGUE_IDS) değişmeden ÖNCE
+      // Bu satır, lig listesi (SCRAPABLE_LEAGUE_IDS) değişmeden ÖNCE
       // başlatılmış — eski leagueStatuses artık koddaki güncel listeyle
       // index bazında eşleşmiyor (bkz. runMatchesCurrentLeagueList). Devam
-      // ettirmeye çalışmak yanlış ligin verisini yazabilir veya zinciri
-      // sessizce kırabilir. Bu eski satırı "tamamlandı" (hatalı) işaretleyip
-      // güncel listeyle sıfırdan bir döngü başlatıyoruz.
+      // ettirmeye çalışmak yanlış ligin verisini yazabilir. Bu eski satırı
+      // "tamamlandı" (hatalı) işaretleyip güncel listeyle sıfırdan bir
+      // döngü başlatıyoruz (SADECE admin manuel tetiklerse, aşağıda).
       console.warn(
-        `[v0] Aktif döngü (${active.id}) güncel lig listesiyle uyuşmuyor (lig sayısı/sırası değişti) — eskisi kapatılıp yeni döngü başlatılıyor.`,
+        `[v0] Aktif döngü (${active.id}) güncel lig listesiyle uyuşmuyor (lig sayısı/sırası değişti) — eskisi kapatılıyor.`,
       )
       await completeCronRun(active.id)
-      run = await startNewCronRun()
-    } else if (!active) {
-      run = await startNewCronRun()
-    } else if (isCronRunStale(active)) {
-      // Zincir kırılmıştı (heartbeat eskimiş) — admin panelindeki "Devam Ettir"
-      // veya bu route'a atılan bir sonraki manuel "Şimdi Tara" isteği aynı
-      // durumu görüp doğrudan devam ettirir.
-      console.log(`[v0] Kırılmış döngü (${active.id}) bu istekle devam ettiriliyor.`)
-      run = active
-    } else {
-      // Aktif ve sağlıklı ilerleyen bir döngü zaten var — ikinci bir tanesini
-      // başlatıp aynı ligleri iki kez taramamak için hiçbir şey yapma.
-      return Response.json({ alreadyRunning: true, runId: active.id, currentLeagueIndex: active.currentLeagueIndex })
     }
+
+    if (!isManualTrigger(request)) {
+      // Dış zamanlayıcıdan gelen çağrı ve devam ettirilecek bir koşu yok —
+      // YENİ bir koşu AÇMIYORUZ. Sadece admin'in kendisi bir tarama
+      // başlatabilir; aksi halde QStash kullanıcı hiç dokunmasa da her 5
+      // dakikada bir kendiliğinden yeni bir haftalık tarama başlatırdı.
+      return Response.json({ done: false, skipped: "notStartedByAdmin" })
+    }
+
+    run = await startNewCronRun()
   }
 
-  // Zaman bütçesi dolana ya da döngü tamamlanana kadar arka arkaya adım işle
-  // — bkz. STEP_BUDGET_MS açıklaması: bu, self-fetch'e olan bağımlılığı (ve
-  // dolayısıyla kırılma riskini) büyük ölçüde azaltır.
+  // Zaman bütçesi dolana ya da döngü tamamlanana kadar arka arkaya adım işle.
   const startedAt = Date.now()
   let updatedRun = run
   let done = false
@@ -175,10 +148,13 @@ export async function GET(request: Request) {
     })
   }
 
-  // Yanıtı bekletmeden bir sonraki adımı tetikle.
-  after(() => triggerNextStep(request, updatedRun.id))
+  // ÖNEMLİ — burada BİLİNÇLİ olarak bir sonraki adımı KENDİ KENDİMİZE
+  // tetiklemiyoruz (bkz. dosya başı açıklaması). `done` false ise, run
+  // satırı "running" olarak kalır ve dış zamanlayıcının (QStash) bir
+  // sonraki periyodik çağrısı bu route'u tekrar çağırarak devam ettirir.
 
   return Response.json({
+    done: false,
     runId: updatedRun.id,
     currentLeagueIndex: updatedRun.currentLeagueIndex,
     totalLeagues: SCRAPABLE_LEAGUE_IDS.length,

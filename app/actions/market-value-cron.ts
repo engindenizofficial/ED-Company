@@ -11,17 +11,27 @@ import {
   getActiveCronRun,
   getLatestCronRun,
   isCronRunStale,
-  triggerChainContinuation,
+  fireChainStepWithoutAwaitingResponse,
+  setChainError,
   type CronRunRow,
 } from "@/lib/market-value-cron-run"
 import { SCRAPABLE_LEAGUE_IDS } from "@/lib/market-value-sync"
-import { sanitize } from "@/lib/site-url"
+import { getSiteUrl } from "@/lib/site-url"
 import { eq, ne } from "drizzle-orm"
 
 // ---------------------------------------------------------------------------
 // Admin panelinde haftalık piyasa değeri cron döngüsünün durumunu göstermek
-// ve zincir kırıldığında (bkz. lib/market-value-cron-run.ts) beklemeden
-// manuel devam ettirmek için kullanılan action'lar.
+// ve manuel olarak başlatmak için kullanılan action'lar.
+//
+// ÖNEMLİ MİMARİ — bu döngü artık kendi kendini ZİNCİRLEMİYOR (self-fetch
+// chain YOK, bkz. app/api/cron/update-market-values/route.ts başındaki
+// açıklama — Vercel'in 5-sıçrama self-fetch limiti yüzünden zincir her
+// zaman aynı noktalarda "508 Loop Detected" ile kesiliyordu). "Şimdi Tara"
+// butonu SADECE İLK (veya bir sonraki) batch'i tetikler; devamını DIŞARIDAN
+// periyodik bir zamanlayıcı (QStash, bkz. scripts/setup-qstash-schedules.mjs)
+// sağlar. Bu yüzden ayrı bir "resume" action'ı/route'u da yok — devam eden
+// bir koşuyu QStash otomatik ilerletir, admin isterse "Şimdi Tara"ya tekrar
+// basarak da elle bir adım daha tetikleyebilir.
 // ---------------------------------------------------------------------------
 
 const REVIEW_PATH = "/admin/market-value-review"
@@ -87,64 +97,23 @@ export async function getMarketValueCronStatus(): Promise<CronRunStatus | null> 
 }
 
 /**
- * Kırılmış (heartbeat eskimiş, "running" durumda kalmış) bir döngüyü beklemeden
- * devam ettirir — watchdog'un (bkz. app/api/cron/resume-market-values,
- * vercel.json'daki sık aralıklı tetikleme) bir sonraki çalışmasını beklemek
- * istemeyen admin için anlık bir yol. Sağlıklı ilerleyen bir döngüye
- * dokunmaz (aynı güvenlik kontrolü resume route'unda da var).
- */
-export async function resumeMarketValueCronNow(): Promise<{ triggered: boolean; reason?: string }> {
-  await requireAdmin()
-
-  const run = await getLatestCronRun()
-  if (!run || run.status !== "running") {
-    return { triggered: false, reason: "noActiveRun" }
-  }
-  if (!isCronRunStale(run)) {
-    return { triggered: false, reason: "runHealthy" }
-  }
-
-  const secret = process.env.CRON_SECRET
-  const headersInit: Record<string, string> = {}
-  if (secret) headersInit.authorization = `Bearer ${secret}`
-
-  // Bkz. app/api/cron/update-market-values/route.ts — bu fetch de deployment
-  // URL'ine gittiği için Vercel Authentication korumasından geçiyor, bypass
-  // secret'ı gerekiyor.
-  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-  if (bypassSecret) headersInit["x-vercel-protection-bypass"] = bypassSecret
-
-  const base = sanitize(process.env.VERCEL_URL) ? `https://${sanitize(process.env.VERCEL_URL)}` : "http://localhost:3000"
-  const url = `${base}/api/cron/resume-market-values`
-
-  // ÖNEMLİ — ÖNCEDEN bu istek `fetch(...).catch(...)` ile beklenmeden
-  // (await edilmeden) gönderiliyordu. Bu server action, yanıtı döndürüp
-  // (`return { triggered: true }`) bittiği an Vercel bu fonksiyonun
-  // çalışmasını dondurabiliyor — bu da isteğin ağa GERÇEKTEN çıkması
-  // garanti edilmeden kesilmesine yol açıyordu. Sonuç: buton "tetiklendi"
-  // mesajını gösteriyordu ama route'a istek hiç ulaşmıyordu, DB'deki satır
-  // hiç değişmiyordu. `after()`, bu callback'i yanıt gönderildikten SONRA
-  // ama fonksiyon çalışması bitmeden önce çalıştırıp tamamlanmasını garanti
-  // eder (bkz. route.ts'nin kendi zincirleme adımı — aynı deseni kullanır).
-  after(() => triggerChainContinuation(url, headersInit))
-
-  revalidatePath(REVIEW_PATH)
-  return { triggered: true }
-}
-
-/**
- * Admin'in "Şimdi Tara" butonu — aynı 24 ligi zincirleme işleyen tam
- * taramayı hemen başlatır. ÖNEMLİ: bu tarama artık SADECE bu buton ile
- * başlar — vercel.json'daki otomatik haftalık Vercel Cron zamanlaması
- * (her Çarşamba) kaldırıldı. Sağlıklı ilerleyen bir döngü zaten varsa
- * (kısa süre içinde tekrar tıklanırsa) ikinci bir tanesini başlatıp
- * ligleri iki kez taramamak için hiçbir şey yapmaz — bu durumda mevcut
- * döngüye devam edilmesini bekler.
+ * Admin'in "Şimdi Tara" butonu — 24 ligi işleyen döngünün SADECE bir sonraki
+ * batch'ini (bkz. app/api/cron/update-market-values, STEP_BUDGET_MS = 260s
+ * içinde art arda işlenen adımlar) hemen tetikler.
  *
- * Zincirin kendisi app/api/cron/update-market-values route'unda yaşıyor;
- * burada sadece o route'u dıştan (runId parametresi olmadan) tetikliyoruz —
- * route zaten "aktif döngü yoksa yeni başlat, kırılmışsa devam ettir, sağlıklı
- * çalışıyorsa hiçbir şey yapma" mantığını kendi içinde barındırıyor.
+ * ÖNEMLİ — bu artık "tüm taramayı başlatıp bitirene kadar kendi kendine
+ * devam eden bir zincir" DEĞİL (bkz. route.ts'in dosya başı açıklaması —
+ * self-fetch zincirleme Vercel'in 5-sıçrama limitine çarpıp "508 Loop
+ * Detected" ile kesiliyordu, tıpkı oyuncu mevki backfill'inde olduğu gibi).
+ * Bu buton sadece İLK/bir sonraki batch'i elle tetikler; taramanın uçtan uca
+ * bitmesi dışarıdaki QStash zamanlayıcısının (bkz.
+ * scripts/setup-qstash-schedules.mjs, "update-market-values", 5 dakikada
+ * bir) periyodik çağrılarıyla sağlanır. Zamanlayıcı zaten kurulu olduğu için
+ * admin'in tekrar tekrar butona basmasına normalde gerek yoktur.
+ *
+ * Sağlıklı ilerleyen (kısa süre önce heartbeat almış, hâlâ "running") bir
+ * döngü zaten varsa ikinci bir batch'i aynı anda tetikleyip aynı ligi çift
+ * işlemeyi önlemek için hiçbir şey yapmaz.
  */
 export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean; reason?: string }> {
   await requireAdmin()
@@ -158,9 +127,18 @@ export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean;
   if (active && !isCronRunStale(active)) {
     return { triggered: false, reason: "scanAlreadyRunning" }
   }
+  // Stale (heartbeat eskimiş) bir koşu varsa — self-fetch zinciri artık hiç
+  // olmadığı için "stale" burada sadece "QStash henüz bir tur atmadı"
+  // anlamına gelir; devam ettirmeye izin veriyoruz, route zaten aynı satırı
+  // yeniden kullanıp kaldığı yerden ilerler.
 
   const secret = process.env.CRON_SECRET
-  const headersInit: Record<string, string> = {}
+  // ÖNEMLİ — bu header, route'a "bu çağrı admin'in Şimdi Tara butonundan
+  // geliyor, dış zamanlayıcıdan DEĞİL" bilgisini taşır. Route, devam eden
+  // bir koşu yoksa YENİ bir koşuyu SADECE bu header varsa açar — böylece
+  // QStash kullanıcı hiç dokunmadan kendiliğinden bir haftalık tarama
+  // başlatamaz, sadece admin'in başlattığı bir koşuyu devam ettirebilir.
+  const headersInit: Record<string, string> = { "x-market-value-manual-trigger": "1" }
   if (secret) headersInit.authorization = `Bearer ${secret}`
 
   // Bkz. app/api/cron/update-market-values/route.ts — bu fetch de deployment
@@ -169,28 +147,29 @@ export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean;
   const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   if (bypassSecret) headersInit["x-vercel-protection-bypass"] = bypassSecret
 
-  const base = sanitize(process.env.VERCEL_URL) ? `https://${sanitize(process.env.VERCEL_URL)}` : "http://localhost:3000"
-  const url = `${base}/api/cron/update-market-values`
+  const url = `${getSiteUrl()}/api/cron/update-market-values`
 
   // ÖNEMLİ — bu action ÖNCEDEN `await triggerChainContinuation(...)` ile
-  // isteği tamamen bekliyordu. Ama hedef route (update-market-values), yanıtı
-  // döndürmeden ÖNCE zaman bütçesi dolana kadar (STEP_BUDGET_MS = 260 saniye)
-  // gerçek taramayı senkron olarak yapıyor — yani bu action, bu route'un TÜM
-  // ilk adım döngüsü bitene kadar bloke oluyordu. Server action'lar aynı
-  // sayfa segmentinin fonksiyon süresi sınırına tabidir ve bu sayfa/action
-  // dosyası hiçbir yerde `maxDuration` tanımlamıyor (varsayılan çok daha
-  // kısa) — bu yüzden action, hedef route yanıt vermeden ÇOK ÖNCE platform
-  // tarafından zaman aşımına uğratılıp öldürülüyordu. Admin butona bastığında
-  // "tetiklendi" mesajı bile görünmüyordu; sadece buton uzun süre spinner
-  // gösterip sonunda sessizce hataya düşüyordu — yani buton "hiçbir şekilde
-  // çalışmıyor" gibi görünüyordu.
-  //
-  // Çözüm: resumeMarketValueCronNow'daki (yukarıdaki) ile AYNI deseni
-  // kullan — `after()` ile fire-and-forget. `after()`, callback'i yanıt
-  // gönderildikten SONRA ama fonksiyon dondurulmadan ÖNCE çalıştırmayı
-  // garanti eder; action anında "tetiklendi" döner, gerçek tarama arka
-  // planda (route'un kendi 300s maxDuration'ı içinde) devam eder.
-  after(() => triggerChainContinuation(url, headersInit))
+  // isteği TAM YANITINI bekleyerek gönderiyordu (15s zaman aşımı). Ama hedef
+  // route (update-market-values) artık zaman bütçesi (STEP_BUDGET_MS = 260s)
+  // dolana kadar senkron olarak çalışıp öyle yanıt veriyor — 15s'lik bir
+  // zaman aşımı bu route için KESİNLİKLE yetersiz, "zaman aşımı" deyip
+  // isteği tekrar göndermek sunucudaki ilk isteği iptal etmeden AYNI ligi
+  // ikinci kez işleyen paralel bir çağrı başlatırdı (bkz.
+  // lib/market-value-cron-run.ts -> fireChainStepWithoutAwaitingResponse
+  // açıklaması). Bu fonksiyon isteği gönderir, SADECE hızlı bir hatayı (401,
+  // ağ hatası) yakalayacak kısa bir pencere bekler, sonra isteği İPTAL
+  // ETMEDEN döner — route kendi 300s maxDuration'ı içinde arka planda
+  // çalışmaya devam eder.
+  try {
+    await fireChainStepWithoutAwaitingResponse(url, headersInit)
+    if (active) await setChainError(active.id, null)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error("[v0] Piyasa değeri taraması tetiklenemedi:", err)
+    if (active) await setChainError(active.id, message)
+    return { triggered: false, reason: "triggerFailed" }
+  }
 
   revalidatePath(REVIEW_PATH)
   return { triggered: true }
