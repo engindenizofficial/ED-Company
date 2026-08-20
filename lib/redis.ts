@@ -42,6 +42,8 @@ const K = {
   voteCounts: (fixtureId: number) => `ed:vote:counts:${fixtureId}`,
   voteChoices: (fixtureId: number) => `ed:vote:choices:${fixtureId}`,
   chainLock: (name: string) => `ed:chain-lock:${name}`,
+  tmSession: () => `ed:tm:session`,
+  tmBlockLevel: () => `ed:tm:block-level`,
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +83,83 @@ export async function releaseChainLock(name: string): Promise<void> {
     await redis.del(K.chainLock(name))
   } catch (err) {
     console.log("[v0] redis releaseChainLock failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Transfermarkt scraping oturumu — "hiç blok yeme" hedefi için iki parça:
+//
+// 1) Çerez + User-Agent kimliği (tmSession): Serverless her invocation'da
+//    (her cron çağrısında) module state SIFIRLANIR — yani sharedCookieJar
+//    öncesinde her çağrı Cloudflare'a "yepyeni bir ziyaretçi" gibi görünürdü.
+//    Burada bu kimlik Redis'e kalıcı yazılır ve bir sonraki invocation'da
+//    geri yüklenir; böylece art arda gelen cron çağrıları da (aynı 20dk'lık
+//    pencere içinde) Cloudflare'ın gözünde "devam eden aynı oturum" gibi
+//    görünür. User-Agent, kimlikle BİRLİKTE sabitlenir çünkü aynı çerezle
+//    farklı User-Agent göndermek (kimlik tutarsızlığı) bazı bot korumalarında
+//    çerezden bile daha güçlü bir şüphe sinyalidir.
+//
+// 2) Blok seviyesi (tmBlockLevel): Herhangi bir çağrı 403/429/5xx, ağ
+//    hatası/timeout veya "soft block" (200 dönen ama Cloudflare meydan okuma
+//    sayfası) ile karşılaşırsa seviye 1 artırılır ve 15 dakika TTL ile
+//    kalıcı tutulur. Tüm istekler arası bekleme süreleri (bkz.
+//    transfermarkt-scraper.ts -> getAdaptiveDelayMs) bu seviyeye göre
+//    otomatik uzar — yani bir kez blok sinyali alındığında SADECE o istek
+//    değil, o andan sonraki TÜM istekler (hatta farklı bir cron çağrısında
+//    olsa bile, 15dk içinde) daha temkinli/yavaş hale gelir. Blok sinyali
+//    kesilirse TTL sayesinde seviye kendiliğinden 0'a döner.
+// ---------------------------------------------------------------------------
+
+export interface TmSession {
+  cookieJar: string
+  userAgent: string
+}
+
+const TM_SESSION_TTL = 60 * 20 // 20 dakika
+const TM_BLOCK_LEVEL_TTL = 60 * 15 // 15 dakika
+export const TM_BLOCK_LEVEL_MAX = 5
+
+export async function getTmSession(): Promise<TmSession | null> {
+  if (!redis) return null
+  try {
+    return (await redis.get<TmSession>(K.tmSession())) ?? null
+  } catch (err) {
+    console.log("[v0] redis getTmSession failed:", err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+export async function setTmSession(session: TmSession): Promise<void> {
+  if (!redis) return
+  try {
+    await redis.set(K.tmSession(), session, { ex: TM_SESSION_TTL })
+  } catch (err) {
+    console.log("[v0] redis setTmSession failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+/** Şu anki blok seviyesini okur (Redis yoksa veya hiç blok görülmediyse 0). */
+export async function getTmBlockLevel(): Promise<number> {
+  if (!redis) return 0
+  try {
+    const level = await redis.get<number>(K.tmBlockLevel())
+    return level ?? 0
+  } catch (err) {
+    console.log("[v0] redis getTmBlockLevel failed:", err instanceof Error ? err.message : err)
+    return 0
+  }
+}
+
+/** Bir blok/timeout sinyali görüldüğünde çağrılır; seviyeyi 1 artırır (üst sınır TM_BLOCK_LEVEL_MAX) ve TTL'i tazeler. */
+export async function bumpTmBlockLevel(): Promise<number> {
+  if (!redis) return 0
+  try {
+    const next = await redis.incr(K.tmBlockLevel())
+    await redis.expire(K.tmBlockLevel(), TM_BLOCK_LEVEL_TTL)
+    return Math.min(next, TM_BLOCK_LEVEL_MAX)
+  } catch (err) {
+    console.log("[v0] redis bumpTmBlockLevel failed:", err instanceof Error ? err.message : err)
+    return 0
   }
 }
 
@@ -197,7 +276,7 @@ export async function deletePredictionCompletely(fixtureId: number): Promise<boo
       await redis.set(K.allTimePredictionResults(), filteredAllTime)
     }
 
-    // 4. Her günün başarı paneli kaydı — ed:prediction-results:* taranır
+    // 4. Her günün başarı paneli kaydı — ed:prediction-results:* taran��r
     let cursor = 0
     const dailyKeys: string[] = []
     do {

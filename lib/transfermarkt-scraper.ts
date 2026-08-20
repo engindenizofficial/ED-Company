@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio"
 import { FEATURED_LEAGUE_IDS } from "./api-football"
 import { toTurkishCountry } from "./tr-aliases"
+import { getTmSession, setTmSession, getTmBlockLevel, bumpTmBlockLevel } from "./redis"
 
 // ---------------------------------------------------------------------------
 // Transfermarkt scraping katmanı.
@@ -12,23 +13,61 @@ import { toTurkishCountry } from "./tr-aliases"
 // Transfermarkt, URL'deki "slug" metnini önemsemiyor; sadece competition
 // kodu (örn. TR1) ve takım/oyuncu id'si eşleşirse doğru sayfaya yönlendirir.
 // Bu sayede her lig/takım için gerçek slug'ı bilmemize gerek yok.
+//
+// ÖNCELİK: kullanıcının açık talebiyle bu modülde HIZ'dan önce "hiç blok
+// yememe" önceliklidir. Aşağıdaki mekanizmalar (kalıcı oturum kimliği,
+// soft-block tespiti, adaptif gecikme) bu yüzden var — hiçbiri "asla blok
+// yenmez" garantisi VERMEZ (Transfermarkt'ın bot koruması bizim
+// kontrolümüzde değil), ama blok riskini gözle görülür şekilde azaltmayı
+// hedefler.
 // ---------------------------------------------------------------------------
 
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+/**
+ * Gerçekçi masaüstü tarayıcı User-Agent'ları. Her invocation için (Redis'te
+ * kayıtlı bir oturum yoksa) rastgele biri seçilir ve o oturumun ÇEREZİYLE
+ * BİRLİKTE sabitlenir (bkz. ensureIdentityHydrated). Aynı çerezle her istekte
+ * farklı bir User-Agent göndermek — yani "kimlik" değişse bile "oturum" aynı
+ * kalıyormuş gibi davranmak — bazı bot korumalarında hiç çerez göndermemekten
+ * bile daha güçlü bir şüphe sinyalidir; bu yüzden UA request bazında DEĞİL,
+ * oturum bazında seçilir.
+ */
+const USER_AGENT_POOL = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+]
 
 const BASE_URL = "https://www.transfermarkt.com"
 
-// Tüm modül boyunca (yani tek bir cron/backfill batch'i içinde) TEK bir
-// çerez kutusu paylaşılıyor. Öncesinde her istek hiçbir çerez taşımadan
-// gidiyordu — Cloudflare'ın gözünden bu, "her seferinde yepyeni bir
-// ziyaretçi" gibi görünüyor ve gerçek bir tarayıcının aynı oturumda art
-// arda sayfa gezmesinden belirgin şekilde farklı bir imza oluşturuyordu.
-// Bu farklılık, bot korumasının (403/429) tetiklenme sıklığını artıran
-// asıl sebeplerden biriydi. Cloudflare genelde ilk yanıtta bir çerez
-// (örn. __cf_bm) döner; bunu sonraki isteklerde geri göndermek "devam eden
-// bir oturum" görüntüsü verip blok oranını düşürmeyi hedefler.
+// Tüm modül boyunca (yani tek bir invocation içinde) TEK bir çerez kutusu +
+// User-Agent paylaşılıyor. Serverless her invocation'da module state'i
+// SIFIRLAR — öncesinde bu, her yeni cron çağrısının Cloudflare'a "yepyeni bir
+// ziyaretçi" gibi görünmesine yol açıyordu. Şimdi bu kimlik Redis'e kalıcı
+// yazılıyor (bkz. ensureIdentityHydrated/persistIdentity) ve bir sonraki
+// invocation'da geri yükleniyor — art arda gelen cron çağrıları da (aynı
+// ~20dk'lık pencere içinde) "devam eden aynı oturum" gibi görünür.
 let sharedCookieJar = ""
+let sharedUserAgent = USER_AGENT_POOL[0]
+let identityHydrated = false
+
+/** İlk fetchHtml çağrısında Redis'ten kalıcı oturumu (çerez + UA) yükler; yoksa yeni bir kimlik seçip Redis'e yazar. */
+async function ensureIdentityHydrated(): Promise<void> {
+  if (identityHydrated) return
+  identityHydrated = true
+  const session = await getTmSession()
+  if (session?.cookieJar) sharedCookieJar = session.cookieJar
+  if (session?.userAgent) {
+    sharedUserAgent = session.userAgent
+  } else {
+    sharedUserAgent = USER_AGENT_POOL[Math.floor(Math.random() * USER_AGENT_POOL.length)]
+    await persistIdentity()
+  }
+}
+
+async function persistIdentity(): Promise<void> {
+  await setTmSession({ cookieJar: sharedCookieJar, userAgent: sharedUserAgent })
+}
 
 function mergeCookiesFromResponse(res: Response) {
   const setCookie = res.headers.get("set-cookie")
@@ -136,23 +175,81 @@ const FETCH_TIMEOUT_MS = 8_000
 const BLOCKING_RETRY_DELAYS_MS = [1500, 4000, 10000]
 
 /**
- * Transfermarkt sayfasını indirir. Geçici ağ hatalarında, 5xx'lerde ve
- * rate-limit/bot koruması yanıtlarında (403/429) giderek uzayan beklemelerle
- * birkaç kez tekrar dener (429 için "Retry-After" header'ı varsa ona uyar).
+ * Transfermarkt bazen 403/429/5xx DÖNMEDEN, düz 200 ile bir Cloudflare
+ * "meydan okuma" (challenge) sayfası gönderir — gerçek içerik yerine
+ * JS/captcha bekleyen ara sayfa. Önceden bu durum fark edilmiyordu: `res.ok`
+ * true olduğu için fonksiyon bu sahte içeriği "başarılı" sayıp döndürüyordu,
+ * cheerio de içinde aradığı elementleri bulamayınca sessizce "0 sonuç" ile
+ * devam ediyordu — yani bir blok, "veri yok" gibi yorumlanabiliyordu.
+ * Burada bilinen meydan okuma imzaları + anormal küçük yanıt boyutu ile bu
+ * durum "soft block" olarak yakalanıp normal 403/429 gibi retry+backoff'a
+ * düşürülüyor.
+ */
+const BLOCK_PAGE_MARKERS = [
+  "Attention Required! | Cloudflare",
+  "cf-browser-verification",
+  "Checking your browser before accessing",
+  "Just a moment...",
+  "cf_chl_opat",
+  "id=\"challenge-form\"",
+]
+
+function looksLikeBlockPage(html: string): boolean {
+  // Gerçek Transfermarkt sayfaları (lig/takım/oyuncu) her zaman birkaç KB'ın
+  // üzerindedir; bu kadar kısa bir yanıt normal bir sayfa olamaz.
+  if (html.length < 400) return true
+  return BLOCK_PAGE_MARKERS.some((marker) => html.includes(marker))
+}
+
+/**
+ * Blok/timeout sinyali görüldüğünde çağrılır: sadece o anki denemeyi
+ * etkilemez, Redis'teki paylaşımlı blok seviyesini artırır — bu seviye
+ * lib/player-position-sync.ts ve lib/market-value-sync.ts'deki istekler
+ * arası beklemeleri (bkz. getAdaptiveDelayMs) otomatik olarak uzatır. Yani
+ * bir çağrı bloklanırsa, ondan sonraki TÜM istekler (farklı bir invocation'da
+ * olsa bile, ~15dk içinde) daha temkinli hale gelir.
+ */
+async function onBlockSignal(): Promise<void> {
+  await bumpTmBlockLevel()
+}
+
+/**
+ * İstekler arası bekleme süresini hesaplar. `baseMs` çağıranın istediği
+ * taban gecikmedir; buna (a) son ~15dk içinde görülen blok sinyaline göre
+ * kademeli bir ek (seviye × 2s) ve (b) sabit aralık deseninin kendisinin bir
+ * bot imzası olmaması için ±500ms rastgele jitter eklenir.
+ *
+ * DÜRÜST UYARI: Bu hesaplama blok riskini azaltmayı hedefler, "asla blok
+ * yenmez" garantisi vermez — Transfermarkt'ın bot koruma algoritması bizim
+ * kontrolümüzde değil.
+ */
+export async function getAdaptiveDelayMs(baseMs: number): Promise<number> {
+  const level = await getTmBlockLevel()
+  const escalation = level * 2000
+  const jitter = Math.floor(Math.random() * 1000) - 500
+  return Math.max(1000, baseMs + escalation + jitter)
+}
+
+/**
+ * Transfermarkt sayfasını indirir. Geçici ağ hatalarında, 5xx'lerde,
+ * rate-limit/bot koruması yanıtlarında (403/429) ve "soft block" (200 ama
+ * meydan okuma sayfası) durumlarında giderek uzayan beklemelerle birkaç kez
+ * tekrar dener (429 için "Retry-After" header'ı varsa ona uyar).
  *
  * ÖNEMLİ — SADECE 404 (sayfa gerçekten yok) "veri yok" sayılıp null döner.
- * Tüm denemeler tükendiğinde diğer her durumda (403/429/5xx/ağ hatası) bu
- * fonksiyon artık sessizce null DÖNMEZ, hata FIRLATIR. Önceden null dönmesi,
- * çağıran tarafın (scrapeLeagueTeams/scrapeTeamSquad) bunu "bu ligde/takımda
- * hiç oyuncu/takım yok" ile ayırt edememesine ve cron'un bloklanan bir ligi
- * sessizce "başarılı, 0 eşleşme" olarak işaretlemesine yol açıyordu — hiçbir
- * hata görünmediği için sorun fark edilemiyordu. Artık bu hata
- * lib/market-value-sync.ts -> prepareLeagueTeamSync üzerinden
+ * Tüm denemeler tükendiğinde diğer her durumda (403/429/5xx/soft-block/ağ
+ * hatası) bu fonksiyon artık sessizce null DÖNMEZ, hata FIRLATIR. Önceden
+ * null dönmesi, çağıran tarafın (scrapeLeagueTeams/scrapeTeamSquad) bunu "bu
+ * ligde/takımda hiç oyuncu/takım yok" ile ayırt edememesine ve cron'un
+ * bloklanan bir ligi sessizce "başarılı, 0 eşleşme" olarak işaretlemesine yol
+ * açıyordu — hiçbir hata görünmediği için sorun fark edilemiyordu. Artık bu
+ * hata lib/market-value-sync.ts -> prepareLeagueTeamSync üzerinden
  * lib/market-value-cron-run.ts -> prepareLeagueWithRetries'e kadar
  * propagate olur; o katman ligi yeniden dener ve son çare olarak "failed"
  * işaretleyip admin panelindeki "X lig başarısız" göstergesine yansıtır.
  */
 async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length): Promise<string | null> {
+  await ensureIdentityHydrated()
   let lastError: string | null = null
 
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -161,7 +258,7 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
     try {
       const res = await fetch(url, {
         headers: {
-          "User-Agent": USER_AGENT,
+          "User-Agent": sharedUserAgent,
           "Accept-Language": "en-US,en;q=0.9",
           // Gerçek bir tarayıcıya daha yakın bir istek imzası, Transfermarkt'ın
           // bot korumasının tetiklenme sıklığını azaltmayı hedefler (daha az
@@ -172,22 +269,29 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
           "Upgrade-Insecure-Requests": "1",
           "Sec-Fetch-Dest": "document",
           "Sec-Fetch-Mode": "navigate",
-          "Sec-Fetch-Site": "none",
-          // Bkz. modül üstündeki sharedCookieJar açıklaması — Cloudflare'ın
-          // önceki yanıtta verdiği çerezi geri göndererek "devam eden aynı
-          // oturum" görüntüsü veriyoruz.
+          "Sec-Fetch-Site": "same-origin",
+          // Sitenin kendi içinden geliyormuş gibi görünmek için — gerçek bir
+          // tarayıcıda ard arda sayfa gezintisinde Referer hep dolu olur.
+          Referer: `${BASE_URL}/`,
+          // Bkz. modül üstündeki sharedCookieJar/sharedUserAgent açıklaması —
+          // Cloudflare'ın önceki yanıtta verdiği çerezi geri göndererek
+          // "devam eden aynı oturum" görüntüsü veriyoruz.
           ...(sharedCookieJar ? { Cookie: sharedCookieJar } : {}),
         },
         redirect: "follow",
         signal: controller.signal,
       })
       mergeCookiesFromResponse(res)
+      await persistIdentity()
+
       if (!res.ok) {
         if (res.status === 404) {
           // Sayfa gerçekten yok — bu bir hata değil, "veri yok" sonucudur.
           return null
         }
-        if ((res.status >= 500 || res.status === 429 || res.status === 403) && attempt < retries) {
+        const isBlockOrTransient = res.status >= 500 || res.status === 429 || res.status === 403
+        if (isBlockOrTransient) await onBlockSignal()
+        if (isBlockOrTransient && attempt < retries) {
           const retryAfterHeader = res.headers.get("retry-after")
           const retryAfterMs = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) * 1000 : Number.NaN
           const delay = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : BLOCKING_RETRY_DELAYS_MS[attempt]
@@ -200,9 +304,25 @@ async function fetchHtml(url: string, retries = BLOCKING_RETRY_DELAYS_MS.length)
         lastError = `HTTP ${res.status}`
         break
       }
-      return await res.text()
+
+      const html = await res.text()
+      if (looksLikeBlockPage(html)) {
+        await onBlockSignal()
+        if (attempt < retries) {
+          const delay = BLOCKING_RETRY_DELAYS_MS[attempt]
+          console.warn(
+            `[v0] Transfermarkt soft-block algılandı (200 ama meydan okuma/anormal küçük sayfa), ${delay}ms sonra tekrar denenecek (deneme ${attempt + 1}/${retries + 1}): ${url}`,
+          )
+          await sleep(delay)
+          continue
+        }
+        lastError = "Soft block (meydan okuma sayfası)"
+        break
+      }
+      return html
     } catch (err) {
       lastError = err instanceof Error ? err.message : "Bilinmeyen hata"
+      await onBlockSignal()
       if (attempt < retries) {
         await sleep(BLOCKING_RETRY_DELAYS_MS[attempt])
         continue

@@ -1,7 +1,7 @@
 import { db } from "./db"
 import { teamMarketValue, playerMarketValue, marketValueReviewQueue } from "./db/schema"
 import { eq, inArray, lt, and, or } from "drizzle-orm"
-import { scrapeLeagueTeams, scrapeTeamSquad, SCRAPABLE_LEAGUE_IDS } from "./transfermarkt-scraper"
+import { scrapeLeagueTeams, scrapeTeamSquad, getAdaptiveDelayMs, SCRAPABLE_LEAGUE_IDS } from "./transfermarkt-scraper"
 import { getLeagueTeamsForMatching, matchTeams, matchPlayersForTeam } from "./market-value-matcher"
 
 // ---------------------------------------------------------------------------
@@ -111,12 +111,16 @@ export async function syncTeamPlayers(
   const counts: PlayerSyncCounts = { matched: 0, review: 0, unmatched: 0 }
 
   // Transfermarkt'a art arda çok hızlı istek atmamak için takımlar arası
-  // küçük bir bekleme (rate-limit / 503 riskini azaltır).
-  await sleep(700)
+  // bekleme. Taban değer + Redis'teki paylaşımlı blok seviyesine göre
+  // otomatik uzayan kısım (bkz. transfermarkt-scraper.ts -> getAdaptiveDelayMs)
+  // — "hiç blok yemeyelim" hedefiyle bu artık lib/player-position-sync.ts ile
+  // aynı adaptif mekanizmayı paylaşıyor (bir yerde blok görülürse, buradaki
+  // istekler de otomatik olarak temkinli hale gelir).
+  await sleep(await getAdaptiveDelayMs(1500))
   let scrapedPlayers = await scrapeTeamSquad(transfermarktTeamId)
   if (scrapedPlayers.length === 0) {
     // Geçici bir rate-limit (503) olabilir — biraz daha bekleyip bir kez tekrar dene.
-    await sleep(2000)
+    await sleep(await getAdaptiveDelayMs(2000))
     scrapedPlayers = await scrapeTeamSquad(transfermarktTeamId)
   }
   if (scrapedPlayers.length === 0) return counts
@@ -259,12 +263,13 @@ export async function prepareLeagueTeamSync(leagueId: number, runStartedAt: Date
   const season = currentSeason()
 
   // Bir önceki ligin son takım/oyuncu isteğinden sonra Transfermarkt'a hemen
-  // yeni bir lig sayfası isteği atmamak için kısa bir bekleme — art arda çok
-  // hızlı gelen istekler bot korumasını (403/429) tetikleme riskini artırıyor.
+  // yeni bir lig sayfası isteği atmamak için bekleme — art arda çok hızlı
+  // gelen istekler bot korumasını (403/429) tetikleme riskini artırıyor.
   // Gerçek bloklanma durumunda artık scrapeLeagueTeams sessizce boş dönmüyor,
   // hata fırlatıyor (bkz. transfermarkt-scraper.ts fetchHtml) — bu bekleme
   // sadece bloklanma riskini azaltmak için, hatayı gizlemek için değil.
-  await sleep(1500)
+  // Adaptif: Redis'teki paylaşımlı blok seviyesine göre otomatik uzar.
+  await sleep(await getAdaptiveDelayMs(1500))
 
   const [apiFootballTeams, scrapedTeams] = await Promise.all([
     getLeagueTeamsForMatching(leagueId, season),

@@ -1,7 +1,7 @@
 import { and, desc, eq, gt, isNull, sql } from "drizzle-orm"
 import { db } from "./db"
 import { playerMarketValue, playerPosition } from "./db/schema"
-import { scrapePlayerPosition } from "./transfermarkt-scraper"
+import { scrapePlayerPosition, getAdaptiveDelayMs } from "./transfermarkt-scraper"
 import { profile } from "./player-positions"
 
 // ---------------------------------------------------------------------------
@@ -24,7 +24,8 @@ import { profile } from "./player-positions"
 
 /**
  * Transfermarkt'a art arda çok hızlı istek atmamamak için oyuncular arası
- * bekleme.
+ * TABAN bekleme (gerçekte kullanılan gecikme bundan büyük olabilir — bkz.
+ * altta getAdaptiveDelayMs).
  *
  * ÖNEMLİ — DÜRÜST UYARI: Transfermarkt'ın bot koruması bizim kontrolümüzde
  * değil ve algoritması bilinmiyor (IP başına istek sıklığı, günün saati,
@@ -35,33 +36,35 @@ import { profile } from "./player-positions"
  *
  * DENEY NOTU (kullanıcı isteğiyle, deneye deneye buluyoruz):
  *   - 700ms  → sık sık 403/429 (blok çok sık).
- *   - 1500ms → denendi, yine yavaşlama gözlemlendi (blok azalmadı/yeterince
- *     azalmadı). Demek ki 700→1500 farkı, Transfermarkt'ın eşiğinin altına
- *     inmeye yetmedi.
- *   - 2000ms → denendi. ~50 oyuncu sorunsuz gitti (öncekilere göre en uzun
- *     kesintisiz seri), sonra yine yavaşladı. Eşiğe önceki denemelerden daha
- *     yakın olduğumuzu gösteriyor ama hâlâ tam altında değiliz.
- *   - 2500ms → denendi, iyi gitti ama net sonuç belirsizdi.
- *   - 3000ms → denendi, en kararlı sonuç (kullanıcı tahmini: eşik burada
- *     olabilir).
- *   - 1200ms → kullanıcı isteğiyle hız için tekrar düşürüldü. DİKKAT: bu
- *     değer, daha önce blok gözlenen 1500ms ve 2000ms'nin bile ALTINDA — yani
- *     kod tabanının kendi deney geçmişine göre önceki denemelerden DAHA
- *     YÜKSEK 403/429 blok riski taşıyor. "Risksiz" bir seçim değil, bilinçli
- *     bir hız/güvenilirlik trade-off'u. Blok sıklığı artarsa admin panelinde
- *     "Oyuncu Mevki Taraması" durumundaki hata oranı ve gerçek işlenen hız
- *     (playersProcessed) izlenmeli; gerekirse tekrar yükseltilebilir.
- *   İzleme: admin panelindeki "Oyuncu Mevki Taraması" durumu (playersProcessed
- *   hızı, tekrar tekrar 1 oyuncunun birden çok saniyeye yayılması).
+ *   - 1500ms → yine yavaşlama gözlemlendi (blok azalmadı/yeterince azalmadı).
+ *   - 2000ms → ~50 oyuncu sorunsuz gitti, sonra yine yavaşladı.
+ *   - 2500ms → iyi gitti ama net sonuç belirsizdi.
+ *   - 3000ms → en kararlı sonuç (kullanıcı tahmini: eşik burada olabilir).
+ *   - 1200ms → hız için tekrar düşürüldü, ama gerçek kullanımda tek oyuncu
+ *     başına ~13s'ye kadar süren blok+retry döngülerine yol açtığı gözlendi.
  *
- * Oyuncu başı beklenen süre: ~1.2s bekleme + ~0.3-0.5s fetch ≈ 1.5-1.7s
- * (bloksuz senaryoda) — yani her oyuncu tek başına ~1.5-1.7 saniyede çekilir.
- * 200'lük batch + 250s'lik yumuşak bütçeyle batch başına ~145-165 oyuncu
- * işlenir. ~7600 kalan oyuncu için tahmini TOPLAM süre (bloksuz varsayımla):
- * 7600 × ~1.6s ≈ ~12160s ≈ ~3.4 saat — bu bir ALT SINIR; blok oluşursa
- * (1200ms'de öncekilere göre daha olası) gerçek süre bunun üstüne çıkar.
+ * KARAR — kullanıcı "hiç blok yemeyelim" önceliğini "hız"ın önüne koydu.
+ * Bu yüzden taban gecikme kod tabanının kendi deneyinde en kararlı sonucu
+ * veren 3000ms'e geri çekildi. ÜSTÜNE, iki ek katman eklendi:
+ *
+ *   1) Jitter (±500ms, bkz. getAdaptiveDelayMs) — her istek arasının BİREBİR
+ *      aynı sabit aralıkta olması, kendisi bir bot imzasıdır; küçük rastgele
+ *      sapma bunu kırar.
+ *   2) Adaptif eskalasyon — bir istek 403/429/5xx/timeout/soft-block ile
+ *      karşılaşırsa (bkz. transfermarkt-scraper.ts -> onBlockSignal), bu
+ *      sinyal Redis'e (~15dk TTL ile) yazılır ve SONRAKİ TÜM istekler arası
+ *      bekleme otomatik olarak +2s/seviye uzar (üst sınır 5 seviye = +10s).
+ *      Yani blok gördüğümüz anda sistem kendiliğinden daha temkinli hale
+ *      gelir, blok kesilirse birkaç dakika içinde kendiliğinden normale
+ *      döner — sabit bir değer yerine gerçek zamanlı geri besleme.
+ *
+ * Oyuncu başı beklenen süre (bloksuz, seviye 0): ~3s bekleme + ~0.3-0.5s
+ * fetch ≈ 3.3-3.5s. 250s'lik yumuşak bütçeyle çağrı başına ~70-75 oyuncu
+ * işlenir — önceki 1200ms tahminine (~73 oyuncu) yakın, ama artık bu sayı
+ * gerçek dünyada blok+retry döngüleri yüzünden EKSİK ÇIKMA riski taşımıyor.
+ * İzleme: admin panelindeki "Oyuncu Mevki Taraması" durumu.
  */
-const REQUEST_DELAY_MS = 1200
+const REQUEST_DELAY_MS = 3000
 
 /**
  * Route'un maxDuration'ından (300s) daha erken, kendi isteğimizle güvenli bir
@@ -199,7 +202,7 @@ export async function runPlayerPositionBackfillBatch(batchSize: number): Promise
     // aşımı (maxDuration) tarafından ortadan kesilmesini önler.
     if (Date.now() - startedAt > SOFT_TIME_BUDGET_MS) break
 
-    if (processed > 0) await sleep(REQUEST_DELAY_MS)
+    if (processed > 0) await sleep(await getAdaptiveDelayMs(REQUEST_DELAY_MS))
 
     let scraped: Awaited<ReturnType<typeof scrapePlayerPosition>> = null
     let scrapeFailed = false
