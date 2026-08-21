@@ -23,7 +23,7 @@ export function NavTabs() {
 
   return (
     <nav
-      className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-md"
+      className="sticky top-0 z-20 border-b border-border bg-background"
       aria-label={t("nav.ariaLabel")}
     >
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-1 px-3 sm:px-5">
