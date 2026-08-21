@@ -140,7 +140,7 @@ export async function setTmSession(session: TmSession): Promise<void> {
 
 export type TmSystem = "market-value" | "player-position"
 
-const TM_FIXED_DELAY_MS = 1500
+const TM_FIXED_DELAY_MS = 4000
 
 /** Sabit istekler arası gecikmeyi döndürür. */
 export async function getTmDelayMs(_system: TmSystem): Promise<number> {

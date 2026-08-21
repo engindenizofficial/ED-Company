@@ -159,7 +159,7 @@ function sleep(ms: number): Promise<void> {
  * yeter, ama gerçek (biraz yavaş) bir sunucu yanıtını da erken kesip
  * gereksiz bir retry'a yol açmayacak kadar geniş bir pay bırakır.
  */
-const FETCH_TIMEOUT_MS = 3_000
+const FETCH_TIMEOUT_MS = 8_000
 
 /**
  * Transfermarkt'ın rate-limit / bot koruması (403 Forbidden, 429 Too Many
@@ -249,7 +249,7 @@ export async function getAdaptiveDelayMs(system: TmSystem): Promise<number> {
 async function fetchHtml(
   url: string,
   system: TmSystem,
-  retries = 0,
+  retries = BLOCKING_RETRY_DELAYS_MS.length,
 ): Promise<string | null> {
   await ensureIdentityHydrated()
   let lastError: string | null = null
