@@ -159,7 +159,7 @@ function sleep(ms: number): Promise<void> {
  * yeter, ama gerçek (biraz yavaş) bir sunucu yanıtını da erken kesip
  * gereksiz bir retry'a yol açmayacak kadar geniş bir pay bırakır.
  */
-const FETCH_TIMEOUT_MS = 8_000
+const FETCH_TIMEOUT_MS = 3_000
 
 /**
  * Transfermarkt'ın rate-limit / bot koruması (403 Forbidden, 429 Too Many
@@ -184,7 +184,7 @@ const FETCH_TIMEOUT_MS = 8_000
  * (3000ms, bkz. player-position-sync.ts) sabit tutulmasında — yani retry
  * merdiveni bir GÜVENLİK AĞI, günlük çalışma modu değil.
  */
-const BLOCKING_RETRY_DELAYS_MS = [1500, 4000, 10000]
+const BLOCKING_RETRY_DELAYS_MS: number[] = []
 
 /**
  * Transfermarkt bazen 403/429/5xx DÖNMEDEN, düz 200 ile bir Cloudflare
@@ -249,7 +249,7 @@ export async function getAdaptiveDelayMs(system: TmSystem): Promise<number> {
 async function fetchHtml(
   url: string,
   system: TmSystem,
-  retries = BLOCKING_RETRY_DELAYS_MS.length,
+  retries = 0,
 ): Promise<string | null> {
   await ensureIdentityHydrated()
   let lastError: string | null = null
