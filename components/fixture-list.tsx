@@ -302,7 +302,7 @@ export function FixtureList({
                 <li key={f.id}>
                   <div
                     className={cn(
-                      "group relative w-full rounded-xl border px-4 py-3 text-left transition-all duration-150",
+                      "group relative isolate w-full rounded-xl border px-4 py-3 text-left transition-all duration-150",
                       active
                         ? "border-primary/60 bg-primary/[0.07] shadow-sm"
                         : "border-border/70 bg-card hover:border-border hover:bg-card/80",
