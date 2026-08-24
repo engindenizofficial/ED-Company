@@ -24,6 +24,7 @@ import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
 import { PlayerButton } from "@/components/player-panel"
+import { MatchButton } from "@/components/match-panel"
 import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
@@ -311,9 +312,10 @@ function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; t
           {status === "success" && data && (
             <div className="flex flex-col gap-1.5">
               {data.map(f => (
-                <div
+                <MatchButton
                   key={f.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-3 py-2.5"
+                  fixture={f}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-3 py-2.5 text-left hover:bg-secondary/50"
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex items-center gap-1.5">
@@ -338,7 +340,7 @@ function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; t
                     <span className="text-sm font-black tabular-nums text-foreground">{f.goalsHome} – {f.goalsAway}</span>
                     <span className="text-[10px] text-muted-foreground">{kickoff(f.date, locale)}</span>
                   </div>
-                </div>
+                </MatchButton>
               ))}
             </div>
           )}
@@ -404,13 +406,13 @@ function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: 
                       key={i}
                       className="flex items-center justify-between rounded-xl border border-border/60 bg-secondary/30 px-3 py-2"
                     >
-                      <div className="flex items-center gap-2">
+                      <TeamButton team={c.team} className="flex items-center gap-2">
                         {c.team.logo && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={c.team.logo} alt="" className="h-5 w-5 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={20} height={20} loading="lazy" decoding="async" />
                         )}
                         <span className="text-xs font-semibold text-foreground">{c.team.name}</span>
-                      </div>
+                      </TeamButton>
                       <span className="text-[10px] tabular-nums text-muted-foreground">
                         {c.start ? c.start.slice(0, 4) : "?"} – {c.end ? c.end.slice(0, 4) : t("team.present")}
                       </span>
@@ -646,7 +648,9 @@ function StandingsSection({ teamId, teamName, active }: { teamId: number; teamNa
                             >
                               <td className="py-1.5 pr-2 tabular-nums text-muted-foreground font-semibold">{r.rank}</td>
                               <td className={cn("py-1.5 pr-3 truncate max-w-[100px]", isTeam && "text-primary font-bold")}>
-                                {r.team}
+                                <TeamButton team={{ id: r.teamId, name: r.team, logo: r.teamLogo }} className="truncate">
+                                  {r.team}
+                                </TeamButton>
                               </td>
                               <td className="py-1.5 px-1.5 text-center tabular-nums text-muted-foreground">{r.played}</td>
                               <td className="py-1.5 px-1.5 text-center tabular-nums text-primary font-semibold">{r.win}</td>
@@ -752,39 +756,50 @@ function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direc
           : "border-border/60 bg-secondary/30",
       )}
     >
-      {/* Player identity */}
-      <PlayerButton
-        player={{ id: t.player.id, name: t.player.name, photo: t.player.photo ?? null }}
-        className="flex min-w-0 items-center gap-2.5"
-      >
-        {t.player.photo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={t.player.photo} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover border border-border" width={32} height={32} loading="lazy" decoding="async" />
-        ) : (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary border border-border">
-            <Users className="h-3.5 w-3.5 text-muted-foreground" />
-          </div>
-        )}
+      {/* Player identity — takım satırı ayrı bir buton olduğu için (aşağıda),
+          burada iç içe <button> oluşmaması adına oyuncu fotoğrafı/adı ile
+          takım akışı satırı iki ayrı kardeş buton olarak tutulur. */}
+      <div className="flex min-w-0 items-center gap-2.5">
+        <PlayerButton
+          player={{ id: t.player.id, name: t.player.name, photo: t.player.photo ?? null }}
+          className="flex min-w-0 shrink-0 items-center"
+        >
+          {t.player.photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={t.player.photo} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover border border-border" width={32} height={32} loading="lazy" decoding="async" />
+          ) : (
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary border border-border">
+              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+          )}
+        </PlayerButton>
         <div className="min-w-0 text-left">
-          <p className="truncate text-xs font-semibold text-foreground hover:text-primary transition-colors">
+          <PlayerButton
+            player={{ id: t.player.id, name: t.player.name, photo: t.player.photo ?? null }}
+            className="block truncate text-xs font-semibold text-foreground"
+          >
             {t.player.name}
-          </p>
+          </PlayerButton>
           {/* Transfer flow: from → to with logos */}
           <div className="flex items-center gap-1 mt-0.5">
-            {fromTeam.logo && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={fromTeam.logo} alt="" className="h-3 w-3 object-contain opacity-70 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={12} height={12} loading="lazy" decoding="async" />
-            )}
-            <span className="text-[10px] text-muted-foreground truncate">{fromTeam.name}</span>
+            <TeamButton team={fromTeam} className="flex items-center gap-1 min-w-0">
+              {fromTeam.logo && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={fromTeam.logo} alt="" className="h-3 w-3 object-contain opacity-70 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={12} height={12} loading="lazy" decoding="async" />
+              )}
+              <span className="text-[10px] text-muted-foreground truncate">{fromTeam.name}</span>
+            </TeamButton>
             <span className="text-[10px] text-muted-foreground">→</span>
-            {toTeam.logo && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={toTeam.logo} alt="" className="h-3 w-3 object-contain opacity-70 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={12} height={12} loading="lazy" decoding="async" />
-            )}
-            <span className="text-[10px] text-muted-foreground truncate">{toTeam.name}</span>
+            <TeamButton team={toTeam} className="flex items-center gap-1 min-w-0">
+              {toTeam.logo && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={toTeam.logo} alt="" className="h-3 w-3 object-contain opacity-70 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={12} height={12} loading="lazy" decoding="async" />
+              )}
+              <span className="text-[10px] text-muted-foreground truncate">{toTeam.name}</span>
+            </TeamButton>
           </div>
         </div>
-      </PlayerButton>
+      </div>
 
       {/* Type + date */}
       <div className="flex shrink-0 flex-col items-end gap-1">

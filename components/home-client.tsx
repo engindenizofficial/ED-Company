@@ -1,23 +1,16 @@
 "use client"
 
-import { LoaderCircle, X } from "lucide-react"
+import { LoaderCircle } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
 
-import { AnalysisPanel } from "@/components/analysis-panel"
 import { FixtureList } from "@/components/fixture-list"
 import { SuccessPanel } from "@/components/success-panel"
 import { TeamSearchBar } from "@/components/team-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useFavorites } from "@/contexts/favorites-context"
 import { useLanguage } from "@/contexts/language-context"
+import { useMatchPanel } from "@/contexts/match-context"
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
-import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
-import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
-import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
-import { PanelDragHandle } from "@/components/panel-drag-handle"
-import { useSession } from "@/lib/auth-client"
-import { isAdminEmail } from "@/lib/admin"
 import { cn } from "@/lib/utils"
 import type { Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
 
@@ -52,8 +45,6 @@ function formatDateLabel(iso: string, locale: string): string {
 }
 
 // Statü grupları
-const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
-const LIVE_OR_FINISHED = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE", "FT", "AET", "PEN", "AWD", "WO"])
 const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "AWD", "WO"])
 
 function actualWinner(homeGoals: number, awayGoals: number): "home" | "away" | "draw" {
@@ -62,44 +53,21 @@ function actualWinner(homeGoals: number, awayGoals: number): "home" | "away" | "
   return "draw"
 }
 
-interface HomeClientProps {
-  /**
-   * /mac/[id] sayfasından (paylaşılan link / direkt ziyaret) geldiğimizde
-   * dolu olur. Bugünün fikstür listesinde bu ID varsa oradan seçilir; yoksa
-   * (maç bugün oynanmıyorsa) tek başına /api/fixtures/[id] üzerinden çekilir.
-   */
-  initialFixtureId?: number
-  /**
-   * /mac/[id] sayfasının sunucu tarafında (generateMetadata ile aynı anda)
-   * zaten çekmiş olduğu maç verisi. Doluysa panel, fikstür listesinin
-   * yüklenmesini veya ayrıca bir client-side fetch'i beklemeden ilk
-   * render'da anında açılır — böylece kullanıcı önce ana sayfanın "dönen"
-   * halini görüp sonra panelin açılmasını beklemek zorunda kalmaz.
-   */
-  initialFixture?: Fixture
-}
-
-export function HomeClient({ initialFixtureId, initialFixture }: HomeClientProps) {
+export function HomeClient() {
   // Kullanıcının ana sayfadan geçiş yapabildiği "Dün" / "Bugün" / "Yarın"
   // sekmesi. Her üç tarih de TR saatiyle hesaplanır, gece 00:00'da (TR
   // saati) otomatik olarak bir gün kayar.
   const [dateTab, setDateTab] = useState<"yesterday" | "today" | "tomorrow">("today")
   const date = dateTab === "yesterday" ? yesterdayTR() : dateTab === "tomorrow" ? tomorrowTR() : todayTR()
-  const router = useRouter()
   const { favorites } = useFavorites()
   const { t, locale } = useLanguage()
-  const { data: session } = useSession()
-  const isAdmin = isAdminEmail(session?.user?.email)
-  // initialFixture varsa panel state'i baştan doldurulur (lazy initializer) —
-  // böylece ilk render'da bile panel zaten açık gelir, ayrı bir effect/render
-  // turuna gerek kalmaz.
-  const [selected, setSelected] = useState<Fixture | null>(() => initialFixture ?? null)
+  // Maç paneli artık global bir context'te (MatchContext, kök layout'ta
+  // sağlanır) yaşıyor — bkz. components/match-panel.tsx. Bu sayede takım/lig
+  // panelinden bir maça tıklamak da aynı paneli açabiliyor.
+  const { panel: matchPanel, openMatch, closeMatch, syncFixture } = useMatchPanel()
 
   const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(null)
   const [fixturesLoading, setFixturesLoading] = useState(true)
-
-  const [prediction, setPrediction] = useState<MatchPrediction | null>(null)
-  const [predictionLoading, setPredictionLoading] = useState(false)
 
   const [predictionResults, setPredictionResults] = useState<PredictionResult[]>([])
 
@@ -113,12 +81,6 @@ export function HomeClient({ initialFixtureId, initialFixture }: HomeClientProps
 
   // Hangi fixtureId'ler için sonuç zaten kaydedildi (çift kayıt önlemi)
   const savedResultIds = useRef<Set<number>>(new Set())
-
-  // /mac/[id] üzerinden geldiysek, o ID zaten (tekli fetch ile) açıldı mı?
-  // initialFixture sunucudan zaten geldiyse (bkz. app/mac/[id]/page.tsx),
-  // panel ilk render'da doğrudan açıldığı için burada ayrıca bir fetch'e
-  // gerek yok — ref baştan true olarak başlar.
-  const openedInitialRef = useRef(!!initialFixture)
 
   // Ekranda gösterilen fixturesData hangi tarihe ait, onu tutar. "Maçlar
   // yükleniyor" animasyonu sadece istenen tarih henüz ekranda değilse
@@ -246,146 +208,6 @@ export function HomeClient({ initialFixtureId, initialFixture }: HomeClientProps
     }
   }, [fixturesLoading, fixturesData, autoCheckFinished])
 
-  // Tahmin yükleme — her durumda sadece cache'den okur, yeni tahmin oluşturmaz
-  const loadPrediction = useCallback(async (fixture: Fixture) => {
-    setPredictionLoading(true)
-    setPrediction(null)
-    try {
-      const res = await fetch(`/api/predict/cached?fixtureId=${fixture.id}`, { cache: "no-store" })
-      if (res.ok) {
-        const data = await res.json() as MatchPrediction
-        setPrediction(data)
-      } else {
-        setPrediction(null)
-      }
-    } catch {
-      setPrediction(null)
-    } finally {
-      setPredictionLoading(false)
-    }
-  }, [])
-
-  // Kullanıcı "Tahmin Al" butonuna basınca çağrılır — yeni tahmin üretir
-  const triggerPrediction = useCallback(async () => {
-    if (!selected || !PREDICTABLE_STATUSES.has(selected.statusShort)) return
-    setPredictionLoading(true)
-    setPrediction(null)
-    try {
-      const res = await fetch("/api/predict", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fixtureId: selected.id }),
-        cache: "no-store",
-      })
-      if (!res.ok) throw new Error("Tahmin alınamadı")
-      const data = await res.json() as MatchPrediction
-      setPrediction(data)
-    } catch {
-      setPrediction(null)
-    } finally {
-      setPredictionLoading(false)
-    }
-  }, [selected])
-
-  // Admin "tahmini sil" butonu — tahmini cache'ten, bekleyen listeden ve
-  // başarı panelinden (günlük + tüm zamanlar) komple siler. Sadece admin
-  // e-postasıyla giriş yapılmışsa AnalysisPanel bu callback'i kullanıma açar.
-  const handleDeletePrediction = useCallback(async () => {
-    if (!selected) return
-    const res = await fetch(`/api/predict?fixtureId=${selected.id}`, {
-      method: "DELETE",
-      cache: "no-store",
-    })
-    if (!res.ok) throw new Error("Tahmin silinemedi")
-
-    setPrediction(null)
-    savedResultIds.current.delete(selected.id)
-    setPredictionResults((prev) => prev.filter((r) => r.fixtureId !== selected.id))
-  }, [selected])
-
-  // Tahmin hazır olduğunda, bitmiş maçlar için otomatik sonuç kaydet
-  const saveResultIfNeeded = useCallback(async (
-    fixture: Fixture,
-    pred: MatchPrediction | null,
-  ) => {
-    if (!pred) return
-    if (!FINISHED_STATUSES.has(fixture.statusShort)) return
-    if (savedResultIds.current.has(fixture.id)) return
-
-    const homeGoals = fixture.goalsHome
-    const awayGoals = fixture.goalsAway
-
-    if (homeGoals == null || awayGoals == null) return
-
-    const winner = actualWinner(homeGoals, awayGoals)
-
-    try {
-      const res = await fetch("/api/prediction-results", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fixtureId: fixture.id,
-          homeName: fixture.home.name,
-          awayName: fixture.away.name,
-          predictedHome: pred.homeScore,
-          predictedAway: pred.awayScore,
-          predictedWinner: pred.winner,
-          actualHome: homeGoals,
-          actualAway: awayGoals,
-          actualWinner: winner,
-          confidence: pred.confidence,
-          modelVotes: pred.modelVotes ?? [],
-        }),
-        cache: "no-store",
-      })
-      if (res.ok) {
-        savedResultIds.current.add(fixture.id)
-        // Başarı panelini güncelle
-        const data = await res.json() as { ok: boolean; result: PredictionResult }
-        if (data.ok) {
-          setPredictionResults((prev) => {
-            const idx = prev.findIndex((r) => r.fixtureId === fixture.id)
-            if (idx >= 0) {
-              const next = [...prev]
-              next[idx] = data.result
-              return next
-            }
-            return [...prev, data.result]
-          })
-        }
-      }
-    } catch {
-      // sessizce geç
-    }
-  }, [])
-
-  // Sadece gerçekten farklı bir maça geçildiğinde tahmini yeniden yükleriz.
-  // "selected" objesi 30 saniyelik otomatik yenilemede aynı maç için de yeni
-  // bir referansla güncellenir (bkz. fixturesData senkron effect'i aşağıda);
-  // id aynı kalırken bu effect'i tekrar tetiklemek, AI tahmin kartını her
-  // yenilemede "hazırlanıyor" spinner'ına düşürüp animasyonun geri gelmesine
-  // yol açıyordu. Diğer bölümler (maç olayları, istatistikler vb.) sessiz
-  // yenileme kuralına uyarken bu kart uymuyordu — id bazlı kontrolle eşitliyoruz.
-  const loadedPredictionFixtureIdRef = useRef<number | null>(null)
-  useEffect(() => {
-    if (!selected) {
-      loadedPredictionFixtureIdRef.current = null
-      setPrediction(null)
-      return
-    }
-    if (loadedPredictionFixtureIdRef.current === selected.id) return
-    loadedPredictionFixtureIdRef.current = selected.id
-    loadPrediction(selected)
-  }, [selected, loadPrediction])
-
-  // Tahmin hazır olduğunda bitmiş maçlar için sonuç kaydet
-  useEffect(() => {
-    if (!selected) return
-    if (predictionLoading) return
-    saveResultIfNeeded(selected, prediction)
-  }, [selected, prediction, predictionLoading, saveResultIfNeeded])
-
-
   const handleRefresh = useCallback(async () => {
     if (isRefreshingRef.current) return
     isRefreshingRef.current = true
@@ -423,72 +245,28 @@ export function HomeClient({ initialFixtureId, initialFixture }: HomeClientProps
   // performansları / maç istatistikleri sekmelerinde de kullanılıyor.
   useAutoRefresh(handleRefresh, true)
 
-  // Fikstür listesi her yenilendi��inde, o an açık olan maç paneli (varsa)
-  // da aynı listeden gelen en güncel fixture nesnesiyle senkronize edilir.
-  // Bunu yapmazsak "selected" ilk tıklandığı andaki skor/dakika bilgisinde
-  // donuk kalır — panel açıkken 30 saniyelik otomatik yenilemeler fixturesData'yı
-  // güncellese de panelin kendi state'i hiç güncellenmezdi. Bugünün listesinde
-  // olmayan bir maç (örn. /mac/[id] ile tekli fetch edilmiş) burada
-  // bulunamazsa mevcut "selected" değeri korunur, sıfırlanmaz.
+  // Fikstür listesi her yenilendiğinde, o an açık olan maç paneli (varsa)
+  // da aynı listeden gelen en güncel fixture nesnesiyle senkronize edilir —
+  // bu mantık artık MatchContext'in syncFixture metoduna taşındı. Bunu
+  // yapmazsak panel ilk tıklandığı andaki skor/dakika bilgisinde donuk kalır
+  // — panel açıkken 30 saniyelik otomatik yenilemeler fixturesData'yı
+  // güncellese de panelin kendi state'i hiç güncellenmezdi. Bugünün
+  // listesinde olmayan bir maç (örn. /mac/[id] ile tekli fetch edilmiş)
+  // burada bulunamazsa mevcut panel değeri korunur, sıfırlanmaz.
   useEffect(() => {
     if (!fixturesData) return
-    setSelected((cur) => {
-      if (!cur) return cur
-      const updated = fixturesData.fixtures?.find((f) => f.id === cur.id)
-      return updated ?? cur
-    })
-  }, [fixturesData])
-
-  // /mac/[id] ile geldiysek: önce bugünün fikstür listesinde ara, orada
-  // yoksa (maç bugün oynanmıyorsa) tek başına çek. Bu, initialFixtureId
-  // değişmediği sürece (aynı sayfada başka bir maça tıklanmadığı sürece)
-  // sadece bir kez çalışır.
-  useEffect(() => {
-    if (!initialFixtureId || openedInitialRef.current) return
-
-    const fromList = fixturesData?.fixtures?.find((f) => f.id === initialFixtureId)
-    if (fromList) {
-      openedInitialRef.current = true
-      setSelected(fromList)
-      return
-    }
-
-    // Bugünün listesi henüz yüklenmediyse bekle (fixturesLoading true).
-    if (fixturesLoading) return
-
-    // Liste yüklendi ama maç bu listede yok — tek başına çek.
-    openedInitialRef.current = true
-    fetch(`/api/fixtures/${initialFixtureId}`, { cache: "no-store" })
-      .then((res) => (res.ok ? (res.json() as Promise<Fixture>) : null))
-      .then((fixture) => {
-        if (fixture) setSelected(fixture)
-        else router.replace("/")
-      })
-      .catch(() => router.replace("/"))
-  }, [initialFixtureId, fixturesData, fixturesLoading, router])
-
-  useBodyScrollLock(!!selected)
-  useCloseOnBackButton(
-    !!selected,
-    () => {
-      setSelected(null)
-      // /mac/[id] üzerinden geldiysek (direkt ziyaret/paylaşılan link) panel
-      // kapatılınca adres çubuğunu da "/" a döndürüyoruz — bkz.
-      // hooks/use-close-on-back-button.ts'deki "alreadyAtUrl" davranışı:
-      // bu durumda history.back() çağrılmaz, URL değişikliği bize kalır.
-      if (initialFixtureId) router.replace("/")
-    },
-    selected ? `/mac/${selected.id}` : undefined,
-  )
-
-  const closeSelected = useCallback(() => setSelected(null), [])
-  const { style: swipeStyle, handlers: swipeHandlers } = useSwipeToClose(closeSelected)
+    syncFixture(fixturesData.fixtures ?? [])
+  }, [fixturesData, syncFixture])
 
   const fixtures = useMemo(() => fixturesData?.fixtures ?? [], [fixturesData])
 
   const handleSelect = useCallback((f: Fixture) => {
-    setSelected((cur) => (cur?.id === f.id ? null : f))
-  }, [])
+    if (matchPanel?.fixture.id === f.id) {
+      closeMatch()
+      return
+    }
+    openMatch(f)
+  }, [matchPanel, openMatch, closeMatch])
 
   return (
     <div className="min-h-screen bg-background">
@@ -598,56 +376,12 @@ export function HomeClient({ initialFixtureId, initialFixture }: HomeClientProps
         ) : (
           <FixtureList
             fixtures={fixtures}
-            selectedId={selected?.id ?? null}
+            selectedId={matchPanel?.fixture.id ?? null}
             onSelect={handleSelect}
             favorites={favorites}
           />
         )}
       </main>
-
-      {/* Match panel — full screen */}
-      {selected && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col bg-background"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${selected.home.name} - ${selected.away.name} ${t("home.matchAnalysis")}`}
-          style={swipeStyle}
-        >
-          {/* Top bar — aşağı sürüklenerek panel kapatılabilir (mobil) */}
-          <div className="flex shrink-0 flex-col border-b border-border bg-card" {...swipeHandlers}>
-            <PanelDragHandle />
-            <div className="flex items-center justify-between gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-foreground">
-                  {selected.home.name} – {selected.away.name}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">{selected.league.name}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                aria-label={t("common.close")}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto px-4 py-4">
-            <AnalysisPanel
-              fixture={selected}
-              prediction={prediction}
-              predictionLoading={predictionLoading}
-              onPredict={triggerPrediction}
-              isAdmin={isAdmin}
-              onDeletePrediction={handleDeletePrediction}
-            />
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { getFixtureById } from "@/lib/api-football"
 import { getServerLocale } from "@/lib/i18n/server-locale"
 import { translate } from "@/lib/i18n/dictionaries"
 import { HomeClient } from "@/components/home-client"
+import { MatchUrlOpener } from "@/components/match-url-opener"
 
 export const dynamic = "force-dynamic"
 
@@ -43,11 +44,12 @@ export async function generateMetadata({ params }: MatchPageProps): Promise<Meta
 }
 
 // Bu route, ana sayfanın (app/page.tsx) aynı HomeClient component'ini
-// render eder, sadece bir initialFixtureId ile — HomeClient bu ID'yi bugünün
-// fikstür listesinde bulur ya da (listede yoksa) tek başına çeker ve maç
-// panelini otomatik açar. Böylece bir maça paylaşılabilir/yenilenebilir bir
-// URL kazandırılırken ana sayfanın tüm mantığı (canlı yenileme, tahminler,
-// favori takımlar vb.) tekrar yazılmadan aynen kullanılır.
+// render eder — maç paneli artık global bir context'te (MatchContext, kök
+// layout'ta sağlanır) yaşadığı için HomeClient'e artık initialFixtureId /
+// initialFixture geçmiyoruz. Bunun yerine MatchUrlOpener render edilir: o da
+// sunucuda zaten çekilmiş olan fixture'ı (varsa) openMatch'e geçerek maç
+// panelini otomatik açar — takım/lig panelinden bir maça tıklamak da aynı
+// global paneli açtığı için davranış artık tüm giriş noktalarında ortak.
 //
 // Bkz. app/takim/[id]/page.tsx — SEO/crawler için aynı düzeltme: bu sayfa
 // artık sunucuda maçın gerçek içeriğini (ev sahibi - konuk, skor, tarih)
@@ -84,14 +86,15 @@ export default async function MatchPage({ params }: MatchPageProps) {
         {fixture?.venue && <p>{fixture.venue}</p>}
       </main>
       {/*
-        fixture zaten burada (sunucuda) çekildiği için initialFixture olarak
-        da geçiyoruz — HomeClient bu sayede maç panelini ilk render'da
-        anında açar, "ana ekranda dönüp sonra panel açılması" (bugünün
-        fikstür listesinin client'ta yüklenmesini bekleme) ortadan kalkar.
-        Maç bulunamazsa (fixture null) HomeClient eski davranışına
-        (initialFixtureId ile tekli fetch) geri döner.
+        fixture zaten burada (sunucuda) çekildiği için MatchUrlOpener'a
+        initialFixture olarak da geçiyoruz — bu sayede maç paneli ilk
+        render'da anında açılır, "ana ekranda dönüp sonra panel açılması"
+        (bugünün fikstür listesinin client'ta yüklenmesini bekleme) ortadan
+        kalkar. Maç bulunamazsa (fixture null) MatchContext eski davranışına
+        (yalnızca id ile tekli fetch) geri döner.
       */}
-      <HomeClient initialFixtureId={Number(id)} initialFixture={fixture ?? undefined} />
+      <HomeClient />
+      <MatchUrlOpener id={Number(id)} fixture={fixture ?? undefined} />
     </>
   )
 }

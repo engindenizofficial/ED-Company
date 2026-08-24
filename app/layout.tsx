@@ -12,6 +12,8 @@ import { LeagueProvider } from '@/contexts/league-context'
 import { LeaguePanel } from '@/components/league-panel'
 import { PlayerProvider } from '@/contexts/player-context'
 import { PlayerPanel } from '@/components/player-panel'
+import { MatchProvider } from '@/contexts/match-context'
+import { MatchPanel } from '@/components/match-panel'
 import { PanelRouteGuard } from '@/components/panel-route-guard'
 import { PwaUpdateWatcher } from '@/components/pwa-update-watcher'
 import { PushSoundListener } from '@/components/push-sound-listener'
@@ -152,17 +154,20 @@ export default async function RootLayout({
             <LeagueProvider>
               <TeamProvider>
                 <PlayerProvider>
-                  <FavoritesProvider>
-                    <PanelRouteGuard />
-                    <NavTabs />
-                    <LoginPromptModal />
-                    {children}
-                    <SiteFooter />
-                    <TeamPanel />
-                    <LeaguePanel />
-                    <PlayerPanel />
-                    <Toaster />
-                  </FavoritesProvider>
+                  <MatchProvider>
+                    <FavoritesProvider>
+                      <PanelRouteGuard />
+                      <NavTabs />
+                      <LoginPromptModal />
+                      {children}
+                      <SiteFooter />
+                      <TeamPanel />
+                      <LeaguePanel />
+                      <PlayerPanel />
+                      <MatchPanel />
+                      <Toaster />
+                    </FavoritesProvider>
+                  </MatchProvider>
                 </PlayerProvider>
               </TeamProvider>
             </LeagueProvider>

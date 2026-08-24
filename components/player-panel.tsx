@@ -28,6 +28,8 @@ import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
 import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
+import { TeamButton } from "@/components/team-panel"
+import { LeagueButton } from "@/components/league-panel"
 import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import { formatMarketValueEur } from "@/lib/market-value-format"
@@ -244,7 +246,16 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-foreground">
-                    {s.teams.length > 1 ? s.teams.map((t) => t.name).join(" • ") : s.team.name}
+                    {s.teams.length > 1 ? (
+                      s.teams.map((team, i) => (
+                        <span key={team.id}>
+                          {i > 0 && " • "}
+                          <TeamButton team={team}>{team.name}</TeamButton>
+                        </span>
+                      ))
+                    ) : (
+                      <TeamButton team={s.team}>{s.team.name}</TeamButton>
+                    )}
                   </p>
                   <div className="flex items-center gap-1.5">
                     {s.league.logo && (
@@ -252,7 +263,11 @@ function SeasonStatsSection({ playerId, playerName, active }: { playerId: number
                       <img src={s.league.logo} alt="" className="h-3.5 w-3.5 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={14} height={14} loading="lazy" decoding="async" />
                     )}
                     <p className="truncate text-[11px] text-muted-foreground">
-                      {s.leagueNames.length > 0 ? s.leagueNames.join(" • ") : s.league.name}
+                      {s.leagueNames.length > 0 ? (
+                        s.leagueNames.join(" • ")
+                      ) : (
+                        <LeagueButton league={{ ...s.league, flagUrl: null }}>{s.league.name}</LeagueButton>
+                      )}
                     </p>
                   </div>
                 </div>
