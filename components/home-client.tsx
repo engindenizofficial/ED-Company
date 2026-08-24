@@ -150,23 +150,17 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
   )
 
   // Ekranda gösterilen fixturesData hangi tarihe ait, onu tutar. "Maçlar
-  // yükleniyor" animasyonu sadece istenen tarih henüz ekranda değilse
-  // (ilk yükleme veya sekme değişimi) gösterilir — arka planda otomatik
-  // yenilenirken (aynı tarih için, fixturesData zaten güncelse) liste
-  // sessizce güncellenir, kullanıcı bir yükleniyor ekranı görmez.
-  //
-  // Önceden bu kontrol sadece `fixturesData === null` olup olmadığına
-  // bakıyordu; bu yüzden "Dün/Bugün/Yarın" sekmesi değiştirildiğinde eski
-  // tarihin listesi ekranda donuk kalıyor, yeni veri gelene kadar hiçbir
-  // görsel geri bildirim olmuyordu (kullanıcıya "birkaç saniye hiçbir şey
-  // olmuyor, sonra birden değişiyor" hissi veriyordu).
+  // yükleniyor" animasyonu artık SADECE gerçek ilk yüklemede (elimizde hiç
+  // veri yokken) gösterilir. "Dün/Bugün/Yarın" sekmesi değiştirildiğinde
+  // spinner'a dönmüyoruz — çünkü o geçiş zaten kendi rotasına sahip
+  // (bkz. DATE_TAB_PATHS) ve router.push ile sunucuda önceden çekilmiş
+  // veriyle gelir; burada eski liste ekranda kalır, yeni veri gelince
+  // sessizce yerini alır. Bu sayede sekmeler arasında rahatsız edici bir
+  // "yükleniyor" animasyonu görünmez.
   const loadedDateRef = useRef<string | null>(initialFixturesData?.date ?? null)
 
   const loadFixtures = useCallback(async (forceRefresh = false) => {
     const requestedDate = date
-    if (loadedDateRef.current !== requestedDate) {
-      setFixturesLoading(true)
-    }
     try {
       const url = `/api/fixtures?date=${requestedDate}${forceRefresh ? "&refresh=1" : ""}`
       const res = await fetch(url, { cache: "no-store" })
