@@ -271,7 +271,15 @@ export function HomeClient() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Header */}
-      <header className="border-b border-border/60 bg-background/80 backdrop-blur-md">
+      {/* relative + z-20: "backdrop-blur-md" kendi stacking context'ini yarattığı
+          için (CSS spec'inde filter/backdrop-filter bunu tetikler) z-index'i
+          "auto" kalan bu header, DOM'da sonra gelen <main> (fikstür listesi)
+          tarafından ÜSTÜNE çizilebiliyordu — arama kutusu açık dropdown'ı bu
+          yüzden altta kalan maç kartlarıyla karışık/bulaşık görünüyordu.
+          Açık pozitif z-index (nav-tabs.tsx'teki sticky header'la aynı desen)
+          header'ın (ve içindeki dropdown'ın) her zaman main'in üzerinde
+          çizilmesini garantiler. */}
+      <header className="relative z-20 border-b border-border/60 bg-background/80 backdrop-blur-md">
         <div className="mx-auto max-w-4xl px-5">
           {/* Top row: date label + actions */}
           <div className="flex items-center justify-between gap-3 py-3">

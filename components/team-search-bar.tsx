@@ -187,7 +187,14 @@ export function TeamSearchBar() {
           id="team-search-results"
           role="listbox"
           aria-label={t("search.results")}
-          className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-border/60 bg-card/98 shadow-2xl backdrop-blur-xl"
+          // ÖNEMLİ — arka plan tam OPAK (bg-card, backdrop-blur YOK): bu dropdown,
+          // kendisi de "backdrop-blur-md" kullanan <header>'ın içinde yaşıyor.
+          // İç içe iki backdrop-filter (header + burada eskiden vardı: backdrop-blur-xl)
+          // Chromium'da bilinen bir render hatasına yol açıyor — altındaki maç
+          // kartlarının/panelin metni ("22:00", "0", "CANLI" gibi) hafif şeffaf
+          // "hayalet" olarak dropdown'ın içinden sızıp görünüyordu. Arka planı
+          // tamamen opak yapıp iç backdrop-filter'ı kaldırmak sorunu çözüyor.
+          className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-border/60 bg-card shadow-2xl"
         >
           {!hasAnyResults && !loading ? (
             <div className="flex flex-col items-center gap-1.5 px-4 py-8 text-center">
