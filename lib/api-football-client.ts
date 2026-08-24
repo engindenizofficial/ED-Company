@@ -154,10 +154,22 @@ async function doFetchPage<T>(
   for (const [k, v] of Object.entries(params)) search.set(k, String(v))
   const url = `${BASE_URL}${path}?${search.toString()}`
 
-  const fetchInit: RequestInit & { next?: { revalidate: number } } =
-    options.cache === "no-store"
-      ? { headers: { "x-apisports-key": apiKey }, cache: "no-store" }
-      : { headers: { "x-apisports-key": apiKey }, next: { revalidate: options.revalidate ?? 60 } }
+  // ÖNEMLİ — burada KASITLI olarak Next.js'in `next: { revalidate }` fetch
+  // cache'i KULLANILMIYOR, her zaman "no-store" ile gerçek ağ isteği
+  // yapılıyor. Sebep: Next'in zaman tabanlı fetch cache'i "stale-while-
+  // revalidate" modeliyle çalışır — süre dolduğunda ÖNCE bayat veriyi döner,
+  // arka planda yenilemeyi tetikler. API-Football sık sık 429 (hız sınırı)
+  // döndürdüğü için (bkz. yukarıdaki yorum) bu arka plan yenilemesi
+  // başarısız olabilir; başarısız olduğunda Next eski cache girdisini
+  // DEĞİŞTİRMEZ ve bayat veri süresiz olarak (bir sonraki başarılı
+  // yenilemeye kadar) sunulmaya devam eder. Bu, maç olayları / oyuncu
+  // performansları / maç istatistikleri gibi canlı verilerin "eskimiş"
+  // görünmesinin gerçek sebebiydi. Tazelik kontrolü artık TAMAMEN bizim
+  // kendi `responseCache` (yukarıda, TTL = options.revalidate) katmanımızda
+  // yapılıyor: o katman başarısız yenilemede eski veriyi ASLA sonsuza kadar
+  // tutmaz — TTL dolduğunda silinir ve bir sonraki istek gerçek ağ isteğine
+  // düşer (yeniden deneme/backoff mantığı zaten burada, doFetchPage'de var).
+  const fetchInit: RequestInit = { headers: { "x-apisports-key": apiKey }, cache: "no-store" }
 
   let lastError: unknown = null
 
