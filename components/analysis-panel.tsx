@@ -270,6 +270,7 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
             fixtureId={fixture.id}
             teamName={celebration.team === "home" ? fixture.home.name : fixture.away.name}
             teamLogo={celebration.team === "home" ? fixture.home.logo : fixture.away.logo}
+            goalCount={celebration.goalCount}
             onDone={advance}
           />
         ) : null}

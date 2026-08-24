@@ -17,16 +17,20 @@ export function useGoalCelebrationQueue(goalsHome: number | null, goalsAway: num
     home: goalsHome,
     away: goalsAway,
   })
-  const [queue, setQueue] = useState<Array<{ team: "home" | "away"; key: number }>>([])
+  const [queue, setQueue] = useState<Array<{ team: "home" | "away"; key: number; goalCount: number }>>([])
 
   useEffect(() => {
     const prev = prevRef.current
-    const additions: Array<{ team: "home" | "away"; key: number }> = []
+    const additions: Array<{ team: "home" | "away"; key: number; goalCount: number }> = []
+    // goalCount, o kutlamanın tam olarak takımın KAÇINCI golü olduğunu
+    // taşır (ör. A takımının 2. golü -> goalCount: 2). Overlay bu sayıyı
+    // events listesindeki index olarak kullanıp doğru golcüyü seçiyor;
+    // "en son gelen gol" gibi kayabilen bir varsayıma dayanmıyor.
     if (prev.home !== null && goalsHome !== null && goalsHome > prev.home) {
-      additions.push({ team: "home", key: celebrationKeySeq++ })
+      additions.push({ team: "home", key: celebrationKeySeq++, goalCount: goalsHome })
     }
     if (prev.away !== null && goalsAway !== null && goalsAway > prev.away) {
-      additions.push({ team: "away", key: celebrationKeySeq++ })
+      additions.push({ team: "away", key: celebrationKeySeq++, goalCount: goalsAway })
     }
     if (additions.length > 0) {
       setQueue((q) => [...q, ...additions])
@@ -60,10 +64,14 @@ interface GoalCelebrationOverlayProps {
   fixtureId: number
   teamName: string
   teamLogo: string
+  /** Bu kutlamanın takımın kaçıncı golü olduğu (1 = ilk gol, 2 = ikinci gol...).
+   * Golcüyü "events listesindeki en son gol" gibi kayabilen bir varsayımla
+   * değil, doğrudan bu index ile seçmek için kullanılır. */
+  goalCount: number
   onDone: () => void
 }
 
-export function GoalCelebrationOverlay({ fixtureId, teamName, teamLogo, onDone }: GoalCelebrationOverlayProps) {
+export function GoalCelebrationOverlay({ fixtureId, teamName, teamLogo, goalCount, onDone }: GoalCelebrationOverlayProps) {
   const { t } = useLanguage()
   const [color, setColor] = useState("hsl(var(--primary))")
   const [scorer, setScorer] = useState<Scorer | null>(null)
@@ -80,27 +88,48 @@ export function GoalCelebrationOverlay({ fixtureId, teamName, teamLogo, onDone }
 
   useEffect(() => {
     let active = true
-    fetch(`/api/fixtures/${fixtureId}/goal-scorer`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { goals?: Array<{ team: string; player: string | null; playerId: number | null }> } | null) => {
-        if (!active || !data?.goals?.length) return
-        // Bu takımın attığı gollerden en sonuncusu (dakikaya göre en yüksek) —
-        // yani az önce ekranda gördüğümüz gol.
-        const teamGoals = data.goals.filter((g) => g.team === teamName && g.player)
-        const last = teamGoals[teamGoals.length - 1]
-        if (last?.player) {
-          setScorer({
-            name: last.player,
-            photoUrl: last.playerId ? `https://media.api-sports.io/football/players/${last.playerId}.png` : null,
-          })
-        }
-      })
-      .catch(() => {})
+    let cancelled = false
+
+    // Events endpoint'i (dış API + kendi cache'imiz) bazen bu golü henüz
+    // içermeyebilir. "Elimizdeki listenin en sonuncusu" varsayımı YANLIŞ
+    // golcüyü gösterebiliyordu (ör. 2. gol için hâlâ 1. golün oyuncusu
+    // görünüyordu). Bunun yerine bu kutlamanın TAM OLARAK kaçıncı gol
+    // olduğunu (goalCount) index olarak kullanıyoruz; veri henüz o index'e
+    // ulaşmadıysa kısa aralıklarla birkaç kez yeniden deniyoruz.
+    const attempt = (retriesLeft: number) => {
+      fetch(`/api/fixtures/${fixtureId}/goal-scorer`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { goals?: Array<{ team: string; player: string | null; playerId: number | null }> } | null) => {
+          if (!active || cancelled) return
+          const teamGoals = data?.goals?.filter((g) => g.team === teamName && g.player) ?? []
+          const target = teamGoals[goalCount - 1]
+          if (target?.player) {
+            setScorer({
+              name: target.player,
+              photoUrl: target.playerId
+                ? `https://media.api-sports.io/football/players/${target.playerId}.png`
+                : null,
+            })
+            return
+          }
+          if (retriesLeft > 0) {
+            setTimeout(() => {
+              if (!cancelled) attempt(retriesLeft - 1)
+            }, 1200)
+          }
+        })
+        .catch(() => {})
+    }
+
+    attempt(3)
+
     return () => {
       active = false
+      cancelled = true
     }
-    // fixtureId ve teamName bu overlay'in ömrü boyunca sabittir (her gol için
-    // yeni bir key ile yeniden mount edilir), tek seferlik fetch yeterli.
+    // fixtureId, teamName ve goalCount bu overlay'in ömrü boyunca sabittir
+    // (her gol için yeni bir key ile yeniden mount edilir), tek seferlik
+    // deneme zinciri yeterli.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

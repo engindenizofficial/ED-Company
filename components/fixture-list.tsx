@@ -560,6 +560,7 @@ function FixtureCard({
               fixtureId={f.id}
               teamName={celebration.team === "home" ? f.home.name : f.away.name}
               teamLogo={celebration.team === "home" ? f.home.logo : f.away.logo}
+              goalCount={celebration.goalCount}
               onDone={advance}
             />
           ) : null}

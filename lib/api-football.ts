@@ -105,8 +105,13 @@ async function safeFetch<T>(
   path: string,
   params: Record<string, string | number>,
   revalidate = 60,
+  forceRefresh = false,
 ): Promise<T[]> {
-  return safeApiFootballFetch<T>(path, params, { revalidate })
+  // forceRefresh: apiFetch'teki gibi hem Next.js fetch cache'ini hem de
+  // api-football-client'taki bellek içi cache'i atlar. Gol kutlama
+  // animasyonu gibi "az önce oldu" anlarında 30s'lik events cache'i yanlış
+  // (eski) golcüyü göstermeye sebep olabildiği için kullanılır.
+  return safeApiFootballFetch<T>(path, params, forceRefresh ? { cache: "no-store" } : { revalidate })
 }
 
 // ---------------------------------------------------------------------------
@@ -410,7 +415,7 @@ export async function getTeamSeasonStats(
   }
 
   // API-Football /teams/statistics ayrıca fixtures.*.home / fixtures.*.away ve
-  // goals.*.average.home / .away alanlarını döndürür — ev sahibi avantajını
+  // goals.*.average.home / .away alanlarını döndür��r — ev sahibi avantajını
   // izole etmek için bunları kullanıyoruz. Hiç maç oynanmamışsa (played=0)
   // null döndürüyoruz ki prompt'ta yanıltıcı "0.0 gol" göstermeyelim.
   const buildSplit = (side: "home" | "away"): HomeAwaySplit | null => {
@@ -659,8 +664,8 @@ export async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
   return items
   }
 
-export async function getEvents(fixtureId: number): Promise<MatchEvent[]> {
-  const raw = await safeFetch<any>("/fixtures/events", { fixture: fixtureId }, 30)
+export async function getEvents(fixtureId: number, forceRefresh = false): Promise<MatchEvent[]> {
+  const raw = await safeFetch<any>("/fixtures/events", { fixture: fixtureId }, 30, forceRefresh)
   return raw.map((r) => ({
     minute: r.time?.elapsed ?? 0,
     extra: r.time?.extra ?? null,
