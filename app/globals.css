@@ -569,6 +569,33 @@
 }
 
 /* ---------------------------------------------------------------------- */
+/* Tablo satırları — puan durumu, gol kralı, asist kralı gibi tablolarda   */
+/* satırlar sırayla hafifçe soldan belirir. .table-row-in + --stagger-delay */
+/* ---------------------------------------------------------------------- */
+
+@keyframes table-row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.table-row-in {
+  animation: table-row-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--stagger-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .table-row-in {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
 /* Tema geçişi — koyu/açık mod değişirken renkler ani yerine yumuşak       */
 /* geçsin. Sadece geçiş sırasında document.documentElement'e eklenen       */
 /* .theme-transitioning sınıfı üzerinden, evrensel ama kısa süreli.        */

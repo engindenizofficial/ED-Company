@@ -15,7 +15,7 @@ import {
   X,
   Zap,
 } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react"
 import { useLeaguePanel, type LeaguePanelState } from "@/contexts/league-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
@@ -292,8 +292,12 @@ function StandingsSection({ leagueId, leagueName, active }: { leagueId: number; 
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
-                        {rows.map((r) => (
-                          <tr key={r.rank} className="transition-colors hover:bg-secondary/40">
+                        {rows.map((r, i) => (
+                          <tr
+                            key={r.rank}
+                            className="table-row-in transition-colors hover:bg-secondary/40"
+                            style={{ "--stagger-delay": `${Math.min(i * 30, 300)}ms` } as CSSProperties}
+                          >
                             <td className="py-2 pr-2 tabular-nums text-muted-foreground">{r.rank}</td>
                             <td className="py-2 pr-2">
                               <TeamButton
@@ -370,7 +374,11 @@ function TopScorersSection({ leagueId, leagueName, active }: { leagueId: number;
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {data.map((s, i) => (
-                    <tr key={s.player.id} className="transition-colors hover:bg-secondary/40">
+                    <tr
+                      key={s.player.id}
+                      className="table-row-in transition-colors hover:bg-secondary/40"
+                      style={{ "--stagger-delay": `${Math.min(i * 30, 300)}ms` } as CSSProperties}
+                    >
                       <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
                       <td className="py-2 pr-3">
                         <PlayerButton
@@ -432,7 +440,11 @@ function TopAssistsSection({ leagueId, leagueName, active }: { leagueId: number;
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {data.map((s, i) => (
-                    <tr key={s.player.id} className="transition-colors hover:bg-secondary/40">
+                    <tr
+                      key={s.player.id}
+                      className="table-row-in transition-colors hover:bg-secondary/40"
+                      style={{ "--stagger-delay": `${Math.min(i * 30, 300)}ms` } as CSSProperties}
+                    >
                       <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
                       <td className="py-2 pr-3">
                         <PlayerButton
@@ -493,7 +505,11 @@ function TopYellowCardsSection({ leagueId, leagueName, active }: { leagueId: num
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {data.map((c, i) => (
-                    <tr key={c.player.id} className="transition-colors hover:bg-secondary/40">
+                    <tr
+                      key={c.player.id}
+                      className="table-row-in transition-colors hover:bg-secondary/40"
+                      style={{ "--stagger-delay": `${Math.min(i * 30, 300)}ms` } as CSSProperties}
+                    >
                       <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
                       <td className="py-2 pr-3">
                         <PlayerButton
@@ -551,7 +567,11 @@ function TopRedCardsSection({ leagueId, leagueName, active }: { leagueId: number
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {data.map((c, i) => (
-                    <tr key={c.player.id} className="transition-colors hover:bg-secondary/40">
+                    <tr
+                      key={c.player.id}
+                      className="table-row-in transition-colors hover:bg-secondary/40"
+                      style={{ "--stagger-delay": `${Math.min(i * 30, 300)}ms` } as CSSProperties}
+                    >
                       <td className="py-2 pr-2 tabular-nums font-bold text-muted-foreground">{i + 1}</td>
                       <td className="py-2 pr-3">
                         <PlayerButton
