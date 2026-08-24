@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect, useRef, useState, type CSSProperties } from "react"
+import { AnimatePresence } from "motion/react"
 import { Clock, Star } from "lucide-react"
 import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
+import { GoalCelebrationOverlay } from "@/components/goal-celebration-overlay"
 import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import { useFavorites } from "@/contexts/favorites-context"
@@ -339,117 +341,187 @@ export function FixtureList({
 
           {/* Fixture cards */}
           <ul className="flex flex-col gap-1">
-            {group.items.map((f, index) => {
-              const active = f.id === selectedId
-              const live = isLive(f.statusShort)
-              const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
-              return (
-                <li key={f.id}>
-                  <div
-                    className={cn(
-                      "fixture-in-card group relative isolate w-full rounded-xl border px-4 py-3 text-left transition-all duration-200",
-                      active
-                        ? "border-primary/60 bg-primary/[0.07] shadow-sm"
-                        : "border-border/70 bg-card hover:-translate-y-0.5 hover:border-border hover:bg-card/80 hover:shadow-md",
-                    )}
-                    style={{ "--stagger-delay": `${Math.min(index * 35, 350)}ms` } as CSSProperties}
-                  >
-                    {live ? (
-                      <span
-                        key={`${f.goalsHome}-${f.goalsAway}`}
-                        className="goal-row-flash pointer-events-none absolute inset-0 z-0 rounded-xl bg-primary/10"
-                        aria-hidden="true"
-                      />
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => onSelect(f)}
-                      aria-pressed={active}
-                      aria-label={t("fixtureList.viewMatch", { home: f.home.name, away: f.away.name })}
-                      className="absolute inset-0 z-0 cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    />
-                    <div className="relative z-10 flex items-center gap-4 pointer-events-none">
-                      {/* Teams column */}
-                      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                        <TeamRow
-                          id={f.home.id}
-                          name={f.home.name}
-                          logo={f.home.logo}
-                          goals={f.goalsHome}
-                          played={played}
-                          isFavorite={teamFavoriteIds.has(f.home.id)}
-                          onToggleFavorite={() =>
-                            toggleFavorite({
-                              type: "team",
-                              itemId: f.home.id,
-                              name: f.home.name,
-                              logo: f.home.logo,
-                              country: null,
-                              flagUrl: null,
-                            })
-                          }
-                        />
-                        <TeamRow
-                          id={f.away.id}
-                          name={f.away.name}
-                          logo={f.away.logo}
-                          goals={f.goalsAway}
-                          played={played}
-                          isFavorite={teamFavoriteIds.has(f.away.id)}
-                          onToggleFavorite={() =>
-                            toggleFavorite({
-                              type: "team",
-                              itemId: f.away.id,
-                              name: f.away.name,
-                              logo: f.away.logo,
-                              country: null,
-                              flagUrl: null,
-                            })
-                          }
-                        />
-                      </div>
-
-                      {/* Divider */}
-                      <div className="h-9 w-px bg-border/50" />
-
-                      {/* Status column */}
-                      <div className="flex w-16 shrink-0 flex-col items-center gap-1">
-                        {live ? (
-                          <>
-                            <span className="flex items-center gap-1 text-[10px] font-bold tabular-nums text-destructive">
-                              <span className="relative flex h-1.5 w-1.5 shrink-0 items-center justify-center">
-                                <span className="live-ping-ring absolute inset-0 rounded-full bg-destructive" />
-                                <span className="relative h-1.5 w-1.5 rounded-full bg-destructive" />
-                              </span>
-                              {t("matchStatus.liveBadge")}
-                            </span>
-                            <span className="text-[11px] font-semibold tabular-nums text-foreground">{liveText(f, t)}</span>
-                          </>
-                        ) : played ? (
-                          <>
-                            <span className="text-[10px] font-medium text-muted-foreground">{t("matchStatus.completed")}</span>
-                            <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{statusLabel(f.statusShort, t)}</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-[10px] text-muted-foreground">{t("matchStatus.kickoffLabel")}</span>
-                            <span className="flex items-center gap-1 text-[13px] font-bold tabular-nums text-foreground">
-                              <Clock className="h-3 w-3 text-muted-foreground" />
-                              {kickoff(f.date, locale)}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </li>
-              )
-            })}
+            {group.items.map((f, index) => (
+              <FixtureCard
+                key={f.id}
+                f={f}
+                index={index}
+                active={f.id === selectedId}
+                onSelect={onSelect}
+                teamFavoriteIds={teamFavoriteIds}
+              />
+            ))}
           </ul>
         </div>
         )
       })}
     </div>
+  )
+}
+
+/** Bir maçta gol olduğunda kartın üstüne 5 saniyeliğine gösterilecek kutlama
+ * kuyruğunu yönetir. Aynı anda hem ev hem konuk gol atarsa (nadir de olsa),
+ * ikisi üst üste binmeden sırayla gösterilir. */
+function useGoalCelebrationQueue(goalsHome: number | null, goalsAway: number | null) {
+  const prevRef = useRef<{ home: number | null; away: number | null }>({
+    home: goalsHome,
+    away: goalsAway,
+  })
+  const [queue, setQueue] = useState<Array<{ team: "home" | "away" }>>([])
+
+  useEffect(() => {
+    const prev = prevRef.current
+    const additions: Array<{ team: "home" | "away" }> = []
+    if (prev.home !== null && goalsHome !== null && goalsHome > prev.home) {
+      additions.push({ team: "home" })
+    }
+    if (prev.away !== null && goalsAway !== null && goalsAway > prev.away) {
+      additions.push({ team: "away" })
+    }
+    if (additions.length > 0) {
+      setQueue((q) => [...q, ...additions])
+    }
+    prevRef.current = { home: goalsHome, away: goalsAway }
+  }, [goalsHome, goalsAway])
+
+  const current = queue[0] ?? null
+  const advance = () => setQueue((q) => q.slice(1))
+
+  return { current, advance }
+}
+
+function FixtureCard({
+  f,
+  index,
+  active,
+  onSelect,
+  teamFavoriteIds,
+}: {
+  f: Fixture
+  index: number
+  active: boolean
+  onSelect: (f: Fixture) => void
+  teamFavoriteIds: Set<number>
+}) {
+  const { toggleFavorite } = useFavorites()
+  const { t, locale } = useLanguage()
+  const live = isLive(f.statusShort)
+  const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
+  const { current: celebration, advance } = useGoalCelebrationQueue(f.goalsHome, f.goalsAway)
+
+  return (
+    <li>
+      <div
+        className={cn(
+          "fixture-in-card group relative isolate w-full rounded-xl border px-4 py-3 text-left transition-all duration-200",
+          active
+            ? "border-primary/60 bg-primary/[0.07] shadow-sm"
+            : "border-border/70 bg-card hover:-translate-y-0.5 hover:border-border hover:bg-card/80 hover:shadow-md",
+        )}
+        style={{ "--stagger-delay": `${Math.min(index * 35, 350)}ms` } as CSSProperties}
+      >
+        {live ? (
+          <span
+            key={`${f.goalsHome}-${f.goalsAway}`}
+            className="goal-row-flash pointer-events-none absolute inset-0 z-0 rounded-xl bg-primary/10"
+            aria-hidden="true"
+          />
+        ) : null}
+        <button
+          type="button"
+          onClick={() => onSelect(f)}
+          aria-pressed={active}
+          aria-label={t("fixtureList.viewMatch", { home: f.home.name, away: f.away.name })}
+          className="absolute inset-0 z-0 cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <div className="relative z-10 flex items-center gap-4 pointer-events-none">
+          {/* Teams column */}
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <TeamRow
+              id={f.home.id}
+              name={f.home.name}
+              logo={f.home.logo}
+              goals={f.goalsHome}
+              played={played}
+              isFavorite={teamFavoriteIds.has(f.home.id)}
+              onToggleFavorite={() =>
+                toggleFavorite({
+                  type: "team",
+                  itemId: f.home.id,
+                  name: f.home.name,
+                  logo: f.home.logo,
+                  country: null,
+                  flagUrl: null,
+                })
+              }
+            />
+            <TeamRow
+              id={f.away.id}
+              name={f.away.name}
+              logo={f.away.logo}
+              goals={f.goalsAway}
+              played={played}
+              isFavorite={teamFavoriteIds.has(f.away.id)}
+              onToggleFavorite={() =>
+                toggleFavorite({
+                  type: "team",
+                  itemId: f.away.id,
+                  name: f.away.name,
+                  logo: f.away.logo,
+                  country: null,
+                  flagUrl: null,
+                })
+              }
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="h-9 w-px bg-border/50" />
+
+          {/* Status column */}
+          <div className="flex w-16 shrink-0 flex-col items-center gap-1">
+            {live ? (
+              <>
+                <span className="flex items-center gap-1 text-[10px] font-bold tabular-nums text-destructive">
+                  <span className="relative flex h-1.5 w-1.5 shrink-0 items-center justify-center">
+                    <span className="live-ping-ring absolute inset-0 rounded-full bg-destructive" />
+                    <span className="relative h-1.5 w-1.5 rounded-full bg-destructive" />
+                  </span>
+                  {t("matchStatus.liveBadge")}
+                </span>
+                <span className="text-[11px] font-semibold tabular-nums text-foreground">{liveText(f, t)}</span>
+              </>
+            ) : played ? (
+              <>
+                <span className="text-[10px] font-medium text-muted-foreground">{t("matchStatus.completed")}</span>
+                <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{statusLabel(f.statusShort, t)}</span>
+              </>
+            ) : (
+              <>
+                <span className="text-[10px] text-muted-foreground">{t("matchStatus.kickoffLabel")}</span>
+                <span className="flex items-center gap-1 text-[13px] font-bold tabular-nums text-foreground">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  {kickoff(f.date, locale)}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Takıma özel, 5 saniyelik gol kutlama animasyonu — sadece bu kartı
+            kaplar, tam ekran değildir. */}
+        <AnimatePresence>
+          {celebration ? (
+            <GoalCelebrationOverlay
+              key={`${celebration.team}-${celebration.team === "home" ? f.goalsHome : f.goalsAway}`}
+              teamName={celebration.team === "home" ? f.home.name : f.away.name}
+              teamLogo={celebration.team === "home" ? f.home.logo : f.away.logo}
+              onDone={advance}
+            />
+          ) : null}
+        </AnimatePresence>
+      </div>
+    </li>
   )
 }
 

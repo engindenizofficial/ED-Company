@@ -510,6 +510,9 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       matchCount: "{{count}} maç",
       empty: "Gösterilecek maç bulunamadı.",
     },
+    goalCelebration: {
+      title: "GOL!",
+    },
     analysis: {
       tabEvents: "Maç Olayları",
       tabPlayerStats: "Oyuncu Performansları",
@@ -1500,6 +1503,9 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       addToFavorites: "Add {{name}} to favorites",
       matchCount: "{{count}} matches",
       empty: "No matches to show.",
+    },
+    goalCelebration: {
+      title: "GOAL!",
     },
     analysis: {
       tabEvents: "Match Events",
