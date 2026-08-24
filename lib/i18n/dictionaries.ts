@@ -933,7 +933,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       home: {
         title: "ED Company",
         description:
-          "Günün maçlarını AI Monte Carlo simülasyonuyla analiz eden ED Company motoru: skor tahmini, kazanma yüzdeleri ve taktiksel rapor.",
+          "Günün maçlarını YZ destekli simülasyonla analiz eden ED Company motoru: skor tahmini, kazanma yüzdeleri ve taktiksel rapor.",
       },
       games: {
         title: "Oyunlar | ED Company",
@@ -1893,7 +1893,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       home: {
         title: "ED Company",
         description:
-          "The ED Company engine analyzes today's matches with an AI Monte Carlo simulation: score predictions, win probabilities, and a tactical report.",
+          "The ED Company engine analyzes today's matches with an AI-powered simulation: score predictions, win probabilities, and a tactical report.",
       },
       games: {
         title: "Games | ED Company",

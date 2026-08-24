@@ -39,8 +39,8 @@ export const legalContent: Record<
           <h2>Çerezler ve Analiz Araçları</h2>
           <p>
             Sitemiz, oturum yönetimi ve tercihlerinizin (tema, dil) hatırlanması için zorunlu çerezler kullanır.
-            Ayrıca, site kullanımını anlamak için Google Analytics ve Vercel Analytics gibi analiz araçlarını
-            kullanırız. Bu araçlar, tarayıcınıza anonim tanımlayıcılar içeren çerezler yerleştirebilir.
+            Ayrıca, site kullanımını anlamak için Google Analytics gibi analiz araçlarını kullanırız. Bu araçlar,
+            tarayıcınıza anonim tanımlayıcılar içeren çerezler yerleştirebilir.
           </p>
 
           <h2>Reklamlar ve Google AdSense</h2>
@@ -98,9 +98,9 @@ export const legalContent: Record<
 
           <h2>Hizmetin Kapsamı</h2>
           <p>
-            ED Company, yapay zeka destekli Monte Carlo simülasyonları kullanarak futbol maçları için istatistiksel
-            skor tahminleri, kazanma olasılıkları ve taktiksel analizler sunar. Platform ayrıca oyuncu piyasa
-            değeri ve mevki verilerini üçüncü taraf kaynaklardan derleyerek görüntüler.
+            ED Company, yapay zeka destekli simülasyonlar kullanarak futbol maçları için istatistiksel skor
+            tahminleri, kazanma olasılıkları ve taktiksel analizler sunar. Platform ayrıca oyuncu piyasa değeri ve
+            mevki verilerini üçüncü taraf kaynaklardan derleyerek görüntüler.
           </p>
 
           <h2>Tahminler Yatırım veya Bahis Tavsiyesi Değildir</h2>
@@ -173,10 +173,11 @@ export const legalContent: Record<
 
           <h2>YZ Destekli Analiz Altyapımız</h2>
           <p>
-            Platformumuzun kalbinde, her maç için binlerce senaryoyu simüle eden bir <strong>Monte Carlo motoru</strong>{" "}
-            yer alır. Bu motor; takım formu, kadro gücü, geçmiş karşılaşmalar ve oyuncu bazlı verileri işleyerek
-            skor olasılıklarını ve taktiksel eğilimleri ortaya çıkarır. Ayrıca oyuncu piyasa değerleri ve mevki
-            verilerini düzenli olarak güncelleyerek analizlerimizi güncel tutarız.
+            Platformumuzun kalbinde, her maç için binlerce senaryoyu simüle eden bir{" "}
+            <strong>YZ destekli simülasyon motoru</strong> yer alır. Bu motor; takım formu, kadro gücü, geçmiş
+            karşılaşmalar ve oyuncu bazlı verileri işleyerek skor olasılıklarını ve taktiksel eğilimleri ortaya
+            çıkarır. Ayrıca oyuncu piyasa değerleri ve mevki verilerini düzenli olarak güncelleyerek analizlerimizi
+            güncel tutarız.
           </p>
 
           <h2>Neler Sunuyoruz</h2>
@@ -217,8 +218,8 @@ export const legalContent: Record<
           <h2>Cookies and Analytics Tools</h2>
           <p>
             Our site uses essential cookies for session management and remembering your preferences (theme,
-            language). We also use analytics tools such as Google Analytics and Vercel Analytics to understand how
-            the site is used. These tools may place cookies containing anonymous identifiers in your browser.
+            language). We also use analytics tools such as Google Analytics to understand how the site is used.
+            These tools may place cookies containing anonymous identifiers in your browser.
           </p>
 
           <h2>Advertising and Google AdSense</h2>
@@ -276,8 +277,8 @@ export const legalContent: Record<
           <h2>Scope of the Service</h2>
           <p>
             ED Company provides statistical score predictions, win probabilities, and tactical analyses for
-            football matches using AI-powered Monte Carlo simulations. The Platform also displays player market
-            value and position data compiled from third-party sources.
+            football matches using AI-powered simulations. The Platform also displays player market value and
+            position data compiled from third-party sources.
           </p>
 
           <h2>Predictions Are Not Investment or Betting Advice</h2>
@@ -351,10 +352,10 @@ export const legalContent: Record<
 
           <h2>Our AI-Powered Analytics Infrastructure</h2>
           <p>
-            At the heart of our platform is a <strong>Monte Carlo engine</strong> that simulates thousands of
-            scenarios for every match. This engine processes team form, squad strength, past encounters, and
-            player-level data to surface score probabilities and tactical tendencies. We also regularly update
-            player market values and position data to keep our analyses current.
+            At the heart of our platform is an <strong>AI-powered simulation engine</strong> that simulates
+            thousands of scenarios for every match. This engine processes team form, squad strength, past
+            encounters, and player-level data to surface score probabilities and tactical tendencies. We also
+            regularly update player market values and position data to keep our analyses current.
           </p>
 
           <h2>What We Offer</h2>
