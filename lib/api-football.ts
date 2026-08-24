@@ -596,7 +596,12 @@ export async function getPlayerRoleAndPhoto(
   playerId: number,
 ): Promise<{ role: string | null; photo: string | null; age: number | null } | null> {
   const season = currentSeason()
-  const raw = await apiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
+  let raw = await apiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
+  // Bkz. getPlayerBasicProfile — sezona bağlı olduğu için önceki sezona
+  // düşmeden dönmek, aktif oynamayan oyuncuları haksız yere kaybettirir.
+  if (!raw || raw.length === 0) {
+    raw = await apiFootballFetch<any>("/players", { id: playerId, season: season - 1 }, { cache: "no-store" })
+  }
   if (!raw || raw.length === 0) return null
   const entry = raw[0]
   const p = entry.player ?? {}
