@@ -246,7 +246,19 @@ export async function getFixturesByLeagueSeason(leagueId: number, season: number
 
 export async function getPlayerBasicProfile(playerId: number): Promise<PlayerProfile | null> {
   const season = currentSeason()
-  const playerRaw = await apiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
+  let playerRaw = await apiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
+  // ÖNEMLİ — API-Football'ın "/players" uç noktası SEZONA BAĞLI: oyuncu o
+  // sezonda hiç maça çıkmamışsa (yeni sezon henüz başladı, sakatlık, transfer
+  // sonrası ilk maçını oynamadı vb.) boş dizi döner — oyuncu var olsa bile.
+  // Bunu "oyuncu bulunamadı" (404) sanıp panelde "Veri alınamadı" hatası
+  // göstermek yanlıştı; bir önceki sezona (gerekirse ondan öncesine) bakarak
+  // en azından isim/foto/uyruk/boy/kilo gibi profil bilgilerini bulabiliriz.
+  if (!playerRaw || playerRaw.length === 0) {
+    playerRaw = await apiFootballFetch<any>("/players", { id: playerId, season: season - 1 }, { cache: "no-store" })
+  }
+  if (!playerRaw || playerRaw.length === 0) {
+    playerRaw = await apiFootballFetch<any>("/players", { id: playerId, season: season - 2 }, { cache: "no-store" })
+  }
   if (!playerRaw || playerRaw.length === 0) return null
 
   const entry = playerRaw[0]
@@ -311,7 +323,14 @@ export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | 
 
 export async function getLeagueBasicInfo(leagueId: number): Promise<LeagueBasicInfo | null> {
   const season = currentSeason()
-  const leagueRaw = await apiFootballFetch<any>("/leagues", { id: leagueId, season }, { cache: "no-store" })
+  let leagueRaw = await apiFootballFetch<any>("/leagues", { id: leagueId, season }, { cache: "no-store" })
+  // Bkz. getPlayerBasicProfile — "/leagues?season=" da sezona bağlı: yeni
+  // sezon henüz API-Football tarafında oluşturulmamışsa (özellikle küçük
+  // liglerde gecikebiliyor) boş dizi döner, lig var olsa bile. Önceki sezona
+  // düşerek en azından isim/logo/bayrak bilgisini bulabiliriz.
+  if (!leagueRaw || leagueRaw.length === 0) {
+    leagueRaw = await apiFootballFetch<any>("/leagues", { id: leagueId, season: season - 1 }, { cache: "no-store" })
+  }
   if (!leagueRaw || leagueRaw.length === 0) return null
 
   const rawLeague = leagueRaw[0]
