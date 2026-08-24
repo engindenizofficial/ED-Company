@@ -256,7 +256,7 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
   const awayGoals = fixture.goalsAway
   const hasScore = homeGoals != null && awayGoals != null
   const statusTr = translateStatus(t, fixture.statusShort, fixture.elapsed, fixture.elapsedExtra)
-  const { current: celebration, advance } = useGoalCelebrationQueue(homeGoals, awayGoals)
+  const { current: celebration, currentKey, advance, simulate } = useGoalCelebrationQueue(homeGoals, awayGoals)
 
   return (
     <div className="relative rounded-2xl border border-border/70 bg-card overflow-hidden">
@@ -265,7 +265,7 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
       <AnimatePresence>
         {celebration ? (
           <GoalCelebrationOverlay
-            key={`${celebration.team}-${celebration.team === "home" ? homeGoals : awayGoals}`}
+            key={currentKey}
             fixtureId={fixture.id}
             teamName={celebration.team === "home" ? fixture.home.name : fixture.away.name}
             teamLogo={celebration.team === "home" ? fixture.home.logo : fixture.away.logo}
@@ -273,6 +273,18 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
           />
         ) : null}
       </AnimatePresence>
+
+      {/* Sadece geliştirme ortamında görünen test butonu: gerçek bir gol
+          beklemeden animasyonu tetiklemek için. Üretimde render edilmez. */}
+      {process.env.NODE_ENV === "development" ? (
+        <button
+          type="button"
+          onClick={() => simulate(Math.random() > 0.5 ? "home" : "away")}
+          className="absolute right-2 top-2 z-40 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold text-primary-foreground shadow"
+        >
+          Test Gol
+        </button>
+      ) : null}
       {/* League strip */}
       <div className="flex items-center justify-center gap-2 border-b border-border/60 bg-secondary/30 px-4 py-2">
         {fixture.league.logo && (

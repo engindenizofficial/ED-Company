@@ -10,21 +10,23 @@ import { useLanguage } from "@/contexts/language-context"
  * üste binmeden sırayla gösterilir. Hem ana sayfadaki maç kartında
  * (fixture-list.tsx) hem de maç panelinin başlığında (analysis-panel.tsx)
  * kullanılır. */
+let celebrationKeySeq = 0
+
 export function useGoalCelebrationQueue(goalsHome: number | null, goalsAway: number | null) {
   const prevRef = useRef<{ home: number | null; away: number | null }>({
     home: goalsHome,
     away: goalsAway,
   })
-  const [queue, setQueue] = useState<Array<{ team: "home" | "away" }>>([])
+  const [queue, setQueue] = useState<Array<{ team: "home" | "away"; key: number }>>([])
 
   useEffect(() => {
     const prev = prevRef.current
-    const additions: Array<{ team: "home" | "away" }> = []
+    const additions: Array<{ team: "home" | "away"; key: number }> = []
     if (prev.home !== null && goalsHome !== null && goalsHome > prev.home) {
-      additions.push({ team: "home" })
+      additions.push({ team: "home", key: celebrationKeySeq++ })
     }
     if (prev.away !== null && goalsAway !== null && goalsAway > prev.away) {
-      additions.push({ team: "away" })
+      additions.push({ team: "away", key: celebrationKeySeq++ })
     }
     if (additions.length > 0) {
       setQueue((q) => [...q, ...additions])
@@ -34,8 +36,11 @@ export function useGoalCelebrationQueue(goalsHome: number | null, goalsAway: num
 
   const current = queue[0] ?? null
   const advance = () => setQueue((q) => q.slice(1))
+  // Gerçek bir gol beklemeden animasyonu test edebilmek için: skor değişimi
+  // olmadan da kuyruğa elle bir kutlama ekler. Sadece geliştirme/test amaçlı.
+  const simulate = (team: "home" | "away") => setQueue((q) => [...q, { team, key: celebrationKeySeq++ }])
 
-  return { current, advance }
+  return { current, currentKey: current?.key ?? null, advance, simulate }
 }
 
 // Tam 5 saniyelik, sadece ilgili maç kartını kaplayan gol kutlama animasyonu.

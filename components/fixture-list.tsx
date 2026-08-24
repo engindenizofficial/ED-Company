@@ -376,7 +376,7 @@ function FixtureCard({
   const { t, locale } = useLanguage()
   const live = isLive(f.statusShort)
   const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
-  const { current: celebration, advance } = useGoalCelebrationQueue(f.goalsHome, f.goalsAway)
+  const { current: celebration, advance, simulate, currentKey } = useGoalCelebrationQueue(f.goalsHome, f.goalsAway)
 
   return (
     <li>
@@ -482,7 +482,7 @@ function FixtureCard({
         <AnimatePresence>
           {celebration ? (
             <GoalCelebrationOverlay
-              key={`${celebration.team}-${celebration.team === "home" ? f.goalsHome : f.goalsAway}`}
+              key={currentKey}
               fixtureId={f.id}
               teamName={celebration.team === "home" ? f.home.name : f.away.name}
               teamLogo={celebration.team === "home" ? f.home.logo : f.away.logo}
@@ -490,6 +490,22 @@ function FixtureCard({
             />
           ) : null}
         </AnimatePresence>
+
+        {/* Sadece geliştirme ortamında görünen test butonu: gerçek bir gol
+            beklemeden animasyonu tetiklemek için. Üretimde render edilmez. */}
+        {process.env.NODE_ENV === "development" ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              simulate(Math.random() > 0.5 ? "home" : "away")
+            }}
+            className="pointer-events-auto absolute -top-2 right-2 z-40 rounded-full bg-primary px-2 py-0.5 text-[9px] font-bold text-primary-foreground shadow"
+          >
+            Test Gol
+          </button>
+        ) : null}
       </div>
     </li>
   )
