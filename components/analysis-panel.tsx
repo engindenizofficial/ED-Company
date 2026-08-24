@@ -3,7 +3,9 @@
 import {
   Activity,
   AlertTriangle,
+  ArrowDown,
   ArrowLeftRight,
+  ArrowUp,
   BarChart3,
   ChevronDown,
   ChevronUp,
@@ -633,28 +635,34 @@ function EventEntry({ ev, isHome, t }: { ev: MatchEvent; isHome: boolean; t: (ke
   return (
     <div className={cn("flex min-w-0 flex-col gap-0.5", isHome ? "items-end text-right" : "items-start text-left")}>
       {isSubst ? (
+        // ÖNEMLİ — API-Football'ın "subst" olaylarında alan adları ters
+        // gibi görünür: `player` alanı sahadan ÇIKAN oyuncuyu, `assist`
+        // alanı ise sahaya GİREN oyuncuyu tutar. Önceki sürüm bunu ters
+        // varsayıp yeşil (giren) rengi çıkan oyuncuya veriyordu — burada
+        // düzeltildi: giren oyuncu yukarıda yeşil ↑ ok, çıkan oyuncu
+        // altında kırmızı ↓ ok ile gösteriliyor (yaygın maç anlatım deseni).
         <>
-          {ev.player && (
-            <span className={cn("flex items-center gap-1.5 truncate text-xs font-semibold text-foreground", rowDir)}>
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-              {ev.playerId ? (
-                <PlayerButton player={{ id: ev.playerId, name: ev.player, photo: null }} className="truncate hover:text-primary">
-                  {ev.player}
-                </PlayerButton>
-              ) : (
-                ev.player
-              )}
-            </span>
-          )}
           {ev.assist && (
-            <span className={cn("flex items-center gap-1.5 truncate text-[11px] text-muted-foreground", rowDir)}>
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
+            <span className={cn("flex items-center gap-1.5 truncate text-xs font-semibold text-foreground", rowDir)}>
+              <ArrowUp className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
               {ev.assistId ? (
                 <PlayerButton player={{ id: ev.assistId, name: ev.assist, photo: null }} className="truncate hover:text-primary">
                   {ev.assist}
                 </PlayerButton>
               ) : (
                 ev.assist
+              )}
+            </span>
+          )}
+          {ev.player && (
+            <span className={cn("flex items-center gap-1.5 truncate text-[11px] text-muted-foreground", rowDir)}>
+              <ArrowDown className="h-3 w-3 shrink-0 text-destructive" aria-hidden="true" />
+              {ev.playerId ? (
+                <PlayerButton player={{ id: ev.playerId, name: ev.player, photo: null }} className="truncate hover:text-primary">
+                  {ev.player}
+                </PlayerButton>
+              ) : (
+                ev.player
               )}
             </span>
           )}
