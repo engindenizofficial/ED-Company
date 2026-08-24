@@ -3,6 +3,7 @@
 import {
   Activity,
   AlertTriangle,
+  ArrowLeftRight,
   BarChart3,
   ChevronDown,
   ChevronUp,
@@ -19,6 +20,7 @@ import {
   Trash2,
   TrendingUp,
   Users,
+  X,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -509,7 +511,9 @@ function SectionEmptyState({ label }: { label: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Events
+// Events — dikey zaman çizelgesi (klasik maç anlatımı düzeni): ev sahibi
+// ortadaki çizginin soluna, konuk sağına yaslanır; her olay dakika + tür
+// ikonu ile çizginin üzerinde bir "düğüm" oluşturur.
 // ---------------------------------------------------------------------------
 
 function EventsSection({ fixtureId, homeName, active }: { fixtureId: number; homeName: string; active: boolean }) {
@@ -524,7 +528,7 @@ function EventsSection({ fixtureId, homeName, active }: { fixtureId: number; hom
       {status === "loading" && <SectionLoading label={t("analysis.loadingEvents")} />}
       {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
       {status === "empty" && <SectionEmptyState label={t("analysis.emptyEvents")} />}
-      {status === "success" && data && <EventsList events={data} homeName={homeName} />}
+      {status === "success" && data && <EventsTimeline events={data} homeName={homeName} />}
     </SectionShell>
   )
 }
@@ -554,104 +558,167 @@ function translateDetail(t: (key: string) => string, detail: string): string {
   return key ? t(`analysis.eventDetail.${key}`) : detail
 }
 
-function eventIcon(type: string, detail: string): { bg: string; text: string; symbol: string } {
+/** Zaman çizelgesi düğümünün türü — her biri farklı bir ikon/renk alır. */
+type EventNode =
+  | { kind: "goal"; label: "G" | "OG" | "P" }
+  | { kind: "card"; tone: "yellow" | "red" }
+  | { kind: "subst" }
+  | { kind: "miss" }
+  | { kind: "other" }
+
+function eventNode(type: string, detail: string): EventNode {
   if (type === "Goal") {
-    if (detail === "Own Goal") return { bg: "bg-destructive/10", text: "text-destructive", symbol: "OG" }
-    if (detail === "Penalty") return { bg: "bg-primary/15", text: "text-primary", symbol: "P" }
-    return { bg: "bg-primary/15", text: "text-primary", symbol: "G" }
+    // "Kaçırılan penaltı" ve "iptal edilen gol" bir GOL DEĞİL — eskiden bu
+    // ikisi de yanlışlıkla gol ikonuyla ("G") gösteriliyordu.
+    if (detail === "Missed Penalty" || detail === "Goal cancelled") return { kind: "miss" }
+    if (detail === "Own Goal") return { kind: "goal", label: "OG" }
+    if (detail === "Penalty") return { kind: "goal", label: "P" }
+    return { kind: "goal", label: "G" }
   }
   if (type === "Card") {
-    if (detail === "Red Card" || detail === "Yellow Red Card") return { bg: "bg-destructive/10", text: "text-destructive", symbol: "K" }
-    return { bg: "bg-yellow-500/15", text: "text-yellow-600 dark:text-yellow-400", symbol: "S" }
+    return { kind: "card", tone: detail === "Red Card" || detail === "Yellow Red Card" ? "red" : "yellow" }
   }
-  if (type === "subst") return { bg: "bg-secondary", text: "text-muted-foreground", symbol: "↕" }
-  return { bg: "bg-secondary", text: "text-muted-foreground", symbol: "•" }
+  if (type === "subst") return { kind: "subst" }
+  return { kind: "other" }
 }
 
-function SubstitutionIcon() {
+/**
+ * Çizelge düğümü: dakika rozetinin altında oturan renkli ikon. Arka planı
+ * ana kart rengiyle (ring-card) "kesilerek" dikey çizginin üzerinden temiz
+ * bir şekilde geçer — tasarım tokenlarının dışına çıkmadan (bg-primary,
+ * bg-destructive, bg-secondary) net bir görsel hiyerarşi kurar.
+ */
+function EventNodeIcon({ node }: { node: EventNode }) {
+  if (node.kind === "goal") {
+    return (
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-black text-primary-foreground shadow-sm ring-2 ring-card">
+        {node.label}
+      </span>
+    )
+  }
+  if (node.kind === "card") {
+    return (
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border/60 bg-card shadow-sm ring-2 ring-card">
+        <span className={cn("h-3.5 w-2.5 rounded-[2px]", node.tone === "red" ? "bg-destructive" : "bg-yellow-400")} />
+      </span>
+    )
+  }
+  if (node.kind === "subst") {
+    return (
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground shadow-sm ring-2 ring-card">
+        <ArrowLeftRight className="h-3.5 w-3.5" />
+      </span>
+    )
+  }
+  if (node.kind === "miss") {
+    return (
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground shadow-sm ring-2 ring-card">
+        <X className="h-3.5 w-3.5" />
+      </span>
+    )
+  }
   return (
-    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-secondary">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-        <path d="M7 6V2M5 4l2-2 2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" style={{ color: "oklch(0.6 0.15 152)" }} />
-        <path d="M7 8v4m2-2-2 2-2-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" style={{ color: "oklch(0.58 0.22 25)" }} />
-      </svg>
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary shadow-sm ring-2 ring-card">
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
     </span>
   )
 }
 
-function EventsList({ events, homeName }: { events: MatchEvent[]; homeName: string }) {
+/** Bir olayın oyuncu/asist metni — ev sahibi sağa, konuk sola hizalanır. */
+function EventEntry({ ev, isHome, t }: { ev: MatchEvent; isHome: boolean; t: (key: string, vars?: Record<string, string | number>) => string }) {
+  const isSubst = ev.type === "subst"
+  const detailTr = translateDetail(t, ev.detail)
+  const rowDir = isHome ? "flex-row-reverse" : "flex-row"
+
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-0.5", isHome ? "items-end text-right" : "items-start text-left")}>
+      {isSubst ? (
+        <>
+          {ev.player && (
+            <span className={cn("flex items-center gap-1.5 truncate text-xs font-semibold text-foreground", rowDir)}>
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+              {ev.playerId ? (
+                <PlayerButton player={{ id: ev.playerId, name: ev.player, photo: null }} className="truncate hover:text-primary">
+                  {ev.player}
+                </PlayerButton>
+              ) : (
+                ev.player
+              )}
+            </span>
+          )}
+          {ev.assist && (
+            <span className={cn("flex items-center gap-1.5 truncate text-[11px] text-muted-foreground", rowDir)}>
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
+              {ev.assistId ? (
+                <PlayerButton player={{ id: ev.assistId, name: ev.assist, photo: null }} className="truncate hover:text-primary">
+                  {ev.assist}
+                </PlayerButton>
+              ) : (
+                ev.assist
+              )}
+            </span>
+          )}
+        </>
+      ) : (
+        <>
+          {ev.player && ev.playerId ? (
+            <PlayerButton player={{ id: ev.playerId, name: ev.player, photo: null }} className="truncate text-xs font-semibold text-foreground hover:text-primary">
+              {ev.player}
+            </PlayerButton>
+          ) : (
+            <span className="truncate text-xs font-semibold text-foreground">{ev.player ?? detailTr}</span>
+          )}
+          {ev.assist && (
+            <span className="truncate text-[11px] text-muted-foreground">
+              {t("analysis.assist")}:{" "}
+              {ev.assistId ? (
+                <PlayerButton player={{ id: ev.assistId, name: ev.assist, photo: null }} className="hover:text-primary">
+                  {ev.assist}
+                </PlayerButton>
+              ) : (
+                ev.assist
+              )}
+            </span>
+          )}
+          {ev.type !== "Goal" && <span className="text-[11px] text-muted-foreground">{detailTr}</span>}
+        </>
+      )}
+    </div>
+  )
+}
+
+function EventsTimeline({ events, homeName }: { events: MatchEvent[]; homeName: string }) {
   const { t } = useLanguage()
   const sorted = [...events].sort((a, b) => a.minute - b.minute)
+
   return (
-    <ul className="flex flex-col gap-0.5">
-      {sorted.map((ev, i) => {
-        const isHome = ev.team === homeName
-        const isSubst = ev.type === "subst"
-        const { bg, text, symbol } = eventIcon(ev.type, ev.detail)
-        const detailTr = translateDetail(t, ev.detail)
-        return (
-          <li key={i} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${isHome ? "" : "flex-row-reverse"}`}>
-            <span className="w-8 shrink-0 text-center text-[11px] font-bold tabular-nums text-muted-foreground">
-              {ev.minute}{ev.extra ? `+${ev.extra}` : ""}&#39;
-            </span>
-            {isSubst ? (
-              <SubstitutionIcon />
-            ) : (
-              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold ${bg} ${text}`}>
-                {symbol}
-              </span>
-            )}
-            <div className={`flex min-w-0 flex-1 flex-col ${isHome ? "" : "items-end"}`}>
-              {isSubst ? (
-                <>
-                  {ev.player && (
-                    <span className={`flex items-center gap-1 truncate text-xs font-semibold text-foreground ${isHome ? "" : "flex-row-reverse"}`}>
-                      <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-                      {ev.playerId ? (
-                        <PlayerButton player={{ id: ev.playerId, name: ev.player, photo: null }} className="truncate hover:text-primary">
-                          {ev.player}
-                        </PlayerButton>
-                      ) : ev.player}
-                    </span>
-                  )}
-                  {ev.assist && (
-                    <span className={`flex items-center gap-1 truncate text-xs text-muted-foreground ${isHome ? "" : "flex-row-reverse"}`}>
-                      <span className="h-2 w-2 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
-                      {ev.assistId ? (
-                        <PlayerButton player={{ id: ev.assistId, name: ev.assist, photo: null }} className="truncate hover:text-primary">
-                          {ev.assist}
-                        </PlayerButton>
-                      ) : ev.assist}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <>
-                  {ev.player && ev.playerId ? (
-                    <PlayerButton player={{ id: ev.playerId, name: ev.player, photo: null }} className="truncate text-xs font-semibold text-foreground hover:text-primary">
-                      {ev.player}
-                    </PlayerButton>
-                  ) : (
-                    <span className="truncate text-xs font-semibold text-foreground">{ev.player ?? detailTr}</span>
-                  )}
-                  {ev.assist && (
-                    <span className="truncate text-[10px] text-muted-foreground">
-                      {t("analysis.assist")}:{" "}
-                      {ev.assistId ? (
-                        <PlayerButton player={{ id: ev.assistId, name: ev.assist, photo: null }} className="hover:text-primary">
-                          {ev.assist}
-                        </PlayerButton>
-                      ) : ev.assist}
-                    </span>
-                  )}
-                  {ev.type !== "Goal" && <span className="text-[10px] text-muted-foreground">{detailTr}</span>}
-                </>
-              )}
-            </div>
-          </li>
-        )
-      })}
-    </ul>
+    <div className="relative">
+      {/* Ortadaki dikey çizgi — her düğüm (dakika rozeti + ikon) kartın arka
+          plan rengiyle üzerine bindiğinden çizgiyi doğal olarak "keser". */}
+      <div aria-hidden="true" className="absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-border" />
+      <ul className="relative flex flex-col">
+        {sorted.map((ev, i) => {
+          const isHome = ev.team === homeName
+          const node = eventNode(ev.type, ev.detail)
+          return (
+            <li key={i} className="relative grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-2">
+              <div className={cn(!isHome && "invisible")}>
+                {isHome && <EventEntry ev={ev} isHome t={t} />}
+              </div>
+              <div className="relative z-10 flex flex-col items-center gap-1 bg-card px-1">
+                <span className="rounded-full border border-border bg-secondary/60 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground">
+                  {ev.minute}{ev.extra ? `+${ev.extra}` : ""}&#39;
+                </span>
+                <EventNodeIcon node={node} />
+              </div>
+              <div className={cn(isHome && "invisible")}>
+                {!isHome && <EventEntry ev={ev} isHome={false} t={t} />}
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
 
