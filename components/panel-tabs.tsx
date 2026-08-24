@@ -28,6 +28,11 @@ export function PanelTabBar({
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
+  // Aktif sekmenin altında, bir sekmeden diğerine kayarak geçen ince bir
+  // gösterge çizgisi. offsetLeft/offsetWidth kullanılıyor çünkü bunlar
+  // kaydırma konumundan bağımsızdır — gösterge, içerikle birlikte doğal
+  // olarak kayar.
+  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null)
 
   // Sekme çubuğunun kaydırılabilir olup olmadığını (ve hangi yönde) izleyip
   // kenarlarda ince bir "solma" efekti göstererek gizli kalan sekmelerin
@@ -48,6 +53,18 @@ export function PanelTabBar({
     resizeObserver.observe(el)
     return () => resizeObserver.disconnect()
   }, [updateScrollState, tabs.length])
+
+  const updateIndicator = useCallback(() => {
+    const tabEl = tabRefs.current[active]
+    if (!tabEl) return
+    setIndicator({ left: tabEl.offsetLeft, width: tabEl.offsetWidth })
+  }, [active])
+
+  useEffect(() => {
+    updateIndicator()
+    window.addEventListener("resize", updateIndicator)
+    return () => window.removeEventListener("resize", updateIndicator)
+  }, [updateIndicator, tabs.length])
 
   // Aktif sekme değiştiğinde onu çubuğun ortasına yumuşakça kaydırıyoruz.
   // Böylece tarayıcının varsayılan "odaklanan öğeyi kenara sıkıştırarak
@@ -82,7 +99,7 @@ export function PanelTabBar({
         onWheel={handleWheel}
         onScroll={updateScrollState}
         className={cn(
-          "flex gap-1 overflow-x-auto border-b border-border/60 px-1 pb-1",
+          "relative flex gap-1 overflow-x-auto border-b border-border/60 px-1 pb-1",
           // Mobilde parmakla kaydırma her zaman çalışır. PC'de fare tekerleği/trackpad
           // ile de kaydırılabilir; gizli scrollbar yerine ince, görünür bir scrollbar
           // gösteriyoruz ki gizlenen sekmelere ulaşılabilsin.
@@ -105,10 +122,8 @@ export function PanelTabBar({
               aria-selected={isActive}
               onClick={() => onChange(tab.key)}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-xs font-bold transition-colors",
-                isActive
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
+                "flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-xs font-bold transition-colors",
+                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
               <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">{tab.icon}</span>
@@ -116,6 +131,15 @@ export function PanelTabBar({
             </button>
           )
         })}
+
+        {/* Aktif sekmeden diğerine kayarak geçen gösterge çizgisi */}
+        {indicator && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute bottom-1 h-0.5 rounded-full bg-primary transition-[left,width] duration-300 ease-out"
+            style={{ left: indicator.left, width: indicator.width }}
+          />
+        )}
       </div>
 
       {/* Kaydırılabilir içeriğin kesilmediğini, devamının olduğunu belirten kenar solmaları */}
