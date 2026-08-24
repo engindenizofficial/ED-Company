@@ -415,7 +415,7 @@ export async function getTeamSeasonStats(
   }
 
   // API-Football /teams/statistics ayrıca fixtures.*.home / fixtures.*.away ve
-  // goals.*.average.home / .away alanlarını döndür��r — ev sahibi avantajını
+  // goals.*.average.home / .away alanlarını döndürür — ev sahibi avantajını
   // izole etmek için bunları kullanıyoruz. Hiç maç oynanmamışsa (played=0)
   // null döndürüyoruz ki prompt'ta yanıltıcı "0.0 gol" göstermeyelim.
   const buildSplit = (side: "home" | "away"): HomeAwaySplit | null => {

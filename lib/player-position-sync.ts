@@ -113,7 +113,7 @@ import { profile } from "./player-positions"
  * Actions'ın minimum zamanlama aralığı 5 dakika olduğundan (ayrıca yoğun
  * saatlerde birkaç dakika gecikebilir), her 5 dakikada bir ~73 oyuncu ≈
  * dakikada ~14.6 oyuncu işlenir — eski 70s/1dk kombinasyonundan (dakikada
- * ~20 oyuncu) biraz daha yavaş ama zamanlayıcı ��ok daha basit/güvenilir
+ * ~20 oyuncu) biraz daha yavaş ama zamanlayıcı çok daha basit/güvenilir
  * (GitHub'ın kendi altyapısı, üçüncü taraf hesabı gerektirmiyor).
  */
 const SOFT_TIME_BUDGET_MS = 250_000

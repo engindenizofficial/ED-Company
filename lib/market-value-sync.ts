@@ -589,7 +589,7 @@ export interface CleanupResult {
  * yeniden hesaplama" işlemini engeller, "artık var olmayan bir varlığı
  * sonsuza dek DB'de tutma" işlemini değil.
  *
- * hadErrors=true ise hi��bir şey silinmez — bu döngüde bir veya daha fazla
+ * hadErrors=true ise hiçbir şey silinmez — bu döngüde bir veya daha fazla
  * lig transient bir hata yüzünden atlanmış olabilir, bu da o ligin
  * takımlarının lastSeenAt'inin yanlışlıkla geride kalmasına (ve gerçek,
  * hâlâ aktif takımların silinmesine) yol açabilir. Bir dahaki hatasız

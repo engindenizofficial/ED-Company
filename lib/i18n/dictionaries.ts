@@ -380,7 +380,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
     league: {
       seasonOverview: "Sezon Özeti",
       standings: "Puan Durumu",
-      topScorers: "Gol Krallı��ı",
+      topScorers: "Gol Krallığı",
       topAssists: "Asist Krallığı",
       topYellowCards: "Sarı Kart Krallığı",
       topRedCards: "Kırmızı Kart Krallığı",
@@ -668,7 +668,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       },
       injuryType: {
         missingFixture: "Maçta Yok",
-        questionable: "��üpheli",
+        questionable: "Şüpheli",
         out: "Dışarıda",
       },
     },
@@ -807,7 +807,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       pending: "Beklemede",
       cronStatusTitle: "Zamanlanmış Görev Durumu",
       dangerZoneTitle: "Tehlikeli Bölge",
-      pageTitle: "Piyasa Değeri Kontrol�� — ED Company",
+      pageTitle: "Piyasa Değeri Kontrolü — ED Company",
       sectionMarketValue: "Piyasa Değeri Taraması",
       sectionPlayerPositions: "Oyuncu Mevki Taraması",
       sectionPlayerPower: "Oyuncu Güç Motoru",
@@ -981,7 +981,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       },
       signIn: {
         title: "Giriş Yap — ED Company",
-        description: "ED Company hesabınıza giriş yap��n; favori takımlarınızı, liglerinizi ve maç tahminlerini takip edin.",
+        description: "ED Company hesabınıza giriş yapın; favori takımlarınızı, liglerinizi ve maç tahminlerini takip edin.",
       },
       signUp: {
         title: "Kayıt Ol — ED Company",
@@ -1602,7 +1602,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       predictionPreparing: "Preparing AI predictions...",
       predictionPreparingSub: "Orion, Atlas, and Vega are analyzing in parallel",
       predictionTitle: "AI Ensemble Prediction",
-      predictionModelsSubtitle: "Orion · Atlas �� Vega",
+      predictionModelsSubtitle: "Orion · Atlas · Vega",
       predictionGetButton: "Get Prediction",
       predictionWinsSuffix: "{{team}} wins",
       predictionValidUntil: "Valid until end of day",
