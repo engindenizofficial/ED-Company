@@ -52,6 +52,10 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       contact: "İletişim",
       copyright: "© {{year}} ED Company. Tüm hakları saklıdır.",
     },
+    legal: {
+      backToHome: "Ana sayfaya dön",
+      lastUpdated: "Son güncelleme: 2026",
+    },
     contact: {
       title: "İletişim",
       description: "Sorularınız, geri bildirimleriniz veya reklam iş birlikleri için bize ulaşın.",
@@ -1040,6 +1044,10 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       aboutUs: "About Us",
       contact: "Contact",
       copyright: "© {{year}} ED Company. All rights reserved.",
+    },
+    legal: {
+      backToHome: "Back to home",
+      lastUpdated: "Last updated: 2026",
     },
     contact: {
       title: "Contact",
