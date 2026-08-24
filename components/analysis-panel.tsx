@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { AnimatePresence } from "motion/react"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -38,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { MatchButton } from "@/components/match-panel"
+import { GoalCelebrationOverlay, useGoalCelebrationQueue } from "@/components/goal-celebration-overlay"
 import type {
   Fixture,
   FixturePlayerStat,
@@ -254,9 +256,23 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
   const awayGoals = fixture.goalsAway
   const hasScore = homeGoals != null && awayGoals != null
   const statusTr = translateStatus(t, fixture.statusShort, fixture.elapsed, fixture.elapsedExtra)
+  const { current: celebration, advance } = useGoalCelebrationQueue(homeGoals, awayGoals)
 
   return (
-    <div className="rounded-2xl border border-border/70 bg-card overflow-hidden">
+    <div className="relative rounded-2xl border border-border/70 bg-card overflow-hidden">
+      {/* Fixture kartındakiyle aynı 5 saniyelik gol kutlama animasyonu — panel
+          açıkken de gol olduğunda header'ın üzerini kaplar. */}
+      <AnimatePresence>
+        {celebration ? (
+          <GoalCelebrationOverlay
+            key={`${celebration.team}-${celebration.team === "home" ? homeGoals : awayGoals}`}
+            fixtureId={fixture.id}
+            teamName={celebration.team === "home" ? fixture.home.name : fixture.away.name}
+            teamLogo={celebration.team === "home" ? fixture.home.logo : fixture.away.logo}
+            onDone={advance}
+          />
+        ) : null}
+      </AnimatePresence>
       {/* League strip */}
       <div className="flex items-center justify-center gap-2 border-b border-border/60 bg-secondary/30 px-4 py-2">
         {fixture.league.logo && (

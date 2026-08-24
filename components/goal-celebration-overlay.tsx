@@ -1,9 +1,42 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { motion } from "motion/react"
 import { getTeamAccentColor } from "@/lib/team-color"
 import { useLanguage } from "@/contexts/language-context"
+
+/** Bir maçta gol olduğunda 5 saniyeliğine gösterilecek kutlama kuyruğunu
+ * yönetir. Aynı anda hem ev hem konuk gol atarsa (nadir de olsa), ikisi üst
+ * üste binmeden sırayla gösterilir. Hem ana sayfadaki maç kartında
+ * (fixture-list.tsx) hem de maç panelinin başlığında (analysis-panel.tsx)
+ * kullanılır. */
+export function useGoalCelebrationQueue(goalsHome: number | null, goalsAway: number | null) {
+  const prevRef = useRef<{ home: number | null; away: number | null }>({
+    home: goalsHome,
+    away: goalsAway,
+  })
+  const [queue, setQueue] = useState<Array<{ team: "home" | "away" }>>([])
+
+  useEffect(() => {
+    const prev = prevRef.current
+    const additions: Array<{ team: "home" | "away" }> = []
+    if (prev.home !== null && goalsHome !== null && goalsHome > prev.home) {
+      additions.push({ team: "home" })
+    }
+    if (prev.away !== null && goalsAway !== null && goalsAway > prev.away) {
+      additions.push({ team: "away" })
+    }
+    if (additions.length > 0) {
+      setQueue((q) => [...q, ...additions])
+    }
+    prevRef.current = { home: goalsHome, away: goalsAway }
+  }, [goalsHome, goalsAway])
+
+  const current = queue[0] ?? null
+  const advance = () => setQueue((q) => q.slice(1))
+
+  return { current, advance }
+}
 
 // Tam 5 saniyelik, sadece ilgili maç kartını kaplayan gol kutlama animasyonu.
 // Tam ekran DEĞİL — kartın kendi rounded-xl sınırları içinde kalır. Kart

@@ -5,7 +5,7 @@ import { AnimatePresence } from "motion/react"
 import { Clock, Star } from "lucide-react"
 import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
-import { GoalCelebrationOverlay } from "@/components/goal-celebration-overlay"
+import { GoalCelebrationOverlay, useGoalCelebrationQueue } from "@/components/goal-celebration-overlay"
 import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import { useFavorites } from "@/contexts/favorites-context"
@@ -357,37 +357,6 @@ export function FixtureList({
       })}
     </div>
   )
-}
-
-/** Bir maçta gol olduğunda kartın üstüne 5 saniyeliğine gösterilecek kutlama
- * kuyruğunu yönetir. Aynı anda hem ev hem konuk gol atarsa (nadir de olsa),
- * ikisi üst üste binmeden sırayla gösterilir. */
-function useGoalCelebrationQueue(goalsHome: number | null, goalsAway: number | null) {
-  const prevRef = useRef<{ home: number | null; away: number | null }>({
-    home: goalsHome,
-    away: goalsAway,
-  })
-  const [queue, setQueue] = useState<Array<{ team: "home" | "away" }>>([])
-
-  useEffect(() => {
-    const prev = prevRef.current
-    const additions: Array<{ team: "home" | "away" }> = []
-    if (prev.home !== null && goalsHome !== null && goalsHome > prev.home) {
-      additions.push({ team: "home" })
-    }
-    if (prev.away !== null && goalsAway !== null && goalsAway > prev.away) {
-      additions.push({ team: "away" })
-    }
-    if (additions.length > 0) {
-      setQueue((q) => [...q, ...additions])
-    }
-    prevRef.current = { home: goalsHome, away: goalsAway }
-  }, [goalsHome, goalsAway])
-
-  const current = queue[0] ?? null
-  const advance = () => setQueue((q) => q.slice(1))
-
-  return { current, advance }
 }
 
 function FixtureCard({
