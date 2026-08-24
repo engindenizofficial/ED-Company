@@ -49,8 +49,16 @@ export function PanelStackProvider({ children }: { children: React.ReactNode }) 
  * panellerin üzerinde kalmasını sağlayacak bir z-index döner. `isOpen`
  * false olduğunda paneli yığından çıkarır ki bir dahaki açılışta yeniden en
  * üste gelsin.
+ *
+ * `instanceId`, panel açıkken içeriği değişen durumları (örn. Oyuncu paneli
+ * açıkken içinden farklı bir Takım paneli açmak — panel türü "team" olarak
+ * zaten açık kalır, sadece takım değişir) yakalamak için kullanılır. Sadece
+ * `isOpen` değerine bakılsaydı true->true geçişinde effect tekrar
+ * tetiklenmez ve panel yığında eski (daha alttaki) konumunda kalırdı.
+ * `instanceId` değiştiğinde effect yeniden çalışır ve paneli tekrar en üste
+ * taşır.
  */
-export function usePanelZIndex(key: PanelKey, isOpen: boolean): number {
+export function usePanelZIndex(key: PanelKey, isOpen: boolean, instanceId?: string | number | null): number {
   const ctx = useContext(PanelStackContext)
   if (!ctx) throw new Error("usePanelZIndex must be used within PanelStackProvider")
   const { stack, bringToFront, remove } = ctx
@@ -61,7 +69,7 @@ export function usePanelZIndex(key: PanelKey, isOpen: boolean): number {
     } else {
       remove(key)
     }
-  }, [isOpen, key, bringToFront, remove])
+  }, [isOpen, key, instanceId, bringToFront, remove])
 
   const index = stack.indexOf(key)
   return BASE_Z_INDEX + (index === -1 ? 0 : index + 1)

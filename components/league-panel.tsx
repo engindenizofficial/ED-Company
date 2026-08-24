@@ -704,7 +704,7 @@ function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: n
 
 export function LeaguePanel() {
   const { panel, closeLeague } = useLeaguePanel()
-  const zIndex = usePanelZIndex("league", !!panel)
+  const zIndex = usePanelZIndex("league", !!panel, panel?.league.id)
   useBodyScrollLock(!!panel)
   useCloseOnBackButton(!!panel, closeLeague, panel ? `/lig/${panel.league.id}` : undefined)
   if (!panel) return null

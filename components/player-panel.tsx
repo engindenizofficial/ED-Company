@@ -738,7 +738,7 @@ function SidelinedSection({ playerId, playerName, active }: { playerId: number; 
 
 export function PlayerPanel() {
   const { panel, closePlayer } = usePlayerPanel()
-  const zIndex = usePanelZIndex("player", !!panel)
+  const zIndex = usePanelZIndex("player", !!panel, panel?.player.id)
   useBodyScrollLock(!!panel)
   useCloseOnBackButton(!!panel, closePlayer, panel ? `/oyuncu/${panel.player.id}` : undefined)
   if (!panel) return null

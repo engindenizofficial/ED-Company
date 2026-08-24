@@ -60,7 +60,7 @@ export function MatchPanel() {
   const { t } = useLanguage()
   const { data: session } = useSession()
   const isAdmin = isAdminEmail(session?.user?.email)
-  const zIndex = usePanelZIndex("match", !!panel)
+  const zIndex = usePanelZIndex("match", !!panel, panel?.fixture.id)
 
   useBodyScrollLock(!!panel)
   useCloseOnBackButton(
