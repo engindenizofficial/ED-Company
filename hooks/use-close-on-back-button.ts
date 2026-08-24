@@ -28,11 +28,34 @@ interface StackEntry {
   // — popPanel bu durumda history.back() çağırmamalı, aksi halde kullanıcıyı
   // sitenin dışına ya da ilgisiz bir önceki sayfaya fırlatabilir.
   noHistoryEntry?: boolean
+  // Bu panel push edildiği anda `realPushCount` kaçtı — bkz. aşağıdaki
+  // `realPushCount` açıklaması ve `popPanel`'deki kullanımı.
+  realPushCountAtPush: number
 }
 
 const stack: StackEntry[] = []
 let nextId = 0
 let listenerAttached = false
+
+// GERÇEK (bizim panellerimiz DIŞINDA) bir sayfa geçişi (örn. kullanıcı bir
+// menü linkine tıklayıp router.push ile başka bir sayfaya geçtiğinde) her
+// pushState çağrısında bir artar. Bunu, bir panel açıkken üstüne GERÇEKTEN
+// yeni bir sayfa geçişi binip binmediğini anlamak için kullanıyoruz.
+//
+// Önceden bunun için `window.history.state` içine koyduğumuz `__panelId`
+// işaretini push anındaki durumla karşılaştırıyorduk. Ama Next.js'in App
+// Router'ı, o entry hâlâ ekranda "üstteyken" bile — scroll/route-cache
+// senkronizasyonu gibi kendi iç işleri için — mevcut history girdisinin
+// state'ini `history.replaceState` ile SESSİZCE kendi (bizim __panelId'imizi
+// İÇERMEYEN) nesnesiyle değiştirebiliyor. Bu durumda `window.history.state`
+// okuması bizim koyduğumuz işareti bulamıyor ve panel programatik olarak
+// (X butonu) kapatılırken `history.back()` HİÇ çağrılmıyordu — adres çubuğu
+// bir alt paneldeki (ya da hiç panel yoksa ana sayfadaki) URL'e asla geri
+// dönmüyor, en son açılan panelin URL'inde asılı kalıyordu. `replaceState`
+// çağrıları `history.length`'i DEĞİŞTİRMEDİĞİ için, gerçek navigasyonu
+// (`pushState` ile yeni bir girdi ekleyen) ayırt etmek için kendi sayacımızı
+// tutuyoruz — Next.js'in state nesnesini ezmesinden etkilenmiyor.
+let realPushCount = 0
 
 // popPanel() bir paneli PROGRAMATİK olarak (X butonu, overlay tıklama vb.)
 // kapatırken, eklediğimiz sanal history girdisini temizlemek için kendi
@@ -58,6 +81,26 @@ function ensureListener() {
     const top = stack.pop()
     top?.onPop()
   })
+
+  // `window.history.pushState`'i sarmalıyoruz: bizim kendi panel
+  // girdilerimiz (state'inde `__panel: true` olanlar) DIŞINDA yapılan her
+  // pushState çağrısı (örn. Next.js router'ının gerçek bir sayfa geçişi
+  // yaparken yaptığı pushState) `realPushCount`'u bir artırır. Next.js'in
+  // aynı entry üzerinde yaptığı `replaceState` çağrıları (iç senkronizasyon
+  // amaçlı, gerçek bir navigasyon OLMAYAN) bu sarmalamaya dokunmuyor —
+  // dolayısıyla onlardan etkilenmiyoruz. Böylece `popPanel`, `history.state`
+  // içeriğine güvenmek zorunda kalmadan "üstümde gerçekten yeni bir sayfa
+  // geçişi oldu mu" sorusunu güvenilir şekilde cevaplayabiliyor.
+  const originalPushState = window.history.pushState.bind(window.history)
+  window.history.pushState = function patchedPushState(
+    data: unknown,
+    unused: string,
+    url?: string | URL | null,
+  ) {
+    const isOurs = !!data && typeof data === "object" && (data as { __panel?: boolean }).__panel === true
+    if (!isOurs) realPushCount++
+    return originalPushState(data, unused, url)
+  }
 }
 
 function pushPanel(onPop: () => void, url?: string): number {
@@ -85,7 +128,7 @@ function pushPanel(onPop: () => void, url?: string): number {
     window.history.pushState({ __panel: true, __panelId: id }, "")
   }
 
-  stack.push({ id, onPop, noHistoryEntry: alreadyAtUrl })
+  stack.push({ id, onPop, noHistoryEntry: alreadyAtUrl, realPushCountAtPush: realPushCount })
   return id
 }
 
@@ -101,16 +144,19 @@ function popPanel(id: number, closedByBack: boolean) {
   // açılışında history yığınına bir girdi birikir ve kullanıcı geri tuşuna
   // defalarca basmak zorunda kalır.
   //
-  // ÖNEMLİ: Bunu yalnızca eklediğimiz sanal girdi HALA tarayıcı geçmişinin
-  // en üstündeyse yapıyoruz. Panel açıkken kullanıcı gerçek bir sayfa
+  // ÖNEMLİ: Bunu yalnızca panel açıkken üstüne GERÇEKTEN yeni bir sayfa
+  // geçişi binmediyse yapıyoruz. Panel açıkken kullanıcı gerçek bir sayfa
   // geçişi yaparsa (örn. Ana Sayfa'dan "Oyunlar" sekmesine geçerse), Next.js
   // kendi history girdisini bizim sanal girdimizin ÜSTÜNE ekler. Bu durumda
   // history.back() çağırmak, bizim girdimizi değil, kullanıcının az önce
   // yaptığı gerçek navigasyonu geri alır — kullanıcıyı beklenmedik şekilde
-  // önceki sayfaya fırlatır. Bu yüzden önce en üstteki girdinin gerçekten
-  // bizim panelimize ait olup olmadığını kontrol ediyoruz.
-  const topState = window.history.state as { __panelId?: number } | null
-  if (topState?.__panelId === id) {
+  // önceki sayfaya fırlatır. Bu yüzden `realPushCount`'un bu panel push
+  // edildiğinden beri değişip değişmediğini kontrol ediyoruz (bkz.
+  // `ensureListener`'daki `pushState` sarmalaması). Önceden bunun için
+  // `window.history.state`'e bakıyorduk, ama Next.js'in App Router'ı bu
+  // entry üzerinde kendi iç senkronizasyonu için `replaceState` çağırıp
+  // state'i sessizce eziyor, bu da bu kontrolü güvenilmez kılıyordu.
+  if (realPushCount === entry?.realPushCountAtPush) {
     ignoreNextPopstateCount++
     window.history.back()
   }
