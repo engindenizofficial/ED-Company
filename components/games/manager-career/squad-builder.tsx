@@ -434,6 +434,21 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
   )
 }
 
+/**
+ * Kadro oluşturucudaki dairesel oyuncu avatarı — fotoğraf URL'i geçersiz/bozuksa
+ * (404, hotlink engeli vb.) otomatik olarak isim baş harfine düşer.
+ */
+function SquadAvatar({ photo, name }: { photo: string | null; name: string }) {
+  const [failed, setFailed] = useState(false)
+  if (photo && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={photo} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />
+    )
+  }
+  return <span className="text-xs font-bold text-neutral-900">{name.charAt(0)}</span>
+}
+
 function PitchSlot({
   slot,
   entry,
@@ -480,12 +495,7 @@ function PitchSlot({
               isOver ? "border-primary" : "border-white",
             )}
           >
-            {entry.photo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={entry.photo} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-xs font-bold text-neutral-900">{entry.playerName.charAt(0)}</span>
-            )}
+            <SquadAvatar photo={entry.photo} name={entry.playerName} />
           </button>
           <button
             type="button"
@@ -523,12 +533,7 @@ function PitchSlot({
 function DraggedPlayerPreview({ entry }: { entry: SquadEntry }) {
   return (
     <div className="flex h-11 w-11 cursor-grabbing items-center justify-center overflow-hidden rounded-full border-2 border-primary bg-white shadow-lg">
-      {entry.photo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={entry.photo} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <span className="text-xs font-bold text-neutral-900">{entry.playerName.charAt(0)}</span>
-      )}
+      <SquadAvatar photo={entry.photo} name={entry.playerName} />
     </div>
   )
 }
@@ -595,12 +600,7 @@ function BenchSlot({
           onClick={onOpen}
           className="flex h-9 w-9 cursor-grab touch-none items-center justify-center overflow-hidden rounded-full bg-secondary active:cursor-grabbing"
         >
-          {entry.photo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={entry.photo} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <span className="text-xs font-bold text-foreground">{entry.playerName.charAt(0)}</span>
-          )}
+          <SquadAvatar photo={entry.photo} name={entry.playerName} />
         </button>
       </div>
       <div className="flex max-w-full items-center gap-1">

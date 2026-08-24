@@ -28,6 +28,7 @@ import { PlayerButton } from "@/components/player-panel"
 import { MatchButton } from "@/components/match-panel"
 import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
+import { PlayerPhoto } from "@/components/player-photo"
 import { cn } from "@/lib/utils"
 import { formatMarketValueEur } from "@/lib/market-value-format"
 import { useLanguage } from "@/contexts/language-context"
@@ -370,12 +371,7 @@ function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: 
               {/* Coach identity */}
               <div className="flex items-center gap-3">
                 {data.photo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={data.photo}
-                    alt={data.name}
-                    className="h-16 w-16 rounded-2xl object-cover border border-border shrink-0"
-              width={64} height={64} loading="lazy" decoding="async" />
+                  <PlayerPhoto photo={data.photo} name={data.name} size={64} rounded="2xl" />
                 ) : (
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-secondary border border-border">
                     <UserCheck className="h-7 w-7 text-muted-foreground" />
@@ -471,12 +467,11 @@ function SquadSection({ teamId, teamName, active }: { teamId: number; teamName: 
                         player={{ id: p.id, name: p.name, photo: p.photo ?? null }}
                         className="group flex w-full items-center gap-2 rounded-xl border border-border/60 bg-secondary/30 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-secondary"
                       >
-                        {/* Photo or number */}
-                        {p.photo ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.photo} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover border border-border" width={32} height={32} loading="lazy" decoding="async" />
-                        ) : (
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary border border-border">
+  {/* Photo or number */}
+  {p.photo ? (
+  <PlayerPhoto photo={p.photo} name={p.name} size={32} />
+  ) : (
+  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary border border-border">
                             <span className="text-[10px] font-black text-muted-foreground">
                               {p.number != null ? p.number : p.name.charAt(0)}
                             </span>
@@ -552,8 +547,7 @@ function TopScorersSection({ teamId, teamName, active }: { teamId: number; teamN
                           className="flex items-center gap-2"
                         >
                           {s.player.photo ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={s.player.photo} alt="" className="h-6 w-6 rounded-full object-cover border border-border shrink-0" width={24} height={24} loading="lazy" decoding="async" />
+                            <PlayerPhoto photo={s.player.photo} name={s.player.name} size={24} />
                           ) : (
                             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary">
                               <Users className="h-3 w-3 text-muted-foreground" />
@@ -766,8 +760,7 @@ function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direc
           className="flex min-w-0 shrink-0 items-center"
         >
           {t.player.photo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={t.player.photo} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover border border-border" width={32} height={32} loading="lazy" decoding="async" />
+            <PlayerPhoto photo={t.player.photo} name={t.player.name} size={32} />
           ) : (
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary border border-border">
               <Users className="h-3.5 w-3.5 text-muted-foreground" />

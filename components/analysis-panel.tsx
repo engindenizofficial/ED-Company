@@ -40,6 +40,7 @@ import {
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { MatchButton } from "@/components/match-panel"
 import { GoalCelebrationOverlay, useGoalCelebrationQueue } from "@/components/goal-celebration-overlay"
+import { PlayerPhoto } from "@/components/player-photo"
 import type {
   Fixture,
   FixturePlayerStat,
@@ -854,7 +855,7 @@ function PlayerStatsTable({
                     <div className="flex items-center gap-2">
                       {/* Photo */}
                       {p.player.photo ? (
-                        <img src={p.player.photo} alt="" className="h-6 w-6 rounded-full object-cover shrink-0"  width={24} height={24} loading="lazy" decoding="async"/>
+                        <PlayerPhoto photo={p.player.photo} name={p.player.name} size={24} />
                       ) : (
                         <div className="h-6 w-6 rounded-full bg-secondary shrink-0 flex items-center justify-center text-[9px] font-bold text-muted-foreground">
                           {p.player.number ?? "?"}

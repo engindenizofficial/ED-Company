@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { Calendar, Check, MapPin, Shield, Shirt, X } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -30,6 +31,8 @@ export function DuelPlayerCard({
 }: DuelPlayerCardProps) {
   const { t } = useLanguage()
   const formattedValue = formatMarketValueEur(value)
+  const [photoFailed, setPhotoFailed] = useState(false)
+  const showPhoto = Boolean(player.photo) && !photoFailed
 
   const POS_LABEL: Record<string, string> = {
     Goalkeeper: t("team.goalkeeper"),
@@ -119,7 +122,7 @@ export function DuelPlayerCard({
           )}
         />
         <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-secondary ring-4 ring-background">
-          {player.photo ? (
+          {showPhoto ? (
             <img
               src={player.photo || "/placeholder.svg"}
               alt={player.name}
@@ -128,6 +131,7 @@ export function DuelPlayerCard({
               width={112}
               height={112}
               decoding="async"
+              onError={() => setPhotoFailed(true)}
             />
           ) : (
             <Shield className="h-10 w-10 text-muted-foreground" />

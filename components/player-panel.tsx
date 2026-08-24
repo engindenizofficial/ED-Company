@@ -31,6 +31,7 @@ import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
+import { PlayerPhoto } from "@/components/player-photo"
 import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import { formatMarketValueEur } from "@/lib/market-value-format"
@@ -784,18 +785,7 @@ function PlayerPanelInner({
         <div className="shrink-0 bg-card" {...swipeHandlers}>
           <PanelDragHandle />
           <div className="flex items-center gap-3 border-b border-border px-4 py-4">
-          {player.photo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={player.photo}
-              alt={player.name}
-              className="h-14 w-14 rounded-full border border-border object-cover"
-              width={56} height={56} loading="lazy" decoding="async" />
-          ) : (
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-border bg-secondary">
-              <UserRound className="h-6 w-6 text-muted-foreground" />
-            </div>
-          )}
+          <PlayerPhoto photo={player.photo} name={player.name} size={56} />
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-base font-black leading-tight text-foreground">
               {player.name}

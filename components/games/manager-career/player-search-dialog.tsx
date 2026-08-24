@@ -17,6 +17,31 @@ import type { ManagerPlayerSearchResult } from "@/app/api/games/manager-career/p
 import { PowerBadge } from "@/components/games/manager-career/power-badge"
 import { hasVerifiedPosition, positionSummary, ratingAtPosition, fit, positionLabel, type PlayerPosition } from "@/lib/player-positions"
 
+/**
+ * Arama sonuçlarındaki dairesel oyuncu avatarı — fotoğraf URL'i geçersiz/bozuksa
+ * (404, hotlink engeli vb.) otomatik olarak isim baş harfine düşer.
+ */
+function ResultAvatar({ photo, name }: { photo: string | null; name: string }) {
+  const [failed, setFailed] = useState(false)
+  if (photo && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={photo}
+        alt=""
+        className="h-full w-full object-cover"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    )
+  }
+  return (
+    <div className="flex h-full w-full items-center justify-center text-xs font-bold text-muted-foreground">
+      {name.charAt(0)}
+    </div>
+  )
+}
+
 const ROLE_LABEL_KEY: Record<PlayerRole, string> = {
   Goalkeeper: "goalkeeper",
   Defender: "defender",
@@ -153,15 +178,8 @@ export function PlayerSearchDialog({
                     onClick={() => onSelect(r)}
                     className="flex items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-secondary/70 disabled:cursor-not-allowed disabled:opacity-45"
                   >
-                    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-secondary">
-                      {r.photo ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={r.photo} alt="" className="h-full w-full object-cover" loading="lazy" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-xs font-bold text-muted-foreground">
-                          {r.name.charAt(0)}
-                        </div>
-                      )}
+              <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-secondary">
+                <ResultAvatar photo={r.photo} name={r.name} />
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <div className="flex min-w-0 items-center gap-1.5">

@@ -11,7 +11,6 @@ import {
   ShieldOff,
   Square,
   Star,
-  Users,
   X,
   Zap,
 } from "lucide-react"
@@ -26,6 +25,7 @@ import { TeamButton } from "@/components/team-panel"
 import { MatchButton } from "@/components/match-panel"
 import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
+import { PlayerPhoto } from "@/components/player-photo"
 import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import { formatMarketValueEur } from "@/lib/market-value-format"
@@ -75,18 +75,7 @@ function matchTime(iso: string, locale: string): string {
 // ---------------------------------------------------------------------------
 
 function PlayerAvatar({ photo, name }: { photo: string | null; name: string }) {
-  return photo ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={photo}
-      alt=""
-      className="h-6 w-6 shrink-0 rounded-full border border-border object-cover"
-              width={24} height={24} loading="lazy" decoding="async" />
-  ) : (
-    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary">
-      <Users className="h-3 w-3 text-muted-foreground" />
-    </div>
-  )
+  return <PlayerPhoto photo={photo} name={name} size={24} />
 }
 
 function TeamLogo({ logo, name }: { logo: string; name: string }) {
