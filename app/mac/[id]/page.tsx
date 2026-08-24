@@ -5,6 +5,7 @@ import { getServerLocale } from "@/lib/i18n/server-locale"
 import { translate } from "@/lib/i18n/dictionaries"
 import { HomeClient } from "@/components/home-client"
 import { MatchUrlOpener } from "@/components/match-url-opener"
+import { getFixturesResponse, todayTR } from "@/lib/fixtures-server"
 
 export const dynamic = "force-dynamic"
 
@@ -61,7 +62,14 @@ export async function generateMetadata({ params }: MatchPageProps): Promise<Meta
 // render ediyorlardı).
 export default async function MatchPage({ params }: MatchPageProps) {
   const { id } = await params
-  const fixture = await getCachedFixture(Number(id))
+  // Ana sayfadaki gibi: bugünün fikstürleri burada sunucuda önceden çekilip
+  // HomeClient'e initialFixturesData olarak geçilir — bu maç detay sayfası
+  // arkada ana listeyi de render ettiği için o liste de "Maçlar yükleniyor"
+  // animasyonu göstermeden, dolu haliyle mount olur.
+  const [fixture, initialFixturesData] = await Promise.all([
+    getCachedFixture(Number(id)),
+    getFixturesResponse(todayTR()),
+  ])
   const home = fixture?.home.name || "Ev Sahibi"
   const away = fixture?.away.name || "Konuk"
   const hasScore = fixture && (fixture.goalsHome !== null || fixture.goalsAway !== null)
@@ -93,7 +101,7 @@ export default async function MatchPage({ params }: MatchPageProps) {
         kalkar. Maç bulunamazsa (fixture null) MatchContext eski davranışına
         (yalnızca id ile tekli fetch) geri döner.
       */}
-      <HomeClient />
+      <HomeClient initialFixturesData={initialFixturesData} />
       <MatchUrlOpener id={Number(id)} fixture={fixture ?? undefined} />
     </>
   )

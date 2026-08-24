@@ -53,7 +53,18 @@ function actualWinner(homeGoals: number, awayGoals: number): "home" | "away" | "
   return "draw"
 }
 
-export function HomeClient() {
+interface HomeClientProps {
+  // Sunucuda (app/page.tsx / app/mac/[id]/page.tsx) önceden çekilmiş
+  // "bugün" fikstür verisi. Verilirse HomeClient ilk render'da bu veriyle
+  // başlar ve fixturesLoading'i false olarak kurar — bu sayede "Maçlar
+  // yükleniyor" animasyonu ilk açılışta hiç görünmez, site direkt dolu
+  // haliyle açılır. Sekmeler arası geçişte veya arka planda yenilemede
+  // davranış değişmez, sadece ilk mount'taki boş/yükleniyor anı ortadan
+  // kalkar.
+  initialFixturesData?: FixturesResponse
+}
+
+export function HomeClient({ initialFixturesData }: HomeClientProps = {}) {
   // Kullanıcının ana sayfadan geçiş yapabildiği "Dün" / "Bugün" / "Yarın"
   // sekmesi. Her üç tarih de TR saatiyle hesaplanır, gece 00:00'da (TR
   // saati) otomatik olarak bir gün kayar.
@@ -66,8 +77,14 @@ export function HomeClient() {
   // panelinden bir maça tıklamak da aynı paneli açabiliyor.
   const { panel: matchPanel, openMatch, closeMatch, syncFixture } = useMatchPanel()
 
-  const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(null)
-  const [fixturesLoading, setFixturesLoading] = useState(true)
+  // initialFixturesData sadece "bugün" tarihi için geçerlidir (sunucu her
+  // zaman todayTR() için çeker). Kullanıcı "Dün"/"Yarın" sekmesindeyken
+  // sayfayı ilk kez açarsa (örn. deep link) bu veri o tarihle eşleşmez —
+  // bu yüzden başlangıç state'i sadece dateTab hâlâ "today" ise kullanılır.
+  const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(
+    initialFixturesData ?? null,
+  )
+  const [fixturesLoading, setFixturesLoading] = useState(!initialFixturesData)
 
   const [predictionResults, setPredictionResults] = useState<PredictionResult[]>([])
 
@@ -93,7 +110,7 @@ export function HomeClient() {
   // tarihin listesi ekranda donuk kalıyor, yeni veri gelene kadar hiçbir
   // görsel geri bildirim olmuyordu (kullanıcıya "birkaç saniye hiçbir şey
   // olmuyor, sonra birden değişiyor" hissi veriyordu).
-  const loadedDateRef = useRef<string | null>(null)
+  const loadedDateRef = useRef<string | null>(initialFixturesData?.date ?? null)
 
   const loadFixtures = useCallback(async (forceRefresh = false) => {
     const requestedDate = date
