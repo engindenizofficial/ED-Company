@@ -450,7 +450,10 @@ function FixtureCard({
   const { t, locale } = useLanguage()
   const live = isLive(f.statusShort)
   const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
-  const { current: celebration, advance, currentKey } = useGoalCelebrationQueue(f.goalsHome, f.goalsAway)
+  // fixtureId ve live parametreleri sadece burada (ana ekran) verilir —
+  // "geri dönüşte kaçırılan tek golü göster" özelliği bu yüzden analiz
+  // paneline sızmaz, sadece ana ekrandaki maç kartlarında çalışır.
+  const { current: celebration, advance, currentKey } = useGoalCelebrationQueue(f.goalsHome, f.goalsAway, f.id, live)
 
   return (
     <li>
