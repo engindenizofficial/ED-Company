@@ -1,6 +1,7 @@
 "use client"
 
 import { LoaderCircle } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { FixtureList } from "@/components/fixture-list"
@@ -47,6 +48,18 @@ function formatDateLabel(iso: string, locale: string): string {
 // Statü grupları
 const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "AWD", "WO"])
 
+// Her tarih sekmesinin gerçek bir sayfa rotasına karşılık gelen URL'i.
+// Önceden "Dün" / "Bugün" / "Yarın" arasında geçiş yapmak URL'i hiç
+// değiştirmiyordu — üçü de "/" üzerinde kalıyordu. Artık sadece "Bugün"
+// ana sayfa URL'inde ("/") kalıyor; "Dün" ve "Yarın" kendi rotalarına
+// (app/dun/page.tsx, app/yarin/page.tsx) sahip, böylece paylaşılabilir/
+// yer imlerine eklenebilir/geri tuşuyla ayırt edilebilir URL'leri oluyor.
+const DATE_TAB_PATHS: Record<"yesterday" | "today" | "tomorrow", string> = {
+  yesterday: "/dun",
+  today: "/",
+  tomorrow: "/yarin",
+}
+
 function actualWinner(homeGoals: number, awayGoals: number): "home" | "away" | "draw" {
   if (homeGoals > awayGoals) return "home"
   if (awayGoals > homeGoals) return "away"
@@ -67,14 +80,38 @@ interface HomeClientProps {
   // sadece client tarafında (handleRefresh içinde) çekildiği için panel
   // sayfa açıldıktan birkaç saniye sonra aniden beliriyordu.
   initialPredictionResults?: PredictionResult[]
+  // Bu HomeClient örneğinin hangi rotadan render edildiğini belirtir:
+  // app/page.tsx -> "today" (varsayılan), app/dun/page.tsx -> "yesterday",
+  // app/yarin/page.tsx -> "tomorrow". Kullanıcı bu URL'i direkt açtığında
+  // (deep link, yer imi, paylaşılan link) doğru sekmenin baştan seçili
+  // gelmesini sağlar.
+  initialDateTab?: "yesterday" | "today" | "tomorrow"
 }
 
-export function HomeClient({ initialFixturesData, initialPredictionResults }: HomeClientProps = {}) {
+export function HomeClient({ initialFixturesData, initialPredictionResults, initialDateTab = "today" }: HomeClientProps = {}) {
+  const router = useRouter()
   // Kullanıcının ana sayfadan geçiş yapabildiği "Dün" / "Bugün" / "Yarın"
   // sekmesi. Her üç tarih de TR saatiyle hesaplanır, gece 00:00'da (TR
-  // saati) otomatik olarak bir gün kayar.
-  const [dateTab, setDateTab] = useState<"yesterday" | "today" | "tomorrow">("today")
+  // saati) otomatik olarak bir gün kayar. Sadece "Bugün" "/" URL'inde
+  // yaşar; diğer ikisi kendi rotasına sahiptir (bkz. DATE_TAB_PATHS) — bu
+  // yüzden sekme değişimi hem client state'i günceller hem de URL'i o
+  // rotaya taşır (handleDateTabChange).
+  const [dateTab, setDateTab] = useState<"yesterday" | "today" | "tomorrow">(initialDateTab)
   const date = dateTab === "yesterday" ? yesterdayTR() : dateTab === "tomorrow" ? tomorrowTR() : todayTR()
+  const handleDateTabChange = useCallback(
+    (tab: "yesterday" | "today" | "tomorrow") => {
+      if (tab === dateTab) return
+      // Sekmeyi anında güncelliyoruz (client fetch'i tetikleyen `date` bu
+      // state'e bağlı) — böylece gerçek sayfa geçişi (aşağıdaki router.push)
+      // tamamlanana kadar kullanıcı boş/donuk bir ekran görmez, veri zaten
+      // client tarafında çekilmeye başlar. router.push tamamlandığında yeni
+      // rotanın kendi initialDateTab'i bu state ile eşleşeceği için görünür
+      // bir fark olmaz.
+      setDateTab(tab)
+      router.push(DATE_TAB_PATHS[tab])
+    },
+    [dateTab, router],
+  )
   const { favorites } = useFavorites()
   const { t, locale } = useLanguage()
   // Maç paneli artık global bir context'te (MatchContext, kök layout'ta
@@ -82,10 +119,11 @@ export function HomeClient({ initialFixturesData, initialPredictionResults }: Ho
   // panelinden bir maça tıklamak da aynı paneli açabiliyor.
   const { panel: matchPanel, openMatch, closeMatch, syncFixture } = useMatchPanel()
 
-  // initialFixturesData sadece "bugün" tarihi için geçerlidir (sunucu her
-  // zaman todayTR() için çeker). Kullanıcı "Dün"/"Yarın" sekmesindeyken
-  // sayfayı ilk kez açarsa (örn. deep link) bu veri o tarihle eşleşmez —
-  // bu yüzden başlangıç state'i sadece dateTab hâlâ "today" ise kullanılır.
+  // initialFixturesData, çağıran sayfa (app/page.tsx -> bugün,
+  // app/dun/page.tsx -> dün, app/yarin/page.tsx -> yarın, app/mac/[id]/page.tsx
+  // -> her zaman bugün) tarafından initialDateTab ile eşleşen tarih için
+  // sunucuda önceden çekilmiş olarak gelir — bu yüzden burada direkt
+  // başlangıç state'i olarak kullanılabilir.
   const [fixturesData, setFixturesData] = useState<FixturesResponse | null>(
     initialFixturesData ?? null,
   )
@@ -347,7 +385,7 @@ export function HomeClient({ initialFixturesData, initialPredictionResults }: Ho
                 type="button"
                 role="tab"
                 aria-selected={dateTab === "yesterday"}
-                onClick={() => setDateTab("yesterday")}
+                onClick={() => handleDateTabChange("yesterday")}
                 className={cn(
                   "relative rounded-full px-3 py-1 text-xs font-semibold transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-['']",
                   dateTab === "yesterday"
@@ -361,7 +399,7 @@ export function HomeClient({ initialFixturesData, initialPredictionResults }: Ho
                 type="button"
                 role="tab"
                 aria-selected={dateTab === "today"}
-                onClick={() => setDateTab("today")}
+                onClick={() => handleDateTabChange("today")}
                 className={cn(
                   "relative rounded-full px-3 py-1 text-xs font-semibold transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-['']",
                   dateTab === "today"
@@ -375,7 +413,7 @@ export function HomeClient({ initialFixturesData, initialPredictionResults }: Ho
                 type="button"
                 role="tab"
                 aria-selected={dateTab === "tomorrow"}
-                onClick={() => setDateTab("tomorrow")}
+                onClick={() => handleDateTabChange("tomorrow")}
                 className={cn(
                   "relative rounded-full px-3 py-1 text-xs font-semibold transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-['']",
                   dateTab === "tomorrow"

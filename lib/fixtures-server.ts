@@ -41,3 +41,22 @@ export async function getFixturesResponse(date: string, refresh = false): Promis
 export function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
 }
+
+// Türkiye saatiyle dünün/yarının tarihini döndürür (YYYY-MM-DD). Sunucu
+// tarafında (app/dun/page.tsx, app/yarin/page.tsx) todayTR() ile aynı mantığı
+// kullanır — bkz. components/home-client.tsx'teki client tarafı eşleniği
+// (yesterdayTR / tomorrowTR). Gece 00:00'da (TR saatiyle) her üçü de otomatik
+// olarak bir gün kayar.
+export function yesterdayTR(): string {
+  const now = new Date()
+  const trNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Istanbul" }))
+  trNow.setDate(trNow.getDate() - 1)
+  return trNow.toLocaleDateString("sv-SE")
+}
+
+export function tomorrowTR(): string {
+  const now = new Date()
+  const trNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Istanbul" }))
+  trNow.setDate(trNow.getDate() + 1)
+  return trNow.toLocaleDateString("sv-SE")
+}

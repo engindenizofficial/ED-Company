@@ -938,6 +938,16 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         description:
           "Günün maçlarını YZ destekli simülasyonla analiz eden ED Company motoru: skor tahmini, kazanma yüzdeleri ve taktiksel rapor.",
       },
+      yesterday: {
+        title: "Dünün Maçları | ED Company",
+        description:
+          "Dün oynanan maçların sonuçlarını, istatistiklerini ve YZ tahmin başarısını ED Company'de inceleyin.",
+      },
+      tomorrow: {
+        title: "Yarının Maçları | ED Company",
+        description:
+          "Yarın oynanacak maçları, YZ destekli skor tahminlerini ve kazanma yüzdelerini ED Company'de keşfedin.",
+      },
       games: {
         title: "Oyunlar | ED Company",
         description: "Futbol bilginizi test edin: piyasa değeri düellosu ve daha fazlası.",
@@ -1900,6 +1910,16 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         title: "ED Company",
         description:
           "The ED Company engine analyzes today's matches with an AI-powered simulation: score predictions, win probabilities, and a tactical report.",
+      },
+      yesterday: {
+        title: "Yesterday's Matches | ED Company",
+        description:
+          "Check yesterday's match results, stats, and AI prediction accuracy on ED Company.",
+      },
+      tomorrow: {
+        title: "Tomorrow's Matches | ED Company",
+        description:
+          "Explore tomorrow's matches with AI-powered score predictions and win probabilities on ED Company.",
       },
       games: {
         title: "Games | ED Company",

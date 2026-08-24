@@ -36,6 +36,8 @@ const ROUTE_OVERRIDES: Record<
   { priority?: number; changeFrequency?: MetadataRoute.Sitemap[number]['changeFrequency'] }
 > = {
   '/': { priority: 1, changeFrequency: 'daily' },
+  '/dun': { priority: 0.6, changeFrequency: 'daily' },
+  '/yarin': { priority: 0.6, changeFrequency: 'daily' },
   '/oyunlar': { priority: 0.8, changeFrequency: 'weekly' },
   '/oyunlar/piyasa-degeri-duellosu': { priority: 0.7, changeFrequency: 'weekly' },
   '/oyunlar/kulubunu-kur': { priority: 0.7, changeFrequency: 'weekly' },
@@ -73,14 +75,14 @@ function getRouteMeta(route: string) {
  * Bugünün tüm fikstürleri (dünyadaki her lig, sadece bugün) — tek seferde
  * çekilip mac/lig/takim/oyuncu rotalarının hepsi bundan türetilir.
  *
- * Not: Sitede şu an sadece bugünün maçları (ana sayfadaki todayTR()) iç
- * linkle erişilebilir durumda — dün/önceki gün ve yarın/sonraki günler
- * için site içi tarih navigasyonu yok. Sitemap'i sitenin gerçekten
- * erişilebilir olduğu içerikle sınırlı tutmak için pencere kasıtlı olarak
- * "bugün" ile sınırlandı (yetim sayfa oluşturmamak ve API-Football
- * çağrılarını gereksiz büyütmemek için). Site içine tarih navigasyonu
- * eklenirse, bu fonksiyon geçmiş/gelecek günleri de kapsayacak şekilde
- * genişletilebilir.
+ * Not: Site içi tarih navigasyonu ("Dün" / "Bugün" / "Yarın") kendi statik
+ * rotalarına (/dun, /yarin) sahip ve findPageRoutes tarafından otomatik
+ * bulunuyor — o rotalar kendi tarihlerini sunucuda ayrıca çeker. Bu
+ * fonksiyon ise sadece /mac/{id} rotaları ve lastModified sinyali için
+ * "bugün"ün fikstürlerine bakar; dün/yarının maç sayfalarını (/mac/{id})
+ * ayrıca sitemap'e eklemiyoruz (yetim sayfa oluşturmamak ve API-Football
+ * çağrılarını gereksiz büyütmemek için) — o maçların sayfaları hâlâ
+ * erişilebilir, sadece bu listede yer almıyorlar.
  */
 async function getTodayFixtures(): Promise<Fixture[]> {
   // Türkiye saatiyle bugün — app/api/fixtures/route.ts'teki todayTR() ile
