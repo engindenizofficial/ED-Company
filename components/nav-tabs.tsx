@@ -23,10 +23,10 @@ export function NavTabs() {
 
   return (
     <nav
-      className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-md"
+      className="sticky top-0 z-20 h-[49px] border-b border-border/60 bg-background/80 backdrop-blur-md"
       aria-label={t("nav.ariaLabel")}
     >
-      <div className="mx-auto flex max-w-4xl items-center justify-between gap-1 px-3 sm:px-5">
+      <div className="mx-auto flex h-full max-w-4xl items-center justify-between gap-1 px-3 sm:px-5">
         {/* Hamburger (sadece giriş yapmış kullanıcılar) + Logo sol */}
         <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
           <FavoritesMenu />
