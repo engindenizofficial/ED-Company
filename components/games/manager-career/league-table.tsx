@@ -54,7 +54,7 @@ export function LeagueTable({ rows }: { rows: LeagueTableRow[] }) {
                         alt=""
                         width={20}
                         height={20}
-                        className="h-5 w-5 shrink-0 rounded-[3px] bg-white object-contain p-0.5 ring-1 ring-black/10"
+                        className="h-5 w-5 shrink-0 rounded-full bg-white/95 object-contain p-0.5 ring-1 ring-black/5"
                         unoptimized
                       />
                     ) : (

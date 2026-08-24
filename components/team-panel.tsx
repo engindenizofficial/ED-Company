@@ -318,7 +318,7 @@ function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; t
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex items-center gap-1.5">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.league.logo} alt="" className="h-3.5 w-3.5 object-contain opacity-80 rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={14} height={14} loading="lazy" decoding="async" />
+                      <img src={f.league.logo} alt="" className="h-3.5 w-3.5 object-contain opacity-80 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={14} height={14} loading="lazy" decoding="async" />
                       <span className="text-[10px] text-muted-foreground truncate">{f.league.name}</span>
                       {f.league.round && (
                         <span className="shrink-0 text-[10px] text-muted-foreground">· {f.league.round}</span>
@@ -326,11 +326,11 @@ function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; t
                     </div>
                     <div className="flex items-center gap-1.5">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.home.logo} alt="" className="h-4 w-4 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={16} height={16} loading="lazy" decoding="async" />
+                      <img src={f.home.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
                       <span className="text-xs font-semibold text-foreground truncate">{f.home.name}</span>
                       <span className="shrink-0 text-muted-foreground">–</span>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.away.logo} alt="" className="h-4 w-4 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={16} height={16} loading="lazy" decoding="async" />
+                      <img src={f.away.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
                       <span className="text-xs font-semibold text-foreground truncate">{f.away.name}</span>
                     </div>
                   </div>
@@ -407,7 +407,7 @@ function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: 
                       <div className="flex items-center gap-2">
                         {c.team.logo && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={c.team.logo} alt="" className="h-5 w-5 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={20} height={20} loading="lazy" decoding="async" />
+                          <img src={c.team.logo} alt="" className="h-5 w-5 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={20} height={20} loading="lazy" decoding="async" />
                         )}
                         <span className="text-xs font-semibold text-foreground">{c.team.name}</span>
                       </div>
@@ -773,13 +773,13 @@ function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direc
           <div className="flex items-center gap-1 mt-0.5">
             {fromTeam.logo && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={fromTeam.logo} alt="" className="h-3 w-3 object-contain opacity-70 rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={12} height={12} loading="lazy" decoding="async" />
+              <img src={fromTeam.logo} alt="" className="h-3 w-3 object-contain opacity-70 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={12} height={12} loading="lazy" decoding="async" />
             )}
             <span className="text-[10px] text-muted-foreground truncate">{fromTeam.name}</span>
             <span className="text-[10px] text-muted-foreground">→</span>
             {toTeam.logo && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={toTeam.logo} alt="" className="h-3 w-3 object-contain opacity-70 rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={12} height={12} loading="lazy" decoding="async" />
+              <img src={toTeam.logo} alt="" className="h-3 w-3 object-contain opacity-70 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={12} height={12} loading="lazy" decoding="async" />
             )}
             <span className="text-[10px] text-muted-foreground truncate">{toTeam.name}</span>
           </div>
@@ -878,7 +878,7 @@ function TeamPanelInner({
               <img
                 src={team.logo}
                 alt={team.name}
-                className="h-14 w-14 shrink-0 object-contain drop-shadow-md rounded-[3px] bg-white p-0.5 ring-1 ring-black/10"
+                className="h-14 w-14 shrink-0 object-contain drop-shadow-md rounded-full bg-white/95 p-0.5 ring-1 ring-black/5"
               width={56} height={56} loading="lazy" decoding="async" />
             ) : (
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-secondary">

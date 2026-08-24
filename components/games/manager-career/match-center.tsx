@@ -24,7 +24,7 @@ function TeamHeader({ name, logo, align }: { name: string; logo: string | null; 
   return (
     <div className={cn("flex flex-1 flex-col items-center gap-2 text-center", align === "left" ? "items-end" : "items-start")}>
       {logo ? (
-        <Image src={logo} alt="" width={48} height={48} className="h-12 w-12 rounded-[4px] bg-white object-contain p-1 ring-1 ring-black/10" unoptimized />
+        <Image src={logo} alt="" width={48} height={48} className="h-12 w-12 rounded-[4px] bg-white object-contain p-1 ring-1 ring-black/5" unoptimized />
       ) : (
         <span className="h-12 w-12" />
       )}

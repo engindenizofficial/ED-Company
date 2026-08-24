@@ -217,7 +217,7 @@ export function TeamSearchBar() {
                         <div className="relative h-8 w-8 shrink-0">
                           {r.logo ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={r.logo} alt="" className="h-8 w-8 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={32} height={32} loading="lazy" decoding="async" />
+                            <img src={r.logo} alt="" className="h-8 w-8 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={32} height={32} loading="lazy" decoding="async" />
                           ) : (
                             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-[11px] font-black text-muted-foreground">
                               {r.name.charAt(0)}
@@ -270,7 +270,7 @@ export function TeamSearchBar() {
                         <div className="relative h-8 w-8 shrink-0">
                           {r.logo ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={r.logo} alt="" className="h-8 w-8 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={32} height={32} loading="lazy" decoding="async" />
+                            <img src={r.logo} alt="" className="h-8 w-8 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={32} height={32} loading="lazy" decoding="async" />
                           ) : (
                             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-[11px] font-black text-muted-foreground">
                               {r.name.charAt(0)}

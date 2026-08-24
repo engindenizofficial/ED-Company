@@ -255,7 +255,7 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
       {/* League strip */}
       <div className="flex items-center justify-center gap-2 border-b border-border/60 bg-secondary/30 px-4 py-2">
         {fixture.league.logo && (
-          <img src={fixture.league.logo} alt="" className="h-4 w-4 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10"  width={16} height={16} loading="lazy" decoding="async"/>
+          <img src={fixture.league.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5"  width={16} height={16} loading="lazy" decoding="async"/>
         )}
         <span className="text-[11px] font-semibold text-muted-foreground tracking-wide">
           {fixture.league.name}
@@ -268,7 +268,7 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
         {/* Home */}
         <TeamButton team={fixture.home} className="flex flex-col items-center gap-2 group">
           {fixture.home.logo && (
-            <img src={fixture.home.logo} alt={fixture.home.name} className="h-14 w-14 object-contain drop-shadow-sm transition-transform group-hover:scale-105 rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={56} height={56} fetchPriority="high" decoding="async" />
+            <img src={fixture.home.logo} alt={fixture.home.name} className="h-14 w-14 object-contain drop-shadow-sm transition-transform group-hover:scale-105 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={56} height={56} fetchPriority="high" decoding="async" />
           )}
           <span className="text-center text-sm font-bold text-foreground text-balance leading-tight group-hover:text-primary transition-colors">{fixture.home.name}</span>
         </TeamButton>
@@ -323,7 +323,7 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
         {/* Away */}
         <TeamButton team={fixture.away} className="flex flex-col items-center gap-2 group">
           {fixture.away.logo && (
-            <img src={fixture.away.logo} alt={fixture.away.name} className="h-14 w-14 object-contain drop-shadow-sm transition-transform group-hover:scale-105 rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={56} height={56} fetchPriority="high" decoding="async" />
+            <img src={fixture.away.logo} alt={fixture.away.name} className="h-14 w-14 object-contain drop-shadow-sm transition-transform group-hover:scale-105 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={56} height={56} fetchPriority="high" decoding="async" />
           )}
           <span className="text-center text-sm font-bold text-foreground text-balance leading-tight group-hover:text-primary transition-colors">{fixture.away.name}</span>
         </TeamButton>
@@ -720,7 +720,7 @@ function PlayerStatsTable({
               tab === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            {side.team.logo && <img src={side.team.logo} alt="" className="h-4 w-4 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10"  width={16} height={16} loading="lazy" decoding="async"/>}
+            {side.team.logo && <img src={side.team.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5"  width={16} height={16} loading="lazy" decoding="async"/>}
             {side.team.name}
           </button>
         ))}
@@ -978,7 +978,7 @@ function LineupsSkeleton() {
 
         {/* Pitch skeleton — gerçek FormationPitch ile aynı aspect-ratio */}
         <div
-          className="relative w-full animate-pulse overflow-hidden rounded-xl bg-secondary/50 shadow-inner ring-1 ring-black/10"
+          className="relative w-full animate-pulse overflow-hidden rounded-xl bg-secondary/50 shadow-inner ring-1 ring-black/5"
           style={{ aspectRatio: "68 / 100" }}
         />
 
@@ -1183,7 +1183,7 @@ function FormationPitch({
       <TeamFormationHeader team={away} lineup={awayLineup} align="left" />
 
       <div
-        className="relative w-full overflow-hidden rounded-xl shadow-inner ring-1 ring-black/10"
+        className="relative w-full overflow-hidden rounded-xl shadow-inner ring-1 ring-black/5"
         style={{
           aspectRatio: "68 / 100",
           backgroundColor: "var(--pitch)",
@@ -1222,7 +1222,7 @@ function TeamFormationHeader({
       <div className="flex items-center gap-2">
         {team.logo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={team.logo || "/placeholder.svg"} alt="" className="h-5 w-5 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10"  width={20} height={20} loading="lazy" decoding="async"/>
+          <img src={team.logo || "/placeholder.svg"} alt="" className="h-5 w-5 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5"  width={20} height={20} loading="lazy" decoding="async"/>
         ) : null}
         <div className="flex flex-col leading-tight">
           <span className="text-xs font-bold text-foreground">{team.name}</span>
@@ -1369,7 +1369,7 @@ function BenchColumn({ team, subs, side }: { team: TeamInfo; subs: LineupPlayer[
       <div className="mb-0.5 flex items-center gap-1.5 border-b border-border/60 pb-1.5">
         {team.logo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={team.logo || "/placeholder.svg"} alt="" className="h-4 w-4 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10"  width={16} height={16} loading="lazy" decoding="async"/>
+          <img src={team.logo || "/placeholder.svg"} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5"  width={16} height={16} loading="lazy" decoding="async"/>
         ) : null}
         <span className="truncate text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
           {t("analysis.substitutes")}
@@ -1533,7 +1533,7 @@ function TeamStatsCard({ stats, label }: { stats: TeamSeasonStats; label: string
       <div className="flex items-center justify-between gap-2">
         <TeamButton team={stats.team} className="flex items-center gap-2 group">
           {stats.team.logo && (
-            <img src={stats.team.logo} alt={stats.team.name} className="h-7 w-7 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10"  width={28} height={28} loading="lazy" decoding="async"/>
+            <img src={stats.team.logo} alt={stats.team.name} className="h-7 w-7 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5"  width={28} height={28} loading="lazy" decoding="async"/>
           )}
           <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{stats.team.name}</span>
         </TeamButton>

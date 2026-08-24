@@ -148,7 +148,7 @@ export function DuelPlayerCard({
               src={player.team.logo || "/placeholder.svg"}
               alt=""
               crossOrigin="anonymous"
-              className="h-4 w-4 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10"
+              className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5"
               width={16}
               height={16}
               loading="lazy"

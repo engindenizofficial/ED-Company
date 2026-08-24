@@ -546,7 +546,7 @@ function SortableFavoriteRow({
         <div className="relative h-6 w-6 shrink-0">
           {favorite.logo ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={favorite.logo} alt="" className="h-6 w-6 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={24} height={24} loading="lazy" decoding="async" />
+            <img src={favorite.logo} alt="" className="h-6 w-6 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={24} height={24} loading="lazy" decoding="async" />
           ) : (
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-[10px] font-black text-muted-foreground">
               {favorite.name.charAt(0)}

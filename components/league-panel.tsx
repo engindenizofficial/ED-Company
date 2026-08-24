@@ -90,7 +90,7 @@ function PlayerAvatar({ photo, name }: { photo: string | null; name: string }) {
 function TeamLogo({ logo, name }: { logo: string; name: string }) {
   return logo ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={logo} alt={name} title={name} className="mx-auto h-5 w-5 rounded-[3px] bg-white object-contain p-0.5 ring-1 ring-black/10" width={20} height={20} loading="lazy" decoding="async" />
+    <img src={logo} alt={name} title={name} className="mx-auto h-5 w-5 rounded-full bg-white/95 object-contain p-0.5 ring-1 ring-black/5" width={20} height={20} loading="lazy" decoding="async" />
   ) : (
     <span className="text-[10px] text-muted-foreground">{name}</span>
   )
@@ -627,13 +627,13 @@ function RecentFixturesSection({ leagueId, leagueName, active }: { leagueId: num
                     </span>
                     <div className="flex items-center gap-1.5 truncate">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={16} height={16} loading="lazy" decoding="async" />
+                      <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
                       <span className="truncate text-xs font-semibold text-foreground">{f.home.name}</span>
                       <span className="shrink-0 font-black tabular-nums text-foreground">
                         {f.goalsHome} – {f.goalsAway}
                       </span>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={16} height={16} loading="lazy" decoding="async" />
+                      <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
                       <span className="truncate text-xs font-semibold text-foreground">{f.away.name}</span>
                     </div>
                   </div>
@@ -672,11 +672,11 @@ function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: n
                     <span className="text-[10px] text-muted-foreground">{f.league.round}</span>
                     <div className="flex items-center gap-1.5 truncate">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={16} height={16} loading="lazy" decoding="async" />
+                      <img src={f.home.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
                       <span className="truncate text-xs font-semibold text-foreground">{f.home.name}</span>
                       <span className="shrink-0 text-muted-foreground">–</span>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10" width={16} height={16} loading="lazy" decoding="async" />
+                      <img src={f.away.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
                       <span className="truncate text-xs font-semibold text-foreground">{f.away.name}</span>
                     </div>
                   </div>
@@ -746,12 +746,12 @@ function LeaguePanelInner({
           {league.logo ? (
             // Tek renkli/çizgi lig logolarındaki siyah öğelerin koyu temada arka
             // planla kaybolmaması için sabit beyaz bir zemin ekliyoruz.
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-border/40">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white p-2 shadow-sm ring-1 ring-border/40">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={league.logo}
                 alt={league.name}
-                className="h-full w-full object-contain rounded-[3px] bg-white p-0.5 ring-1 ring-black/10"
+                className="h-full w-full object-contain"
                 width={48} height={48} loading="lazy" decoding="async" />
             </div>
           ) : (

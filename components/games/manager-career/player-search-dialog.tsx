@@ -190,7 +190,7 @@ export function PlayerSearchDialog({
                           <img
                             src={r.teamLogo}
                             alt=""
-                            className="h-3.5 w-3.5 shrink-0 rounded-[2px] bg-white object-contain ring-1 ring-black/10"
+                            className="h-3.5 w-3.5 shrink-0 rounded-[2px] bg-white object-contain ring-1 ring-black/5"
                             loading="lazy"
                           />
                         )}
