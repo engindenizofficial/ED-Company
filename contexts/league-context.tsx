@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react"
 import type { LeagueBasicInfo } from "@/lib/types"
 import { useLanguage } from "@/contexts/language-context"
+import { usePanelSeq } from "@/contexts/panel-stack-context"
 
 export interface LeagueInfo {
   id: number
@@ -20,6 +21,10 @@ export interface LeaguePanelState {
   basic: LeagueBasicInfo | null
   loading: boolean
   error: string | null
+  /** Bu panel örneğine açıldığı anda atanan, diğer panel türleriyle
+   * karşılaştırılabilir global sıra numarası — doğru z-index için kullanılır.
+   * Bkz. contexts/panel-stack-context.tsx. */
+  seq: number
 }
 
 interface LeagueContextValue {
@@ -46,6 +51,7 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
   // panel anında geri görünür olur.
   const [stack, setStack] = useState<LeaguePanelState[]>([])
   const { t } = useLanguage()
+  const nextSeq = usePanelSeq()
   const requestIdRef = useRef(0)
   const controllerRef = useRef<AbortController | null>(null)
 
@@ -56,10 +62,11 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     controllerRef.current = controller
 
     setStack((prev) => {
-      const next: LeaguePanelState = { league, basic: null, loading: true, error: null }
       if (prev.length > 0 && prev[prev.length - 1].league.id === league.id) {
+        const next: LeaguePanelState = { league, basic: null, loading: true, error: null, seq: prev[prev.length - 1].seq }
         return [...prev.slice(0, -1), next]
       }
+      const next: LeaguePanelState = { league, basic: null, loading: true, error: null, seq: nextSeq() }
       return [...prev, next]
     })
 
@@ -71,11 +78,11 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) throw new Error(t("common.serverErrorWithStatus", { status: res.status }))
       const basic: LeagueBasicInfo = await res.json()
       if (controller.signal.aborted || requestId !== requestIdRef.current) return
-      setStack((prev) => prev.map((entry) => (entry.league.id === league.id ? { league, basic, loading: false, error: null } : entry)))
+      setStack((prev) => prev.map((entry) => (entry.league.id === league.id ? { league, basic, loading: false, error: null, seq: entry.seq } : entry)))
     } catch (err) {
       if (controller.signal.aborted || requestId !== requestIdRef.current) return
       const msg = err instanceof Error ? err.message : t("common.unexpectedError")
-      setStack((prev) => prev.map((entry) => (entry.league.id === league.id ? { league, basic: null, loading: false, error: msg } : entry)))
+      setStack((prev) => prev.map((entry) => (entry.league.id === league.id ? { league, basic: null, loading: false, error: msg, seq: entry.seq } : entry)))
     }
   }, [t])
 

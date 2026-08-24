@@ -20,7 +20,7 @@ import {
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTeamPanel } from "@/contexts/team-context"
-import { usePanelZIndex } from "@/contexts/panel-stack-context"
+import { panelZIndexForSeq } from "@/contexts/panel-stack-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
@@ -830,11 +830,10 @@ function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direc
 
 export function TeamPanel() {
   const { panel, closeTeam } = useTeamPanel()
-  const zIndex = usePanelZIndex("team", !!panel, panel?.team.id)
   useBodyScrollLock(!!panel)
   useCloseOnBackButton(!!panel, closeTeam, panel ? `/takim/${panel.team.id}` : undefined)
   if (!panel) return null
-  return <TeamPanelInner key={panel.team.id} closeTeam={closeTeam} panel={panel} zIndex={zIndex} />
+  return <TeamPanelInner key={panel.team.id} closeTeam={closeTeam} panel={panel} zIndex={panelZIndexForSeq(panel.seq)} />
   }
 
 function TeamPanelInner({

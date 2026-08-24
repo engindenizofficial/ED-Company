@@ -1,76 +1,62 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useRef } from "react"
 
 /**
- * Takım/Lig/Oyuncu/Maç panelleri kök layout'ta sabit bir DOM sırasıyla
- * render edilir (bkz. app/layout.tsx: Team, League, Player, Match). Hepsi
- * aynı `z-50` değerini kullandığı için iki panel aynı anda açık olduğunda
- * hangisinin üstte göründüğü *açılış sırasına* değil o sabit DOM sırasına
- * bağlı kalıyordu — örneğin Maç paneli açıkken içinden bir Takım paneline
- * tıklamak, Takım paneli DOM'da daha önce render edildiği için onu Maç
- * panelinin altında saklıyordu; kullanıcı yalnızca Maç panelini kapatınca
- * (X'e basınca) Takım paneli görünür oluyordu.
+ * Takım/Lig/Oyuncu/Maç panellerinin her biri kendi iç geçmişini bir yığında
+ * (stack) tutar — örn. Takım paneli açıkken içinden başka bir Takım paneli
+ * açılabilir, `closeTeam` sadece en üsttekini kapatıp bir öncekini geri
+ * getirir (bkz. team-context.tsx / player-context.tsx / league-context.tsx /
+ * match-context.tsx).
  *
- * Bu context, panellerin en son açılış sırasını bir yığında (stack) takip
- * eder ve her panele bu sıraya göre artan bir z-index atar — böylece hangi
- * DOM sırasında render edildiğine bakılmaksızın en son açılan panel her
- * zaman en üstte görünür.
+ * Önceki yaklaşım, her panel TÜRÜ (team/player/league/match) için sadece
+ * TEK bir z-index yuvası tutuyordu ve "bu tür en son ne zaman öne
+ * getirildi" bilgisine göre sıralıyordu. Bu, aynı türden birden fazla
+ * örnek farklı türlerle iç içe açıldığında (örn. Takım1 → Oyuncu1 → Takım2
+ * → Oyuncu2) yanlış sonuç veriyordu: Oyuncu2 kapatılınca "oyuncu türü"nün
+ * kendi iç yığınındaki Oyuncu1'e dönülüyor ama z-index hâlâ "oyuncu türü en
+ * üstte" dediği için altında kalan Takım2 görünmüyordu — kullanıcı önce
+ * Oyuncu1'i de kapatmak zorunda kalıyordu, oysa doğru sıra Oyuncu2 →
+ * Takım2 → Oyuncu1 → Takım1 → Maç olmalıydı.
+ *
+ * Çözüm: her panel örneği açıldığı anda global, hiç değişmeyen bir sıra
+ * numarası (seq) alır ve bu numara panelin durumuyla (state) birlikte
+ * saklanır. z-index doğrudan bu sabit numaradan hesaplanır. Böylece bir üst
+ * panel kapanıp bir alt panel yeniden görünür olduğunda, o panel kendi
+ * orijinal açılış anındaki (dolayısıyla doğru) z-index değerine otomatik
+ * olarak geri döner — ekstra "öne getirme" mantığına gerek kalmaz.
  */
-
-export type PanelKey = "team" | "league" | "player" | "match"
 
 const BASE_Z_INDEX = 50
 
 interface PanelStackContextValue {
-  stack: PanelKey[]
-  bringToFront: (key: PanelKey) => void
-  remove: (key: PanelKey) => void
+  /** Her çağrıldığında artan, benzersiz bir açılış sıra numarası döner. */
+  nextSeq: () => number
 }
 
 const PanelStackContext = createContext<PanelStackContextValue | null>(null)
 
 export function PanelStackProvider({ children }: { children: React.ReactNode }) {
-  const [stack, setStack] = useState<PanelKey[]>([])
+  const counterRef = useRef(0)
+  const nextSeq = () => {
+    counterRef.current += 1
+    return counterRef.current
+  }
 
-  const bringToFront = useCallback((key: PanelKey) => {
-    setStack((prev) => (prev[prev.length - 1] === key ? prev : [...prev.filter((k) => k !== key), key]))
-  }, [])
-
-  const remove = useCallback((key: PanelKey) => {
-    setStack((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : prev))
-  }, [])
-
-  return <PanelStackContext.Provider value={{ stack, bringToFront, remove }}>{children}</PanelStackContext.Provider>
+  return <PanelStackContext.Provider value={{ nextSeq }}>{children}</PanelStackContext.Provider>
 }
 
 /**
- * `isOpen` true olduğunda paneli yığının en üstüne taşır ve diğer açık
- * panellerin üzerinde kalmasını sağlayacak bir z-index döner. `isOpen`
- * false olduğunda paneli yığından çıkarır ki bir dahaki açılışta yeniden en
- * üste gelsin.
- *
- * `instanceId`, panel açıkken içeriği değişen durumları (örn. Oyuncu paneli
- * açıkken içinden farklı bir Takım paneli açmak — panel türü "team" olarak
- * zaten açık kalır, sadece takım değişir) yakalamak için kullanılır. Sadece
- * `isOpen` değerine bakılsaydı true->true geçişinde effect tekrar
- * tetiklenmez ve panel yığında eski (daha alttaki) konumunda kalırdı.
- * `instanceId` değiştiğinde effect yeniden çalışır ve paneli tekrar en üste
- * taşır.
+ * Bir panel örneği açılırken çağrılır; o örneğe kalıcı olarak atanacak,
+ * global olarak benzersiz ve artan bir sıra numarası döner.
  */
-export function usePanelZIndex(key: PanelKey, isOpen: boolean, instanceId?: string | number | null): number {
+export function usePanelSeq(): () => number {
   const ctx = useContext(PanelStackContext)
-  if (!ctx) throw new Error("usePanelZIndex must be used within PanelStackProvider")
-  const { stack, bringToFront, remove } = ctx
+  if (!ctx) throw new Error("usePanelSeq must be used within PanelStackProvider")
+  return ctx.nextSeq
+}
 
-  useEffect(() => {
-    if (isOpen) {
-      bringToFront(key)
-    } else {
-      remove(key)
-    }
-  }, [isOpen, key, instanceId, bringToFront, remove])
-
-  const index = stack.indexOf(key)
-  return BASE_Z_INDEX + (index === -1 ? 0 : index + 1)
+/** Bir panelin sabit açılış sıra numarasından ekranda göstereceği z-index'i hesaplar. */
+export function panelZIndexForSeq(seq: number): number {
+  return BASE_Z_INDEX + seq
 }

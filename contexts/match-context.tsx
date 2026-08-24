@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import type { Fixture, MatchPrediction, PredictionResult } from "@/lib/types"
+import { usePanelSeq } from "@/contexts/panel-stack-context"
 
 // Bkz. eski home-client.tsx: bir maçın tahmini yeniden üretilebilir mi
 // (henüz oynanmadıysa) ve bir maç bitmiş mi (otomatik sonuç kaydı için).
@@ -18,6 +19,10 @@ interface MatchPanelState {
   fixture: Fixture
   prediction: MatchPrediction | null
   predictionLoading: boolean
+  /** Bu panel örneğine açıldığı anda atanan, diğer panel türleriyle
+   * karşılaştırılabilir global sıra numarası — doğru z-index için kullanılır.
+   * Bkz. contexts/panel-stack-context.tsx. */
+  seq: number
 }
 
 interface MatchContextValue {
@@ -61,6 +66,7 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
   // `closeMatch` sadece en üsttekini kaldırır ve altındaki (verisi hâlâ
   // elimizde olan) panel anında geri görünür olur.
   const [stack, setStack] = useState<MatchPanelState[]>([])
+  const nextSeq = usePanelSeq()
   const requestIdRef = useRef(0)
   const openedFixtureIdRef = useRef<number | null>(null)
   // Hangi fixtureId'ler için sonuç zaten kaydedildi (çift kayıt önlemi) —
@@ -84,10 +90,11 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
 
     const pushOrUpdate = (fixture: Fixture) => {
       setStack((prev) => {
-        const next: MatchPanelState = { fixture, prediction: null, predictionLoading: true }
         if (prev.length > 0 && prev[prev.length - 1].fixture.id === fixture.id) {
+          const next: MatchPanelState = { fixture, prediction: null, predictionLoading: true, seq: prev[prev.length - 1].seq }
           return [...prev.slice(0, -1), next]
         }
+        const next: MatchPanelState = { fixture, prediction: null, predictionLoading: true, seq: nextSeq() }
         return [...prev, next]
       })
     }

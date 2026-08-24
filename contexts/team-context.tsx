@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react"
 import type { TeamBasicInfo, TeamInfo } from "@/lib/types"
 import { useLanguage } from "@/contexts/language-context"
+import { usePanelSeq } from "@/contexts/panel-stack-context"
 
 interface TeamPanelState {
   team: TeamInfo
@@ -12,6 +13,10 @@ interface TeamPanelState {
   basic: TeamBasicInfo | null
   loading: boolean
   error: string | null
+  /** Bu panel örneğine açıldığı anda atanan, diğer panel türleriyle
+   * karşılaştırılabilir global sıra numarası — doğru z-index için kullanılır.
+   * Bkz. contexts/panel-stack-context.tsx. */
+  seq: number
 }
 
 interface TeamContextValue {
@@ -39,6 +44,7 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
   // elimizde olan) panel anında geri görünür olur.
   const [stack, setStack] = useState<TeamPanelState[]>([])
   const { t } = useLanguage()
+  const nextSeq = usePanelSeq()
   const requestIdRef = useRef(0)
   const controllerRef = useRef<AbortController | null>(null)
 
@@ -49,12 +55,13 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     controllerRef.current = controller
 
     setStack((prev) => {
-      const next: TeamPanelState = { team, basic: null, loading: true, error: null }
       // Zaten en üstte aynı takım gösteriliyorsa (örn. aynı linke tekrar
-      // tıklanması) yeni bir seviye eklemeye gerek yok, sadece güncelle.
+      // tıklanması) yeni bir seviye eklemeye gerek yok, mevcut seq'i koru.
       if (prev.length > 0 && prev[prev.length - 1].team.id === team.id) {
+        const next: TeamPanelState = { team, basic: null, loading: true, error: null, seq: prev[prev.length - 1].seq }
         return [...prev.slice(0, -1), next]
       }
+      const next: TeamPanelState = { team, basic: null, loading: true, error: null, seq: nextSeq() }
       return [...prev, next]
     })
 
@@ -66,11 +73,11 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) throw new Error(t("common.serverErrorWithStatus", { status: res.status }))
       const basic: TeamBasicInfo = await res.json()
       if (controller.signal.aborted || requestId !== requestIdRef.current) return
-      setStack((prev) => prev.map((entry) => (entry.team.id === team.id ? { team, basic, loading: false, error: null } : entry)))
+      setStack((prev) => prev.map((entry) => (entry.team.id === team.id ? { team, basic, loading: false, error: null, seq: entry.seq } : entry)))
     } catch (err) {
       if (controller.signal.aborted || requestId !== requestIdRef.current) return
       const msg = err instanceof Error ? err.message : t("common.unexpectedError")
-      setStack((prev) => prev.map((entry) => (entry.team.id === team.id ? { team, basic: null, loading: false, error: msg } : entry)))
+      setStack((prev) => prev.map((entry) => (entry.team.id === team.id ? { team, basic: null, loading: false, error: msg, seq: entry.seq } : entry)))
     }
   }, [t])
 

@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react"
 import { useLeaguePanel, type LeaguePanelState } from "@/contexts/league-context"
-import { usePanelZIndex } from "@/contexts/panel-stack-context"
+import { panelZIndexForSeq } from "@/contexts/panel-stack-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
@@ -704,11 +704,10 @@ function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: n
 
 export function LeaguePanel() {
   const { panel, closeLeague } = useLeaguePanel()
-  const zIndex = usePanelZIndex("league", !!panel, panel?.league.id)
   useBodyScrollLock(!!panel)
   useCloseOnBackButton(!!panel, closeLeague, panel ? `/lig/${panel.league.id}` : undefined)
   if (!panel) return null
-  return <LeaguePanelInner key={panel.league.id} closeLeague={closeLeague} panel={panel} zIndex={zIndex} />
+  return <LeaguePanelInner key={panel.league.id} closeLeague={closeLeague} panel={panel} zIndex={panelZIndexForSeq(panel.seq)} />
 }
 
 function LeaguePanelInner({

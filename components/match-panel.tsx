@@ -6,7 +6,7 @@ import { useCallback } from "react"
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { useMatchPanel } from "@/contexts/match-context"
-import { usePanelZIndex } from "@/contexts/panel-stack-context"
+import { panelZIndexForSeq } from "@/contexts/panel-stack-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
@@ -60,7 +60,6 @@ export function MatchPanel() {
   const { t } = useLanguage()
   const { data: session } = useSession()
   const isAdmin = isAdminEmail(session?.user?.email)
-  const zIndex = usePanelZIndex("match", !!panel, panel?.fixture.id)
 
   useBodyScrollLock(!!panel)
   useCloseOnBackButton(
@@ -77,6 +76,7 @@ export function MatchPanel() {
   if (!panel) return null
 
   const { fixture, prediction, predictionLoading } = panel
+  const zIndex = panelZIndexForSeq(panel.seq)
 
   return (
     <div
