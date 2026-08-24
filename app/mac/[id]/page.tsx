@@ -6,6 +6,7 @@ import { translate } from "@/lib/i18n/dictionaries"
 import { HomeClient } from "@/components/home-client"
 import { MatchUrlOpener } from "@/components/match-url-opener"
 import { getFixturesResponse, todayTR } from "@/lib/fixtures-server"
+import { getAllTimePredictionResults } from "@/lib/redis"
 
 export const dynamic = "force-dynamic"
 
@@ -66,9 +67,10 @@ export default async function MatchPage({ params }: MatchPageProps) {
   // HomeClient'e initialFixturesData olarak geçilir — bu maç detay sayfası
   // arkada ana listeyi de render ettiği için o liste de "Maçlar yükleniyor"
   // animasyonu göstermeden, dolu haliyle mount olur.
-  const [fixture, initialFixturesData] = await Promise.all([
+  const [fixture, initialFixturesData, initialPredictionResults] = await Promise.all([
     getCachedFixture(Number(id)),
     getFixturesResponse(todayTR()),
+    getAllTimePredictionResults(),
   ])
   const home = fixture?.home.name || "Ev Sahibi"
   const away = fixture?.away.name || "Konuk"
@@ -101,7 +103,10 @@ export default async function MatchPage({ params }: MatchPageProps) {
         kalkar. Maç bulunamazsa (fixture null) MatchContext eski davranışına
         (yalnızca id ile tekli fetch) geri döner.
       */}
-      <HomeClient initialFixturesData={initialFixturesData} />
+      <HomeClient
+        initialFixturesData={initialFixturesData}
+        initialPredictionResults={initialPredictionResults}
+      />
       <MatchUrlOpener id={Number(id)} fixture={fixture ?? undefined} />
     </>
   )

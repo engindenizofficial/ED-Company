@@ -62,9 +62,14 @@ interface HomeClientProps {
   // davranış değişmez, sadece ilk mount'taki boş/yükleniyor anı ortadan
   // kalkar.
   initialFixturesData?: FixturesResponse
+  // Sunucuda önceden çekilmiş tüm-zamanlar tahmin sonuçları. Verilirse
+  // "Tahmin Başarısı" paneli de ilk render'da dolu gelir — eskiden bu veri
+  // sadece client tarafında (handleRefresh içinde) çekildiği için panel
+  // sayfa açıldıktan birkaç saniye sonra aniden beliriyordu.
+  initialPredictionResults?: PredictionResult[]
 }
 
-export function HomeClient({ initialFixturesData }: HomeClientProps = {}) {
+export function HomeClient({ initialFixturesData, initialPredictionResults }: HomeClientProps = {}) {
   // Kullanıcının ana sayfadan geçiş yapabildiği "Dün" / "Bugün" / "Yarın"
   // sekmesi. Her üç tarih de TR saatiyle hesaplanır, gece 00:00'da (TR
   // saati) otomatik olarak bir gün kayar.
@@ -86,7 +91,9 @@ export function HomeClient({ initialFixturesData }: HomeClientProps = {}) {
   )
   const [fixturesLoading, setFixturesLoading] = useState(!initialFixturesData)
 
-  const [predictionResults, setPredictionResults] = useState<PredictionResult[]>([])
+  const [predictionResults, setPredictionResults] = useState<PredictionResult[]>(
+    initialPredictionResults ?? [],
+  )
 
   const [refreshing, setRefreshing] = useState(false)
   // handleRefresh'in kimliğini (referansını) refreshing state'inden bağımsız tutmak için ref
@@ -96,8 +103,13 @@ export function HomeClient({ initialFixturesData }: HomeClientProps = {}) {
   // gerçek yenileme aralığı 30 saniyeden, o anki fetch süresi kadar daha uzun sürüyordu.
   const isRefreshingRef = useRef(false)
 
-  // Hangi fixtureId'ler için sonuç zaten kaydedildi (çift kayıt önlemi)
-  const savedResultIds = useRef<Set<number>>(new Set())
+  // Hangi fixtureId'ler için sonuç zaten kaydedildi (çift kayıt önlemi).
+  // initialPredictionResults sunucudan geldiyse buradaki id'lerle başlatılır,
+  // aksi halde autoCheckFinished bu maçları henüz "kaydedilmemiş" sanıp
+  // gereksiz yere tekrar kaydetmeye çalışırdı.
+  const savedResultIds = useRef<Set<number>>(
+    new Set(initialPredictionResults?.map((r) => r.fixtureId) ?? []),
+  )
 
   // Ekranda gösterilen fixturesData hangi tarihe ait, onu tutar. "Maçlar
   // yükleniyor" animasyonu sadece istenen tarih henüz ekranda değilse
