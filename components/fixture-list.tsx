@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type CSSProperties } from "react"
+import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { Clock, Star } from "lucide-react"
 import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
@@ -347,13 +347,20 @@ export function FixtureList({
                 <li key={f.id}>
                   <div
                     className={cn(
-                      "fixture-in-card group relative isolate w-full rounded-xl border px-4 py-3 text-left transition-all duration-150",
+                      "fixture-in-card group relative isolate w-full rounded-xl border px-4 py-3 text-left transition-all duration-200",
                       active
                         ? "border-primary/60 bg-primary/[0.07] shadow-sm"
-                        : "border-border/70 bg-card hover:border-border hover:bg-card/80",
+                        : "border-border/70 bg-card hover:-translate-y-0.5 hover:border-border hover:bg-card/80 hover:shadow-md",
                     )}
                     style={{ "--stagger-delay": `${Math.min(index * 35, 350)}ms` } as CSSProperties}
                   >
+                    {live ? (
+                      <span
+                        key={`${f.goalsHome}-${f.goalsAway}`}
+                        className="goal-row-flash pointer-events-none absolute inset-0 z-0 rounded-xl bg-primary/10"
+                        aria-hidden="true"
+                      />
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => onSelect(f)}
@@ -410,7 +417,10 @@ export function FixtureList({
                         {live ? (
                           <>
                             <span className="flex items-center gap-1 text-[10px] font-bold tabular-nums text-destructive">
-                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
+                              <span className="relative flex h-1.5 w-1.5 shrink-0 items-center justify-center">
+                                <span className="live-ping-ring absolute inset-0 rounded-full bg-destructive" />
+                                <span className="relative h-1.5 w-1.5 rounded-full bg-destructive" />
+                              </span>
                               {t("matchStatus.liveBadge")}
                             </span>
                             <span className="text-[11px] font-semibold tabular-nums text-foreground">{liveText(f, t)}</span>
@@ -460,6 +470,22 @@ function TeamRow({
   isFavorite: boolean
   onToggleFavorite: () => void
 }) {
+  // Skor önceki değerinden yükseldiğinde ("gol!") skor sayısına kısa bir
+  // zıplama + renk parlaması animasyonu uygulanır.
+  const prevGoalsRef = useRef(goals)
+  const [justScored, setJustScored] = useState(false)
+
+  useEffect(() => {
+    const prev = prevGoalsRef.current
+    if (prev !== null && goals !== null && goals > prev) {
+      setJustScored(true)
+      const timeout = setTimeout(() => setJustScored(false), 700)
+      prevGoalsRef.current = goals
+      return () => clearTimeout(timeout)
+    }
+    prevGoalsRef.current = goals
+  }, [goals])
+
   return (
     <div className="flex items-center gap-2.5">
       {logo ? (
@@ -478,7 +504,14 @@ function TeamRow({
         <FavoriteStarButton active={isFavorite} label={name} size="xs" onToggle={onToggleFavorite} />
       </div>
       {played ? (
-        <span className="ml-auto text-base font-black tabular-nums text-foreground">{goals ?? 0}</span>
+        <span
+          className={cn(
+            "ml-auto text-base font-black tabular-nums text-foreground",
+            justScored && "goal-score-pop",
+          )}
+        >
+          {goals ?? 0}
+        </span>
       ) : null}
     </div>
   )

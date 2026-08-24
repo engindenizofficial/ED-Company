@@ -644,3 +644,76 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------- */
+/* Gol animasyonu — canlı bir maçta skor değiştiğinde, sayı zıplayıp       */
+/* kısa bir renk parlaması yapar; satırın arkasında da hafif bir ışık      */
+/* dalgası geçer.                                                          */
+/* ---------------------------------------------------------------------- */
+
+@keyframes goal-score-pop {
+  0% {
+    transform: scale(1);
+    color: currentColor;
+  }
+  30% {
+    transform: scale(1.6) translateY(-2px);
+    color: var(--color-primary);
+  }
+  55% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+    color: currentColor;
+  }
+}
+
+.goal-score-pop {
+  display: inline-block;
+  animation: goal-score-pop 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes goal-row-flash {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.goal-row-flash {
+  animation: goal-row-flash 0.9s ease-out both;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Canlı yayın göstergesi — sabit bir noktanın etrafında dışa doğru genişleyip */
+/* sönen radar halkası; skorbordaki "CANLI" rozetine dikkat çeker.        */
+/* ---------------------------------------------------------------------- */
+
+@keyframes live-ping-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+.live-ping-ring {
+  animation: live-ping-ring 1.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-score-pop,
+  .goal-row-flash,
+  .live-ping-ring {
+    animation: none;
+  }
+}
