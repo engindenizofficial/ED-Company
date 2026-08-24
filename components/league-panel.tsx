@@ -757,9 +757,17 @@ function LeaguePanelInner({
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-base font-black leading-tight text-foreground">{league.name}</h2>
             <div className="mt-0.5 flex items-center gap-1.5">
-              {league.flagUrl && (
+              {/* Bazı giriş noktaları (maç kartları, favori arama sonuçları,
+                  başka bir panel içinden açılan lig linki) performans için
+                  ülke bayrağını bilmeden `flagUrl: null` ile paneli açar;
+                  gerçek bayrak `/api/league` isteği tamamlanınca `basic`
+                  üzerinden gelir. Sadece `league.flagUrl`e bakmak, bayrağı
+                  var olan bir ligi bile profil yüklendikten sonra bayraksız
+                  göstermeye sebep oluyordu — bkz. player-panel.tsx'teki
+                  aynı sorunun oyuncu fotoğrafı için düzeltilmesi. */}
+              {(basic?.league.flagUrl ?? league.flagUrl) && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={league.flagUrl} alt="" className="h-3 w-4 rounded-[2px] object-cover" width={16} height={12} loading="lazy" decoding="async" />
+                <img src={basic?.league.flagUrl ?? league.flagUrl ?? undefined} alt="" className="h-3 w-4 rounded-[2px] object-cover" width={16} height={12} loading="lazy" decoding="async" />
               )}
               <p className="text-xs text-muted-foreground">{toDisplayCountry(league.country, locale)}</p>
             </div>

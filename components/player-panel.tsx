@@ -785,7 +785,15 @@ function PlayerPanelInner({
         <div className="shrink-0 bg-card" {...swipeHandlers}>
           <PanelDragHandle />
           <div className="flex items-center gap-3 border-b border-border px-4 py-4">
-          <PlayerPhoto photo={player.photo} name={player.name} size={56} />
+          {/* Header fotoğrafı önce çekilen tam profildeki `photo`yu kullanır.
+              Çünkü panel açan tıklama noktalarının çoğu (gol/asist/oyuncu
+              değişikliği/en golcü listesi vb. — bkz. analysis-panel.tsx)
+              performans için sadece isim+id ile açar ve `photo: null` geçer;
+              gerçek fotoğraf `/api/player` isteği tamamlanınca `profile`
+              üzerinden gelir. Sadece `player.photo`ya bakmak, fotoğrafı
+              olan bir oyuncuyu bile profil yüklendikten sonra bile
+              placeholder ikonla göstermeye sebep oluyordu. */}
+          <PlayerPhoto photo={profile?.photo ?? player.photo} name={player.name} size={56} />
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-base font-black leading-tight text-foreground">
               {player.name}
