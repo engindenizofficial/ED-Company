@@ -714,7 +714,16 @@ export async function getLineups(fixtureId: number): Promise<TeamLineup[]> {
 // ---------------------------------------------------------------------------
 
 export async function getFixturePlayerStats(fixtureId: number): Promise<FixturePlayerStat[]> {
-  const raw = await safeFetch<any>("/fixtures/players", { fixture: fixtureId }, 60)
+  // TTL'yi 60s'den 30s'ye düşürdük: canlı maç minute'unu (getFixtureById,
+  // TTL=30) ve maç olayları/istatistiklerini (getEvents/getStatistics,
+  // TTL=30) besleyen bizim kendi response cache katmanımızla aynı ritimde
+  // olsun — panelin üst kısmındaki dakika her 30s'de tazelenirken oyuncu
+  // performansları sekmesi kendi 60s cache'i yüzünden bir tur daha geriden
+  // gelebiliyordu. Bu, sadece BİZİM eklediğimiz gecikmeyi azaltır; API-
+  // Football'ın kendi canlı oyuncu puanı/istatistik beslemesi de sağlayıcı
+  // tarafında periyodik olarak güncellendiğinden (gerçek zamanlı değil),
+  // dakika ile içerik arasında birkaç dakikalık fark tamamen kapanmayabilir.
+  const raw = await safeFetch<any>("/fixtures/players", { fixture: fixtureId }, 30)
   const result: FixturePlayerStat[] = []
   for (const teamBlock of raw) {
     const teamName: string = teamBlock?.team?.name ?? ""
