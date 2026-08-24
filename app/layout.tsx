@@ -14,6 +14,7 @@ import { PlayerProvider } from '@/contexts/player-context'
 import { PlayerPanel } from '@/components/player-panel'
 import { MatchProvider } from '@/contexts/match-context'
 import { MatchPanel } from '@/components/match-panel'
+import { PanelStackProvider } from '@/contexts/panel-stack-context'
 import { PanelRouteGuard } from '@/components/panel-route-guard'
 import { PwaUpdateWatcher } from '@/components/pwa-update-watcher'
 import { PushSoundListener } from '@/components/push-sound-listener'
@@ -151,26 +152,28 @@ export default async function RootLayout({
         <PushSoundListener />
         <LanguageProvider initialLocale={locale}>
           <ThemeColorProvider initialAccentColor={accentColor}>
-            <LeagueProvider>
-              <TeamProvider>
-                <PlayerProvider>
-                  <MatchProvider>
-                    <FavoritesProvider>
-                      <PanelRouteGuard />
-                      <NavTabs />
-                      <LoginPromptModal />
-                      {children}
-                      <SiteFooter />
-                      <TeamPanel />
-                      <LeaguePanel />
-                      <PlayerPanel />
-                      <MatchPanel />
-                      <Toaster />
-                    </FavoritesProvider>
-                  </MatchProvider>
-                </PlayerProvider>
-              </TeamProvider>
-            </LeagueProvider>
+            <PanelStackProvider>
+              <LeagueProvider>
+                <TeamProvider>
+                  <PlayerProvider>
+                    <MatchProvider>
+                      <FavoritesProvider>
+                        <PanelRouteGuard />
+                        <NavTabs />
+                        <LoginPromptModal />
+                        {children}
+                        <SiteFooter />
+                        <TeamPanel />
+                        <LeaguePanel />
+                        <PlayerPanel />
+                        <MatchPanel />
+                        <Toaster />
+                      </FavoritesProvider>
+                    </MatchProvider>
+                  </PlayerProvider>
+                </TeamProvider>
+              </LeagueProvider>
+            </PanelStackProvider>
           </ThemeColorProvider>
         </LanguageProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

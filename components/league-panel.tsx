@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react"
 import { useLeaguePanel, type LeaguePanelState } from "@/contexts/league-context"
+import { usePanelZIndex } from "@/contexts/panel-stack-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
@@ -703,18 +704,21 @@ function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: n
 
 export function LeaguePanel() {
   const { panel, closeLeague } = useLeaguePanel()
+  const zIndex = usePanelZIndex("league", !!panel)
   useBodyScrollLock(!!panel)
   useCloseOnBackButton(!!panel, closeLeague, panel ? `/lig/${panel.league.id}` : undefined)
   if (!panel) return null
-  return <LeaguePanelInner key={panel.league.id} closeLeague={closeLeague} panel={panel} />
+  return <LeaguePanelInner key={panel.league.id} closeLeague={closeLeague} panel={panel} zIndex={zIndex} />
 }
 
 function LeaguePanelInner({
   panel,
   closeLeague,
+  zIndex,
 }: {
   panel: LeaguePanelState
   closeLeague: () => void
+  zIndex: number
 }) {
   const { t, locale } = useLanguage()
   const { league, basic, loading, error } = panel
@@ -734,11 +738,11 @@ function LeaguePanelInner({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
+      className="fixed inset-0 flex flex-col bg-background animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-label={`${league.name} ${t("league.leagueInfo")}`}
-      style={swipeStyle}
+      style={{ ...swipeStyle, zIndex }}
     >
       <div className="flex h-full w-full flex-col overflow-hidden">
 

@@ -6,6 +6,7 @@ import { useCallback } from "react"
 import { AnalysisPanel } from "@/components/analysis-panel"
 import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { useMatchPanel } from "@/contexts/match-context"
+import { usePanelZIndex } from "@/contexts/panel-stack-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
@@ -59,6 +60,7 @@ export function MatchPanel() {
   const { t } = useLanguage()
   const { data: session } = useSession()
   const isAdmin = isAdminEmail(session?.user?.email)
+  const zIndex = usePanelZIndex("match", !!panel)
 
   useBodyScrollLock(!!panel)
   useCloseOnBackButton(
@@ -78,11 +80,11 @@ export function MatchPanel() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-background"
+      className="fixed inset-0 flex flex-col bg-background"
       role="dialog"
       aria-modal="true"
       aria-label={`${fixture.home.name} - ${fixture.away.name} ${t("home.matchAnalysis")}`}
-      style={swipeStyle}
+      style={{ ...swipeStyle, zIndex }}
     >
       {/* Top bar — aşağı sürüklenerek panel kapatılabilir (mobil) */}
       <div className="flex shrink-0 flex-col border-b border-border bg-card" {...swipeHandlers}>

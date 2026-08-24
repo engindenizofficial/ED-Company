@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { usePlayerPanel } from "@/contexts/player-context"
+import { usePanelZIndex } from "@/contexts/panel-stack-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
@@ -737,18 +738,21 @@ function SidelinedSection({ playerId, playerName, active }: { playerId: number; 
 
 export function PlayerPanel() {
   const { panel, closePlayer } = usePlayerPanel()
+  const zIndex = usePanelZIndex("player", !!panel)
   useBodyScrollLock(!!panel)
   useCloseOnBackButton(!!panel, closePlayer, panel ? `/oyuncu/${panel.player.id}` : undefined)
   if (!panel) return null
-  return <PlayerPanelInner key={panel.player.id} closePlayer={closePlayer} panel={panel} />
+  return <PlayerPanelInner key={panel.player.id} closePlayer={closePlayer} panel={panel} zIndex={zIndex} />
 }
 
 function PlayerPanelInner({
   panel,
   closePlayer,
+  zIndex,
 }: {
   panel: { player: { id: number; name: string; photo: string | null }; profile: PlayerProfile | null; loading: boolean; error: string | null }
   closePlayer: () => void
+  zIndex: number
 }) {
   const { t, locale } = useLanguage()
   const { player, profile, loading, error } = panel
@@ -769,11 +773,11 @@ function PlayerPanelInner({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
+      className="fixed inset-0 flex flex-col bg-background animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-label={`${player.name} ${t("playerPanel.playerInfoLabel")}`}
-      style={swipeStyle}
+      style={{ ...swipeStyle, zIndex }}
     >
       <div className="flex h-full w-full flex-col overflow-hidden">
 

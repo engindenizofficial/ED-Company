@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTeamPanel } from "@/contexts/team-context"
+import { usePanelZIndex } from "@/contexts/panel-stack-context"
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
@@ -829,18 +830,21 @@ function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direc
 
 export function TeamPanel() {
   const { panel, closeTeam } = useTeamPanel()
+  const zIndex = usePanelZIndex("team", !!panel)
   useBodyScrollLock(!!panel)
   useCloseOnBackButton(!!panel, closeTeam, panel ? `/takim/${panel.team.id}` : undefined)
   if (!panel) return null
-  return <TeamPanelInner key={panel.team.id} closeTeam={closeTeam} panel={panel} />
+  return <TeamPanelInner key={panel.team.id} closeTeam={closeTeam} panel={panel} zIndex={zIndex} />
   }
 
 function TeamPanelInner({
   panel,
   closeTeam,
+  zIndex,
 }: {
   panel: { team: { id: number; name: string; logo: string }; basic: TeamBasicInfo | null; loading: boolean; error: string | null }
   closeTeam: () => void
+  zIndex: number
 }) {
   const { t, locale } = useLanguage()
   const { team, basic, loading, error } = panel
@@ -874,11 +878,11 @@ function TeamPanelInner({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-150"
+      className="fixed inset-0 flex flex-col bg-background animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-label={`${team.name} ${t("team.teamInfo")}`}
-      style={swipeStyle}
+      style={{ ...swipeStyle, zIndex }}
     >
       {/* Full screen panel */}
       <div className="flex h-full w-full flex-col overflow-hidden">
