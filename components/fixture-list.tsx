@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, type CSSProperties } from "react"
 import { Clock, Star } from "lucide-react"
 import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
@@ -10,6 +11,37 @@ import { useLanguage } from "@/contexts/language-context"
 import type { Locale } from "@/lib/i18n/dictionaries"
 import type { Fixture } from "@/lib/types"
 import type { FavoriteItem } from "@/contexts/favorites-context"
+
+/** Bir favori eklendiğinde yıldızın etrafına saçılan, kısa ömürlü parçacıklar. */
+const BURST_PARTICLE_COUNT = 8
+
+function FavoriteBurst() {
+  const particles = Array.from({ length: BURST_PARTICLE_COUNT }, (_, i) => {
+    const angle = (i / BURST_PARTICLE_COUNT) * Math.PI * 2
+    const distance = 16 + (i % 2) * 6
+    const x = Math.cos(angle) * distance
+    const y = Math.sin(angle) * distance
+    return { x, y, delay: (i % 3) * 20 }
+  })
+
+  return (
+    <span className="pointer-events-none absolute inset-0 z-20" aria-hidden="true">
+      {particles.map((p, i) => (
+        <span
+          key={i}
+          className="favorite-burst-particle absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-primary"
+          style={
+            {
+              "--burst-x": `${p.x}px`,
+              "--burst-y": `${p.y}px`,
+              animationDelay: `${p.delay}ms`,
+            } as CSSProperties
+          }
+        />
+      ))}
+    </span>
+  )
+}
 
 /** Ana ekranda takım/lig satırlarında kullanılan içi boş/dolu yıldız butonu. */
 function FavoriteStarButton({
@@ -24,12 +56,19 @@ function FavoriteStarButton({
   size?: "sm" | "xs"
 }) {
   const { t } = useLanguage()
+  const [bursting, setBursting] = useState(false)
+
   return (
     <button
       type="button"
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
+        // Favoriye eklenirken (çıkarılırken değil) küçük bir kutlama patlaması göster.
+        if (!active) {
+          setBursting(true)
+          setTimeout(() => setBursting(false), 600)
+        }
         onToggle()
       }}
       aria-pressed={active}
@@ -46,8 +85,14 @@ function FavoriteStarButton({
       size === "sm" ? "h-6 w-6 before:absolute before:-inset-2.5 before:content-['']" : "h-5 w-5 before:absolute before:-inset-3 before:content-['']",
   )}
   >
+      {bursting ? <FavoriteBurst /> : null}
       <Star
-        className={cn(size === "sm" ? "h-4 w-4" : "h-3.5 w-3.5", active && "fill-primary text-primary")}
+        key={active ? "on" : "off"}
+        className={cn(
+          size === "sm" ? "h-4 w-4" : "h-3.5 w-3.5",
+          active && "fill-primary text-primary",
+          bursting && "favorite-star-pop",
+        )}
       />
     </button>
   )
@@ -294,7 +339,7 @@ export function FixtureList({
 
           {/* Fixture cards */}
           <ul className="flex flex-col gap-1">
-            {group.items.map((f) => {
+            {group.items.map((f, index) => {
               const active = f.id === selectedId
               const live = isLive(f.statusShort)
               const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
@@ -302,11 +347,12 @@ export function FixtureList({
                 <li key={f.id}>
                   <div
                     className={cn(
-                      "group relative isolate w-full rounded-xl border px-4 py-3 text-left transition-all duration-150",
+                      "fixture-in-card group relative isolate w-full rounded-xl border px-4 py-3 text-left transition-all duration-150",
                       active
                         ? "border-primary/60 bg-primary/[0.07] shadow-sm"
                         : "border-border/70 bg-card hover:border-border hover:bg-card/80",
                     )}
+                    style={{ "--stagger-delay": `${Math.min(index * 35, 350)}ms` } as CSSProperties}
                   >
                     <button
                       type="button"

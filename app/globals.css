@@ -540,3 +540,107 @@
 .vote-reveal-away {
   transform-origin: right center;
 }
+
+/* ---------------------------------------------------------------------- */
+/* Maç listesi — kartlar sırayla (stagger) hafifçe yukarı kayarak belirir. */
+/* Her kart .fixture-in-card sınıfı + --stagger-delay değişkeniyle gelir.  */
+/* ---------------------------------------------------------------------- */
+
+@keyframes fixture-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.fixture-in-card {
+  animation: fixture-card-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--stagger-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fixture-in-card {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Tema geçişi — koyu/açık mod değişirken renkler ani yerine yumuşak       */
+/* geçsin. Sadece geçiş sırasında document.documentElement'e eklenen       */
+/* .theme-transitioning sınıfı üzerinden, evrensel ama kısa süreli.        */
+/* ---------------------------------------------------------------------- */
+
+.theme-transitioning,
+.theme-transitioning * {
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, fill 0.4s ease, stroke 0.4s ease !important;
+}
+
+@keyframes theme-icon-pop {
+  0% {
+    transform: scale(0.5) rotate(-90deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15) rotate(10deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.theme-icon-pop {
+  animation: theme-icon-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Favori yıldız patlaması — bir takım/lig favorilere eklendiğinde,       */
+/* yıldızın etrafından fırlayıp sönen küçük parçacıklar.                  */
+/* ---------------------------------------------------------------------- */
+
+@keyframes favorite-burst-particle {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--burst-x), var(--burst-y)) scale(0);
+    opacity: 0;
+  }
+}
+
+.favorite-burst-particle {
+  animation: favorite-burst-particle 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes favorite-star-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.45);
+  }
+  60% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.favorite-star-pop {
+  animation: favorite-star-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .favorite-burst-particle,
+  .favorite-star-pop,
+  .theme-icon-pop {
+    animation: none;
+  }
+}
