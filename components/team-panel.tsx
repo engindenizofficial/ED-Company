@@ -359,6 +359,65 @@ function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; t
 }
 
 // ---------------------------------------------------------------------------
+// Upcoming Fixtures
+// ---------------------------------------------------------------------------
+
+function UpcomingFixturesSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
+  const { t, locale } = useLanguage()
+  const { status, data, error, retry } = useTeamSection<Fixture[]>(teamId, "upcomingFixtures", active)
+  return (
+    <section className="flex flex-col gap-1">
+      {active && (
+        <div className="rounded-2xl border border-border/70 bg-card p-4">
+          {status === "loading" && <SectionLoading label={t("team.upcomingFixtures")} />}
+          {status === "error" && <SectionErrorState error={error} onRetry={retry} />}
+          {status === "empty" && <SectionEmptyState teamName={teamName} label={t("team.upcomingFixturesData")} />}
+          {status === "success" && data && (
+            <div className="flex flex-col gap-1.5">
+              {data.map(f => (
+                <MatchButton
+                  key={f.id}
+                  fixture={f}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-3 py-2.5 text-left hover:bg-secondary/50"
+                >
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex items-center gap-1.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.league.logo} alt="" className="h-3.5 w-3.5 object-contain opacity-80 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={14} height={14} loading="lazy" decoding="async" />
+                      <span className="text-[10px] text-muted-foreground truncate">{f.league.name}</span>
+                      {f.league.round && (
+                        <span className="shrink-0 text-[10px] text-muted-foreground">· {f.league.round}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.home.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
+                      <span className="text-xs font-semibold text-foreground truncate">{f.home.name}</span>
+                      <span className="shrink-0 text-muted-foreground">–</span>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.away.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
+                      <span className="text-xs font-semibold text-foreground truncate">{f.away.name}</span>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-0.5">
+                    <span className="text-[10px] font-bold text-primary">{kickoff(f.date, locale)}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(f.date).toLocaleTimeString(locale === "en" ? "en-US" : "tr-TR", {
+                        hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul",
+                      })}
+                    </span>
+                  </div>
+                </MatchButton>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Coach
 // ---------------------------------------------------------------------------
 
@@ -853,6 +912,7 @@ function TeamPanelInner({
   const tabs: PanelTabItem[] = [
     { key: "stats", label: t("team.seasonStats"), icon: <Activity className="h-3.5 w-3.5" /> },
     { key: "form", label: t("team.recentForm"), icon: <Activity className="h-3.5 w-3.5" /> },
+    { key: "upcomingFixtures", label: t("team.upcomingFixtures"), icon: <Calendar className="h-3.5 w-3.5" /> },
     { key: "fixtures", label: t("team.recentFixtures"), icon: <Calendar className="h-3.5 w-3.5" /> },
     { key: "coach", label: t("team.coach"), icon: <UserCheck className="h-3.5 w-3.5" /> },
     { key: "squad", label: t("team.squad"), icon: <Users className="h-3.5 w-3.5" /> },
@@ -1023,6 +1083,7 @@ function TeamPanelInner({
               <PanelTabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
               <SeasonStatsSection teamId={team.id} teamName={team.name} active={activeTab === "stats"} />
               <FormSection teamId={team.id} teamName={team.name} active={activeTab === "form"} />
+              <UpcomingFixturesSection teamId={team.id} teamName={team.name} active={activeTab === "upcomingFixtures"} />
               <RecentFixturesSection teamId={team.id} teamName={team.name} active={activeTab === "fixtures"} />
               <CoachSection teamId={team.id} teamName={team.name} active={activeTab === "coach"} />
               <SquadSection teamId={team.id} teamName={team.name} active={activeTab === "squad"} />

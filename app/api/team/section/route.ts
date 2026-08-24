@@ -28,6 +28,7 @@ const VALID_SECTIONS = [
   "form",
   "coach",
   "fixtures",
+  "upcomingFixtures",
   "squad",
   "topScorers",
   "standings",
@@ -201,6 +202,20 @@ export async function GET(request: Request) {
         const finished = await fetchFinishedFixtures(teamId)
         if (finished.length === 0) return noStoreJson({ data: null })
         const data: Fixture[] = finished.slice(0, 15).map(mapFixture)
+        return noStoreJson({ data })
+      }
+
+      case "upcomingFixtures": {
+        // Henüz oynanmamış (NS/TBD/PST/CANC dışındaki gerçek "gelecek" statüler)
+        // maçları tarihe göre artan sırada döndürür. API-Football'un "next"
+        // parametresi zaten sadece gelecekteki maçları getirir, ama iptal/
+        // ertelenmiş maçları da dahil edebildiği için statü filtresi uyguluyoruz.
+        const upcomingRaw = await apiFetch<RawFixture>("/fixtures", { team: teamId, next: 15 })
+        const upcoming = [...(upcomingRaw ?? [])]
+          .filter(r => !/FT|AET|PEN|CANC|ABD|AWD|WO/.test(r.fixture.status.short))
+          .sort((a, b) => a.fixture.timestamp - b.fixture.timestamp)
+        if (upcoming.length === 0) return noStoreJson({ data: null })
+        const data: Fixture[] = upcoming.slice(0, 15).map(mapFixture)
         return noStoreJson({ data })
       }
 
