@@ -26,12 +26,25 @@ interface LeagueContextValue {
   panel: LeaguePanelState | null
   openLeague: (league: LeagueInfo) => void
   closeLeague: () => void
+  /**
+   * Lig paneli türünün açık olduğu TÜM seviyeleri (bir ligin içinden başka
+   * bir lige geçilmiş olabilir) tek seferde kapatır. `closeLeague` sadece en
+   * üstteki seviyeyi kapatıp altında kalanı ortaya çıkarırken, bu tamamen
+   * sıfırlar — bkz. PanelRouteGuard.
+   */
+  closeAllLeague: () => void
 }
 
 const LeagueContext = createContext<LeagueContextValue | null>(null)
 
 export function LeagueProvider({ children }: { children: React.ReactNode }) {
-  const [panel, setPanel] = useState<LeaguePanelState | null>(null)
+  // Bir lig paneli içinden (örn. başka bir lig/kupa linki) başka bir lig
+  // paneli açılabiliyor. Tek bir `panel` slotu kullanmak, ikinci lig
+  // açıldığında ilkinin verisini tamamen kaybettiriyordu — bu yüzden bir
+  // YIĞIN (stack) tutuyoruz: her açılış üste bir girdi ekler, `closeLeague`
+  // sadece en üsttekini kaldırır ve altındaki (verisi hâlâ elimizde olan)
+  // panel anında geri görünür olur.
+  const [stack, setStack] = useState<LeaguePanelState[]>([])
   const { t } = useLanguage()
   const requestIdRef = useRef(0)
   const controllerRef = useRef<AbortController | null>(null)
@@ -41,7 +54,14 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
     controllerRef.current?.abort()
     const controller = new AbortController()
     controllerRef.current = controller
-    setPanel({ league, basic: null, loading: true, error: null })
+
+    setStack((prev) => {
+      const next: LeaguePanelState = { league, basic: null, loading: true, error: null }
+      if (prev.length > 0 && prev[prev.length - 1].league.id === league.id) {
+        return [...prev.slice(0, -1), next]
+      }
+      return [...prev, next]
+    })
 
     try {
       const res = await fetch(`/api/league?leagueId=${league.id}&request=${Date.now()}-${requestId}`, {
@@ -51,20 +71,26 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) throw new Error(t("common.serverErrorWithStatus", { status: res.status }))
       const basic: LeagueBasicInfo = await res.json()
       if (controller.signal.aborted || requestId !== requestIdRef.current) return
-      setPanel((prev) => (prev?.league.id === league.id ? { league, basic, loading: false, error: null } : prev))
+      setStack((prev) => prev.map((entry) => (entry.league.id === league.id ? { league, basic, loading: false, error: null } : entry)))
     } catch (err) {
       if (controller.signal.aborted || requestId !== requestIdRef.current) return
       const msg = err instanceof Error ? err.message : t("common.unexpectedError")
-      setPanel((prev) => (prev?.league.id === league.id ? { league, basic: null, loading: false, error: msg } : prev))
+      setStack((prev) => prev.map((entry) => (entry.league.id === league.id ? { league, basic: null, loading: false, error: msg } : entry)))
     }
   }, [t])
 
   const closeLeague = useCallback(() => {
-    setPanel(null)
+    setStack((prev) => prev.slice(0, -1))
   }, [])
 
+  const closeAllLeague = useCallback(() => {
+    setStack([])
+  }, [])
+
+  const panel = stack.length > 0 ? stack[stack.length - 1] : null
+
   return (
-    <LeagueContext.Provider value={{ panel, openLeague, closeLeague }}>
+    <LeagueContext.Provider value={{ panel, openLeague, closeLeague, closeAllLeague }}>
       {children}
     </LeagueContext.Provider>
   )

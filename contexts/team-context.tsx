@@ -18,12 +18,26 @@ interface TeamContextValue {
   panel: TeamPanelState | null
   openTeam: (team: TeamInfo) => void
   closeTeam: () => void
+  /**
+   * Takım paneli türünün açık olduğu TÜM seviyeleri (örn. bir takımın
+   * içinden başka bir takıma, oradan da başka birine geçilmiş olabilir) tek
+   * seferde kapatır. `closeTeam` sadece en üstteki seviyeyi kapatıp altında
+   * kalanı ortaya çıkarırken, bu tamamen sıfırlar — bkz. PanelRouteGuard'ın
+   * gerçek bir sayfa geçişinde tüm panelleri kapatma mantığı.
+   */
+  closeAllTeam: () => void
 }
 
 const TeamContext = createContext<TeamContextValue | null>(null)
 
 export function TeamProvider({ children }: { children: React.ReactNode }) {
-  const [panel, setPanel] = useState<TeamPanelState | null>(null)
+  // Bir takım paneli içinden (örn. rakip takım linki, karşılaştırma vb.)
+  // başka bir takım paneli açılabiliyor. Tek bir `panel` slotu kullanmak,
+  // ikinci takım açıldığında ilkinin verisini tamamen kaybettiriyordu — bu
+  // yüzden bir YIĞIN (stack) tutuyoruz: her açılış üste bir girdi ekler,
+  // `closeTeam` sadece en üsttekini kaldırır ve altındaki (verisi hâlâ
+  // elimizde olan) panel anında geri görünür olur.
+  const [stack, setStack] = useState<TeamPanelState[]>([])
   const { t } = useLanguage()
   const requestIdRef = useRef(0)
   const controllerRef = useRef<AbortController | null>(null)
@@ -33,7 +47,16 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
     controllerRef.current?.abort()
     const controller = new AbortController()
     controllerRef.current = controller
-    setPanel({ team, basic: null, loading: true, error: null })
+
+    setStack((prev) => {
+      const next: TeamPanelState = { team, basic: null, loading: true, error: null }
+      // Zaten en üstte aynı takım gösteriliyorsa (örn. aynı linke tekrar
+      // tıklanması) yeni bir seviye eklemeye gerek yok, sadece güncelle.
+      if (prev.length > 0 && prev[prev.length - 1].team.id === team.id) {
+        return [...prev.slice(0, -1), next]
+      }
+      return [...prev, next]
+    })
 
     try {
       const res = await fetch(`/api/team?teamId=${team.id}&request=${Date.now()}-${requestId}`, {
@@ -43,20 +66,26 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) throw new Error(t("common.serverErrorWithStatus", { status: res.status }))
       const basic: TeamBasicInfo = await res.json()
       if (controller.signal.aborted || requestId !== requestIdRef.current) return
-      setPanel((prev) => (prev?.team.id === team.id ? { team, basic, loading: false, error: null } : prev))
+      setStack((prev) => prev.map((entry) => (entry.team.id === team.id ? { team, basic, loading: false, error: null } : entry)))
     } catch (err) {
       if (controller.signal.aborted || requestId !== requestIdRef.current) return
       const msg = err instanceof Error ? err.message : t("common.unexpectedError")
-      setPanel((prev) => (prev?.team.id === team.id ? { team, basic: null, loading: false, error: msg } : prev))
+      setStack((prev) => prev.map((entry) => (entry.team.id === team.id ? { team, basic: null, loading: false, error: msg } : entry)))
     }
   }, [t])
 
   const closeTeam = useCallback(() => {
-    setPanel(null)
+    setStack((prev) => prev.slice(0, -1))
   }, [])
 
+  const closeAllTeam = useCallback(() => {
+    setStack([])
+  }, [])
+
+  const panel = stack.length > 0 ? stack[stack.length - 1] : null
+
   return (
-    <TeamContext.Provider value={{ panel, openTeam, closeTeam }}>
+    <TeamContext.Provider value={{ panel, openTeam, closeTeam, closeAllTeam }}>
       {children}
     </TeamContext.Provider>
   )

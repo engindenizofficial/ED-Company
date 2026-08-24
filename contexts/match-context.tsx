@@ -31,6 +31,13 @@ interface MatchContextValue {
   openMatch: (fixtureOrId: Fixture | { id: number }) => void
   closeMatch: () => void
   /**
+   * Maç paneli türünün açık olduğu TÜM seviyeleri (bir maçın H2H sekmesinden
+   * başka bir maça geçilmiş olabilir) tek seferde kapatır. `closeMatch`
+   * sadece en üstteki seviyeyi kapatıp altında kalanı ortaya çıkarırken, bu
+   * tamamen sıfırlar — bkz. PanelRouteGuard.
+   */
+  closeAllMatch: () => void
+  /**
    * Fikstür listesi 30 saniyede bir otomatik yenilendiğinde, o an açık olan
    * maç paneli (varsa) en güncel fixture nesnesiyle senkronize edilir —
    * bkz. eski home-client.tsx'teki aynı isimli effect.
@@ -47,7 +54,13 @@ function isFullFixture(value: Fixture | { id: number }): value is Fixture {
 }
 
 export function MatchProvider({ children }: { children: React.ReactNode }) {
-  const [panel, setPanel] = useState<MatchPanelState | null>(null)
+  // Bir maç paneli içinden (örn. H2H sekmesindeki başka bir maç satırı)
+  // başka bir maç paneli açılabiliyor. Tek bir `panel` slotu kullanmak,
+  // ikinci maç açıldığında ilkinin verisini tamamen kaybettiriyordu — bu
+  // yüzden bir YIĞIN (stack) tutuyoruz: her açılış üste bir girdi ekler,
+  // `closeMatch` sadece en üsttekini kaldırır ve altındaki (verisi hâlâ
+  // elimizde olan) panel anında geri görünür olur.
+  const [stack, setStack] = useState<MatchPanelState[]>([])
   const requestIdRef = useRef(0)
   const openedFixtureIdRef = useRef<number | null>(null)
   // Hangi fixtureId'ler için sonuç zaten kaydedildi (çift kayıt önlemi) —
@@ -59,32 +72,42 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch(`/api/predict/cached?fixtureId=${fixtureId}`, { cache: "no-store" })
       const data: MatchPrediction | null = res.ok ? ((await res.json()) as MatchPrediction) : null
       if (requestId !== requestIdRef.current) return
-      setPanel((prev) => (prev && prev.fixture.id === fixtureId ? { ...prev, prediction: data, predictionLoading: false } : prev))
+      setStack((prev) => prev.map((entry) => (entry.fixture.id === fixtureId ? { ...entry, prediction: data, predictionLoading: false } : entry)))
     } catch {
       if (requestId !== requestIdRef.current) return
-      setPanel((prev) => (prev && prev.fixture.id === fixtureId ? { ...prev, prediction: null, predictionLoading: false } : prev))
+      setStack((prev) => prev.map((entry) => (entry.fixture.id === fixtureId ? { ...entry, prediction: null, predictionLoading: false } : entry)))
     }
   }, [])
 
   const openMatch = useCallback((fixtureOrId: Fixture | { id: number }) => {
     const requestId = ++requestIdRef.current
 
+    const pushOrUpdate = (fixture: Fixture) => {
+      setStack((prev) => {
+        const next: MatchPanelState = { fixture, prediction: null, predictionLoading: true }
+        if (prev.length > 0 && prev[prev.length - 1].fixture.id === fixture.id) {
+          return [...prev.slice(0, -1), next]
+        }
+        return [...prev, next]
+      })
+    }
+
     if (isFullFixture(fixtureOrId)) {
       openedFixtureIdRef.current = fixtureOrId.id
-      setPanel({ fixture: fixtureOrId, prediction: null, predictionLoading: true })
+      pushOrUpdate(fixtureOrId)
       loadPrediction(fixtureOrId.id, requestId)
       return
     }
 
-    // Sadece id verildi — tek başına çek.
+    // Sadece id verildi — tek başına çek. Fetch bitene kadar mevcut yığına
+    // dokunmuyoruz (böylece altta açık olan panelleri gizlemiyoruz).
     const fixtureId = fixtureOrId.id
     openedFixtureIdRef.current = fixtureId
-    setPanel((prev) => (prev?.fixture.id === fixtureId ? prev : null))
     fetch(`/api/fixtures/${fixtureId}`, { cache: "no-store" })
       .then((res) => (res.ok ? (res.json() as Promise<Fixture>) : null))
       .then((fixture) => {
         if (requestId !== requestIdRef.current || !fixture) return
-        setPanel({ fixture, prediction: null, predictionLoading: true })
+        pushOrUpdate(fixture)
         loadPrediction(fixture.id, requestId)
       })
       .catch(() => {})
@@ -93,23 +116,36 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
   const closeMatch = useCallback(() => {
     requestIdRef.current++
     openedFixtureIdRef.current = null
-    setPanel(null)
+    setStack((prev) => prev.slice(0, -1))
+  }, [])
+
+  const closeAllMatch = useCallback(() => {
+    requestIdRef.current++
+    openedFixtureIdRef.current = null
+    setStack([])
   }, [])
 
   const syncFixture = useCallback((fixtures: Fixture[]) => {
-    setPanel((prev) => {
-      if (!prev) return prev
-      const updated = fixtures.find((f) => f.id === prev.fixture.id)
-      if (!updated) return prev
-      return { ...prev, fixture: updated }
+    setStack((prev) => {
+      if (prev.length === 0) return prev
+      let changed = false
+      const next = prev.map((entry) => {
+        const updated = fixtures.find((f) => f.id === entry.fixture.id)
+        if (!updated) return entry
+        changed = true
+        return { ...entry, fixture: updated }
+      })
+      return changed ? next : prev
     })
   }, [])
+
+  const panel = stack.length > 0 ? stack[stack.length - 1] : null
 
   const triggerPrediction = useCallback(async () => {
     const fixture = panel?.fixture
     if (!fixture) return
     const requestId = ++requestIdRef.current
-    setPanel((prev) => (prev ? { ...prev, predictionLoading: true, prediction: null } : prev))
+    setStack((prev) => prev.map((entry) => (entry.fixture.id === fixture.id ? { ...entry, predictionLoading: true, prediction: null } : entry)))
     try {
       const res = await fetch("/api/predict", {
         method: "POST",
@@ -120,10 +156,10 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) throw new Error("Tahmin alınamadı")
       const data = (await res.json()) as MatchPrediction
       if (requestId !== requestIdRef.current) return
-      setPanel((prev) => (prev && prev.fixture.id === fixture.id ? { ...prev, prediction: data, predictionLoading: false } : prev))
+      setStack((prev) => prev.map((entry) => (entry.fixture.id === fixture.id ? { ...entry, prediction: data, predictionLoading: false } : entry)))
     } catch {
       if (requestId !== requestIdRef.current) return
-      setPanel((prev) => (prev && prev.fixture.id === fixture.id ? { ...prev, prediction: null, predictionLoading: false } : prev))
+      setStack((prev) => prev.map((entry) => (entry.fixture.id === fixture.id ? { ...entry, prediction: null, predictionLoading: false } : entry)))
     }
   }, [panel])
 
@@ -135,7 +171,7 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
       cache: "no-store",
     })
     if (!res.ok) throw new Error("Tahmin silinemedi")
-    setPanel((prev) => (prev && prev.fixture.id === fixture.id ? { ...prev, prediction: null } : prev))
+    setStack((prev) => prev.map((entry) => (entry.fixture.id === fixture.id ? { ...entry, prediction: null } : entry)))
     savedResultIds.current.delete(fixture.id)
   }, [panel])
 
@@ -180,7 +216,7 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <MatchContext.Provider
-      value={{ panel, openMatch, closeMatch, syncFixture, triggerPrediction, deletePrediction }}
+      value={{ panel, openMatch, closeMatch, closeAllMatch, syncFixture, triggerPrediction, deletePrediction }}
     >
       {children}
     </MatchContext.Provider>

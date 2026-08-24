@@ -30,20 +30,24 @@ const PANEL_URL_PATTERN = /^\/(oyuncu|takim|lig|mac)\/\d+$/
  */
 export function PanelRouteGuard() {
   const pathname = usePathname()
-  const { panel: playerPanel, closePlayer } = usePlayerPanel()
-  const { panel: teamPanel, closeTeam } = useTeamPanel()
-  const { panel: leaguePanel, closeLeague } = useLeaguePanel()
-  const { panel: matchPanel, closeMatch } = useMatchPanel()
+  const { panel: playerPanel, closeAllPlayer } = usePlayerPanel()
+  const { panel: teamPanel, closeAllTeam } = useTeamPanel()
+  const { panel: leaguePanel, closeAllLeague } = useLeaguePanel()
+  const { panel: matchPanel, closeAllMatch } = useMatchPanel()
   const prevPathnameRef = useRef(pathname)
 
   useEffect(() => {
     if (prevPathnameRef.current === pathname) return
     prevPathnameRef.current = pathname
     if (PANEL_URL_PATTERN.test(pathname)) return
-    if (playerPanel) closePlayer()
-    if (teamPanel) closeTeam()
-    if (leaguePanel) closeLeague()
-    if (matchPanel) closeMatch()
+    // `closeAllX` kullanılır — bir panel türü içinden aynı türde başka bir
+    // örnek açılmış olabilir (örn. takım A'dan takım B'ye geçilmiş), gerçek
+    // bir sayfa geçişinde bunların TÜMÜNÜN kapanması gerekir; `closeX` sadece
+    // en üstteki seviyeyi kapatır.
+    if (playerPanel) closeAllPlayer()
+    if (teamPanel) closeAllTeam()
+    if (leaguePanel) closeAllLeague()
+    if (matchPanel) closeAllMatch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
