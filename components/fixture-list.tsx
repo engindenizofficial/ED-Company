@@ -133,6 +133,18 @@ function liveText(f: Fixture, t: (key: string) => string): string {
   return statusLabel(f.statusShort, t)
 }
 
+/**
+ * Ülke önceliği bloğunun yalnızca Erkek A Takım (senior men's first team)
+ * maçlarını kapsaması için U19/U20/U21/U23, genç, kadın ve rezerv takım
+ * liglerini eler. API-Football bu ligleri isimlerinde bu ibarelerle işaretler.
+ */
+const NON_SENIOR_MEN_LEAGUE_PATTERN =
+  /\b(u1[5-9]|u2[0-3]|women|w-league|femin(e|il)|kadin|kadın|youth|genc|genç|reserve|reserves|yedek|b[- ]?team|academy)\b/i
+
+function isSeniorMenLeague(leagueName: string): boolean {
+  return !NON_SENIOR_MEN_LEAGUE_PATTERN.test(leagueName)
+}
+
 function groupByLeague(fixtures: Fixture[]) {
   const groups = new Map<
     number,
@@ -268,10 +280,12 @@ function buildRenderGroups(
     if (remainder.length === 0) return
 
     // Ligin ülkesi doğrudan kullanıcının ülkesiyle eşleşiyorsa (örn. TR
-    // kullanıcı için "Süper Lig" -> country: "Turkey"), bu kulüp ligindeki
-    // TÜM kalan maçlar (Galatasaray, İstanbulspor, vb. fark etmeksizin)
-    // ülke önceliği bloğuna taşınır.
-    const isDomesticLeague = countryName !== null && group.country === countryName
+    // kullanıcı için "Süper Lig" -> country: "Turkey") VE bu lig Erkek A
+    // Takım seviyesindeyse (U19/U21/Kadınlar/Rezerv ligleri hariç), bu kulüp
+    // ligindeki TÜM kalan maçlar (Galatasaray, İstanbulspor, vb. fark
+    // etmeksizin) ülke önceliği bloğuna taşınır.
+    const isDomesticLeague =
+      countryName !== null && group.country === countryName && isSeniorMenLeague(group.name)
 
     if (isDomesticLeague) {
       renderGroups.push({
