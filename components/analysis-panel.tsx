@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
+import { MatchButton } from "@/components/match-panel"
 import type {
   Fixture,
   FixturePlayerStat,
@@ -1713,11 +1714,8 @@ function H2HList({
           const leftIsHomeName = g.home
           const leftWinColor = leftIsHomeName ? "text-primary" : "text-accent"
           const rightWinColor = leftIsHomeName ? "text-accent" : "text-primary"
-          return (
-            <li
-              key={i}
-              className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-xl border border-border/40 bg-secondary/20 px-3 py-2"
-            >
+          const rowContent = (
+            <>
               <span className={cn("truncate text-xs", homeWon ? "font-bold text-foreground" : "text-muted-foreground")}>{displayHome}</span>
               <div className="flex items-center gap-1.5 shrink-0">
                 <span className="text-[10px] tabular-nums text-muted-foreground">{g.date.slice(0, 10)}</span>
@@ -1726,6 +1724,18 @@ function H2HList({
                 <span className={cn("text-xs font-black tabular-nums", awayWon ? rightWinColor : "text-foreground")}>{awayGoals}</span>
               </div>
               <span className={cn("truncate text-xs text-right", awayWon ? "font-bold text-foreground" : "text-muted-foreground")}>{displayAway}</span>
+            </>
+          )
+          const rowClassName = "grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-xl border border-border/40 bg-secondary/20 px-3 py-2"
+          return (
+            <li key={i}>
+              {g.fixtureId ? (
+                <MatchButton fixture={{ id: g.fixtureId }} className={cn("w-full hover:bg-secondary/40", rowClassName)}>
+                  {rowContent}
+                </MatchButton>
+              ) : (
+                <div className={rowClassName}>{rowContent}</div>
+              )}
             </li>
           )
         })}

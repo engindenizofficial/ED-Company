@@ -120,7 +120,9 @@ export interface FormGame {
   /** H2H için gerçek takım adları */
   homeTeam?: string
   awayTeam?: string
-}
+  /** H2H maçları için gerçek fixture ID'si — maç paneline link vermek için (bkz. analysis-panel.tsx H2HSection). Normal form (son 5 maç) girdilerinde boş kalır. */
+  fixtureId?: number
+  }
 
 export interface TeamSeasonStats {
   team: TeamInfo

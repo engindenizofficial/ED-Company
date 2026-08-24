@@ -496,7 +496,7 @@ function CareerSummarySection({ playerId, playerName, active }: { playerId: numb
                           {s.season}/{String(s.season + 1).slice(2)}
                         </td>
                         <td className="py-2 pr-2">
-                          <div className="flex items-center gap-1.5">
+                          <TeamButton team={s.team} className="flex items-center gap-1.5">
                             {s.team.logo && (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={s.team.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
@@ -504,7 +504,7 @@ function CareerSummarySection({ playerId, playerName, active }: { playerId: numb
                             <span className="max-w-[80px] truncate font-semibold text-foreground">
                               {s.team.name}
                             </span>
-                          </div>
+                          </TeamButton>
                         </td>
                         <td className="py-2 px-2 text-center tabular-nums text-muted-foreground">
                           {s.appearances ?? "–"}
@@ -639,17 +639,21 @@ function TransfersSection({ playerId, playerName, active }: { playerId: number; 
               {transfers.map((t, i) => (
                 <div key={i} className="flex items-center justify-between gap-2 px-4 py-3 text-xs">
                   <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                    {t.teamFrom.logo && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.teamFrom.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
-                    )}
-                    <span className="max-w-[70px] truncate text-muted-foreground">{t.teamFrom.name}</span>
+                    <TeamButton team={t.teamFrom} className="flex min-w-0 items-center gap-1.5">
+                      {t.teamFrom.logo && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={t.teamFrom.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
+                      )}
+                      <span className="max-w-[70px] truncate text-muted-foreground">{t.teamFrom.name}</span>
+                    </TeamButton>
                     <ArrowLeftRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-                    {t.teamTo.logo && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.teamTo.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
-                    )}
-                    <span className="max-w-[70px] truncate font-semibold text-foreground">{t.teamTo.name}</span>
+                    <TeamButton team={t.teamTo} className="flex min-w-0 items-center gap-1.5">
+                      {t.teamTo.logo && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={t.teamTo.logo} alt="" className="h-4 w-4 shrink-0 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
+                      )}
+                      <span className="max-w-[70px] truncate font-semibold text-foreground">{t.teamTo.name}</span>
+                    </TeamButton>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-0.5">
                     {t.type && t.type !== "N/A" && (
@@ -885,19 +889,23 @@ function PlayerPanelInner({
         {/* Current club banner */}
         {profile?.team && (
           <div className="flex shrink-0 items-center gap-2 border-b border-border bg-secondary/40 px-4 py-2">
-            {profile.team.logo && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.team.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
-            )}
-            <span className="text-xs font-semibold text-foreground">{profile.team.name}</span>
+            <TeamButton team={profile.team} className="flex items-center gap-1.5">
+              {profile.team.logo && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.team.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
+              )}
+              <span className="text-xs font-semibold text-foreground">{profile.team.name}</span>
+            </TeamButton>
             {profile.league && (
               <>
                 <span className="text-border">·</span>
-                {profile.league.logo && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profile.league.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
-                )}
-                <span className="text-xs text-muted-foreground">{profile.league.name}</span>
+                <LeagueButton league={{ ...profile.league, flagUrl: null }} className="flex items-center gap-1.5">
+                  {profile.league.logo && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={profile.league.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={16} height={16} loading="lazy" decoding="async" />
+                  )}
+                  <span className="text-xs text-muted-foreground">{profile.league.name}</span>
+                </LeagueButton>
                 <span className="text-border">·</span>
                 <span className="text-xs text-muted-foreground">
                   {profile.league.season}/{String(profile.league.season + 1).slice(2)}

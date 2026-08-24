@@ -22,6 +22,7 @@ import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
 import { PlayerButton } from "@/components/player-panel"
 import { TeamButton } from "@/components/team-panel"
+import { MatchButton } from "@/components/match-panel"
 import { PanelDragHandle } from "@/components/panel-drag-handle"
 import { PanelTabBar, type PanelTabItem } from "@/components/panel-tabs"
 import { cn } from "@/lib/utils"
@@ -617,9 +618,10 @@ function RecentFixturesSection({ leagueId, leagueName, active }: { leagueId: num
           {status === "success" && data && (
             <div className="flex flex-col gap-1.5">
               {data.map((f) => (
-                <div
+                <MatchButton
                   key={f.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-3 py-2.5"
+                  fixture={f}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-3 py-2.5 hover:bg-secondary/50"
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="text-[10px] text-muted-foreground">
@@ -637,7 +639,7 @@ function RecentFixturesSection({ leagueId, leagueName, active }: { leagueId: num
                       <span className="truncate text-xs font-semibold text-foreground">{f.away.name}</span>
                     </div>
                   </div>
-                </div>
+                </MatchButton>
               ))}
             </div>
           )}
@@ -664,9 +666,10 @@ function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: n
           {status === "success" && data && (
             <div className="flex flex-col gap-1.5">
               {data.map((f) => (
-                <div
+                <MatchButton
                   key={f.id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-3 py-2.5"
+                  fixture={f}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/30 px-3 py-2.5 hover:bg-secondary/50"
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="text-[10px] text-muted-foreground">{f.league.round}</span>
@@ -684,7 +687,7 @@ function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: n
                     <span className="font-black tabular-nums text-foreground">{matchTime(f.date, locale)}</span>
                     <span className="text-[10px] text-muted-foreground">{kickoffFull(f.date, locale)}</span>
                   </div>
-                </div>
+                </MatchButton>
               ))}
             </div>
           )}
