@@ -19,6 +19,7 @@ import { PanelRouteGuard } from '@/components/panel-route-guard'
 import { PwaUpdateWatcher } from '@/components/pwa-update-watcher'
 import { PushSoundListener } from '@/components/push-sound-listener'
 import { FavoritesProvider } from '@/contexts/favorites-context'
+import { CountryProvider } from '@/contexts/country-context'
 import { ThemeColorProvider } from '@/contexts/theme-color-context'
 import { LanguageProvider } from '@/contexts/language-context'
 import { getServerLocale } from '@/lib/i18n/server-locale'
@@ -152,28 +153,30 @@ export default async function RootLayout({
         <PushSoundListener />
         <LanguageProvider initialLocale={locale}>
           <ThemeColorProvider initialAccentColor={accentColor}>
-            <PanelStackProvider>
-              <LeagueProvider>
-                <TeamProvider>
-                  <PlayerProvider>
-                    <MatchProvider>
-                      <FavoritesProvider>
-                        <PanelRouteGuard />
-                        <NavTabs />
-                        <LoginPromptModal />
-                        {children}
-                        <SiteFooter />
-                        <TeamPanel />
-                        <LeaguePanel />
-                        <PlayerPanel />
-                        <MatchPanel />
-                        <Toaster />
-                      </FavoritesProvider>
-                    </MatchProvider>
-                  </PlayerProvider>
-                </TeamProvider>
-              </LeagueProvider>
-            </PanelStackProvider>
+            <CountryProvider>
+              <PanelStackProvider>
+                <LeagueProvider>
+                  <TeamProvider>
+                    <PlayerProvider>
+                      <MatchProvider>
+                        <FavoritesProvider>
+                          <PanelRouteGuard />
+                          <NavTabs />
+                          <LoginPromptModal />
+                          {children}
+                          <SiteFooter />
+                          <TeamPanel />
+                          <LeaguePanel />
+                          <PlayerPanel />
+                          <MatchPanel />
+                          <Toaster />
+                        </FavoritesProvider>
+                      </MatchProvider>
+                    </PlayerProvider>
+                  </TeamProvider>
+                </LeagueProvider>
+              </PanelStackProvider>
+            </CountryProvider>
           </ThemeColorProvider>
         </LanguageProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

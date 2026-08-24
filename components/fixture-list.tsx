@@ -164,7 +164,10 @@ interface RenderGroup {
   items: Fixture[]
   /**
    * 0 = favori lig (en üstte), 1 = favori takım için ayrılan blok,
-   * 2 = kullanıcının ülkesinin Erkek A Milli Takım maçı için ayrılan blok,
+   * 2 = kullanıcının ülkesine ait öncelik bloğu — ya kullanıcının ülkesinde
+   *     oynanan bir kulüp ligi (örn. TR kullanıcı için Süper Lig, dolayısıyla
+   *     Galatasaray, İstanbulspor gibi tüm kulüp maçları) ya da kullanıcının
+   *     ülkesinin Erkek A Milli Takım maçı,
    * 3 = normal sıradaki lig. Favoriler her zaman ülke önceliğinden üstte kalır.
    */
   tier: 0 | 1 | 2 | 3
@@ -203,6 +206,7 @@ function sortFixturesByFavoriteTeam(fixtures: Fixture[], teamPosition: Map<numbe
 function buildRenderGroups(
   fixtures: Fixture[],
   favorites: FavoriteItem[],
+  countryName: string | null,
 ): RenderGroup[] {
   const leaguePosition = new Map<number, number>()
   const teamPosition = new Map<number, number>()
@@ -235,11 +239,11 @@ function buildRenderGroups(
 
     // Lig favori değil: favori takımın maçlarını ayrı bir bloğa çıkar.
     const pinned: Fixture[] = []
-    const rest: Fixture[] = []
+    const remainder: Fixture[] = []
     for (const f of group.items) {
       const isFavoriteTeamMatch = teamPosition.has(f.home.id) || teamPosition.has(f.away.id)
       if (isFavoriteTeamMatch) pinned.push(f)
-      else rest.push(f)
+      else remainder.push(f)
     }
 
     if (pinned.length > 0) {
@@ -261,6 +265,54 @@ function buildRenderGroups(
       })
     }
 
+    if (remainder.length === 0) return
+
+    // Ligin ülkesi doğrudan kullanıcının ülkesiyle eşleşiyorsa (örn. TR
+    // kullanıcı için "Süper Lig" -> country: "Turkey"), bu kulüp ligindeki
+    // TÜM kalan maçlar (Galatasaray, İstanbulspor, vb. fark etmeksizin)
+    // ülke önceliği bloğuna taşınır.
+    const isDomesticLeague = countryName !== null && group.country === countryName
+
+    if (isDomesticLeague) {
+      renderGroups.push({
+        key: `league-${group.id}`,
+        id: group.id,
+        name: group.name,
+        country: group.country,
+        logo: group.logo,
+        items: remainder,
+        tier: 2,
+        rank: Number.POSITIVE_INFINITY,
+        order,
+      })
+      return
+    }
+
+    // Yabancı lig: sadece kullanıcının ülkesinin Erkek A Milli Takım maçı
+    // varsa, o maç(lar) ayrı bir üst blok olarak çıkar; ligin diğer maçları
+    // (örn. yabancı takımların birbiriyle oynadığı maçlar) yerinde kalır.
+    const nationalPinned: Fixture[] = []
+    const rest: Fixture[] = []
+    for (const f of remainder) {
+      const isNationalTeamMatch = countryName !== null && (f.home.name === countryName || f.away.name === countryName)
+      if (isNationalTeamMatch) nationalPinned.push(f)
+      else rest.push(f)
+    }
+
+    if (nationalPinned.length > 0) {
+      renderGroups.push({
+        key: `national-pin-${group.id}`,
+        id: group.id,
+        name: group.name,
+        country: group.country,
+        logo: group.logo,
+        items: nationalPinned,
+        tier: 2,
+        rank: Number.POSITIVE_INFINITY,
+        order,
+      })
+    }
+
     if (rest.length > 0) {
       renderGroups.push({
         key: `league-${group.id}`,
@@ -269,7 +321,7 @@ function buildRenderGroups(
         country: group.country,
         logo: group.logo,
         items: rest,
-        tier: 2,
+        tier: 3,
         rank: Number.POSITIVE_INFINITY,
         order,
       })
@@ -278,7 +330,7 @@ function buildRenderGroups(
 
   return renderGroups.sort((a, b) => {
     if (a.tier !== b.tier) return a.tier - b.tier
-    if (a.tier === 2) return a.order - b.order
+    if (a.tier === 2 || a.tier === 3) return a.order - b.order
     return a.rank !== b.rank ? a.rank - b.rank : a.order - b.order
   })
 }
@@ -296,7 +348,9 @@ export function FixtureList({
 }) {
   const { isFavorite, toggleFavorite } = useFavorites()
   const { t, locale } = useLanguage()
-  const groups = buildRenderGroups(fixtures, favorites)
+  const { countryCode } = useCountry()
+  const countryName = getNationalTeamName(countryCode)
+  const groups = buildRenderGroups(fixtures, favorites, countryName)
 
   const leagueFavoriteIds = new Set(favorites.filter((f) => f.type === "league").map((f) => f.itemId))
   const teamFavoriteIds = new Set(favorites.filter((f) => f.type === "team").map((f) => f.itemId))
