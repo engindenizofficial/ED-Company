@@ -514,6 +514,7 @@ function FixtureCard({
           {celebration ? (
             <GoalCelebrationOverlay
               key={`${celebration.team}-${celebration.team === "home" ? f.goalsHome : f.goalsAway}`}
+              fixtureId={f.id}
               teamName={celebration.team === "home" ? f.home.name : f.away.name}
               teamLogo={celebration.team === "home" ? f.home.logo : f.away.logo}
               onDone={advance}
