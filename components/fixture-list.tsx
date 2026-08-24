@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import { useFavorites } from "@/contexts/favorites-context"
 import { useLanguage } from "@/contexts/language-context"
+import { useCountry } from "@/contexts/country-context"
+import { getNationalTeamName } from "@/lib/national-teams"
 import type { Locale } from "@/lib/i18n/dictionaries"
 import type { Fixture } from "@/lib/types"
 import type { FavoriteItem } from "@/contexts/favorites-context"
@@ -152,7 +154,7 @@ function groupByLeague(fixtures: Fixture[]) {
   return Array.from(groups.values())
 }
 
-/** Ekranda gösterilecek tek bir blok (lig grubu ya da favori takım için ayrılmış mini blok). */
+/** Ekranda gösterilecek tek bir blok (lig grubu ya da favori takım/milli takım için ayrılmış mini blok). */
 interface RenderGroup {
   key: string
   id: number
@@ -160,8 +162,12 @@ interface RenderGroup {
   country: string
   logo: string
   items: Fixture[]
-  /** 0 = favori lig (en üstte), 1 = favori takım için ayrılan blok, 2 = normal sıradaki lig. */
-  tier: 0 | 1 | 2
+  /**
+   * 0 = favori lig (en üstte), 1 = favori takım için ayrılan blok,
+   * 2 = kullanıcının ülkesinin Erkek A Milli Takım maçı için ayrılan blok,
+   * 3 = normal sıradaki lig. Favoriler her zaman ülke önceliğinden üstte kalır.
+   */
+  tier: 0 | 1 | 2 | 3
   rank: number
   order: number
 }
