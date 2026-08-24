@@ -36,11 +36,8 @@ export function useGoalCelebrationQueue(goalsHome: number | null, goalsAway: num
 
   const current = queue[0] ?? null
   const advance = () => setQueue((q) => q.slice(1))
-  // Gerçek bir gol beklemeden animasyonu test edebilmek için: skor değişimi
-  // olmadan da kuyruğa elle bir kutlama ekler. Sadece geliştirme/test amaçlı.
-  const simulate = (team: "home" | "away") => setQueue((q) => [...q, { team, key: celebrationKeySeq++ }])
 
-  return { current, currentKey: current?.key ?? null, advance, simulate }
+  return { current, currentKey: current?.key ?? null, advance }
 }
 
 // Tam 5 saniyelik, sadece ilgili maç kartını kaplayan gol kutlama animasyonu.
