@@ -875,6 +875,15 @@ function StatsList({ stats, homeName, awayName }: { stats: StatItem[]; homeName:
   const toNum = (v: string | number | null) =>
     typeof v === "string" ? Number.parseFloat(v.replace("%", "")) : (v ?? 0)
 
+  // Çubuklar önce sıfır genişlikte render edilir, sonraki tick'te gerçek
+  // yüzdelerine "dolarak" büyür — bir istatistik sayfasının verisi
+  // canlandırılmış hissi verir.
+  const [filled, setFilled] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setFilled(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
   const visibleStats = stats.filter((s) => {
     if (!HIDE_IF_BOTH_EMPTY.has(s.type)) return true
     const hv = s.home
@@ -902,8 +911,14 @@ function StatsList({ stats, homeName, awayName }: { stats: StatItem[]; homeName:
               <span className="w-10 text-right text-xs font-bold tabular-nums text-foreground">{s.away ?? "—"}</span>
             </div>
             <div className="flex h-1 w-full overflow-hidden rounded-full bg-secondary">
-              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${hPct}%` }} />
-              <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${aPct}%` }} />
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
+                style={{ width: filled ? `${hPct}%` : "0%", transitionDelay: `${Math.min(i * 40, 320)}ms` }}
+              />
+              <div
+                className="h-full rounded-full bg-accent transition-all duration-700 ease-out"
+                style={{ width: filled ? `${aPct}%` : "0%", transitionDelay: `${Math.min(i * 40, 320)}ms` }}
+              />
             </div>
           </div>
         )
@@ -1643,6 +1658,14 @@ function H2HList({
   const draws = h2h.filter((g) => g.result === "D").length
   const awayWins = h2h.filter((g) => g.result === "L").length
 
+  // Özet çubuğu da istatistik çubuklarıyla aynı desende sıfırdan dolarak
+  // büyür.
+  const [filled, setFilled] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setFilled(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
   return (
     <div className="flex flex-col gap-3">
       {/* Summary bar */}
@@ -1653,9 +1676,18 @@ function H2HList({
           <span className="text-[11px] font-semibold truncate max-w-[35%] text-right">{awayName}</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="flex h-2 rounded-full bg-primary transition-all" style={{ width: `${homeWins / h2h.length * 100}%`, minWidth: homeWins > 0 ? "8px" : "0" }} />
-          <div className="flex h-2 rounded-full bg-secondary" style={{ width: `${draws / h2h.length * 100}%`, minWidth: draws > 0 ? "8px" : "0" }} />
-          <div className="flex h-2 rounded-full bg-accent transition-all" style={{ width: `${awayWins / h2h.length * 100}%`, minWidth: awayWins > 0 ? "8px" : "0" }} />
+          <div
+            className="flex h-2 rounded-full bg-primary transition-all duration-700 ease-out"
+            style={{ width: filled ? `${(homeWins / h2h.length) * 100}%` : "0%", minWidth: homeWins > 0 ? "8px" : "0" }}
+          />
+          <div
+            className="flex h-2 rounded-full bg-secondary transition-all duration-700 ease-out"
+            style={{ width: filled ? `${(draws / h2h.length) * 100}%` : "0%", minWidth: draws > 0 ? "8px" : "0" }}
+          />
+          <div
+            className="flex h-2 rounded-full bg-accent transition-all duration-700 ease-out"
+            style={{ width: filled ? `${(awayWins / h2h.length) * 100}%` : "0%", minWidth: awayWins > 0 ? "8px" : "0" }}
+          />
         </div>
         <div className="flex items-center justify-between mt-1.5">
           <span className="text-xs font-black text-primary tabular-nums">{homeWins}{t("analysis.resultWin")}</span>
