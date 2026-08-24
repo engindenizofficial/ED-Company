@@ -56,6 +56,12 @@ function kickoff(iso: string, locale: string): string {
 }
 
 function FormDot({ result }: { result: "W" | "D" | "L" }) {
+  // Harfleri dile göre çeviriyoruz: TR'de G/B/M (Galibiyet/Beraberlik/
+  // Mağlubiyet), EN'de W/D/L. Bu çeviri anahtarları analysis-panel.tsx'teki
+  // ResultBadge ile aynı — o bileşende zaten kurulu olan tek harflik sonuç
+  // gösterimi deseni burada da tekrar kullanılıyor.
+  const { t } = useLanguage()
+  const label = result === "W" ? t("analysis.resultWin") : result === "D" ? t("analysis.resultDraw") : t("analysis.resultLoss")
   return (
     <span
       className={cn(
@@ -65,7 +71,7 @@ function FormDot({ result }: { result: "W" | "D" | "L" }) {
         result === "L" && "bg-destructive/15 text-destructive",
       )}
     >
-      {result}
+      {label}
     </span>
   )
 }
@@ -666,7 +672,9 @@ function StandingsSection({ teamId, teamName, active }: { teamId: number; teamNa
                                         ch === "L" && "bg-destructive/20 text-destructive",
                                       )}
                                     >
-                                      {ch}
+                                      {/* API'den gelen ham W/D/L harfi; dile göre
+                                          göstermeden önce çeviriyoruz (TR: G/B/M). */}
+                                      {ch === "W" ? t("analysis.resultWin") : ch === "D" ? t("analysis.resultDraw") : ch === "L" ? t("analysis.resultLoss") : ch}
                                     </span>
                                   ))}
                                 </div>
