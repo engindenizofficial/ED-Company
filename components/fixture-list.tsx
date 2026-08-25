@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useRef, useState, type CSSProperties } from "react"
-import { AnimatePresence } from "motion/react"
+import dynamic from "next/dynamic"
 import { Clock, Star } from "lucide-react"
 import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
-import { GoalCelebrationOverlay, useGoalCelebrationQueue } from "@/components/goal-celebration-overlay"
+import { useGoalCelebrationQueue } from "@/hooks/use-goal-celebration-queue"
 import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import { useFavorites } from "@/contexts/favorites-context"
@@ -15,6 +15,14 @@ import { getNationalTeamName } from "@/lib/national-teams"
 import type { Locale } from "@/lib/i18n/dictionaries"
 import type { Fixture } from "@/lib/types"
 import type { FavoriteItem } from "@/contexts/favorites-context"
+
+// "motion" kütüphanesini ana sayfa paketinden çıkarmak için gol kutlaması
+// talep üzerine (sadece gerçekten bir kutlama gösterilecekse) yükleniyor.
+// Bkz. components/goal-celebration-lazy.tsx.
+const GoalCelebrationLazy = dynamic(
+  () => import("@/components/goal-celebration-lazy").then((m) => m.GoalCelebrationLazy),
+  { ssr: false },
+)
 
 /** Bir favori eklendiğinde yıldızın etrafına saçılan, kısa ömürlü parçacıklar. */
 const BURST_PARTICLE_COUNT = 8
@@ -633,20 +641,21 @@ function FixtureCard({
           </div>
         </div>
 
-        {/* Takıma özel, 5 saniyelik gol kutlama animasyonu — sadece bu kartı
-            kaplar, tam ekran değildir. */}
-        <AnimatePresence>
+          {/* Takıma özel, 5 saniyelik gol kutlama animasyonu — sadece bu kartı
+              kaplar, tam ekran değildir. "motion" kütüphanesi burada
+              `next/dynamic` ile talep üzerine yükleniyor. */}
           {celebration ? (
-            <GoalCelebrationOverlay
-              key={currentKey}
+            <GoalCelebrationLazy
+              celebration={celebration}
+              currentKey={currentKey}
               fixtureId={f.id}
-              teamName={celebration.team === "home" ? f.home.name : f.away.name}
-              teamLogo={celebration.team === "home" ? f.home.logo : f.away.logo}
-              goalCount={celebration.goalCount}
+              homeTeamName={f.home.name}
+              awayTeamName={f.away.name}
+              homeTeamLogo={f.home.logo}
+              awayTeamLogo={f.away.logo}
               onDone={advance}
             />
           ) : null}
-        </AnimatePresence>
       </div>
     </li>
   )

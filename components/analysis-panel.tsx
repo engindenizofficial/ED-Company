@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { AnimatePresence } from "motion/react"
+import dynamic from "next/dynamic"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -39,8 +39,15 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { MatchButton } from "@/components/match-panel"
-import { GoalCelebrationOverlay, useGoalCelebrationQueue } from "@/components/goal-celebration-overlay"
+import { useGoalCelebrationQueue } from "@/hooks/use-goal-celebration-queue"
 import { PlayerPhoto } from "@/components/player-photo"
+
+// "motion" kütüphanesini ana paketten çıkarmak için gol kutlaması talep
+// üzerine yükleniyor. Bkz. components/goal-celebration-lazy.tsx.
+const GoalCelebrationLazy = dynamic(
+  () => import("@/components/goal-celebration-lazy").then((m) => m.GoalCelebrationLazy),
+  { ssr: false },
+)
 import type {
   Fixture,
   FixturePlayerStat,
@@ -263,18 +270,18 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
     <div className="relative rounded-2xl border border-border/70 bg-card overflow-hidden">
       {/* Fixture kartındakiyle aynı 5 saniyelik gol kutlama animasyonu — panel
           açıkken de gol olduğunda header'ın üzerini kaplar. */}
-      <AnimatePresence>
-        {celebration ? (
-          <GoalCelebrationOverlay
-            key={currentKey}
-            fixtureId={fixture.id}
-            teamName={celebration.team === "home" ? fixture.home.name : fixture.away.name}
-            teamLogo={celebration.team === "home" ? fixture.home.logo : fixture.away.logo}
-            goalCount={celebration.goalCount}
-            onDone={advance}
-          />
-        ) : null}
-      </AnimatePresence>
+      {celebration ? (
+        <GoalCelebrationLazy
+          celebration={celebration}
+          currentKey={currentKey}
+          fixtureId={fixture.id}
+          homeTeamName={fixture.home.name}
+          awayTeamName={fixture.away.name}
+          homeTeamLogo={fixture.home.logo}
+          awayTeamLogo={fixture.away.logo}
+          onDone={advance}
+        />
+      ) : null}
 
       {/* League strip */}
       <div className="flex items-center justify-center gap-2 border-b border-border/60 bg-secondary/30 px-4 py-2">
