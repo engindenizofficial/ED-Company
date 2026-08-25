@@ -31,6 +31,13 @@ import {
 import type { MatchPrediction, ModelVote } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
+// `after()` ile tetiklenen arka plan işi (canlı veri + ~11 LLM çağrısı, 1-3 dk)
+// da bu invocation'ın toplam süre bütçesine dahildir — bu satır olmadan
+// platform varsayılan süresi dolduğunda iş yarıda kesilir, tahmin Redis'e
+// hiç yazılmaz ve istemci 5 dakikalık polling limitine çarpıp sessizce
+// vazgeçer. Diğer after()/arka plan route'larıyla (update-player-power,
+// update-market-values, backfill-*) aynı desen.
+export const maxDuration = 300
 
 // Sadece başlamamış / belirsiz maçlar için tahmin yapılır
 const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
