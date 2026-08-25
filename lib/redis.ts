@@ -39,6 +39,7 @@ const K = {
   predictionResults: (date: string) => `ed:prediction-results:${date}`,
   allTimePredictionResults: () => `ed:prediction-results:all`,
   pendingPredictions: () => `ed:pending-predictions`,
+  predictionInProgress: (fixtureId: number) => `ed:predicting:${fixtureId}`,
   voteCounts: (fixtureId: number) => `ed:vote:counts:${fixtureId}`,
   voteChoices: (fixtureId: number) => `ed:vote:choices:${fixtureId}`,
   chainLock: (name: string) => `ed:chain-lock:${name}`,
@@ -400,6 +401,52 @@ export async function removePendingPrediction(fixtureId: number): Promise<void> 
     await redis.set(K.pendingPredictions(), filtered, { ex: 60 * 60 * 24 * 30 })
   } catch (err) {
     console.log("[v0] redis removePendingPrediction failed:", err instanceof Error ? err.message : err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Prediction in-progress marker — tahmin oluşturma isteği arka planda
+// (after() ile) sürdüğü sürece set edilir. Client, panelden çıkıp tekrar
+// girse veya sayfayı yenilese bile bu marker sayesinde 11 LLM çağrısını
+// sıfırdan tekrar tetiklemez; bunun yerine sadece sonucu bekler (polling).
+// TTL, sunucu tarafı işlem çökse/asılı kalsa bile marker'ın sonsuza dek
+// takılı kalmamasını sağlayan bir güvenlik ağıdır (normal süre ~1-3 dk).
+// ---------------------------------------------------------------------------
+
+const PREDICTION_IN_PROGRESS_TTL_SECONDS = 5 * 60
+
+/** Marker'ı ayarlamayı dener. Zaten set edilmişse false (başka bir istek zaten işliyor), yoksa true döner. */
+export async function markPredictionInProgress(fixtureId: number): Promise<boolean> {
+  if (!redis) return true // Redis yoksa çakışma kontrolü atlanır (dev/ilk kurulum)
+  try {
+    // NX: sadece key yoksa set et — atomik "kilit alma" deseni
+    const result = await redis.set(K.predictionInProgress(fixtureId), Date.now(), {
+      ex: PREDICTION_IN_PROGRESS_TTL_SECONDS,
+      nx: true,
+    })
+    return result !== null
+  } catch (err) {
+    console.log("[v0] redis markPredictionInProgress failed:", err instanceof Error ? err.message : err)
+    return true
+  }
+}
+
+export async function isPredictionInProgress(fixtureId: number): Promise<boolean> {
+  if (!redis) return false
+  try {
+    return (await redis.exists(K.predictionInProgress(fixtureId))) === 1
+  } catch (err) {
+    console.log("[v0] redis isPredictionInProgress failed:", err instanceof Error ? err.message : err)
+    return false
+  }
+}
+
+export async function clearPredictionInProgress(fixtureId: number): Promise<void> {
+  if (!redis) return
+  try {
+    await redis.del(K.predictionInProgress(fixtureId))
+  } catch (err) {
+    console.log("[v0] redis clearPredictionInProgress failed:", err instanceof Error ? err.message : err)
   }
 }
 

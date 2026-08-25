@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { headers } from "next/headers"
 import { generateObject } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { google } from "@ai-sdk/google"
 import { xai } from "@ai-sdk/xai"
 import { z } from "zod/v4"
+import type { Fixture } from "@/lib/types"
 import { getFixtureById, getLiveMatchData } from "@/lib/api-football"
 import {
   getCachedPrediction,
@@ -12,6 +13,8 @@ import {
   deleteAllPredictions,
   deletePredictionCompletely,
   addPendingPrediction,
+  markPredictionInProgress,
+  clearPredictionInProgress,
 } from "@/lib/redis"
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
@@ -303,53 +306,26 @@ async function sampleWithSelfConsistency(
 }
 
 // ---------------------------------------------------------------------------
-// Route handler
+// Arka plan işi — canlı veri çekme + 3 model x 3 örnek ensemble + özet +
+// çeviri (toplam ~11 LLM çağrısı, 1-3 dakika sürebilir). `after()` içinden
+// çağrılır: HTTP yanıtı çok önce (202 "processing") döndükten sonra bile bu
+// fonksiyon çalışmaya devam eder — istemci paneli kapatıp bağlantıyı kesse
+// bile iş kesintiye uğramaz ve sonuç normal şekilde cache'e yazılır. Böylece
+// kullanıcı aynı maça geri döndüğünde süreç sıfırdan tekrar başlamaz, sadece
+// hazır olan (veya hâlâ hazırlanan) sonucu /api/predict/cached ile bekler.
 // ---------------------------------------------------------------------------
-export async function POST(request: Request) {
-  // Güvenlik: bu endpoint gerçek para maliyeti doğuran 11 LLM çağrısı
-  // tetikler (3 model x 3 örnek + özet + çeviri). UI'da butonun sadece
-  // admin'e gösterilmesi yeterli değil — istemci tarafı gizleme, endpoint'in
-  // kendisini korumaz. DELETE /api/predict ile aynı desen: oturumdaki
-  // e-postayı kontrol et.
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!isAdminEmail(session?.user?.email)) {
-    return NextResponse.json({ error: "Yetkiniz yok." }, { status: 403 })
-  }
-
-  const body = await request.json().catch(() => ({}))
-  const fixtureId = Number(body?.fixtureId)
-
-  if (!fixtureId || isNaN(fixtureId)) {
-    return NextResponse.json({ error: "fixtureId gerekli." }, { status: 400 })
-  }
-
-  // 1. Cache kontrolü — daha önce yapılmış tahmin varsa direkt döndür
-  const cached = await getCachedPrediction(fixtureId)
-  if (cached) return NextResponse.json(cached)
-
-  // 2. Maç verisini çek
-  const fixture = await getFixtureById(fixtureId)
-  if (!fixture) {
-    return NextResponse.json({ error: "Maç bulunamadı." }, { status: 404 })
-  }
-
-  // 3. Sadece başlamamış maçlar
-  if (!PREDICTABLE_STATUSES.has(fixture.statusShort)) {
-    return NextResponse.json({ error: "Bu maç zaten oynanıyor veya tamamlandı." }, { status: 422 })
-  }
-
-  // 4. Canlı analiz verisini çek
-  let live: LiveData
+async function runPredictionInBackground(fixtureId: number, fixture: Fixture): Promise<void> {
   try {
-    live = await getLiveMatchData(fixture)
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Maç verisi alınamadı." },
-      { status: 502 },
-    )
-  }
+    // Canlı analiz verisini çek
+    let live: LiveData
+    try {
+      live = await getLiveMatchData(fixture)
+    } catch (err) {
+      console.log("[v0] predict (bg) canlı veri alınamadı:", err instanceof Error ? err.message : err)
+      return
+    }
 
-  const homeName = fixture.home.name
+    const homeName = fixture.home.name
   const awayName = fixture.away.name
   const homeStanding = live.standings.find((s) => s.teamId === fixture.home.id)
   const awayStanding = live.standings.find((s) => s.teamId === fixture.away.id)
@@ -553,7 +529,8 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     .map((r) => ({ ...r.value, vote: r.value.object }))
 
   if (llmVotes.length === 0) {
-    return NextResponse.json({ error: "Tüm AI modelleri başarısız oldu." }, { status: 502 })
+    console.log("[v0] predict (bg) tüm AI modelleri başarısız oldu, fixtureId:", fixtureId)
+    return
   }
 
   // 6b. Poisson istatistik modelini 4. ensemble oyu olarak ekle — LLM'lerden
@@ -680,8 +657,67 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   // Bekleyen tahminler listesine ekle — yenile butonunda gerçek skorla karşılaştırılacak
   const fixtureDate = fixture.date.slice(0, 10) // YYYY-MM-DD
   await addPendingPrediction({ fixtureId, date: fixtureDate, homeName, awayName })
+  } catch (err) {
+    console.log("[v0] predict (bg) beklenmeyen hata, fixtureId:", fixtureId, err instanceof Error ? err.message : err)
+  } finally {
+    // İşlem başarılı da olsa başarısız da olsa marker'ı kaldır — aksi halde
+    // TTL dolana kadar (5 dk) kullanıcı hiçbir yeniden deneme yapamaz.
+    await clearPredictionInProgress(fixtureId)
+  }
+}
 
-  return NextResponse.json(prediction)
+// ---------------------------------------------------------------------------
+// Route handler
+// ---------------------------------------------------------------------------
+export async function POST(request: Request) {
+  // Güvenlik: bu endpoint gerçek para maliyeti doğuran 11 LLM çağrısı
+  // tetikler (3 model x 3 örnek + özet + çeviri). UI'da butonun sadece
+  // admin'e gösterilmesi yeterli değil — istemci tarafı gizleme, endpoint'in
+  // kendisini korumaz. DELETE /api/predict ile aynı desen: oturumdaki
+  // e-postayı kontrol et.
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!isAdminEmail(session?.user?.email)) {
+    return NextResponse.json({ error: "Yetkiniz yok." }, { status: 403 })
+  }
+
+  const body = await request.json().catch(() => ({}))
+  const fixtureId = Number(body?.fixtureId)
+
+  if (!fixtureId || isNaN(fixtureId)) {
+    return NextResponse.json({ error: "fixtureId gerekli." }, { status: 400 })
+  }
+
+  // 1. Cache kontrolü — daha önce yapılmış tahmin varsa direkt döndür
+  const cached = await getCachedPrediction(fixtureId)
+  if (cached) return NextResponse.json(cached)
+
+  // 2. Maç verisini çek (hızlı — senkron kontrol edip anlık 404/422 dönebiliriz)
+  const fixture = await getFixtureById(fixtureId)
+  if (!fixture) {
+    return NextResponse.json({ error: "Maç bulunamadı." }, { status: 404 })
+  }
+
+  // 3. Sadece başlamamış maçlar
+  if (!PREDICTABLE_STATUSES.has(fixture.statusShort)) {
+    return NextResponse.json({ error: "Bu maç zaten oynanıyor veya tamamlandı." }, { status: 422 })
+  }
+
+  // 4. Zaten arka planda işleniyor mu? (aynı maça tekrar girip tekrar "tahmin
+  // al" denilmesi, ya da çift tıklama) — atomik NX set: aynı anda sadece bir
+  // istek işlemi başlatabilir, diğerleri "processing" ile geri döner.
+  const started = await markPredictionInProgress(fixtureId)
+  if (!started) {
+    return NextResponse.json({ status: "processing", fixtureId }, { status: 202 })
+  }
+
+  // 5. Ağır kısmı (canlı veri + ~11 LLM çağrısı, 1-3 dk) arka planda çalıştır.
+  // `after()` sayesinde bu HTTP isteğine verilen yanıt (202) döndükten sonra
+  // da iş sürer — istemci paneli kapatıp bağlantıyı kesse bile kesilmez ve
+  // sonuç normal şekilde cache'e yazılır. Kullanıcı aynı maça geri döndüğünde
+  // /api/predict/cached ile sonucu bekler, süreç sıfırdan tekrar başlamaz.
+  after(() => runPredictionInBackground(fixtureId, fixture))
+
+  return NextResponse.json({ status: "processing", fixtureId }, { status: 202 })
 }
 
 // ---------------------------------------------------------------------------
