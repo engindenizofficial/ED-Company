@@ -64,5 +64,12 @@
       "msw",
       "sharp"
     ]
-  }
+  },
+  "browserslist": [
+    "chrome >= 90",
+    "edge >= 90",
+    "firefox >= 88",
+    "safari >= 14",
+    "ios_saf >= 14"
+  ]
 }

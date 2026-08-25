@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import dynamic from "next/dynamic"
+import Image from "next/image"
 import { Clock, Star } from "lucide-react"
 import { TeamButton } from "@/components/team-panel"
 import { LeagueButton } from "@/components/league-panel"
@@ -460,15 +461,19 @@ export function FixtureList({
               // karışıp kaybolur. Sabit beyaz bir zemin, temadan bağımsız olarak
               // her zaman kontrast sağlar.
               <span className="flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full bg-white p-[3px] shadow-sm ring-1 ring-border/40">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={group.logo || "/placeholder.svg"}
+                {/* next/image: media.api-sports.io logoları prod'da otomatik
+                    olarak yeniden boyutlandırılıp AVIF/WebP'e çevrilir — ham
+                    <img> bu logoları orijinal (genellikle çok daha büyük)
+                    boyutunda indirirdi, bu da Lighthouse'un "Resim
+                    yayınlamayı kolaylaştırın" ve "büyük ağ yükü" uyarılarının
+                    başlıca nedeniydi. */}
+                <Image
+                  src={group.logo}
                   alt=""
                   className="h-full w-full object-contain"
                   width={20}
                   height={20}
                   loading="lazy"
-                  decoding="async"
                 />
               </span>
             ) : null}
@@ -697,8 +702,7 @@ function TeamRow({
   return (
     <div className="flex items-center gap-2.5">
       {logo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={logo || "/placeholder.svg"} alt="" className="h-5 w-5 shrink-0 object-contain" width={20} height={20} loading="lazy" decoding="async" />
+        <Image src={logo} alt="" className="h-5 w-5 shrink-0 object-contain" width={20} height={20} loading="lazy" />
       ) : (
         <div className="h-5 w-5 shrink-0 rounded-full bg-secondary" />
       )}
