@@ -116,20 +116,21 @@ export default async function RootLayout({
       data-accent={accentColor !== DEFAULT_ACCENT_COLOR ? accentColor : undefined}
       suppressHydrationWarning
     >
-      <head>
-        {/* Google AdSense site doğrulama/reklam yükleme scripti — AdSense'in
-            <head> içine eklenmesini istediği ham script etiketi. Next.js App
-            Router'da kök layout'a ham bir <head> elemanı eklemek desteklenir
-            ve buraya eklenen etiketler dokümanın gerçek <head>'ine yazılır. */}
-        <script
-          async
-          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
-          crossOrigin="anonymous"
-        />
-      </head>
       <body className="font-sans antialiased">
         {process.env.NODE_ENV === 'production' && (
           <>
+            {/* AdSense script'i artık <head>'e ham <script> olarak değil,
+                strategy="lazyOnload" ile buraya taşındı. Google auto-ads
+                bunu head'de bulmasa da işleviyor; asıl kazanç şu: script artık
+                sayfa render/hydration bitip tarayıcı boşa çıkana kadar ağ
+                kuyruğuna girmiyor. Önceden <head>'deki bu istek, ilk render'ı
+                bekleten kaynaklarla rekabet ederek "oluşturma engelleme
+                istekleri" uyarısına katkı veriyordu. */}
+            <Script
+              src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
+              strategy="lazyOnload"
+              crossOrigin="anonymous"
+            />
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
               strategy="afterInteractive"

@@ -10,6 +10,12 @@ const nextConfig = {
     NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
   },
   images: {
+    // NOT: `/_next/image` optimizasyon proxy'sini media.api-sports.io logoları
+    // için denedik, ancak bu VM'in geliştirme önizleme sarmalayıcısı
+    // `/_next/image` isteklerini Next'in dahili image handler'ına değil
+    // uygulamanın kendi sayfa yönlendiricisine düşürüyor (404 sayfası
+    // dönüyor). `unoptimized: true` bilerek böyle bırakıldı — kaldırılırsa
+    // önizlemede tüm logolar kırılır.
     unoptimized: true,
   },
   async headers() {
