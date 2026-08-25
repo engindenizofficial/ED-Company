@@ -349,6 +349,60 @@ function buildRenderGroups(
   })
 }
 
+// Ana sayfada ilk ekranda görünen lig grubu sayısı — bunlar her zaman anında
+// (gözlemci beklemeden) mount edilir. Sayfa daha aşağıdaki gruplar
+// `LazyFixtureGroup` tarafından ekrana yaklaşana kadar hiç render edilmez.
+const EAGER_GROUP_COUNT = 3
+
+/**
+ * Bir lig grubunun maç kartlarını, kullanıcı o gruba yaklaşana kadar hiç
+ * mount etmeden geciktirir. `content-visibility: auto` sadece tarayıcının
+ * layout/paint işini atlatıyordu, ama React yine de her FixtureCard için
+ * component fonksiyonunu çalıştırıp hook'ları/effect'leri tetikliyordu —
+ * asıl "ana iş parçacığı çalışması" (TBT) buradan geliyordu. Bu sarmalayıcı,
+ * IntersectionObserver ekrana ~800px yaklaşana kadar gerçek kartlar yerine
+ * doğru yükseklikte boş bir placeholder render ederek o JS çalışmasının
+ * kendisini erteliyor. Bir kez mount olduktan sonra hiç unmount olmaz —
+ * canlı skor güncellemeleri kaybolmasın.
+ */
+function LazyFixtureGroup({
+  eager,
+  estimatedHeight,
+  children,
+}: {
+  eager: boolean
+  estimatedHeight: number
+  children: React.ReactNode
+}) {
+  const [mounted, setMounted] = useState(eager)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (mounted) return
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setMounted(true)
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setMounted(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: "800px 0px" },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [mounted])
+
+  if (!mounted) {
+    return <div ref={ref} style={{ height: estimatedHeight }} aria-hidden="true" />
+  }
+  return <div ref={ref}>{children}</div>
+}
+
 export function FixtureList({
   fixtures,
   selectedId,
@@ -371,10 +425,25 @@ export function FixtureList({
 
   return (
     <div className="flex flex-col gap-6">
-      {groups.map((group) => {
+      {groups.map((group, groupIndex) => {
         const leagueIsFavorite = leagueFavoriteIds.has(group.id)
+        // Ana sayfada aynı anda 150-200+ maç kartı render edilebiliyor (her
+        // biri kendi hook'ları, useEffect'leri ve AnimatePresence'ı olan
+        // FixtureCard). Hepsi mount olsaydı React her birinin fonksiyonunu
+        // hemen çalıştırıp Lighthouse'un "ana iş parçacığı çalışması"/TBT
+        // metriklerini şişirirdi. İlk birkaç lig hariç, gruplar
+        // `LazyFixtureGroup` ile kullanıcı yaklaşana kadar hiç mount edilmez.
+        // `content-visibility: auto` da zaten mount olmuş ama ekran dışında
+        // kalan gruplar için tarayıcının layout/paint işini atlatır;
+        // `contain-intrinsic-size` ilk kaydırmada ani bir layout sıçramasını
+        // (CLS) önlemek için maç sayısına göre kabaca bir yükseklik ayırır.
+        const estimatedHeight = 28 + group.items.length * 92
         return (
-        <div key={group.key} className="flex flex-col gap-1.5">
+        <div
+          key={group.key}
+          className="flex flex-col gap-1.5 [content-visibility:auto]"
+          style={{ containIntrinsicSize: `auto ${estimatedHeight}px` } as CSSProperties}
+        >
           {/* League header */}
           <div className="flex items-center gap-2 px-1 pb-1">
             {group.logo ? (
@@ -422,18 +491,20 @@ export function FixtureList({
           </div>
 
           {/* Fixture cards */}
-          <ul className="flex flex-col gap-1">
-            {group.items.map((f, index) => (
-              <FixtureCard
-                key={f.id}
-                f={f}
-                index={index}
-                active={f.id === selectedId}
-                onSelect={onSelect}
-                teamFavoriteIds={teamFavoriteIds}
-              />
-            ))}
-          </ul>
+          <LazyFixtureGroup eager={groupIndex < EAGER_GROUP_COUNT} estimatedHeight={group.items.length * 92}>
+            <ul className="flex flex-col gap-1">
+              {group.items.map((f, index) => (
+                <FixtureCard
+                  key={f.id}
+                  f={f}
+                  index={index}
+                  active={f.id === selectedId}
+                  onSelect={onSelect}
+                  teamFavoriteIds={teamFavoriteIds}
+                />
+              ))}
+            </ul>
+          </LazyFixtureGroup>
         </div>
         )
       })}
