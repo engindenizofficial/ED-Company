@@ -384,7 +384,15 @@ export function FixtureList({
               // her zaman kontrast sağlar.
               <span className="flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-full bg-white p-[3px] shadow-sm ring-1 ring-border/40">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={group.logo || "/placeholder.svg"} alt="" className="h-full w-full object-contain" />
+                <img
+                  src={group.logo || "/placeholder.svg"}
+                  alt=""
+                  className="h-full w-full object-contain"
+                  width={20}
+                  height={20}
+                  loading="lazy"
+                  decoding="async"
+                />
               </span>
             ) : null}
             <LeagueButton

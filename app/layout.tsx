@@ -7,14 +7,18 @@ import { NavTabs } from '@/components/nav-tabs'
 import { SiteFooter } from '@/components/site-footer'
 import { LoginPromptModal } from '@/components/login-prompt-modal'
 import { TeamProvider } from '@/contexts/team-context'
-import { TeamPanel } from '@/components/team-panel'
 import { LeagueProvider } from '@/contexts/league-context'
-import { LeaguePanel } from '@/components/league-panel'
 import { PlayerProvider } from '@/contexts/player-context'
-import { PlayerPanel } from '@/components/player-panel'
 import { MatchProvider } from '@/contexts/match-context'
-import { MatchPanel } from '@/components/match-panel'
 import { PanelStackProvider } from '@/contexts/panel-stack-context'
+// Takım/Lig/Oyuncu/Maç panelleri kapalıyken "return null" dönüyor ama
+// statik import edildiklerinde JS'leri (özellikle MatchPanel'in içindeki
+// ~2400 satırlık AnalysisPanel) HER sayfanın ana JS paketine gömülüp ana iş
+// parçacığını bloke ediyordu. `next/dynamic`'in `ssr:false` seçeneği App
+// Router'da yalnızca Client Component içinde kullanılabildiği için bu dört
+// paneli ayrı bir client wrapper'a (components/lazy-panels.tsx) taşıdık —
+// görünüm/davranış hiç değişmez, sadece kodları ayrı chunk'larda yüklenir.
+import { LazyPanels } from '@/components/lazy-panels'
 import { PanelRouteGuard } from '@/components/panel-route-guard'
 import { PwaUpdateWatcher } from '@/components/pwa-update-watcher'
 import { PushSoundListener } from '@/components/push-sound-listener'
@@ -165,10 +169,7 @@ export default async function RootLayout({
                           <LoginPromptModal />
                           {children}
                           <SiteFooter />
-                          <TeamPanel />
-                          <LeaguePanel />
-                          <PlayerPanel />
-                          <MatchPanel />
+                          <LazyPanels />
                           <Toaster />
                         </FavoritesProvider>
                       </MatchProvider>
