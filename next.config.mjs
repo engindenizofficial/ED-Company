@@ -14,9 +14,21 @@ const nextConfig = {
     // için denedik, ancak bu VM'in geliştirme önizleme sarmalayıcısı
     // `/_next/image` isteklerini Next'in dahili image handler'ına değil
     // uygulamanın kendi sayfa yönlendiricisine düşürüyor (404 sayfası
-    // dönüyor). `unoptimized: true` bilerek böyle bırakıldı — kaldırılırsa
-    // önizlemede tüm logolar kırılır.
-    unoptimized: true,
+    // dönüyor). Bu yüzden optimizasyon SADECE prod build'de (Vercel deploy)
+    // açık; `next dev` ile çalışan bu VM önizlemesinde `unoptimized: true`
+    // kalır, aksi halde önizlemede tüm logolar kırılır.
+    unoptimized: process.env.NODE_ENV !== 'production',
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'media.api-sports.io',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.public.blob.vercel-storage.com',
+      },
+    ],
+    formats: ['image/avif', 'image/webp'],
   },
   async headers() {
     return [
@@ -40,7 +52,8 @@ const nextConfig = {
         // KASITLI olarak hariç: PWA güncellemelerinin anında yayılması için
         // her zaman yeniden doğrulanmalı, aksi halde kullanıcılar eski bir
         // service worker'a kilitlenebilir.
-        source: '/:path(icon-192.png|icon-512.png|apple-touch-icon.png|opengraph-image.png|manifest.json)',
+        source:
+          '/:path(icon-192.png|icon-512.png|icon-dark-32x32.png|icon-light-32x32.png|icon.svg|apple-icon.png|apple-touch-icon.png|opengraph-image.png|badge-monochrome.png|manifest.json|placeholder.svg|placeholder-logo.png|placeholder-logo.svg|placeholder-user.jpg|placeholder.jpg)',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
     ]
