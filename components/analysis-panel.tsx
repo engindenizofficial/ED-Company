@@ -72,6 +72,7 @@ import { MatchShareActions } from "@/components/match-share-actions"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/contexts/language-context"
 import { translateApiError } from "@/lib/i18n/api-error"
+import { parseRoundInfo } from "@/lib/knockout"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -263,11 +264,36 @@ type KnockoutSectionData = {
   firstLegGoalsForCurrentAway: number
 }
 
+// Eleme usulü (knockout) bir turda maçın kaçıncı ayak olduğunu gösteren
+// rozet. `league.round` metninden ("Play-offs - 2nd Leg", "1. Ayak" vb.)
+// saf bir fonksiyonla (parseRoundInfo) çıkarıldığı için ekstra bir API
+// isteği gerektirmez — ilk ayak verisi henüz bulunamamış olsa bile (örn.
+// bu maçın kendisi 1. ayaksa) her zaman gösterilir.
+function LegBadge({ fixture }: { fixture: Fixture }) {
+  const { t } = useLanguage()
+  const roundInfo = parseRoundInfo(fixture.league.round)
+
+  if (!roundInfo.isKnockoutStage || roundInfo.leg === null) return null
+
+  return (
+    <span className="rounded-full border border-border/60 bg-secondary px-2.5 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground">
+      {t("matchHeaderLeg", { leg: String(roundInfo.leg) })}
+    </span>
+  )
+}
+
 // Eleme turlarında (2. ayak, 3. ayak vb.) maç panelinin başlığında toplam
 // (agregat) skoru gösterir: ilk ayağın golleri + bu maçın canlı/güncel
 // golleri. Fixture'ın goalsHome/goalsAway'i her gol sonrası yenilendiğinde
 // (bkz. useAutoRefresh ile beslenen fixture verisi) bu rozet otomatik olarak
 // güncellenir — ekstra bir polling'e gerek yok, sadece toplama işlemi yapılır.
+//
+// NOT: `isDecidingMatch` burada "bu maç turun kesin kazananını belirler"
+// anlamına gelir (leg >= 2 veya tek ayaklı final/play-off) — yani agregatın
+// gösterilmesi GEREKEN tam olarak bu durumdur (önceki ayağın skoruyla
+// toplanacak bir maç varsa). Eskiden bu koşul ters yazılmıştı ve rozet asla
+// görünmüyordu; artık sadece ilk ayak verisi bulunamadığında (örn. bu maçın
+// kendisi 1. ayaksa, toplanacak bir önceki maç yok) gizleniyor.
 function AggregateScoreBadge({
   fixture,
   homeGoals,
@@ -283,7 +309,7 @@ function AggregateScoreBadge({
     true,
   )
 
-  if (!data || data.isDecidingMatch) return null
+  if (!data) return null
 
   const currentHomeGoals = homeGoals ?? 0
   const currentAwayGoals = awayGoals ?? 0
@@ -292,7 +318,7 @@ function AggregateScoreBadge({
 
   return (
     <span className="flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold tabular-nums tracking-wide text-primary">
-      {t("matchHeaderAggregate", { score: `${aggHome}-${aggAway}`, leg: String(data.leg) })}
+      {t("matchHeaderAggregate", { score: `${aggHome}-${aggAway}` })}
     </span>
   )
 }
@@ -371,6 +397,8 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
               <span className="text-[11px] font-medium text-muted-foreground">{statusTr}</span>
             </div>
           )}
+          {/* Eleme turu ise: maçın kaçıncı ayak olduğunu gösteren rozet. */}
+          <LegBadge fixture={fixture} />
           {/* Eleme turu ise: canlı toplam (agregat) skor rozeti — ilk ayak +
               bu maçın güncel golleri, gol oldukça otomatik güncellenir. */}
           <AggregateScoreBadge fixture={fixture} homeGoals={homeGoals} awayGoals={awayGoals} />
