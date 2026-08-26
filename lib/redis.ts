@@ -18,7 +18,7 @@ function normalizeUpstashUrl(raw: string | undefined): string | undefined {
 const redisUrl = normalizeUpstashUrl(process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL)
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN
 
-let redis: Redis | null = null
+export let redis: Redis | null = null
 try {
   if (redisUrl && redisToken) {
     redis = new Redis({ url: redisUrl, token: redisToken })

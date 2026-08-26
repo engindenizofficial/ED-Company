@@ -77,3 +77,39 @@ export async function getPlayerMarketValuesByTeamIds(
     valueEur: row.valueEur !== null ? Number(row.valueEur) : 0,
   }))
 }
+
+/**
+ * Verilen teamId'lerin piyasa değerini döner (24 lig sınırı YOK). Maçlar
+ * sekmesi dünya çapındaki tüm fikstürleri değerlendirdiği için leagueId
+ * filtresi uygulanmaz. Kayıt yoksa Map'te bulunmaz — çağıran taraf 0 kabul eder.
+ */
+export async function getTeamMarketValueMapByTeamIds(teamIds: number[]): Promise<Map<number, number>> {
+  if (teamIds.length === 0) return new Map()
+
+  const rows = await db
+    .select({ teamId: teamMarketValue.teamId, totalValueEur: teamMarketValue.totalValueEur })
+    .from(teamMarketValue)
+    .where(inArray(teamMarketValue.teamId, teamIds))
+
+  const map = new Map<number, number>()
+  for (const row of rows) {
+    map.set(row.teamId, row.totalValueEur !== null ? Number(row.totalValueEur) : 0)
+  }
+  return map
+}
+
+/** playerId -> piyasa değeri (eur). Kayıt yoksa Map'te bulunmaz — çağıran taraf 0 kabul eder. */
+export async function getPlayerMarketValueMapByIds(playerIds: number[]): Promise<Map<number, number>> {
+  if (playerIds.length === 0) return new Map()
+
+  const rows = await db
+    .select({ playerId: playerMarketValue.playerId, valueEur: playerMarketValue.valueEur })
+    .from(playerMarketValue)
+    .where(inArray(playerMarketValue.playerId, playerIds))
+
+  const map = new Map<number, number>()
+  for (const row of rows) {
+    map.set(row.playerId, row.valueEur !== null ? Number(row.valueEur) : 0)
+  }
+  return map
+}

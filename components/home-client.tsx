@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { FixtureList } from "@/components/fixture-list"
 import { SuccessPanel } from "@/components/success-panel"
-import { TeamSearchBar } from "@/components/team-search-bar"
+import { HomeSearchBar } from "@/components/home-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useFavorites } from "@/contexts/favorites-context"
 import { useLanguage } from "@/contexts/language-context"
@@ -422,7 +422,7 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
 
           {/* Search row */}
           <div className="pb-3">
-            <TeamSearchBar />
+            <HomeSearchBar date={date} />
           </div>
         </div>
       </header>
