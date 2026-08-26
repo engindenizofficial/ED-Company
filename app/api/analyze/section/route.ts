@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import {
   getEvents,
+  getFixtureById,
   getFixturePlayerStats,
   getHeadToHead,
   getInjuries,
@@ -10,6 +11,7 @@ import {
   getStatistics,
   getTeamSeasonStats,
 } from "@/lib/api-football"
+import { findFirstLegResult, parseRoundInfo, reorientFirstLeg } from "@/lib/knockout"
 import type { TeamInfo } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -29,6 +31,7 @@ const VALID_SECTIONS = [
   "h2h",
   "injuries",
   "odds",
+  "knockout",
 ] as const
 type Section = (typeof VALID_SECTIONS)[number]
 
@@ -125,6 +128,45 @@ export async function GET(request: Request) {
           return NextResponse.json({ data: null })
         }
         return NextResponse.json({ data })
+      }
+
+      case "knockout": {
+        // Maç panelinin başlığında canlı toplam (agregat) skoru göstermek için
+        // hafif bir sekme: tam AI tahmini beklemeden sadece tur/ayak bilgisini
+        // ve (varsa) ilk ayak sonucunu döner. `analysis-panel.tsx` içindeki
+        // `AggregateScoreBadge` bu veriyi güncel fikstürün canlı golleriyle
+        // birleştirip toplamı hesaplar ve gol oldukça otomatik günceller.
+        if (!homeId || isNaN(homeId) || !awayId || isNaN(awayId)) {
+          return NextResponse.json({ data: null })
+        }
+        const fixture = await getFixtureById(fixtureId)
+        if (!fixture) return NextResponse.json({ data: null })
+
+        const roundInfo = parseRoundInfo(fixture.league.round)
+        if (!roundInfo.isKnockoutStage || roundInfo.leg === null) {
+          // Tek ayaklı (final, tek maçlık play-off) turlarda agregat kartına
+          // gerek yok — sadece "beraberlik olamaz" bilgisi analiz sekmesinde
+          // AI tahmini ile birlikte gösteriliyor.
+          return NextResponse.json({ data: null })
+        }
+
+        const h2h = await getHeadToHead(homeId, awayId)
+        const firstLeg = findFirstLegResult(h2h, fixture)
+        if (!firstLeg) return NextResponse.json({ data: null })
+
+        const { firstLegGoalsForCurrentHome, firstLegGoalsForCurrentAway } = reorientFirstLeg(
+          firstLeg,
+          fixture.home.name,
+        )
+
+        return NextResponse.json({
+          data: {
+            leg: roundInfo.leg,
+            isDecidingMatch: roundInfo.isDecidingMatch,
+            firstLegGoalsForCurrentHome,
+            firstLegGoalsForCurrentAway,
+          },
+        })
       }
     }
   } catch {

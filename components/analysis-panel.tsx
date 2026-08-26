@@ -256,6 +256,47 @@ export function AnalysisPanel({
 // Match header
 // ---------------------------------------------------------------------------
 
+type KnockoutSectionData = {
+  leg: number
+  isDecidingMatch: boolean
+  firstLegGoalsForCurrentHome: number
+  firstLegGoalsForCurrentAway: number
+}
+
+// Eleme turlarında (2. ayak, 3. ayak vb.) maç panelinin başlığında toplam
+// (agregat) skoru gösterir: ilk ayağın golleri + bu maçın canlı/güncel
+// golleri. Fixture'ın goalsHome/goalsAway'i her gol sonrası yenilendiğinde
+// (bkz. useAutoRefresh ile beslenen fixture verisi) bu rozet otomatik olarak
+// güncellenir — ekstra bir polling'e gerek yok, sadece toplama işlemi yapılır.
+function AggregateScoreBadge({
+  fixture,
+  homeGoals,
+  awayGoals,
+}: {
+  fixture: Fixture
+  homeGoals: number | null
+  awayGoals: number | null
+}) {
+  const { t } = useLanguage()
+  const { data } = useLazySection<KnockoutSectionData>(
+    `/api/analyze/section?section=knockout&fixtureId=${fixture.id}&homeId=${fixture.home.id}&awayId=${fixture.away.id}`,
+    true,
+  )
+
+  if (!data || data.isDecidingMatch) return null
+
+  const currentHomeGoals = homeGoals ?? 0
+  const currentAwayGoals = awayGoals ?? 0
+  const aggHome = data.firstLegGoalsForCurrentHome + currentHomeGoals
+  const aggAway = data.firstLegGoalsForCurrentAway + currentAwayGoals
+
+  return (
+    <span className="flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold tabular-nums tracking-wide text-primary">
+      {t("matchHeaderAggregate", { score: `${aggHome}-${aggAway}`, leg: String(data.leg) })}
+    </span>
+  )
+}
+
 function MatchHeader({ fixture }: { fixture: Fixture }) {
   const { t } = useLanguage()
   const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "P", "BT", "LIVE"])
@@ -330,6 +371,9 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
               <span className="text-[11px] font-medium text-muted-foreground">{statusTr}</span>
             </div>
           )}
+          {/* Eleme turu ise: canlı toplam (agregat) skor rozeti — ilk ayak +
+              bu maçın güncel golleri, gol oldukça otomatik güncellenir. */}
+          <AggregateScoreBadge fixture={fixture} homeGoals={homeGoals} awayGoals={awayGoals} />
           {/* Venue */}
           {fixture.venue && (
             <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
