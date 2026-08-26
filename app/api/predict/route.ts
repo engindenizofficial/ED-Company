@@ -360,6 +360,53 @@ function weightedVote(
   }
 }
 
+// Google Gemini zaman zaman geçici "The model is overloaded" (503) hatası
+// döndürür. AI SDK bunu retryable kabul edip kendi içinde üstel backoff'la
+// tekrar dener, ama varsayılan maxRetries=2 (3 deneme) yoğun 503 dönemlerinde
+// yetersiz kalabilir ve örnek "başarısız" sayılıp atlanır. Bunu artırıyoruz.
+const GENERATE_OBJECT_MAX_RETRIES = 6
+
+// SDK'nın kendi retry bütçesi de tükenirse, bu dış katman devreye girer:
+// örneği tamamen atlamak yerine (o modelin tamamen ensemble'dan düşmesine
+// yol açabilir) ek gecikmelerle tekrar dener. Amaç: geçici bir 503/hata
+// yüzünden modelden hiç cevap alınamaması değil, cevap gelene kadar beklemek.
+const OUTER_SAMPLE_RETRIES = 4
+
+async function generateSampleWithRetry(
+  model: Parameters<typeof generateObject>[0]["model"],
+  prompt: string,
+  label: string,
+  sampleIndex: number,
+): Promise<z.infer<typeof PredictionSchema>> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= OUTER_SAMPLE_RETRIES; attempt++) {
+    try {
+      const { object } = await generateObject({
+        model,
+        schema: PredictionSchema,
+        prompt,
+        maxRetries: GENERATE_OBJECT_MAX_RETRIES,
+      })
+      return object
+    } catch (error) {
+      lastError = error
+      const message = error instanceof Error ? error.message : String(error)
+      if (attempt < OUTER_SAMPLE_RETRIES) {
+        const delayMs = 2000 * 2 ** attempt
+        console.log(
+          `[v0] ${label} örnek ${sampleIndex + 1} başarısız (deneme ${attempt + 1}/${OUTER_SAMPLE_RETRIES + 1}): ${message}. ${delayMs}ms sonra tekrar denenecek.`,
+        )
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+      } else {
+        console.log(
+          `[v0] ${label} örnek ${sampleIndex + 1} tüm denemeler (${OUTER_SAMPLE_RETRIES + 1}) tükendi: ${message}`,
+        )
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError))
+}
+
 // ---------------------------------------------------------------------------
 // Self-consistency: bir modelden N örnekleme al, kendi içinde eşit ağırlıklı
 // oylama yaparak tek bir birleşik tahmine indir. Örnekler arasındaki anlaşma
@@ -372,14 +419,14 @@ async function sampleWithSelfConsistency(
   label: string,
 ): Promise<{ object: z.infer<typeof PredictionSchema>; agreement: number; sampleCount: number }> {
   const results = await Promise.allSettled(
-    Array.from({ length: SELF_CONSISTENCY_SAMPLES }, () =>
-      generateObject({ model, schema: PredictionSchema, prompt }),
+    Array.from({ length: SELF_CONSISTENCY_SAMPLES }, (_, i) =>
+      generateSampleWithRetry(model, prompt, label, i),
     ),
   )
 
   const samples: z.infer<typeof PredictionSchema>[] = []
   for (const r of results) {
-    if (r.status === "fulfilled") samples.push(r.value.object)
+    if (r.status === "fulfilled") samples.push(r.value)
   }
 
   if (samples.length === 0) {
@@ -803,7 +850,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   }
 
   // 7b. Confidence kalibrasyonu — LLM'ler doğası gereği overconfident olma
-  // eğilimindedir (örn. "%85 güven" dediklerinde ger��ekte %60 tutması gibi).
+  // eğilimindedir (örn. "%85 güven" dediklerinde ger����ekte %60 tutması gibi).
   // Ensemble'ın ham güven skorunu, geçmiş çözümlenmiş tahminlerin o güven
   // aralığında GERÇEKTE ne oranda tuttuğuna göre düzeltiyoruz (bkz.
   // lib/confidence-calibration.ts). Yeterli geçmiş veri yoksa (cold start)
