@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { playerMarketValue, teamMarketValue } from "@/lib/db/schema"
-import { and, eq, inArray } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 import { FEATURED_LEAGUE_IDS } from "@/lib/leagues"
 import { getSquad } from "@/lib/api-football"
 import { normalizeTR } from "@/lib/search/text-normalize"
@@ -18,6 +18,14 @@ export const dynamic = "force-dynamic"
 // kaynak olarak kullanılır — isim eşleştirmesi tamamen bizim tarafımızda
 // yapılır, API çağrısı gerektirmez ve 2 karakterden itibaren çalışır
 // (bkz. app/api/games/manager-career/players/search/route.ts'teki aynı desen).
+//
+// ÖNEMLİ 2: matchStatus filtresi KASITLI OLARAK "matched" ile sınırlı DEĞİL.
+// Cron (lib/market-value-sync.ts) kadrodaki HER oyuncu için bir satır yazar —
+// Transfermarkt eşleşmesi bulunamayan oyuncular "unmatched"/"review" statüsü
+// ve valueEur=null ile yine tabloya girer. Filtreyi "matched" ile sınırlamak
+// piyasa değeri olmayan oyuncuların arama sonuçlarından TAMAMEN kaybolmasına
+// yol açıyordu (kullanıcı isteği: bu oyuncular da görünmeli, değer 0 kabul
+// edilmeli). Bu yüzden burada matchStatus'a hiç bakılmaz.
 
 export interface HomeSearchPlayerResult {
   id: number
@@ -60,7 +68,7 @@ async function getCandidateRows(): Promise<CandidateRow[]> {
     })
     .from(playerMarketValue)
     .innerJoin(teamMarketValue, eq(teamMarketValue.teamId, playerMarketValue.teamId))
-    .where(and(eq(playerMarketValue.matchStatus, "matched"), inArray(teamMarketValue.leagueId, FEATURED_LEAGUE_IDS)))
+    .where(inArray(teamMarketValue.leagueId, FEATURED_LEAGUE_IDS))
 
   const parsed: CandidateRow[] = rows.map((r) => ({
     playerId: r.playerId,
