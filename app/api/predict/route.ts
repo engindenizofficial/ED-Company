@@ -62,6 +62,16 @@ const ENSEMBLE_MODELS = [
 // (3 model x 3 örnek = 9 çağrı/maç).
 const SELF_CONSISTENCY_SAMPLES = 3
 
+// Tek bir generateObject çağrısı için üst sınır. maxDuration (300s) ile
+// PREDICTION_IN_PROGRESS_TTL_SECONDS (300s) birbirine eşit olduğu için, bir
+// sağlayıcı (OpenAI/Google/xAI) yavaşlar/asılı kalırsa Promise.allSettled onu
+// sonsuza kadar bekler ve fonksiyon sert şekilde kesilir — bu durumda `finally`
+// çalışmaz, Redis'e ne sonuç yazılır ne de "işleniyor" işareti temizlenir, ve
+// istemci tam 5 dakika boyunca "hazırlanıyor..." ekranında asılı kalır. Her
+// çağrıya ayrı bir abort sınırı koyarak tek bir yavaş sağlayıcının diğer
+// örneklemeleri ve tüm isteği kilitlemesini önlüyoruz.
+const PER_CALL_TIMEOUT_MS = 90_000
+
 const PredictionSchema = z.object({
   homeScore:  z.number().int().min(0).max(20).describe("Ev sahibi takımın tahmin edilen gol sayısı (90 dakika, normal süre)"),
   awayScore:  z.number().int().min(0).max(20).describe("Deplasman takımının tahmin edilen gol sayısı (90 dakika, normal süre)"),
@@ -373,7 +383,12 @@ async function sampleWithSelfConsistency(
 ): Promise<{ object: z.infer<typeof PredictionSchema>; agreement: number; sampleCount: number }> {
   const results = await Promise.allSettled(
     Array.from({ length: SELF_CONSISTENCY_SAMPLES }, () =>
-      generateObject({ model, schema: PredictionSchema, prompt }),
+      generateObject({
+        model,
+        schema: PredictionSchema,
+        prompt,
+        abortSignal: AbortSignal.timeout(PER_CALL_TIMEOUT_MS),
+      }),
     ),
   )
 
@@ -803,7 +818,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   }
 
   // 7b. Confidence kalibrasyonu — LLM'ler doğası gereği overconfident olma
-  // eğilimindedir (örn. "%85 güven" dediklerinde gerçekte %60 tutması gibi).
+  // eğilimindedir (örn. "%85 güven" dediklerinde ger��ekte %60 tutması gibi).
   // Ensemble'ın ham güven skorunu, geçmiş çözümlenmiş tahminlerin o güven
   // aralığında GERÇEKTE ne oranda tuttuğuna göre düzeltiyoruz (bkz.
   // lib/confidence-calibration.ts). Yeterli geçmiş veri yoksa (cold start)
