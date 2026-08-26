@@ -103,6 +103,7 @@ export function HomeSearchBar({ date }: { date: string }) {
       setTeamResults([])
       setLeagueResults([])
       setOpen(false)
+      setLoading(false)
       return
     }
 
@@ -236,7 +237,7 @@ export function HomeSearchBar({ date }: { date: string }) {
       {/* Input wrapper — pill shape, inset icon, focus ring via outline */}
       <label className="relative flex items-center">
         <span className="pointer-events-none absolute left-3.5 flex h-full items-center">
-          {loading ? (
+          {loading && query.length > 0 ? (
             <LoaderCircle className="h-3.5 w-3.5 animate-spin text-primary" />
           ) : (
             <Search className={`h-3.5 w-3.5 transition-colors ${query.length > 0 ? "text-primary" : "text-muted-foreground"}`} />
