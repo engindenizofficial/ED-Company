@@ -2314,6 +2314,10 @@ function PredictionCard({
                 {prediction.tie.wentToPenalties
                   ? t("analysis.predictionPenalties", {
                       team: prediction.tie.advancing === "home" ? homeName : awayName,
+                      score:
+                        typeof prediction.tie.penaltyHome === "number" && typeof prediction.tie.penaltyAway === "number"
+                          ? `${prediction.tie.penaltyHome}-${prediction.tie.penaltyAway}`
+                          : "",
                     })
                   : prediction.tie.wentToExtraTime
                     ? t("analysis.predictionExtraTime", {

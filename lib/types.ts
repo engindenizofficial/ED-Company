@@ -411,6 +411,11 @@ export interface MatchPrediction {
     wentToPenalties?: boolean
     /** Turu geçen taraf (bu maçın ev/deplasman etiketine göre) — sadece `isDeciding` true ise dolu */
     advancing?: "home" | "away"
+    /** Penaltı atışları skoru — sadece `wentToPenalties` true ise dolu.
+     * Not: LLM ensemble'ından değil, koddaki deterministik istatistiksel
+     * skor dağılımından üretilir (bkz. lib/knockout.ts generatePenaltyScore). */
+    penaltyHome?: number
+    penaltyAway?: number
   }
 }
 

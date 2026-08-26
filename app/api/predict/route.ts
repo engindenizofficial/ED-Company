@@ -653,6 +653,8 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
         wentToExtraTime: resolution?.wentToExtraTime ?? false,
         wentToPenalties: resolution?.wentToPenalties ?? false,
         advancing: resolution?.advancing,
+        penaltyHome: resolution?.penaltyHomeGoals,
+        penaltyAway: resolution?.penaltyAwayGoals,
       }
     } else if (roundInfo.isDecidingMatch) {
       // Tek ayaklı eleme turu (final, tek maçlık play-off vb.) — agregat bu maçın skorudur.
@@ -666,6 +668,8 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
         wentToExtraTime: resolution.wentToExtraTime,
         wentToPenalties: resolution.wentToPenalties,
         advancing: resolution.advancing,
+        penaltyHome: resolution.penaltyHomeGoals,
+        penaltyAway: resolution.penaltyAwayGoals,
       }
     } else if (roundInfo.leg === 1) {
       // İlk ayak — tur henüz bitmiyor, sadece bilgi amaçlı işaretle.
