@@ -309,7 +309,25 @@ export function HomeSearchBar({ date }: { date: string }) {
             ))}
           </div>
 
-          {activeCount === 0 && !loading ? (
+          {loading ? (
+            <ul className="flex max-h-80 flex-col overflow-y-auto py-1.5" aria-hidden="true">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <li key={`skeleton-${i}`} className="flex w-full items-center gap-3 px-3.5 py-2.5">
+                  <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-secondary" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <div
+                      className="h-3 animate-pulse rounded-full bg-secondary"
+                      style={{ width: `${55 + ((i * 13) % 30)}%` }}
+                    />
+                    <div
+                      className="h-2.5 animate-pulse rounded-full bg-secondary/70"
+                      style={{ width: `${30 + ((i * 17) % 25)}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : activeCount === 0 ? (
             <div className="flex flex-col items-center gap-1.5 px-4 py-8 text-center">
               <Search className="h-5 w-5 text-muted-foreground" />
               <p className="text-xs text-muted-foreground">{t(noResultsKey, { query })}</p>
