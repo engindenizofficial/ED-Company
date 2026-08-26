@@ -6,6 +6,7 @@ import { Calendar, Check, MapPin, Shield, Shirt, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMarketValueEur } from "@/lib/market-value-format"
 import { useLanguage } from "@/contexts/language-context"
+import { toDisplayCountry } from "@/lib/tr-aliases"
 import type { DuelPlayer } from "@/lib/games/market-value-duel"
 
 interface DuelPlayerCardProps {
@@ -29,7 +30,7 @@ export function DuelPlayerCard({
   disabled,
   onPick,
 }: DuelPlayerCardProps) {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const formattedValue = formatMarketValueEur(value)
   const [photoFailed, setPhotoFailed] = useState(false)
   const showPhoto = Boolean(player.photo) && !photoFailed
@@ -167,7 +168,7 @@ export function DuelPlayerCard({
       {player.country && (
         <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground/90">
           <MapPin className="h-3 w-3" />
-          <span>{player.country}</span>
+                <span>{toDisplayCountry(player.country, locale)}</span>
         </div>
       )}
 

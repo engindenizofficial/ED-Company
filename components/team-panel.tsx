@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils"
 import { formatMarketValueEur } from "@/lib/market-value-format"
 import { useLanguage } from "@/contexts/language-context"
 import { translateApiError } from "@/lib/i18n/api-error"
+import { toDisplayCountry } from "@/lib/tr-aliases"
 import type {
   Fixture,
   SquadPlayer,
@@ -423,7 +424,7 @@ function UpcomingFixturesSection({ teamId, teamName, active }: { teamId: number;
 // ---------------------------------------------------------------------------
 
 function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const { status, data, error, retry } = useTeamSection<TeamCoach>(teamId, "coach", active)
   return (
     <section className="flex flex-col gap-1">
@@ -448,7 +449,7 @@ function CoachSection({ teamId, teamName, active }: { teamId: number; teamName: 
                   <div className="flex flex-wrap gap-1.5">
                     {data.nationality && (
                       <span className="rounded-lg bg-secondary border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                        {data.nationality}
+                        {toDisplayCountry(data.nationality, locale)}
                       </span>
                     )}
                     {data.age != null && (
@@ -986,7 +987,7 @@ function TeamPanelInner({
                     ) : (
                       <Flag className="h-3 w-3 shrink-0" />
                     )}
-                    {basic.team.country}
+                    {toDisplayCountry(basic.team.country, locale)}
                   </span>
                 )}
               </div>
