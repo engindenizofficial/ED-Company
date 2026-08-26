@@ -309,7 +309,12 @@ export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | 
   if (!teamRaw || teamRaw.length === 0) return null
 
   const rawTeam = teamRaw[0]
-  const team: TeamInfo = { id: rawTeam.team.id, name: rawTeam.team.name, logo: rawTeam.team.logo }
+  const team: TeamInfo = {
+    id: rawTeam.team.id,
+    name: rawTeam.team.name,
+    logo: rawTeam.team.logo,
+    country: toTurkishCountry(rawTeam.team.country ?? ""),
+  }
 
   const marketValue = await getTeamMarketValue(teamId).catch(() => null)
 

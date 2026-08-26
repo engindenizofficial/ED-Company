@@ -7,6 +7,7 @@ import {
   ArrowLeftRight,
   ArrowUpRight,
   Calendar,
+  Flag,
   Inbox,
   LoaderCircle,
   MapPin,
@@ -965,9 +966,17 @@ function TeamPanelInner({
               </div>
             )}
 
-            {/* Team name + venue info */}
+            {/* Team name + country + venue info */}
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-black leading-tight text-foreground truncate">{team.name}</h2>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <h2 className="text-lg font-black leading-tight text-foreground truncate">{team.name}</h2>
+                {basic?.team.country && (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                    <Flag className="h-3 w-3 shrink-0" />
+                    {basic.team.country}
+                  </span>
+                )}
+              </div>
               {basic?.venue.name && (
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
