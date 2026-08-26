@@ -510,6 +510,7 @@ export async function getHeadToHead(homeId: number, awayId: number): Promise<For
       homeTeam: r.teams.home.name,
       awayTeam: r.teams.away.name,
       fixtureId: r.fixture.id,
+      leagueId: r.league.id,
     })
   }
   return games

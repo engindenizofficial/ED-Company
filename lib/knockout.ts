@@ -73,12 +73,19 @@ export interface FirstLegResult {
  *
  * İki takım arasında son 60 gün içinde oynanmış en yakın maçı ilk ayak kabul
  * ediyoruz — daha eski bir eşleşme muhtemelen farklı bir sezon/turnuvadır.
+ *
+ * ÖNEMLİ: Adayı AYNI TURNUVAYLA (fixture.league.id) sınırlıyoruz. Aksi halde
+ * iki takım aynı hafta içinde farklı bir turnuvada da karşılaşmış olabilir
+ * (örn. hem Şampiyonlar Ligi'nde hem de kendi liglerinde) ve o maç yanlışlıkla
+ * bu turnuvanın ilk ayağı sanılabilir. H2H verisinde leagueId eksikse (eski
+ * cache/tip garantisi olmayan veri) güvenlik amacıyla eşleşme aranmaz.
  */
 export function findFirstLegResult(h2h: FormGame[], fixture: Fixture): FirstLegResult | null {
   const currentDate = new Date(fixture.date).getTime()
 
   const candidates = h2h
     .filter((g) => new Date(g.date).getTime() < currentDate)
+    .filter((g) => g.leagueId != null && g.leagueId === fixture.league.id)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   if (candidates.length === 0) return null

@@ -124,6 +124,12 @@ export interface FormGame {
   awayTeam?: string
   /** H2H maçları için gerçek fixture ID'si — maç paneline link vermek için (bkz. analysis-panel.tsx H2HSection). Normal form (son 5 maç) girdilerinde boş kalır. */
   fixtureId?: number
+  /** H2H maçları için turnuva/lig id'si (API-Football league.id). Çift ayaklı
+   * eleme turlarında "ilk ayak" tespitinin AYNI TURNUVADAKİ maçla sınırlı
+   * kalması için gerekli — aksi halde iki takım aynı hafta içinde farklı bir
+   * turnuvada (örn. kendi liglerinde) karşılaşmışsa o maç yanlışlıkla ilk
+   * ayak sanılabilir. Normal form (son 5 maç) girdilerinde boş kalır. */
+  leagueId?: number
   }
 
 export interface TeamSeasonStats {
