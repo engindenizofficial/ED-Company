@@ -1,4 +1,5 @@
 import type { Fixture } from "./types"
+import { normalizeTR } from "./search/text-normalize"
 
 // Turkish aliases for the English country/league names that API-Football
 // returns, so users can search "Almanya" and match "Germany", or
@@ -255,6 +256,29 @@ export function toDisplayCountry(country: string, locale: "tr" | "en"): string {
   if (locale === "tr") return country
   const key = country.toLowerCase().trim()
   return COUNTRY_EN_DISPLAY[key] ?? country
+}
+
+// Veri katmanında saklanan ülke adı (normalize edilmiş Türkçe) → İngilizce
+// karşılığının normalize edilmiş hali. Arama kutularında kullanıcı arayüz
+// dili İngilizce olsa da "Türkiye" yerine "Turkey" yazarak arama yapabilsin
+// diye kullanılır.
+const COUNTRY_EN_NORM_BY_TR_NORM: Record<string, string> = Object.entries(COUNTRY_TR_DISPLAY).reduce(
+  (acc, [en, tr]) => {
+    acc[normalizeTR(tr)] = normalizeTR(en)
+    return acc
+  },
+  {} as Record<string, string>,
+)
+
+/** Saklanan (Türkçe) ülke adının, kullanıcının hangi dilde yazdığına
+ *  bakılmaksızın arama sorgusuyla eşleşip eşleşmediğini kontrol eder.
+ *  Örn: countryTR="Türkiye", qNorm=normalizeTR("Turkey") → true. */
+export function countryMatchesQuery(countryTR: string, qNorm: string): boolean {
+  if (!countryTR || !qNorm) return false
+  const trNorm = normalizeTR(countryTR)
+  if (trNorm.includes(qNorm)) return true
+  const enNorm = COUNTRY_EN_NORM_BY_TR_NORM[trNorm]
+  return enNorm ? enNorm.includes(qNorm) : false
 }
 
 const LEAGUE_ALIASES: Array<{ match: string; tr: string }> = [

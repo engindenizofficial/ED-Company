@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getFixturesResponse } from "@/lib/fixtures-server"
 import { getTeamMarketValueMapByTeamIds } from "@/lib/search/market-index"
 import { normalizeTR } from "@/lib/search/text-normalize"
+import { countryMatchesQuery } from "@/lib/tr-aliases"
 import type { Fixture } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
   const matched = fixtures.filter((f) => {
     return (
       normalizeTR(f.league.name).includes(qNorm) ||
-      normalizeTR(f.league.country).includes(qNorm) ||
+      countryMatchesQuery(f.league.country, qNorm) ||
       normalizeTR(f.home.name).includes(qNorm) ||
       normalizeTR(f.away.name).includes(qNorm)
     )

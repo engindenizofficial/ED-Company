@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { FEATURED_LEAGUES, type FeaturedLeague } from "@/lib/leagues"
+import { countryMatchesQuery } from "@/lib/tr-aliases"
 
 // Arama kutusunun döndürdüğü şekil, tek kaynak lib/leagues.ts'deki
 // FeaturedLeague ile birebir aynı — statik liste, API isteği gerekmez, hızlı.
@@ -35,8 +36,7 @@ export async function GET(req: NextRequest) {
 
   const results = TOP_LEAGUES.filter((league) => {
     const nameNorm = normalizeTR(league.name)
-    const countryNorm = normalizeTR(league.country)
-    if (nameNorm.includes(qNorm) || countryNorm.includes(qNorm)) return true
+    if (nameNorm.includes(qNorm) || countryMatchesQuery(league.country, qNorm)) return true
     if (league.aliases?.some((a) => normalizeTR(a).includes(qNorm))) return true
     return false
   })

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { FEATURED_LEAGUES } from "@/lib/leagues"
 import { getFeaturedLeagueMarketValueMap } from "@/lib/search/market-index"
 import { normalizeTR } from "@/lib/search/text-normalize"
-import { toTurkishCountry } from "@/lib/tr-aliases"
+import { countryMatchesQuery, toTurkishCountry } from "@/lib/tr-aliases"
 
 export const dynamic = "force-dynamic"
 
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   const qNorm = normalizeTR(q)
   const matched = FEATURED_LEAGUES.filter(
-    (l) => normalizeTR(l.name).includes(qNorm) || normalizeTR(l.country).includes(qNorm),
+    (l) => normalizeTR(l.name).includes(qNorm) || countryMatchesQuery(l.country, qNorm),
   )
 
   if (matched.length === 0) {
