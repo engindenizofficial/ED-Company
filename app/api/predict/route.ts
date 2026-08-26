@@ -33,7 +33,6 @@ import {
   findFirstLegResult,
   reorientFirstLeg,
   resolveKnockoutTie,
-  oddsFavoredSide,
 } from "@/lib/knockout"
 import type { MatchPrediction, ModelVote } from "@/lib/types"
 
@@ -65,13 +64,35 @@ const ENSEMBLE_MODELS = [
 const SELF_CONSISTENCY_SAMPLES = 3
 
 const PredictionSchema = z.object({
-  homeScore:  z.number().int().min(0).max(20).describe("Ev sahibi takımın tahmin edilen gol sayısı"),
-  awayScore:  z.number().int().min(0).max(20).describe("Deplasman takımının tahmin edilen gol sayısı"),
-  winner:     z.enum(["home", "away", "draw"]).describe("Maçı kimin kazanacağı ya da beraberlik"),
+  homeScore:  z.number().int().min(0).max(20).describe("Ev sahibi takımın tahmin edilen gol sayısı (90 dakika, normal süre)"),
+  awayScore:  z.number().int().min(0).max(20).describe("Deplasman takımının tahmin edilen gol sayısı (90 dakika, normal süre)"),
+  winner:     z.enum(["home", "away", "draw"]).describe("Maçı kimin kazanacağı ya da beraberlik (90 dakika, normal süre)"),
   confidence: z.number().min(0).max(100).describe("0-100 arası güven skoru"),
   btts:       z.boolean().describe("İki takım da gol atar mı (Both Teams To Score)"),
   overUnder:  z.enum(["over", "under"]).describe("Toplam gol 2.5 üstünde mi yoksa altında mı"),
   keyFactors: z.array(z.string()).min(1).max(5).describe("Tahmine en çok etki eden 1-5 faktör (Türkçe)"),
+  // --- Eleme turu için uzatma/penaltı tahmini ---------------------------------
+  // Bu alanlar SADECE prompt'ta "bu maç (veya toplam skor) 90 dakika sonunda
+  // berabere kalırsa" bağlamı verildiğinde anlamlıdır. Bu maç eleme turu
+  // değilse veya berabere kalma ihtimali düşükse hepsini 0/false bırak.
+  extraTimeHomeGoals: z.number().int().min(0).max(3).describe(
+    "SADECE bu maç/toplam skor 90 dakika sonunda berabere kalırsa: 30 dakikalık uzatmada ev sahibinin atacağı gol tahmini. Eleme turu değilse veya berabere ihtimali yoksa 0.",
+  ),
+  extraTimeAwayGoals: z.number().int().min(0).max(3).describe(
+    "SADECE bu maç/toplam skor 90 dakika sonunda berabere kalırsa: 30 dakikalık uzatmada deplasmanın atacağı gol tahmini. Eleme turu değilse veya berabere ihtimali yoksa 0.",
+  ),
+  wentToPenalties: z.boolean().describe(
+    "SADECE eleme turu ise: uzatmalar sonunda da berabere kalırsa penaltılara gidileceğini düşünüyorsan true. Eleme turu değilse veya berabere ihtimali yoksa false.",
+  ),
+  penaltyWinner: z.enum(["home", "away", "none"]).describe(
+    "SADECE penaltılara gidilirse: penaltı atışlarını kimin kazanıp turu geçeceği. Penaltı ihtimali yoksa 'none'.",
+  ),
+  penaltyHomeGoals: z.number().int().min(0).max(10).describe(
+    "SADECE penaltılara gidilirse: ev sahibinin penaltı atışlarındaki gol sayısı (örn. 5). Gerçek penaltılarda beraberlik OLMAZ, kazanan taraf her zaman en az 1 fazla gol atar. Penaltı ihtimali yoksa 0.",
+  ),
+  penaltyAwayGoals: z.number().int().min(0).max(10).describe(
+    "SADECE penaltılara gidilirse: deplasman takımının penaltı atışlarındaki gol sayısı (örn. 4). Gerçek penaltılarda beraberlik OLMAZ. Penaltı ihtimali yoksa 0.",
+  ),
 })
 
 const SummarySchema = z.object({
@@ -220,6 +241,12 @@ function weightedVote(
   confidence: number
   btts: boolean
   overUnder: "over" | "under"
+  extraTimeHomeGoals: number
+  extraTimeAwayGoals: number
+  wentToPenalties: boolean
+  penaltyWinner: "home" | "away" | "none"
+  penaltyHomeGoals: number
+  penaltyAwayGoals: number
 } {
   const totalWeight = votes.reduce((s, v) => s + v.weight, 0)
 
@@ -271,7 +298,67 @@ function weightedVote(
   const overScore = votes.reduce((s, v) => s + (v.vote.overUnder === "over" ? v.weight : 0), 0)
   const overUnder: "over" | "under" = overScore >= totalWeight / 2 ? "over" : "under"
 
-  return { winner, homeScore, awayScore, confidence, btts, overUnder }
+  // --- Uzatma golleri — ağırlıklı ortalama, en yakın tam sayıya yuvarlanır ---
+  const extraTimeHomeGoals = Math.round(
+    votes.reduce((s, v) => s + v.vote.extraTimeHomeGoals * v.weight, 0) / totalWeight,
+  )
+  const extraTimeAwayGoals = Math.round(
+    votes.reduce((s, v) => s + v.vote.extraTimeAwayGoals * v.weight, 0) / totalWeight,
+  )
+
+  // --- Penaltılara gidip gitmeyeceği — ağırlıklı çoğunluk ---
+  const penaltiesScore = votes.reduce((s, v) => s + (v.vote.wentToPenalties ? v.weight : 0), 0)
+  const wentToPenalties = penaltiesScore >= totalWeight / 2
+
+  // --- Penaltı skoru — sadece "penaltılara gidiyor" diyen oyları say. Kazanan
+  // tarafı ağırlıklı çoğunlukla belirle, skoru da o tarafı seçen oyların
+  // ağırlıklı ortalamasından al (gerçek penaltı kuralına uygun: beraberlik yok,
+  // kazanan en az 1 gol öndedir — eşitlik durumu resolveKnockoutTie'da giderilir).
+  const penaltyVoters = votes.filter((v) => v.vote.wentToPenalties && v.vote.penaltyWinner !== "none")
+  let penaltyHomeGoals = 0
+  let penaltyAwayGoals = 0
+  let penaltyWinner: "home" | "away" | "none" = "none"
+  if (penaltyVoters.length > 0) {
+    const penaltyTotalWeight = penaltyVoters.reduce((s, v) => s + v.weight, 0)
+    const homePenaltyWeight = penaltyVoters.reduce((s, v) => s + (v.vote.penaltyWinner === "home" ? v.weight : 0), 0)
+    penaltyWinner = homePenaltyWeight >= penaltyTotalWeight / 2 ? "home" : "away"
+    const winnerVoters = penaltyVoters.filter((v) => v.vote.penaltyWinner === penaltyWinner)
+    const winnerVotersWeight = winnerVoters.reduce((s, v) => s + v.weight, 0)
+    const avgWinnerGoals = Math.round(
+      winnerVoters.reduce(
+        (s, v) => s + (penaltyWinner === "home" ? v.vote.penaltyHomeGoals : v.vote.penaltyAwayGoals) * v.weight,
+        0,
+      ) / winnerVotersWeight,
+    )
+    const avgLoserGoals = Math.round(
+      winnerVoters.reduce(
+        (s, v) => s + (penaltyWinner === "home" ? v.vote.penaltyAwayGoals : v.vote.penaltyHomeGoals) * v.weight,
+        0,
+      ) / winnerVotersWeight,
+    )
+    if (penaltyWinner === "home") {
+      penaltyHomeGoals = avgWinnerGoals
+      penaltyAwayGoals = avgLoserGoals
+    } else {
+      penaltyAwayGoals = avgWinnerGoals
+      penaltyHomeGoals = avgLoserGoals
+    }
+  }
+
+  return {
+    winner,
+    homeScore,
+    awayScore,
+    confidence,
+    btts,
+    overUnder,
+    extraTimeHomeGoals,
+    extraTimeAwayGoals,
+    wentToPenalties,
+    penaltyWinner,
+    penaltyHomeGoals,
+    penaltyAwayGoals,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -431,7 +518,12 @@ async function runPredictionInBackground(fixtureId: number, fixture: Fixture): P
     }
 
     if (roundInfo.isDecidingMatch) {
-      lines.push("Bu maç (veya toplam skor) 90 dakika sonunda berabere kalırsa uzatma ve gerekirse penaltı oynanacağını unutma — tahminini yine de normal 90 dakikalık skor için yap, ama berabere/çok yakın bir skor bekliyorsan bunu keyFactors'ta belirt.")
+      lines.push(
+        "Bu maç (veya toplam skor) 90 dakika sonunda berabere kalırsa uzatma ve gerekirse penaltı oynanacak. homeScore/awayScore alanlarını YİNE DE sadece normal 90 dakikalık skor için doldur.",
+        "AYRICA şu senaryoyu düşün: eğer 90 dakika (veya toplam skor) berabere kalırsa, 30 dakikalık uzatmada her takım kaç gol atar? Bunu extraTimeHomeGoals/extraTimeAwayGoals alanlarına yaz (takım formu, yorgunluk, kadro derinliği, uzatmada risk alma eğilimini göz önünde bulundur).",
+        "Uzatma sonunda da berabere kalırsa penaltılara gidilir: wentToPenalties'i true yap, penaltyWinner'ı (kadro derinliği, kalecinin penaltı performansı, deneyim, baskı altında soğukkanlılık gibi faktörlere göre) seç, ve gerçekçi bir penaltı skoru (örn. 5-4, 4-3, 5-3) yazarak penaltyHomeGoals/penaltyAwayGoals'u doldur — gerçek penaltılarda beraberlik OLMAZ.",
+        "Bu maç eleme turu değilse veya berabere kalma ihtimalini çok düşük görüyorsan extraTimeHomeGoals/extraTimeAwayGoals=0, wentToPenalties=false, penaltyWinner='none', penaltyHomeGoals/penaltyAwayGoals=0 yaz.",
+      )
     }
 
     return lines.join("\n")
@@ -599,6 +691,22 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   // ağırlık alır (provider adı "poisson").
   const poissonWeight = adaptiveWeights.poisson?.weight ?? STATIC_WEIGHTS.poisson
   const poissonScoreWeight = adaptiveScoreWeights.poisson?.weight ?? poissonWeight
+
+  // İstatistik modelinin kendi uzatma/penaltı oyu — diğer 3 AI modeliyle
+  // birlikte AYNI ağırlıklı oylamaya (weightedVote) girer, ayrı bir
+  // deterministik "override" sistemi olarak DEĞİL, ensemble'ın 4. bir üyesi
+  // olarak katkı verir. 30 dakikalık uzatmada beklenen gol, 90 dakikalık
+  // xG'nin 1/3'ü kadar ölçeklenir; belirgin bir güç farkı (>= 0.35 xG) varsa
+  // güçlü tarafa 1 gol yazılır.
+  const etHomeXG = homeXG * (30 / 90)
+  const etAwayXG = awayXG * (30 / 90)
+  const etXgDiff = etHomeXG - etAwayXG
+  const ET_GOAL_THRESHOLD = 0.35
+  const poissonExtraTimeHomeGoals = etXgDiff >= ET_GOAL_THRESHOLD ? 1 : 0
+  const poissonExtraTimeAwayGoals = etXgDiff <= -ET_GOAL_THRESHOLD ? 1 : 0
+  const poissonPenaltyWinner: "home" | "away" =
+    Math.abs(etXgDiff) > 0.05 ? (etXgDiff > 0 ? "home" : "away") : "home"
+
   const poissonVoteEntry = {
     provider: "poisson",
     label: "İstatistik Modeli",
@@ -614,6 +722,12 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
       btts:       poissonPrediction.btts,
       overUnder:  poissonPrediction.overUnder,
       keyFactors: poissonPrediction.keyFactors,
+      extraTimeHomeGoals: poissonExtraTimeHomeGoals,
+      extraTimeAwayGoals: poissonExtraTimeAwayGoals,
+      wentToPenalties: roundInfo.isDecidingMatch,
+      penaltyWinner: roundInfo.isDecidingMatch ? poissonPenaltyWinner : "none",
+      penaltyHomeGoals: roundInfo.isDecidingMatch ? (poissonPenaltyWinner === "home" ? 5 : 4) : 0,
+      penaltyAwayGoals: roundInfo.isDecidingMatch ? (poissonPenaltyWinner === "away" ? 5 : 4) : 0,
     } satisfies z.infer<typeof PredictionSchema>,
   }
 
@@ -627,20 +741,30 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
 
   // 7a. Eleme turu çözümlemesi — toplam skor (agregat) + gerekirse uzatma/
   // penaltı. Ensemble'ın ürettiği (homeScore, awayScore) bu maçın normal 90
-  // dakikalık tahminidir; agregat ve uzatma/penaltı burada, koddan
-  // hesaplanır (LLM'lere bırakılmaz — deterministik olması ve cache'lenip
-  // tekrar üretilebilmesi için).
+  // dakikalık tahminidir. Uzatma golleri ve penaltı skoru da AYNI ensemble'ın
+  // (3 AI modeli + istatistik modeli) kendi tahminidir — bkz. PredictionSchema
+  // extraTimeHomeGoals/extraTimeAwayGoals/wentToPenalties/penaltyWinner/
+  // penaltyHomeGoals/penaltyAwayGoals ve yukarıdaki weightedVote. Burada kod
+  // SADECE agregat aritmetiğini (ilk ayak + bu maç + uzatma golleri) uygular
+  // ve gerçek penaltı kuralına (beraberlik olmaz) uyumu garanti eder —
+  // ayrı bir xG/oran formülü kullanılmaz.
+  const ensembleTieVote = {
+    extraTimeHomeGoals: ensemble.extraTimeHomeGoals,
+    extraTimeAwayGoals: ensemble.extraTimeAwayGoals,
+    wentToPenalties: ensemble.wentToPenalties,
+    penaltyHomeGoals: ensemble.penaltyHomeGoals,
+    penaltyAwayGoals: ensemble.penaltyAwayGoals,
+  }
+
   let tie: MatchPrediction["tie"] | undefined
   if (roundInfo.isKnockoutStage) {
-    const favored = oddsFavoredSide(live.odds)
-
     if (roundInfo.leg && roundInfo.leg >= 2 && firstLeg) {
       const { firstLegGoalsForCurrentHome, firstLegGoalsForCurrentAway } = reorientFirstLeg(firstLeg, homeName)
       const aggregateHomeBefore = firstLegGoalsForCurrentHome + ensemble.homeScore
       const aggregateAwayBefore = firstLegGoalsForCurrentAway + ensemble.awayScore
 
       const resolution = roundInfo.isDecidingMatch
-        ? resolveKnockoutTie(aggregateHomeBefore, aggregateAwayBefore, homeXG, awayXG, favored)
+        ? resolveKnockoutTie(aggregateHomeBefore, aggregateAwayBefore, ensembleTieVote)
         : null
 
       tie = {
@@ -658,7 +782,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
       }
     } else if (roundInfo.isDecidingMatch) {
       // Tek ayaklı eleme turu (final, tek maçlık play-off vb.) — agregat bu maçın skorudur.
-      const resolution = resolveKnockoutTie(ensemble.homeScore, ensemble.awayScore, homeXG, awayXG, favored)
+      const resolution = resolveKnockoutTie(ensemble.homeScore, ensemble.awayScore, ensembleTieVote)
       tie = {
         leg: roundInfo.leg,
         isKnockout: true,

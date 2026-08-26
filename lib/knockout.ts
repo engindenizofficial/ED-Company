@@ -131,19 +131,32 @@ export interface TieResolution {
   penaltyAwayGoals?: number
 }
 
+/** Ensemble'ın (AI modelleri + istatistik modeli) uzatma/penaltı konusundaki
+ * ağırlıklı ortak görüşü — bkz. app/api/predict/route.ts `weightedVote`. Bu
+ * modül artık uzatma golünü veya penaltı skorunu KENDİ HESAPLAMIYOR; sadece
+ * ensemble'ın zaten ürettiği tahmini, agregat aritmetiğine uygulayıp turu
+ * geçen tarafı belirliyor. */
+export interface EnsembleTieVote {
+  extraTimeHomeGoals: number
+  extraTimeAwayGoals: number
+  wentToPenalties: boolean
+  penaltyHomeGoals: number
+  penaltyAwayGoals: number
+}
+
 /**
- * 90 dakika sonundaki toplam skoru (agregat) alır; berabereyse uzatma,
- * uzatmada da berabereyse penaltı çözümlemesi yaparak turu geçen tarafı
- * belirler. `homeXG`/`awayXG` bu maç için hesaplanmış beklenen gol
- * değerleridir — uzatma (30 dk) beklenen golü bunun 1/3'ü oranında
- * ölçeklenerek tahmin edilir.
+ * 90 dakika sonundaki toplam skoru (agregat) alır; berabereyse ensemble'ın
+ * kendi uzatma tahminini agregata ekler, hâlâ berabereyse ensemble'ın
+ * penaltı tahminini kullanarak turu geçen tarafı belirler. Uzatma golü ve
+ * penaltı skoru artık xG/oran gibi ayrı bir istatistik formülünden değil,
+ * doğrudan AI modellerinin (+ istatistik modelinin) kendi tahmininden gelir
+ * — bu fonksiyon sadece agregat aritmetiğini ve "kazanan kim" mantığını
+ * uygular.
  */
 export function resolveKnockoutTie(
   aggregateHomeBefore: number,
   aggregateAwayBefore: number,
-  homeXG: number,
-  awayXG: number,
-  oddsHomeFavored: boolean | null,
+  ensembleTie: EnsembleTieVote,
 ): TieResolution {
   if (aggregateHomeBefore !== aggregateAwayBefore) {
     return {
@@ -157,19 +170,10 @@ export function resolveKnockoutTie(
     }
   }
 
-  // Agregat berabere — uzatmaya gidiyor. 30 dakikalık uzatmada beklenen gol,
-  // 90 dakikalık xG'nin 1/3'ü kadar ölçeklenir. Belirgin bir güç farkı
-  // (>= 0.35 xG) varsa güçlü tarafa 1 gol yazılır; aksi halde uzatma da
-  // istatistiksel olarak en olası senaryo olan golsüz geçer.
-  const etHomeXG = homeXG * (30 / 90)
-  const etAwayXG = awayXG * (30 / 90)
-  const xgDiff = etHomeXG - etAwayXG
-  const ET_GOAL_THRESHOLD = 0.35
-
-  let extraTimeHomeGoals = 0
-  let extraTimeAwayGoals = 0
-  if (xgDiff >= ET_GOAL_THRESHOLD) extraTimeHomeGoals = 1
-  else if (xgDiff <= -ET_GOAL_THRESHOLD) extraTimeAwayGoals = 1
+  // Agregat berabere — uzatmaya gidiyor. Uzatma golleri ensemble'ın kendi
+  // tahminidir (bkz. PredictionSchema.extraTimeHomeGoals/AwayGoals).
+  const extraTimeHomeGoals = ensembleTie.extraTimeHomeGoals
+  const extraTimeAwayGoals = ensembleTie.extraTimeAwayGoals
 
   const aggregateHome = aggregateHomeBefore + extraTimeHomeGoals
   const aggregateAway = aggregateAwayBefore + extraTimeAwayGoals
@@ -186,16 +190,18 @@ export function resolveKnockoutTie(
     }
   }
 
-  // Uzatmada da berabere — penaltılar. Penaltı atışları doğası gereği yüksek
-  // varyanslıdır, "doğru" bir tahmin yoktur; mevcut sinyallerden (piyasa
-  // favorisi, xG üstünlüğü, ev sahibi avantajı) hafif bir eğilim çıkarıyoruz.
-  let advancing: "home" | "away"
-  if (oddsHomeFavored === true) advancing = "home"
-  else if (oddsHomeFavored === false) advancing = "away"
-  else if (Math.abs(xgDiff) > 0.05) advancing = xgDiff > 0 ? "home" : "away"
-  else advancing = "home" // istatistiksel olarak penaltılarda hafif ev sahibi avantajı
-
-  const { penaltyHomeGoals, penaltyAwayGoals } = generatePenaltyScore(advancing, aggregateHomeBefore + aggregateAwayBefore)
+  // Uzatmada da berabere — penaltılar. Skor ve kazanan taraf ensemble'ın
+  // kendi penaltı tahminidir. Gerçek penaltılarda beraberlik olamayacağı
+  // için, ensemble'ın iki skoru eşit çıkması gibi bir uçta durum varsa
+  // (nadiren, ağırlıklı ortalama sonucu) kazanan tarafa +1 eklenerek kural
+  // ihlali giderilir.
+  let penaltyHomeGoals = ensembleTie.penaltyHomeGoals
+  let penaltyAwayGoals = ensembleTie.penaltyAwayGoals
+  let advancing: "home" | "away" = penaltyHomeGoals >= penaltyAwayGoals ? "home" : "away"
+  if (penaltyHomeGoals === penaltyAwayGoals) {
+    if (advancing === "home") penaltyHomeGoals += 1
+    else penaltyAwayGoals += 1
+  }
 
   return {
     aggregateHome,
@@ -208,34 +214,6 @@ export function resolveKnockoutTie(
     penaltyHomeGoals,
     penaltyAwayGoals,
   }
-}
-
-// Standart penaltı atışları istatistiklerine dayalı gerçekçi skor dağılımı —
-// profesyonel futbolda en sık görülen sonuçlar 5-4, 4-3, 5-3 ve 3-1 aralığındadır
-// (ilk 5 atışın çoğu içeri girer, seri nadiren 6-7 atışa uzar). Kazanan taraf
-// her zaman en az 1 gol öndedir; deterministik ama maça özgü bir seed kullanarak
-// aynı maç için her zaman aynı sonucu üretiyoruz (rastgele değil).
-function generatePenaltyScore(
-  advancing: "home" | "away",
-  seed: number,
-): { penaltyHomeGoals: number; penaltyAwayGoals: number } {
-  // Gerçek maçlardan derlenmiş yaygın penaltı skor dağılımı (kazanan-kaybeden gol sayısı)
-  const OUTCOMES: Array<[number, number]> = [
-    [5, 4],
-    [4, 3],
-    [5, 3],
-    [3, 2],
-    [4, 2],
-    [5, 2],
-    [3, 1],
-    [6, 5],
-  ]
-  const idx = Math.abs(Math.round(seed * 37)) % OUTCOMES.length
-  const [winnerGoals, loserGoals] = OUTCOMES[idx]
-
-  return advancing === "home"
-    ? { penaltyHomeGoals: winnerGoals, penaltyAwayGoals: loserGoals }
-    : { penaltyHomeGoals: loserGoals, penaltyAwayGoals: winnerGoals }
 }
 
 /** Bahis oranlarından ev sahibinin mi deplasmanın mı favori olduğunu çıkarır (düşük oran = favori). */
