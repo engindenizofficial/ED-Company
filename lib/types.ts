@@ -386,6 +386,32 @@ export interface MatchPrediction {
   awayName?: string
   /** AI modellerine prompt'ta verilen bahis oranları — panelde şeffaflık için gösterilir */
   odds?: { home: number | null; draw: number | null; away: number | null }
+  /**
+   * Eleme usulü (knockout) tur bilgisi — sadece `league.round` bir eleme
+   * turuna işaret ediyorsa dolu olur (bkz. lib/knockout.ts). Lig/grup usulü
+   * maçlarda undefined kalır.
+   */
+  tie?: {
+    /** Bu maçın kaçıncı ayak olduğu (1, 2, 3...) — bilinmiyorsa/tek maçlıksa null */
+    leg: number | null
+    /** Bu turun eleme (beraberliğin nihai sonuç olamayacağı) bir tur olduğu */
+    isKnockout: boolean
+    /** Bu maçın turun kararının verildiği (deciding) maç olup olmadığı —
+     * true ise 90 dk sonunda agregat berabere kalırsa uzatma/penaltı hesaplanır */
+    isDeciding: boolean
+    /** İlk ayak sonucu (varsa) — o maçtaki gerçek ev/deplasman etiketleriyle */
+    firstLeg?: { homeTeam: string; awayTeam: string; homeScore: number; awayScore: number; date: string }
+    /** Toplam skor (agregat) — bu maçın ev sahibi/deplasman etiketine göre.
+     * `isDeciding` true ve berabereyse uzatma/penaltı golleri dahil edilmiştir. */
+    aggregateHome?: number
+    aggregateAway?: number
+    /** 90 dakika sonunda agregat berabere kalıp uzatmaya gidildi mi */
+    wentToExtraTime?: boolean
+    /** Uzatmada da berabere kalıp penaltılara gidildi mi */
+    wentToPenalties?: boolean
+    /** Turu geçen taraf (bu maçın ev/deplasman etiketine göre) — sadece `isDeciding` true ise dolu */
+    advancing?: "home" | "away"
+  }
 }
 
 /** Bitmiş maç için tahmin-gerçek sonuç karşılaştırması */

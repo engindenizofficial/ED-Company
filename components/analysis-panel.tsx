@@ -2279,6 +2279,54 @@ function PredictionCard({
           </div>
         </div>
 
+        {/* Eleme turu — ilk ayak / toplam skor (agregat) / uzatma-penaltı */}
+        {prediction.tie?.isKnockout && (
+          <div className="flex flex-col gap-1.5 rounded-xl border border-border/60 bg-secondary/40 px-3 py-2.5">
+            {prediction.tie.firstLeg ? (
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                  {t("analysis.predictionFirstLeg")}
+                </span>
+                <span className="font-bold tabular-nums text-foreground">
+                  {prediction.tie.firstLeg.homeTeam} {prediction.tie.firstLeg.homeScore}-{prediction.tie.firstLeg.awayScore}{" "}
+                  {prediction.tie.firstLeg.awayTeam}
+                </span>
+              </div>
+            ) : prediction.tie.leg === 1 ? (
+              <span className="text-[11px] font-medium text-muted-foreground">
+                {t("analysis.predictionFirstLegPending")}
+              </span>
+            ) : null}
+
+            {typeof prediction.tie.aggregateHome === "number" && typeof prediction.tie.aggregateAway === "number" && (
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                  {t("analysis.predictionAggregate")}
+                </span>
+                <span className="font-black tabular-nums text-primary">
+                  {prediction.tie.aggregateHome} - {prediction.tie.aggregateAway}
+                </span>
+              </div>
+            )}
+
+            {prediction.tie.isDeciding && prediction.tie.advancing && (
+              <span className="rounded-md border border-primary/25 bg-primary/8 px-2 py-1 text-[11px] font-bold text-primary">
+                {prediction.tie.wentToPenalties
+                  ? t("analysis.predictionPenalties", {
+                      team: prediction.tie.advancing === "home" ? homeName : awayName,
+                    })
+                  : prediction.tie.wentToExtraTime
+                    ? t("analysis.predictionExtraTime", {
+                        team: prediction.tie.advancing === "home" ? homeName : awayName,
+                      })
+                    : t("analysis.predictionAdvancing", {
+                        team: prediction.tie.advancing === "home" ? homeName : awayName,
+                      })}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Ek tahminler */}
         <div className="flex flex-wrap gap-2">
           <span className={cn(

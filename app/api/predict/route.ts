@@ -28,6 +28,13 @@ import {
   recentFormRate,
   applyInjuryImpact,
 } from "@/lib/poisson"
+import {
+  parseRoundInfo,
+  findFirstLegResult,
+  reorientFirstLeg,
+  resolveKnockoutTie,
+  oddsFavoredSide,
+} from "@/lib/knockout"
 import type { MatchPrediction, ModelVote } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -338,6 +345,17 @@ async function runPredictionInBackground(fixtureId: number, fixture: Fixture): P
   const awayStanding = live.standings.find((s) => s.teamId === fixture.away.id)
 
   // ---------------------------------------------------------------------------
+  // Eleme usulü tur tespiti — "Play-offs - 2nd Leg" gibi round metninden kaçıncı
+  // ayak olduğunu ve turun beraberlikle bitemeyeceğini çıkarır (bkz. lib/knockout.ts).
+  // Çift ayaklı turlarda ilk ayak sonucunu H2H verisinden buluyoruz; bu, hem LLM
+  // prompt'larına bağlam olarak verilir hem de aşağıda toplam skor (agregat) ve
+  // uzatma/penaltı çözümlemesi için kullanılır.
+  // ---------------------------------------------------------------------------
+  const roundInfo = parseRoundInfo(fixture.league.round)
+  const firstLeg =
+    roundInfo.isKnockoutStage && roundInfo.leg && roundInfo.leg >= 2 ? findFirstLegResult(live.h2h, fixture) : null
+
+  // ---------------------------------------------------------------------------
   // Poisson istatistik modeli — gol ortalamalarından beklenen gol (xG benzeri)
   // hesapla, kafa-kafaya geçmişle hafifçe harmanla, piyasa oranlarına göre
   // kalibre et ve Dixon-Coles düzeltmesiyle en olası skoru üret. Bu hem LLM
@@ -385,6 +403,41 @@ async function runPredictionInBackground(fixtureId: number, fixture: Fixture): P
   const poissonPrediction = predictFromExpectedGoals(homeXG, awayXG)
 
   // ---------------------------------------------------------------------------
+  // Eleme turu bağlam bloğu — modele bu maçın beraberlikle bitemeyeceğini
+  // (illa bir taraf turu geçecek) ve varsa ilk ayak skorunu bildirir. Modelin
+  // asıl işi hâlâ SADECE bu maçın 90 dakikalık skorunu tahmin etmektir —
+  // toplam skor (agregat) ve uzatma/penaltı çözümlemesi kodda ayrıca yapılır.
+  // ---------------------------------------------------------------------------
+  const tieContextBlock = (() => {
+    if (!roundInfo.isKnockoutStage) return ""
+
+    const legLabel = roundInfo.leg ? `${roundInfo.leg}. ayak` : "tek maçlık eleme turu"
+    const lines: string[] = [
+      "",
+      `TUR BİLGİSİ: Bu maç "${fixture.league.round}" turunun ${legLabel}. Bu bir ELEME maçıdır — sıradan bir lig maçından farklı olarak burada beraberlik NİHAİ SONUÇ OLAMAZ, illa bir taraf turu geçecek.`,
+    ]
+
+    if (roundInfo.leg === 1) {
+      lines.push("Bu ilk ayak — tur henüz bitmeyecek, rövanş oynanacak. Takımların rövanşı gözeterek (örn. deplasmanda farklı yenilmemeye çalışma, evde büyük fark açma isteği) oynayabileceğini göz önünde bulundur.")
+    } else if (firstLeg) {
+      lines.push(
+        `İLK AYAK SONUCU: ${firstLeg.homeTeam} ${firstLeg.homeScore}-${firstLeg.awayScore} ${firstLeg.awayTeam} (${new Date(firstLeg.date).toLocaleDateString("tr-TR")}).`,
+        `Bu maçın (${homeName} - ${awayName}) skorun, ilk ayakla toplandığında TOPLAM SKORU (agregatı) oluşturacak. Buna göre: geride kalan takım risk alıp açık oynayabilir, önde olan takım kontrollü/defansif oynayabilir. Deplasman golü kuralı artık YOK — sadece toplam gol sayısı belirleyicidir.`,
+      )
+    } else if (roundInfo.leg && roundInfo.leg >= 2) {
+      lines.push("Bu son ayak ama ilk ayağın sonucu sistemde bulunamadı — sadece bu maçın skorunu tahmin et, toplam skor ayrıca hesaplanacak.")
+    } else {
+      lines.push("Bu tek maçlık bir eleme turu (final veya tek maçlık play-off) — 90 dakika sonunda berabere kalırsa uzatma, sonra gerekirse penaltılar oynanır.")
+    }
+
+    if (roundInfo.isDecidingMatch) {
+      lines.push("Bu maç (veya toplam skor) 90 dakika sonunda berabere kalırsa uzatma ve gerekirse penaltı oynanacağını unutma — tahminini yine de normal 90 dakikalık skor için yap, ama berabere/çok yakın bir skor bekliyorsan bunu keyFactors'ta belirt.")
+    }
+
+    return lines.join("\n")
+  })()
+
+  // ---------------------------------------------------------------------------
   // Ortak veri bloğu — her prompt'ta tekrar eden bağlam
   // ---------------------------------------------------------------------------
   const sharedContext = `
@@ -415,6 +468,7 @@ Beklenen gol: ${homeName} ${homeXG.toFixed(2)} — ${awayName} ${awayXG.toFixed(
 En olası skor: ${poissonPrediction.homeScore}-${poissonPrediction.awayScore}
 Skor tahminini yaparken bu istatistiksel referansı bir çıpa olarak kullan; ondan büyük şekilde
 saparsan (yaralanma, motivasyon, form gibi) gerekçeni keyFactors'ta belirt.
+${tieContextBlock}
 ${(() => {
   const lineup = formatLineups(live.lineups)
   if (lineup) return `\nRESMİ 11 (açıklandı):\n${lineup}`
@@ -571,6 +625,54 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     successfulVotes.map((v) => ({ vote: v.vote, weight: v.weight, scoreWeight: v.scoreWeight })),
   )
 
+  // 7a. Eleme turu çözümlemesi — toplam skor (agregat) + gerekirse uzatma/
+  // penaltı. Ensemble'ın ürettiği (homeScore, awayScore) bu maçın normal 90
+  // dakikalık tahminidir; agregat ve uzatma/penaltı burada, koddan
+  // hesaplanır (LLM'lere bırakılmaz — deterministik olması ve cache'lenip
+  // tekrar üretilebilmesi için).
+  let tie: MatchPrediction["tie"] | undefined
+  if (roundInfo.isKnockoutStage) {
+    const favored = oddsFavoredSide(live.odds)
+
+    if (roundInfo.leg && roundInfo.leg >= 2 && firstLeg) {
+      const { firstLegGoalsForCurrentHome, firstLegGoalsForCurrentAway } = reorientFirstLeg(firstLeg, homeName)
+      const aggregateHomeBefore = firstLegGoalsForCurrentHome + ensemble.homeScore
+      const aggregateAwayBefore = firstLegGoalsForCurrentAway + ensemble.awayScore
+
+      const resolution = roundInfo.isDecidingMatch
+        ? resolveKnockoutTie(aggregateHomeBefore, aggregateAwayBefore, homeXG, awayXG, favored)
+        : null
+
+      tie = {
+        leg: roundInfo.leg,
+        isKnockout: true,
+        isDeciding: roundInfo.isDecidingMatch,
+        firstLeg: { ...firstLeg },
+        aggregateHome: resolution ? resolution.aggregateHome : aggregateHomeBefore,
+        aggregateAway: resolution ? resolution.aggregateAway : aggregateAwayBefore,
+        wentToExtraTime: resolution?.wentToExtraTime ?? false,
+        wentToPenalties: resolution?.wentToPenalties ?? false,
+        advancing: resolution?.advancing,
+      }
+    } else if (roundInfo.isDecidingMatch) {
+      // Tek ayaklı eleme turu (final, tek maçlık play-off vb.) — agregat bu maçın skorudur.
+      const resolution = resolveKnockoutTie(ensemble.homeScore, ensemble.awayScore, homeXG, awayXG, favored)
+      tie = {
+        leg: roundInfo.leg,
+        isKnockout: true,
+        isDeciding: true,
+        aggregateHome: resolution.aggregateHome,
+        aggregateAway: resolution.aggregateAway,
+        wentToExtraTime: resolution.wentToExtraTime,
+        wentToPenalties: resolution.wentToPenalties,
+        advancing: resolution.advancing,
+      }
+    } else if (roundInfo.leg === 1) {
+      // İlk ayak — tur henüz bitmiyor, sadece bilgi amaçlı işaretle.
+      tie = { leg: 1, isKnockout: true, isDeciding: false }
+    }
+  }
+
   // 7b. Confidence kalibrasyonu — LLM'ler doğası gereği overconfident olma
   // eğilimindedir (örn. "%85 güven" dediklerinde gerçekte %60 tutması gibi).
   // Ensemble'ın ham güven skorunu, geçmiş çözümlenmiş tahminlerin o güven
@@ -657,6 +759,8 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     awayName,
     // AI modellerine prompt'ta gönderilen bahis oranları — panelde de gösterilir
     odds:        live.odds,
+    // Eleme turu bilgisi (agregat, uzatma/penaltı) — sadece knockout turlarda dolu
+    tie,
   }
 
   await setCachedPrediction(fixtureId, prediction)
