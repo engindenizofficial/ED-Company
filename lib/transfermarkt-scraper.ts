@@ -116,6 +116,9 @@ export const LEAGUE_TO_TRANSFERMARKT_CODE: Record<number, string> = {
   218: "A1", // Bundesliga (Austria)
   207: "C1", // Super League (Switzerland)
   286: "SER1", // Super Liga (Serbia)
+  307: "SA1", // Saudi Pro League
+  253: "MLS1", // Major League Soccer
+  128: "AR1N", // Liga Profesional Argentina
 }
 
 // Derleme zamanında FEATURED_LEAGUE_IDS ile bu haritanın senkron kalmasını

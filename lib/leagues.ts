@@ -219,6 +219,30 @@ export const FEATURED_LEAGUES: FeaturedLeague[] = [
     flagUrl: "https://media.api-sports.io/flags/rs.svg",
     aliases: ["sirbistan ligi", "sırbistan ligi"],
   },
+  {
+    id: 307,
+    name: "Saudi Pro League",
+    country: "Suudi Arabistan",
+    logo: "https://media.api-sports.io/football/leagues/307.png",
+    flagUrl: "https://media.api-sports.io/flags/sa.svg",
+    aliases: ["arabistan ligi", "suudi arabistan ligi", "suudi ligi"],
+  },
+  {
+    id: 253,
+    name: "Major League Soccer",
+    country: "ABD",
+    logo: "https://media.api-sports.io/football/leagues/253.png",
+    flagUrl: "https://media.api-sports.io/flags/us.svg",
+    aliases: ["amerika ligi", "mls", "abd ligi"],
+  },
+  {
+    id: 128,
+    name: "Liga Profesional Argentina",
+    country: "Arjantin",
+    logo: "https://media.api-sports.io/football/leagues/128.png",
+    flagUrl: "https://media.api-sports.io/flags/ar.svg",
+    aliases: ["arjantin ligi"],
+  },
 ]
 
 /** `FEATURED_LEAGUES`'ten türetilen sıralı id listesi — asla elle düzenlenmez. */
