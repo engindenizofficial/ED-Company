@@ -106,6 +106,71 @@ export function findFirstLegResult(h2h: FormGame[], fixture: Fixture): FirstLegR
   }
 }
 
+export interface LegResolution {
+  /** Round metni eleme (grup/lig usulü olmayan) bir tur mu */
+  isKnockoutStage: boolean
+  /** Bu maçın kaçıncı ayak olduğu. Round metninden ("2nd Leg" vb.) geliyorsa
+   * o kullanılır; metin ayak bilgisi vermiyorsa ama H2H'de bu iki takım
+   * arasında AYNI turnuvada son 60 gün içinde oynanmış bir maç bulunduysa
+   * (örn. UEFA play-off'larında round metni sadece "Play-offs" olup "Leg"
+   * kelimesini hiç içermeyebilir) 2 kabul edilir. İkisi de yoksa null. */
+  leg: number | null
+  /** true ise bu maç turun KESİN kazananının belirlendiği maçtır (90 dakika
+   * + agregat sonunda hâlâ berabereyse uzatma/penaltı devreye girer). */
+  isDecidingMatch: boolean
+  /** H2H'den bulunan önceki ayak sonucu (varsa) — round metni ayak bilgisi
+   * vermese bile bu alan doldurulabilir. */
+  firstLeg: FirstLegResult | null
+}
+
+/**
+ * Bu maçın eleme turundaki (varsa) ayak numarasını ve turun kesin
+ * kazananının belirlenip belirlenmeyeceğini tespit eder.
+ *
+ * ÖNEMLİ: Round metninde ("league.round") "Leg"/"Ayak" kelimesinin geçmesine
+ * GÜVENİLEMEZ — birçok turnuva (örn. UEFA play-off turları, gelecekteki
+ * bazı turlar) çift ayaklı olduğu halde round metninde bunu belirtmez
+ * (sadece "Play-offs" gibi genel bir isim kullanır). Bu yüzden asıl kaynak
+ * H2H verisidir: aynı iki takım aynı turnuvada son 60 gün içinde
+ * karşılaşmışsa, bu maç round metni ne derse desin kesinlikle bir rövanştır.
+ * Round metni sadece "bu 1. ayak, tur henüz bitmeyecek" bilgisini (H2H'nin
+ * veremeyeceği bir bilgiyi, çünkü rövanş henüz oynanmadı) vermek için
+ * kullanılır.
+ */
+export function resolveLegInfo(round: string | undefined, h2h: FormGame[], fixture: Fixture): LegResolution {
+  const roundInfo = parseRoundInfo(round)
+  if (!roundInfo.isKnockoutStage) {
+    return { isKnockoutStage: false, leg: null, isDecidingMatch: false, firstLeg: null }
+  }
+
+  // Round metni açıkça "1. ayak" diyorsa buna güveniyoruz: rövanş henüz
+  // oynanmadığı için H2H'de bulunacak "önceki maç" bu ikili için ilk ayak
+  // OLAMAZ (muhtemelen turnuvanın bir önceki turudur) — tur henüz bitmez.
+  if (roundInfo.leg === 1) {
+    return { isKnockoutStage: true, leg: 1, isDecidingMatch: false, firstLeg: null }
+  }
+
+  // Round metni ayak bilgisi vermese bile (örn. sadece "Play-offs") H2H'den
+  // bu iki takım arasında aynı turnuvada yakın zamanda oynanmış bir maç var
+  // mı diye bakıyoruz — varsa bu maç kesinlikle bir rövanştır.
+  const firstLeg = findFirstLegResult(h2h, fixture)
+  if (firstLeg) {
+    return { isKnockoutStage: true, leg: roundInfo.leg ?? 2, isDecidingMatch: true, firstLeg }
+  }
+
+  // H2H'de önceki ayak bulunamadı ama round metni açıkça "2. ayak" vb.
+  // diyorsa (H2H verisi eksik/cache dışı olabilir) yine de son ayak
+  // olduğunu biliyoruz.
+  if (roundInfo.leg !== null && roundInfo.leg >= 2) {
+    return { isKnockoutStage: true, leg: roundInfo.leg, isDecidingMatch: true, firstLeg: null }
+  }
+
+  // Ne round metninde ne de H2H'de ayak bilgisi var — tek maçlık eleme turu
+  // (final, tek maçlık play-off) kabul ediyoruz: beraberlik olamaz ama
+  // gösterilecek bir ayak numarası yok.
+  return { isKnockoutStage: true, leg: null, isDecidingMatch: true, firstLeg: null }
+}
+
 /**
  * İlk ayak sonucunu, bu fikstürün ev/deplasman etiketine göre çevirir —
  * ilk ayakta ev sahibi/deplasman genelde bu maçın TERSİDİR.

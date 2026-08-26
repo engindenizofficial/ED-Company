@@ -29,8 +29,7 @@ import {
   applyInjuryImpact,
 } from "@/lib/poisson"
 import {
-  parseRoundInfo,
-  findFirstLegResult,
+  resolveLegInfo,
   reorientFirstLeg,
   resolveKnockoutTie,
 } from "@/lib/knockout"
@@ -432,15 +431,17 @@ async function runPredictionInBackground(fixtureId: number, fixture: Fixture): P
   const awayStanding = live.standings.find((s) => s.teamId === fixture.away.id)
 
   // ---------------------------------------------------------------------------
-  // Eleme usulü tur tespiti — "Play-offs - 2nd Leg" gibi round metninden kaçıncı
-  // ayak olduğunu ve turun beraberlikle bitemeyeceğini çıkarır (bkz. lib/knockout.ts).
-  // Çift ayaklı turlarda ilk ayak sonucunu H2H verisinden buluyoruz; bu, hem LLM
-  // prompt'larına bağlam olarak verilir hem de aşağıda toplam skor (agregat) ve
-  // uzatma/penaltı çözümlemesi için kullanılır.
+  // Eleme usulü tur tespiti — bkz. lib/knockout.ts `resolveLegInfo`. Round
+  // metnindeki ("Play-offs - 2nd Leg" vb.) "Leg" kelimesine GÜVENİLMİYOR;
+  // birçok turnuva (örn. UEFA play-off turları) çift ayaklı olduğu halde
+  // round metninde bunu belirtmez. Asıl kaynak H2H verisidir: aynı iki takım
+  // aynı turnuvada son 60 gün içinde karşılaşmışsa bu maç round metni ne
+  // derse desin bir rövanştır. İlk ayak sonucu bulunduysa hem LLM
+  // prompt'larına bağlam olarak verilir hem de aşağıda toplam skor (agregat)
+  // ve uzatma/penaltı çözümlemesi için kullanılır.
   // ---------------------------------------------------------------------------
-  const roundInfo = parseRoundInfo(fixture.league.round)
-  const firstLeg =
-    roundInfo.isKnockoutStage && roundInfo.leg && roundInfo.leg >= 2 ? findFirstLegResult(live.h2h, fixture) : null
+  const roundInfo = resolveLegInfo(fixture.league.round, live.h2h, fixture)
+  const firstLeg = roundInfo.firstLeg
 
   // ---------------------------------------------------------------------------
   // Poisson istatistik modeli — gol ortalamalarından beklenen gol (xG benzeri)

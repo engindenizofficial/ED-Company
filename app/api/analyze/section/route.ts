@@ -11,7 +11,7 @@ import {
   getStatistics,
   getTeamSeasonStats,
 } from "@/lib/api-football"
-import { findFirstLegResult, parseRoundInfo, reorientFirstLeg } from "@/lib/knockout"
+import { parseRoundInfo, reorientFirstLeg, resolveLegInfo } from "@/lib/knockout"
 import type { TeamInfo } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -131,40 +131,42 @@ export async function GET(request: Request) {
       }
 
       case "knockout": {
-        // Maç panelinin başlığında canlı toplam (agregat) skoru göstermek için
-        // hafif bir sekme: tam AI tahmini beklemeden sadece tur/ayak bilgisini
-        // ve (varsa) ilk ayak sonucunu döner. `analysis-panel.tsx` içindeki
-        // `AggregateScoreBadge` bu veriyi güncel fikstürün canlı golleriyle
-        // birleştirip toplamı hesaplar ve gol oldukça otomatik günceller.
+        // Maç panelinin başlığında ayak numarasını ve (varsa) canlı toplam
+        // (agregat) skoru göstermek için hafif bir sekme: tam AI tahmini
+        // beklemeden sadece tur/ayak bilgisini ve varsa ilk ayak sonucunu
+        // döner. `analysis-panel.tsx` içindeki `KnockoutBadges` bu veriyi
+        // güncel fikstürün canlı golleriyle birleştirip toplamı hesaplar ve
+        // gol oldukça otomatik günceller.
+        //
+        // ÖNEMLİ: Ayak tespiti round metnindeki ("league.round") "Leg"
+        // kelimesine GÜVENMİYOR — birçok turnuva (örn. UEFA play-off
+        // turları) çift ayaklı olduğu halde round metninde bunu belirtmez.
+        // Asıl kaynak `resolveLegInfo` (bkz. lib/knockout.ts) içindeki H2H
+        // tabanlı tespittir: round metni ne derse desin, aynı iki takım
+        // aynı turnuvada son 60 gün içinde karşılaşmışsa bu maç bir rövanştır.
         if (!homeId || isNaN(homeId) || !awayId || isNaN(awayId)) {
           return NextResponse.json({ data: null })
         }
         const fixture = await getFixtureById(fixtureId)
         if (!fixture) return NextResponse.json({ data: null })
 
-        const roundInfo = parseRoundInfo(fixture.league.round)
-        if (!roundInfo.isKnockoutStage || roundInfo.leg === null) {
-          // Tek ayaklı (final, tek maçlık play-off) turlarda agregat kartına
-          // gerek yok — sadece "beraberlik olamaz" bilgisi analiz sekmesinde
-          // AI tahmini ile birlikte gösteriliyor.
+        // Round metni grup/lig usulü bir turu işaret ediyorsa (örn.
+        // "Regular Season") gereksiz H2H isteğinden kaçınmak için burada
+        // erken çıkıyoruz — bu kontrol metne güvenmenin GÜVENLİ tarafı,
+        // çünkü grup/lig maçlarında beraberlik gerçekten nihai sonuçtur.
+        if (!parseRoundInfo(fixture.league.round).isKnockoutStage) {
           return NextResponse.json({ data: null })
         }
 
         const h2h = await getHeadToHead(homeId, awayId)
-        const firstLeg = findFirstLegResult(h2h, fixture)
-        if (!firstLeg) return NextResponse.json({ data: null })
-
-        const { firstLegGoalsForCurrentHome, firstLegGoalsForCurrentAway } = reorientFirstLeg(
-          firstLeg,
-          fixture.home.name,
-        )
+        const resolved = resolveLegInfo(fixture.league.round, h2h, fixture)
+        if (resolved.leg === null) return NextResponse.json({ data: null })
 
         return NextResponse.json({
           data: {
-            leg: roundInfo.leg,
-            isDecidingMatch: roundInfo.isDecidingMatch,
-            firstLegGoalsForCurrentHome,
-            firstLegGoalsForCurrentAway,
+            leg: resolved.leg,
+            isDecidingMatch: resolved.isDecidingMatch,
+            firstLeg: resolved.firstLeg ? reorientFirstLeg(resolved.firstLeg, fixture.home.name) : null,
           },
         })
       }
