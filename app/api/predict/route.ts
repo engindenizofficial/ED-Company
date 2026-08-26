@@ -899,7 +899,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   // 10. ModelVote dizisi — model alanı "provider/model-id" formatında olmalı (UI etiket eşleşmesi için)
   const PROVIDER_MODEL_ID: Record<string, string> = {
     openai:  "openai/gpt-5.6-terra",
-    google:  "google/gemini-3.7-flash",
+    google:  "google/gemini-3.6-flash",
     xai:     "xai/grok-4.6",
     poisson: "poisson/expected-goals",
   }
@@ -978,7 +978,7 @@ export async function POST(request: Request) {
   const cached = await getCachedPrediction(fixtureId)
   if (cached) return NextResponse.json(cached)
 
-  // 2. Maç verisini çek (hızlı �� senkron kontrol edip anlık 404/422 dönebiliriz)
+  // 2. Maç verisini çek (hızlı ��� senkron kontrol edip anlık 404/422 dönebiliriz)
   const fixture = await getFixtureById(fixtureId)
   if (!fixture) {
     return NextResponse.json({ error: "Maç bulunamadı." }, { status: 404 })
