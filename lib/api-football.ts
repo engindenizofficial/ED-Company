@@ -304,6 +304,27 @@ export async function getPlayerBasicProfile(playerId: number): Promise<PlayerPro
   }
 }
 
+// Takım paneli başlığında ülke bayrağı göstermek için: API-Football'un
+// /teams yanıtı ülke adını verir ama bayrak URL'si vermez — /countries
+// endpoint'i isme göre bayrak döndürüyor. Aynı ülke tekrar tekrar
+// sorgulanmasın diye process içinde kalıcı bir bellek cache'i kullanıyoruz
+// (ülke bayrakları pratikte hiç değişmez).
+const countryFlagCache = new Map<string, string | null>()
+
+async function getCountryFlagUrl(countryName: string | null): Promise<string | null> {
+  if (!countryName) return null
+  if (countryFlagCache.has(countryName)) return countryFlagCache.get(countryName) ?? null
+  try {
+    const raw = await apiFootballFetch<any>("/countries", { name: countryName })
+    const flag = raw?.[0]?.flag ?? null
+    countryFlagCache.set(countryName, flag)
+    return flag
+  } catch {
+    countryFlagCache.set(countryName, null)
+    return null
+  }
+}
+
 export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | null> {
   const teamRaw = await apiFootballFetch<any>("/teams", { id: teamId }, { cache: "no-store" })
   if (!teamRaw || teamRaw.length === 0) return null
@@ -314,6 +335,7 @@ export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | 
     name: rawTeam.team.name,
     logo: rawTeam.team.logo,
     country: toTurkishCountry(rawTeam.team.country ?? ""),
+    flagUrl: await getCountryFlagUrl(rawTeam.team.country ?? null),
   }
 
   const marketValue = await getTeamMarketValue(teamId).catch(() => null)

@@ -971,8 +971,21 @@ function TeamPanelInner({
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <h2 className="text-lg font-black leading-tight text-foreground truncate">{team.name}</h2>
                 {basic?.team.country && (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-                    <Flag className="h-3 w-3 shrink-0" />
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                    {basic.team.flagUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={basic.team.flagUrl}
+                        alt=""
+                        className="h-3 w-4 shrink-0 rounded-sm object-cover"
+                        width={16}
+                        height={12}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <Flag className="h-3 w-3 shrink-0" />
+                    )}
                     {basic.team.country}
                   </span>
                 )}

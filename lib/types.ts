@@ -6,6 +6,8 @@ export interface TeamInfo {
   id: number
   name: string
   logo: string
+  country?: string
+  flagUrl?: string | null
 }
 
 export interface LeagueInfo {
