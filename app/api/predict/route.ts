@@ -52,7 +52,7 @@ const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
 // ---------------------------------------------------------------------------
 const ENSEMBLE_MODELS = [
   { provider: "openai",  model: openai("gpt-5.6-terra"),         label: "GPT-5.6 Terra"  },
-  { provider: "google",  model: google("gemini-3.7-flash"),      label: "Gemini 3.7 Flash" },
+  { provider: "google",  model: google("gemini-3.6-flash"),      label: "Gemini 3.6 Flash" },
   { provider: "xai",     model: xai("grok-4.6"),                 label: "Grok 4.6"       },
 ] as const
 
@@ -643,7 +643,7 @@ Türkçe olarak kesin ve net tahmin yap.
 `.trim()
 
   // ---------------------------------------------------------------------------
-  // Gemini 3.7 Flash — İstatistik & Gol Beklentisi Uzmanı
+  // Gemini 3.6 Flash — İstatistik & Gol Beklentisi Uzmanı
   // Gol ortalamaları, BTTS, over/under, H2H sayısal analiz odaklı
   // ---------------------------------------------------------------------------
   const promptGemini = `
@@ -978,7 +978,7 @@ export async function POST(request: Request) {
   const cached = await getCachedPrediction(fixtureId)
   if (cached) return NextResponse.json(cached)
 
-  // 2. Maç verisini çek (hızlı — senkron kontrol edip anlık 404/422 dönebiliriz)
+  // 2. Maç verisini çek (hızlı �� senkron kontrol edip anlık 404/422 dönebiliriz)
   const fixture = await getFixtureById(fixtureId)
   if (!fixture) {
     return NextResponse.json({ error: "Maç bulunamadı." }, { status: 404 })
