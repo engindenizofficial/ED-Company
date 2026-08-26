@@ -333,7 +333,7 @@ export function HomeSearchBar({ date }: { date: string }) {
               <p className="text-xs text-muted-foreground">{t(noResultsKey, { query })}</p>
             </div>
           ) : (
-            <ul className="flex max-h-80 flex-col overflow-y-auto py-1.5">
+            <ul className="flex max-h-80 flex-col divide-y divide-border/50 overflow-y-auto py-1.5">
               {tab === "matches" &&
                 matchResults.map((f) => {
                   const live = LIVE_STATUSES.has(f.statusShort)
@@ -345,7 +345,7 @@ export function HomeSearchBar({ date }: { date: string }) {
                         onClick={() => handleSelectMatch(f)}
                         className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-secondary/70"
                       >
-                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                           <div className="flex items-center gap-2">
                             <Logo src={f.home.logo} alt="" fallback={f.home.name} />
                             <span className="truncate text-[13px] font-semibold text-foreground">{f.home.name}</span>
@@ -355,7 +355,7 @@ export function HomeSearchBar({ date }: { date: string }) {
                             <span className="truncate text-[13px] font-semibold text-foreground">{f.away.name}</span>
                           </div>
                         </div>
-                        <div className="flex shrink-0 flex-col items-end gap-1">
+                        <div className="flex shrink-0 flex-col items-end gap-1 border-l border-border/50 pl-3">
                           {played ? (
                             <span className={`text-[13px] font-bold tabular-nums ${live ? "text-primary" : "text-foreground"}`}>
                               {f.goalsHome ?? 0} - {f.goalsAway ?? 0}
@@ -365,7 +365,7 @@ export function HomeSearchBar({ date }: { date: string }) {
                               {kickoff(f.date, locale)}
                             </span>
                           )}
-                          <span className="truncate text-[10px] text-muted-foreground">{f.league.name}</span>
+                          <span className="max-w-24 truncate text-[10px] text-muted-foreground">{f.league.name}</span>
                         </div>
                       </button>
                     </li>
