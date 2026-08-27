@@ -68,7 +68,7 @@ const schedules = [
     // kullanır: route kendini hiç tetiklemez, devamlılığı bu QStash
     // schedule'ı sağlar.
     scheduleId: "update-market-values",
-    cron: "*/5 * * * *",
+    cron: "* * * * *",
     path: "/api/cron/update-market-values",
     withBypass: true,
   },

@@ -8,7 +8,6 @@ import { db } from "@/lib/db"
 import { marketValueReviewQueue } from "@/lib/db/schema"
 import { MarketValueReviewBoard, type ReviewQueueItem } from "@/components/market-value-review-board"
 import { MarketValueCronStatus } from "@/components/market-value-cron-status"
-import { MarketValueDangerZone } from "@/components/market-value-danger-zone"
 import { PlayerPositionCronStatus } from "@/components/player-position-cron-status"
 import { PlayerPositionDangerZone } from "@/components/player-position-danger-zone"
 import { PlayerPowerMaintenance } from "@/components/player-power-maintenance"
@@ -42,17 +41,14 @@ export default async function MarketValueReviewPage() {
 
   const items: ReviewQueueItem[] = rows.map((row) => ({
     id: row.id,
-    entityType: row.entityType as "team" | "player",
-    entityId: row.entityId,
-    entityName: row.entityName,
-    entityCountry: row.entityCountry,
-    candidateName: row.candidateName,
-    candidateCountry: row.candidateCountry,
-    countryLookupAttempted: row.countryLookupAttempted,
-    candidateValueEur: row.candidateValueEur !== null ? Number(row.candidateValueEur) : null,
+    entityType: row.entityType as "league" | "team" | "player",
+    afName: row.afName,
+    afCountry: row.afCountry,
+    tmName: row.tmName,
+    tmCountry: row.tmCountry,
+    tmValueEur: row.tmValueEur !== null ? Number(row.tmValueEur) : null,
     confidence: row.confidence,
-    status: row.status as "pending" | "approved" | "rejected",
-    createdAt: row.createdAt.toISOString(),
+    status: row.status as "pending" | "approved",
   }))
 
   return (
@@ -62,7 +58,6 @@ export default async function MarketValueReviewPage() {
           {translate(locale, "admin.sectionMarketValue")}
         </h2>
         <MarketValueCronStatus initialStatus={cronStatus} />
-        <MarketValueDangerZone />
       </div>
       <div className="mb-6 flex flex-col gap-4 border-t pt-6">
         <h2 className="text-sm font-semibold text-muted-foreground">
