@@ -1,7 +1,8 @@
 import { and, desc, eq, gt, isNull, sql } from "drizzle-orm"
 import { db } from "./db"
 import { playerMarketValue, playerPosition } from "./db/schema"
-import { scrapePlayerPosition, getAdaptiveDelayMs } from "./transfermarkt-scraper"
+import { scrapePlayerPosition } from "./transfermarkt-scraper"
+import { getTmDelayMs } from "./redis"
 import { profile } from "./player-positions"
 
 // ---------------------------------------------------------------------------
@@ -24,46 +25,10 @@ import { profile } from "./player-positions"
 
 /**
  * Transfermarkt'a art arda çok hızlı istek atmamamak için oyuncular arası
- * bekleme. Sabit bir ms değeri DEĞİL — "player-position" sistemine özel,
- * kendi kendine kalibre olan bir AIMD (Multiplicative-Increase /
- * Multiplicative-Decrease) mekanizmasının şu anki değeri (bkz.
- * transfermarkt-scraper.ts -> getAdaptiveDelayMs, lib/redis.ts ->
- * getTmDelayMs/recordTmSuccess/recordTmBlock).
- *
- * ÖNEMLİ — DÜRÜST UYARI: Transfermarkt'ın bot koruması bizim kontrolümüzde
- * değil ve algoritması bilinmiyor (IP başına istek sıklığı, günün saati,
- * paralel başka trafik vs. hepsi etkileyebilir). Bu yüzden "her oyuncu
- * KESİN aynı sürede, hiç engel yemeden çekilecek" diye %100 garanti
- * VERİLEMEZ — hiçbir gecikme değeri bunu matematiksel olarak garanti
- * edemez.
- *
- * DENEY GEÇMİŞİ (kullanıcı isteğiyle, önceden deneye deneye bulunmuştu, sabit
- * bir taban değerle):
- *   - 700ms  → sık sık 403/429 (blok çok sık).
- *   - 1500ms → yine yavaşlama gözlemlendi (blok azalmadı/yeterince azalmadı).
- *   - 2000ms → ~50 oyuncu sorunsuz gitti, sonra yine yavaşladı.
- *   - 2500ms → iyi gitti ama net sonuç belirsizdi.
- *   - 3000ms → kullanıcı bu değerde bile blok gördüğünü bildirdi.
- *   - 5000ms → sabit taban olarak kullanılmaya başlandı.
- *
- * KARAR — kullanıcı önceliği netleştirdi: "sistem yavaş olsun ama hiç hata
- * olmasın" (yani: bir oyuncunun verisi hiç alınamadan es geçilmesi kabul
- * edilemez; buna karşılık gecikme/yavaşlık kabul edilebilir bir maliyettir).
- * fetchHtml'deki 3 adımlı retry merdiveni (1.5s/4s/10s,
- * transfermarkt-scraper.ts) bir "pes et" mekanizması değil, gerçek bir
- * güvenlik ağı olarak çalışır — bir istek bloklanırsa ATLANMAZ, ısrarla
- * (giderek uzayan beklemelerle) tekrar denenir.
- *
- * SON KARAR — sabit bir taban değeri elle deneyip artırmak yerine, sistem
- * artık KENDİ KENDİNE kalibre olur: 5000ms'den başlar, jitter YOK (kullanıcı
- * kararıyla kaldırıldı), bir blok/timeout sinyali görüldüğünde anında sertçe
- * artar (×1.8), uzun bir başarı serisinde yavaşça azalır (20 başarılı
- * istekte bir %5) — ama bilinen kötü bölgenin (3000ms'in bile blok verdiği)
- * bir tık üzerinde kalacak şekilde 4000ms'in altına asla inmez. Bu sistem
- * lib/market-value-sync.ts'in ("market-value") blok sinyallerinden
- * TAMAMEN BAĞIMSIZ kalibre olur.
- *
- * İzleme: admin panelindeki "Oyuncu Mevki Taraması" durumu.
+ * bekleme. Adaptif AIMD sistemi kaldırıldı — artık `lib/redis.ts` içindeki
+ * `getTmDelayMs`, sistem başına (burada "player-position") sabit bir ms
+ * değeri döndüren basit bir yardımcı fonksiyon (kullanıcı kararıyla: "hiçbir
+ * önlem/adaptif mekanizma istemiyorum, sabit bekleme yeterli").
  */
 
 /**
@@ -203,7 +168,7 @@ export async function runPlayerPositionBackfillBatch(batchSize: number): Promise
     // aşımı (maxDuration) tarafından ortadan kesilmesini önler.
     if (Date.now() - startedAt > SOFT_TIME_BUDGET_MS) break
 
-    if (processed > 0) await sleep(await getAdaptiveDelayMs("player-position"))
+    if (processed > 0) await sleep(await getTmDelayMs("player-position"))
 
     let scraped: Awaited<ReturnType<typeof scrapePlayerPosition>> = null
     let scrapeFailed = false

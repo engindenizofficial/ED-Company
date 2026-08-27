@@ -1,6 +1,5 @@
-import { cleanupStaleMarketValueRows, SCRAPABLE_LEAGUE_IDS } from "@/lib/market-value-sync"
+import { SCRAPABLE_LEAGUE_IDS } from "@/lib/transfermarkt-scraper"
 import {
-  startNewCronRun,
   getActiveCronRun,
   processCronRunStep,
   completeCronRun,
@@ -65,21 +64,6 @@ function isAuthorized(request: Request): boolean {
   return header === `Bearer ${secret}`
 }
 
-// ÖNEMLİ — bu header'ı SADECE admin panelindeki "Şimdi Tara" butonu
-// (triggerMarketValueScanNow, app/actions/market-value-cron.ts) gönderir.
-// Dış zamanlayıcı (QStash schedule, bkz. scripts/setup-qstash-schedules.mjs)
-// bunu HİÇ göndermez. Bunun sebebi: haftalık taramanın admin taramayı kendisi
-// başlatana kadar arka planda kendiliğinden (ilk kez) başlamasını
-// istemiyoruz — dış zamanlayıcı sadece ZATEN "running" durumda olan bir
-// koşuyu devam ettirebilir, YENİ bir koşu açamaz. Admin "Şimdi Tara"ya
-// bastıktan sonra dış zamanlayıcı o koşuyu bitirene kadar otomatik ilerletir;
-// koşu biterse (completed) bir dahaki "Şimdi Tara"ya kadar hiçbir şey yapmaz.
-const MANUAL_TRIGGER_HEADER = "x-market-value-manual-trigger"
-
-function isManualTrigger(request: Request): boolean {
-  return request.headers.get(MANUAL_TRIGGER_HEADER) === "1"
-}
-
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -87,39 +71,33 @@ export async function GET(request: Request) {
 
   const active = await getActiveCronRun()
 
-  let run: CronRunRow
-
-  if (active && runMatchesCurrentLeagueList(active)) {
-    // Devam eden (ya da sağlıklı ilerleyen) bir döngü varsa onu HER ZAMAN
-    // devam ettiriyoruz — çağrı admin'in "Şimdi Tara" butonundan mı yoksa
-    // dış zamanlayıcıdan mı geldiği önemli değil. "Kırık zincir" kavramı
-    // artık gerekli değil: ilerleme tamamen bu route'a yapılan dış
-    // çağrılara bağlı olduğu için her çağrı basitçe bir sonraki adımı işler.
-    run = active
-  } else {
-    if (active && !runMatchesCurrentLeagueList(active)) {
-      // Bu satır, lig listesi (SCRAPABLE_LEAGUE_IDS) değişmeden ÖNCE
-      // başlatılmış — eski leagueStatuses artık koddaki güncel listeyle
-      // index bazında eşleşmiyor (bkz. runMatchesCurrentLeagueList). Devam
-      // ettirmeye çalışmak yanlış ligin verisini yazabilir. Bu eski satırı
-      // "tamamlandı" (hatalı) işaretleyip güncel listeyle sıfırdan bir
-      // döngü başlatıyoruz (SADECE admin manuel tetiklerse, aşağıda).
-      console.warn(
-        `[v0] Aktif döngü (${active.id}) güncel lig listesiyle uyuşmuyor (lig sayısı/sırası değişti) — eskisi kapatılıyor.`,
-      )
-      await completeCronRun(active.id)
-    }
-
-    if (!isManualTrigger(request)) {
-      // Dış zamanlayıcıdan gelen çağrı ve devam ettirilecek bir koşu yok —
-      // YENİ bir koşu AÇMIYORUZ. Sadece admin'in kendisi bir tarama
-      // başlatabilir; aksi halde QStash kullanıcı hiç dokunmasa da her 5
-      // dakikada bir kendiliğinden yeni bir haftalık tarama başlatırdı.
-      return Response.json({ done: false, skipped: "notStartedByAdmin" })
-    }
-
-    run = await startNewCronRun()
+  // Bu route ARTIK KENDİSİ yeni bir koşu AÇMAZ. Yeni bir koşu SADECE admin
+  // panelindeki "Taramayı Başlat" butonu (startMarketValueScan,
+  // app/actions/market-value-cron.ts) tarafından — önce TÜM veriyi silip —
+  // açılır. Bu route'un (dış zamanlayıcı QStash tarafından her 1 dakikada
+  // bir çağrılan "güvenlik görevlisi") tek işi: ZATEN "running" durumda
+  // olan bir koşu varsa onu bir adım ileri götürmek. Devam ettirilecek bir
+  // koşu yoksa (henüz hiç başlatılmamış ya da zaten tamamlanmış) hiçbir şey
+  // yapmadan döner.
+  if (!active) {
+    return Response.json({ done: false, skipped: "noActiveRun" })
   }
+
+  if (!runMatchesCurrentLeagueList(active)) {
+    // Bu satır, lig listesi (SCRAPABLE_LEAGUE_IDS) değişmeden ÖNCE
+    // başlatılmış — eski leagueStatuses artık koddaki güncel listeyle index
+    // bazında eşleşmiyor (bkz. runMatchesCurrentLeagueList). Devam
+    // ettirmeye çalışmak yanlış ligin verisini yazabilir. Bu eski koşuyu
+    // "tamamlandı" (hatalı) işaretleyip kapatıyoruz — yeni koşu bir dahaki
+    // "Taramayı Başlat" tıklamasında açılır.
+    console.warn(
+      `[v0] Aktif döngü (${active.id}) güncel lig listesiyle uyuşmuyor (lig sayısı/sırası değişti) — eskisi kapatılıyor.`,
+    )
+    await completeCronRun(active.id)
+    return Response.json({ done: false, skipped: "leagueListChanged" })
+  }
+
+  const run: CronRunRow = active
 
   // Zaman bütçesi dolana ya da döngü tamamlanana kadar arka arkaya adım işle.
   const startedAt = Date.now()
@@ -134,9 +112,9 @@ export async function GET(request: Request) {
 
   if (done) {
     // Zincirdeki son adım: tüm ligler işlendi (veya en fazla deneme sayısı
-    // tüketilerek "failed" işaretlendi). hadErrors=false ise artık hiçbir
-    // taranan ligde/kadroda görünmeyen "hayalet" kayıtları temizle.
-    const cleanup = await cleanupStaleMarketValueRows(updatedRun.runStartedAt, updatedRun.hadErrors)
+    // tüketilerek "failed" işaretlendi). Artık "hayalet satır temizliği"
+    // kavramı yok — her koşu zaten tamamen boş bir tablodan başlıyor
+    // (bkz. wipeAllMarketValueData), o yüzden temizlenecek bir şey kalmıyor.
     await completeCronRun(updatedRun.id)
     return Response.json({
       done: true,
@@ -144,7 +122,6 @@ export async function GET(request: Request) {
       runId: updatedRun.id,
       hadErrors: updatedRun.hadErrors,
       leagueStatuses: updatedRun.leagueStatuses,
-      cleanup,
     })
   }
 

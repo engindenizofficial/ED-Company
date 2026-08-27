@@ -1,10 +1,16 @@
 import { db } from "./db"
-import { marketValueCronRun } from "./db/schema"
+import {
+  marketValueCronRun,
+  leagueMarketValue,
+  teamMarketValue,
+  playerMarketValue,
+  marketValueReviewQueue,
+} from "./db/schema"
 import { desc, eq } from "drizzle-orm"
+import { SCRAPABLE_LEAGUE_IDS } from "./transfermarkt-scraper"
 import {
   prepareLeagueTeamSync,
   syncSingleTeam,
-  SCRAPABLE_LEAGUE_IDS,
   type LeagueTeamProgress,
   type TeamSyncTask,
   type TeamSyncCounts,
@@ -342,13 +348,12 @@ export function runMatchesCurrentLeagueList(run: CronRunRow): boolean {
  */
 async function prepareLeagueWithRetries(
   leagueId: number,
-  runStartedAt: Date,
 ): Promise<{ progress: LeagueTeamProgress | null; attempts: number; error: string | null }> {
   let lastError: string | null = null
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_LEAGUE; attempt++) {
     try {
-      const progress = await prepareLeagueTeamSync(leagueId, runStartedAt)
+      const progress = await prepareLeagueTeamSync(leagueId)
       return { progress, attempts: attempt, error: null }
     } catch (err) {
       lastError = err instanceof Error ? err.message : "Bilinmeyen hata"
@@ -374,13 +379,12 @@ async function syncSingleTeamWithRetries(
   leagueId: number,
   task: TeamSyncTask,
   season: number,
-  runStartedAt: Date,
 ): Promise<ReturnType<typeof syncSingleTeam> extends Promise<infer T> ? T : never> {
   let lastError: string | null = null
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_TEAM; attempt++) {
     try {
-      return await syncSingleTeam(leagueId, task, season, runStartedAt)
+      return await syncSingleTeam(leagueId, task, season)
     } catch (err) {
       lastError = err instanceof Error ? err.message : "Bilinmeyen hata"
       console.error(
@@ -480,7 +484,7 @@ export async function processCronRunStep(run: CronRunRow): Promise<{ run: CronRu
 
   // 1) Bu lig için takım listesi henüz hazırlanmadıysa — hazırlık adımını yap.
   if (!entry.teamProgress) {
-    const prep = await prepareLeagueWithRetries(leagueId, run.runStartedAt)
+    const prep = await prepareLeagueWithRetries(leagueId)
 
     if (!prep.progress) {
       // Lig seviyesinde kalıcı hata (takım listesi hiç çekilemedi) —
@@ -510,7 +514,7 @@ export async function processCronRunStep(run: CronRunRow): Promise<{ run: CronRu
   // 2) Sırada işlenecek bir takım varsa — SADECE onu işle.
   if (progress.nextTeamIndex < progress.tasks.length) {
     const task = progress.tasks[progress.nextTeamIndex]
-    const outcome = await syncSingleTeamWithRetries(leagueId, task, progress.season, run.runStartedAt)
+    const outcome = await syncSingleTeamWithRetries(leagueId, task, progress.season)
 
     const now = new Date()
     const nextProgress: LeagueTeamProgress = {
@@ -539,12 +543,31 @@ export async function processCronRunStep(run: CronRunRow): Promise<{ run: CronRu
   return finalizeLeagueStep(run, leagueIndex, { status: "success", attempts: entry.attempts, error: null })
 }
 
-/** Döngüyü "completed" olarak işaretler — cleanup adımından sonra çağrılır. */
+/** Döngüyü "completed" olarak işaretler. */
 export async function completeCronRun(runId: string): Promise<void> {
   await db
     .update(marketValueCronRun)
     .set({ status: "completed", heartbeatAt: new Date(), updatedAt: new Date() })
     .where(eq(marketValueCronRun.id, runId))
+}
+
+/**
+ * Piyasa değeri sistemine ait TÜM veriyi siler: lig/takım/oyuncu piyasa
+ * değeri satırları, review kuyruğu ve geçmiş cron koşuları — hepsi.
+ *
+ * SADECE admin'in "Taramayı Başlat" butonu (bkz.
+ * app/actions/market-value-cron.ts -> startMarketValueScan) tarafından,
+ * yeni bir koşu başlatılmadan HEMEN ÖNCE çağrılır. Kullanıcı kararı: kilit
+ * (manualOverride) veya "bir önceki taramanın onaylarını koru" gibi bir
+ * mekanizma YOK — her "Taramayı Başlat" tıklaması, devam eden bir koşu olsa
+ * da olmasa da, her şeyi silip sıfırdan başlar ("boş sayfa").
+ */
+export async function wipeAllMarketValueData(): Promise<void> {
+  await db.delete(playerMarketValue)
+  await db.delete(teamMarketValue)
+  await db.delete(leagueMarketValue)
+  await db.delete(marketValueReviewQueue)
+  await db.delete(marketValueCronRun)
 }
 
 /**

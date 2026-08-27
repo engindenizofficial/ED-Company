@@ -1,23 +1,20 @@
 "use server"
 
 import { headers } from "next/headers"
-import { after } from "next/server"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
-import { db } from "@/lib/db"
-import { teamMarketValue, playerMarketValue, marketValueReviewQueue, marketValueCronRun } from "@/lib/db/schema"
 import {
-  getActiveCronRun,
   getLatestCronRun,
   isCronRunStale,
   fireChainStepWithoutAwaitingResponse,
   setChainError,
+  startNewCronRun,
+  wipeAllMarketValueData,
   type CronRunRow,
 } from "@/lib/market-value-cron-run"
-import { SCRAPABLE_LEAGUE_IDS } from "@/lib/market-value-sync"
+import { SCRAPABLE_LEAGUE_IDS } from "@/lib/transfermarkt-scraper"
 import { getSiteUrl } from "@/lib/site-url"
-import { eq, ne } from "drizzle-orm"
 
 // ---------------------------------------------------------------------------
 // Admin panelinde haftalık piyasa değeri cron döngüsünün durumunu göstermek
@@ -97,48 +94,30 @@ export async function getMarketValueCronStatus(): Promise<CronRunStatus | null> 
 }
 
 /**
- * Admin'in "Şimdi Tara" butonu — 24 ligi işleyen döngünün SADECE bir sonraki
- * batch'ini (bkz. app/api/cron/update-market-values, STEP_BUDGET_MS = 260s
- * içinde art arda işlenen adımlar) hemen tetikler.
+ * Admin panelindeki TEK buton: "Taramayı Başlat".
  *
- * ÖNEMLİ — bu artık "tüm taramayı başlatıp bitirene kadar kendi kendine
- * devam eden bir zincir" DEĞİL (bkz. route.ts'in dosya başı açıklaması —
- * self-fetch zincirleme Vercel'in 5-sıçrama limitine çarpıp "508 Loop
- * Detected" ile kesiliyordu, tıpkı oyuncu mevki backfill'inde olduğu gibi).
- * Bu buton sadece İLK/bir sonraki batch'i elle tetikler; taramanın uçtan uca
- * bitmesi dışarıdaki QStash zamanlayıcısının (bkz.
- * scripts/setup-qstash-schedules.mjs, "update-market-values", 5 dakikada
- * bir) periyodik çağrılarıyla sağlanır. Zamanlayıcı zaten kurulu olduğu için
- * admin'in tekrar tekrar butona basmasına normalde gerek yoktur.
+ * ÖNEMLİ — kilit/manualOverride veya "onaylananları koru" gibi bir kavram
+ * YOK. Bu action her çağrıldığında, devam eden bir tarama olsa da olmasa
+ * da, KOŞULSUZ olarak:
+ *   1) Piyasa değeri sistemine ait TÜM veriyi siler (lig/takım/oyuncu piyasa
+ *      değerleri, review kuyruğu, önceki tüm cron koşuları — bkz.
+ *      wipeAllMarketValueData) — "boş sayfa"dan başlar.
+ *   2) Yeni bir cron koşusu açar ve ilk adımı hemen tetikler.
  *
- * Sağlıklı ilerleyen (kısa süre önce heartbeat almış, hâlâ "running") bir
- * döngü zaten varsa ikinci bir batch'i aynı anda tetikleyip aynı ligi çift
- * işlemeyi önlemek için hiçbir şey yapmaz.
+ * Taramanın uçtan uca bitmesi, dışarıdaki QStash zamanlayıcısının (bkz.
+ * scripts/setup-qstash-schedules.mjs, "update-market-values", 1 dakikada
+ * bir) bu route'u tekrar tekrar çağırarak "running" koşuyu adım adım
+ * ilerletmesiyle sağlanır — bir adım hata verip dursa bile en fazla 1
+ * dakika içinde otomatik olarak devam eder.
  */
-export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean; reason?: string }> {
+export async function startMarketValueScan(): Promise<{ started: boolean; runId?: string; reason?: string }> {
   await requireAdmin()
 
-  // ÖNEMLİ: Admin'in onayladığı eşleşmelerin manualOverride kilidini
-  // kesinlikle kaldırmıyoruz. Senkronizasyon zaten kilitli kayıtlarda doğru
-  // Transfermarkt profilini koruyup yalnızca o profilin güncel piyasa değerini
-  // yeniliyor. Böylece "Şimdi Tara" eski veriyi güncellerken admin kararını
-  // silmez.
-  const active = await getActiveCronRun()
-  if (active && !isCronRunStale(active)) {
-    return { triggered: false, reason: "scanAlreadyRunning" }
-  }
-  // Stale (heartbeat eskimiş) bir koşu varsa — self-fetch zinciri artık hiç
-  // olmadığı için "stale" burada sadece "QStash henüz bir tur atmadı"
-  // anlamına gelir; devam ettirmeye izin veriyoruz, route zaten aynı satırı
-  // yeniden kullanıp kaldığı yerden ilerler.
+  await wipeAllMarketValueData()
+  const run = await startNewCronRun()
 
   const secret = process.env.CRON_SECRET
-  // ÖNEMLİ — bu header, route'a "bu çağrı admin'in Şimdi Tara butonundan
-  // geliyor, dış zamanlayıcıdan DEĞİL" bilgisini taşır. Route, devam eden
-  // bir koşu yoksa YENİ bir koşuyu SADECE bu header varsa açar — böylece
-  // QStash kullanıcı hiç dokunmadan kendiliğinden bir haftalık tarama
-  // başlatamaz, sadece admin'in başlattığı bir koşuyu devam ettirebilir.
-  const headersInit: Record<string, string> = { "x-market-value-manual-trigger": "1" }
+  const headersInit: Record<string, string> = {}
   if (secret) headersInit.authorization = `Bearer ${secret}`
 
   // Bkz. app/api/cron/update-market-values/route.ts — bu fetch de deployment
@@ -149,70 +128,23 @@ export async function triggerMarketValueScanNow(): Promise<{ triggered: boolean;
 
   const url = `${getSiteUrl()}/api/cron/update-market-values`
 
-  // ÖNEMLİ — bu action ÖNCEDEN `await triggerChainContinuation(...)` ile
-  // isteği TAM YANITINI bekleyerek gönderiyordu (15s zaman aşımı). Ama hedef
-  // route (update-market-values) artık zaman bütçesi (STEP_BUDGET_MS = 260s)
-  // dolana kadar senkron olarak çalışıp öyle yanıt veriyor — 15s'lik bir
-  // zaman aşımı bu route için KESİNLİKLE yetersiz, "zaman aşımı" deyip
-  // isteği tekrar göndermek sunucudaki ilk isteği iptal etmeden AYNI ligi
-  // ikinci kez işleyen paralel bir çağrı başlatırdı (bkz.
-  // lib/market-value-cron-run.ts -> fireChainStepWithoutAwaitingResponse
-  // açıklaması). Bu fonksiyon isteği gönderir, SADECE hızlı bir hatayı (401,
-  // ağ hatası) yakalayacak kısa bir pencere bekler, sonra isteği İPTAL
-  // ETMEDEN döner — route kendi 300s maxDuration'ı içinde arka planda
-  // çalışmaya devam eder.
+  // Bu fonksiyon isteği gönderir, SADECE hızlı bir hatayı (401, ağ hatası)
+  // yakalayacak kısa bir pencere bekler, sonra isteği İPTAL ETMEDEN döner —
+  // route kendi 300s maxDuration'ı içinde arka planda çalışmaya devam eder.
+  // Bir sonraki adım gerekirse dış QStash zamanlayıcısı (1 dakikada bir)
+  // devam ettirir.
   try {
     await fireChainStepWithoutAwaitingResponse(url, headersInit)
-    if (active) await setChainError(active.id, null)
+    await setChainError(run.id, null)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error("[v0] Piyasa değeri taraması tetiklenemedi:", err)
-    if (active) await setChainError(active.id, message)
-    return { triggered: false, reason: "triggerFailed" }
+    await setChainError(run.id, message)
+    // Tetikleme başarısız olsa da koşu "running" olarak DB'de kalır — dış
+    // QStash zamanlayıcısı bir dakika içinde bu koşuyu otomatik ilerletir,
+    // o yüzden bunu hata olarak DÖNDÜRMÜYORUZ.
   }
 
   revalidatePath(REVIEW_PATH)
-  return { triggered: true }
-}
-
-export interface ResetMarketValueDataResult {
-  deletedTeams: number
-  deletedPlayers: number
-  deletedReviewEntries: number
-  deletedCronRuns: number
-}
-
-/**
- * Admin'in "Tümünü Sıfırla" butonu — piyasa değeri sistemine ait TÜM verileri
- * kalıcı olarak siler: takım/oyuncu piyasa değerleri (ve bunlarla birlikte
- * gelen matchStatus/manualOverride kilitleri dahil), onay/red kuyruğu
- * (market_value_review_queue) ve haftalık tarama döngüsünün ilerleme kaydı
- * (market_value_cron_run — silinmezse, verisi artık var olmayan eski bir
- * döngü admin panelinde "durum" olarak görünmeye devam ederdi).
- *
- * Bu, cron'un/senkronun kod tarafına DOKUNMAZ — bir sonraki tarama (haftalık
- * ya da "Şimdi Tara" ile manuel) her takımı/oyuncuyu sıfırdan, hiç admin
- * kararı yokmuş gibi yeniden eşleştirir.
- */
-export async function resetAllMarketValueData(): Promise<ResetMarketValueDataResult> {
-  await requireAdmin()
-
-  // Admin tarafından manuel onaylanan kayıtlar `manualOverride = true` ile
-  // kilitlenir. Reset yalnızca otomatik/henüz onaylanmamış kayıtları siler;
-  // onaylı eşleşmeler, değerleri ve review geçmişi korunur.
-  const [deletedTeams, deletedPlayers, deletedReviewEntries, deletedCronRuns] = await Promise.all([
-    db.delete(teamMarketValue).where(eq(teamMarketValue.manualOverride, false)).returning({ id: teamMarketValue.id }),
-    db.delete(playerMarketValue).where(eq(playerMarketValue.manualOverride, false)).returning({ id: playerMarketValue.id }),
-    db.delete(marketValueReviewQueue).where(ne(marketValueReviewQueue.status, "approved")).returning({ id: marketValueReviewQueue.id }),
-    db.delete(marketValueCronRun).returning({ id: marketValueCronRun.id }),
-  ])
-
-  revalidatePath(REVIEW_PATH)
-
-  return {
-    deletedTeams: deletedTeams.length,
-    deletedPlayers: deletedPlayers.length,
-    deletedReviewEntries: deletedReviewEntries.length,
-    deletedCronRuns: deletedCronRuns.length,
-  }
+  return { started: true, runId: run.id }
 }
