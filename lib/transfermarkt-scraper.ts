@@ -96,43 +96,28 @@ export interface ScrapedLeagueResult {
 }
 
 /**
- * Tek bir sayfa isteği için zaman aşımı. Bu OLMADAN, Transfermarkt yanıt
- * vermeden bağlantıyı askıda tutarsa `fetch()` süresiz beklerdi. 8s, gerçek
- * sayfa yanıtlarının (normalde 1-2s) çok üzerinde bir pay bırakır.
- */
-const FETCH_TIMEOUT_MS = 8_000
-
-/**
  * Transfermarkt sayfasını indirir. SADECE 404 (sayfa gerçekten yok) "veri
- * yok" sayılıp null döner. Diğer her durumda (403/429/5xx/ağ hatası/timeout)
- * hata FIRLATILIR — hiçbir retry/backoff YAPILMAZ. Üst katman (bkz.
- * lib/market-value-cron-run.ts -> processCronRunStep) bu hatayı yakalayıp
- * `phase: "error"` yazar; zincirin bir sonraki QStash tetiklemesi aynı adımı
- * otomatik olarak tekrar dener.
+ * yok" sayılıp null döner. Diğer her durumda (403/429/5xx/ağ hatası) hata
+ * FIRLATILIR — hiçbir retry/backoff veya ek süre sınırı uygulanmaz. Üst
+ * katman hatayı kaydeder; dakikalık QStash gözetmeni aynı adımı yeniden
+ * tetikler.
  */
 async function fetchHtml(url: string): Promise<string | null> {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        "Accept-Language": "en-US,en;q=0.9",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      },
-      redirect: "follow",
-      signal: controller.signal,
-    })
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": USER_AGENT,
+      "Accept-Language": "en-US,en;q=0.9",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    },
+    redirect: "follow",
+  })
 
-    if (!res.ok) {
-      if (res.status === 404) return null
-      throw new Error(`HTTP ${res.status} ${res.statusText}`)
-    }
-
-    return await res.text()
-  } finally {
-    clearTimeout(timeoutId)
+  if (!res.ok) {
+    if (res.status === 404) return null
+    throw new Error(`HTTP ${res.status} ${res.statusText}`)
   }
+
+  return res.text()
 }
 
 /**
@@ -200,10 +185,8 @@ export async function scrapeLeagueTeams(leagueId: number): Promise<ScrapedLeague
   // Lig adı + ülkesi sayfanın üst bilgi bloğundan (.data-header) okunur.
   const leagueNameRaw = $(".data-header__headline-wrapper").first().text().trim()
   const leagueName = leagueNameRaw.length > 0 ? leagueNameRaw.replace(/\s+/g, " ") : null
-  const leagueCountryRaw = $(".data-header__club-info img.flaggenrahmen, .data-header__box--big img.flaggenrahmen")
-    .first()
-    .attr("title")
-    ?.trim()
+  const leagueFlag = $(".data-header img.data-header__box__flag, .data-header img.flaggenrahmen").first()
+  const leagueCountryRaw = (leagueFlag.attr("title") ?? leagueFlag.attr("alt"))?.trim()
   const leagueCountry = leagueCountryRaw ? toTurkishCountry(leagueCountryRaw) : null
 
   return { teams, leagueName, leagueCountry }
