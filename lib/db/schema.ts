@@ -302,119 +302,22 @@ export const marketValueCronRun = pgTable('market_value_cron_run', {
   runStartedAt: timestamp('runStartedAt').notNull(),
   /** "running" | "done" */
   status: text('status').notNull().default('running'),
-  /** "tm_leagues" | "tm_teams" | "tm_players" | "af_leagues" | "af_teams" | "af_players" | "matching" | "done" */
+  /**
+   * "tm_leagues" | "tm_players" | "af_leagues" | "af_teams" | "af_players" | "matching" | "done"
+   * — `tm_leagues` TM lig sayfasını (Transfermarkt tek bir sayfada lig
+   * bilgisini VE takım listesini birlikte verdiği için) hem lig hem takım
+   * staging satırlarını tek adımda yazar.
+   */
   phase: text('phase').notNull().default('tm_leagues'),
-  /** Sırada işlenecek FEATURED_LEAGUE_IDS index'i (her tm/af/matching fazının kendi lig döngüsü için). */
+  /** Sırada işlenecek FEATURED_LEAGUE_IDS index'i (tm_leagues/af_leagues/af_teams/matching fazlarının lig döngüsü için). */
   currentLeagueIndex: integer('currentLeagueIndex').notNull().default(0),
-  /** tm_players/af_players fazlarında, o ligin takım listesindeki sıradaki takım index'i. */
+  /** tm_players/af_players fazlarında, o taraftaki (side) tüm takım staging satırları arasında sıradaki takımın index'i. */
   currentTeamIndex: integer('currentTeamIndex').notNull().default(0),
   /** Son işlenmeye çalışılan iş biriminin hatası — başarılı adımda null'a döner. */
   lastError: text('lastError'),
   lastErrorAt: timestamp('lastErrorAt'),
   /** Zincirin hâlâ "canlı" ilerlediğini gösterir — her adımda güncellenir. Eskime (stale) kontrolü için buna bakılır. */
   heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
-})
-
-
-
-/** Oyuncu bazlı Transfermarkt eşleşmesi + piyasa değeri. */
-export const playerMarketValue = pgTable('player_market_value', {
-  id: text('id').primaryKey(),
-  /** API-Football oyuncu id'si (lib/types.ts -> Player.id) */
-  playerId: integer('playerId').notNull().unique(),
-  /** Bu oyuncunun eşleştirildiği anda oynadığı API-Football takım id'si */
-  teamId: integer('teamId').notNull(),
-  /** API-Football'ın kısa adı, örn. "O. Dembélé" — kadro/arayüz gösterimi için. */
-  playerName: text('playerName').notNull(),
-  /**
-   * Transfermarkt kadro sayfasından gelen TAM ad, ��rn. "Ousmane Dembélé" —
-   * yalnızca isim/soyisim aramasını (menajer kariyeri kadro arama ekranı)
-   * `playerName`'in kısaltma formatına ("O. Dembélé") takılmadan yapabilmek
-   * için tutulur. API-Football tarafında bu bilgiyi almak oyuncu başına 1
-   * istek gerektirdiğinden (günlük kotayı tüketir), bunun yerine zaten her
-   * senkronda scrape edilen Transfermarkt verisinden ücretsiz elde edilir.
-   */
-  fullName: text('fullName'),
-  /** API-Football oyuncu uyruğu */
-  playerCountry: text('playerCountry'),
-  /** Transfermarkt oyuncu id'si, örn. "28003" */
-  transfermarktPlayerId: text('transfermarktPlayerId'),
-  transfermarktPlayerSlug: text('transfermarktPlayerSlug'),
-  transfermarktPlayerCountry: text('transfermarktPlayerCountry'),
-  /** Piyasa değeri, tam euro cinsinden (örn. 120000000) */
-  valueEur: numeric('valueEur', { precision: 14, scale: 2 }),
-  nameMatchPercent: integer('nameMatchPercent'),
-  countryMatchPercent: integer('countryMatchPercent'),
-  /** avg(nameMatchPercent, countryMatchPercent) — eşleştirme güven skoru 0-100 */
-  matchConfidence: integer('matchConfidence'),
-  /** "matched" | "review" | "unmatched" */
-  matchStatus: text('matchStatus').notNull().default('unmatched'),
-  lastScrapedAt: timestamp('lastScrapedAt'),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
-})
-
-/**
- * Otomatik eşleştirmenin güven eşiğinin altında kaldığı lig/takım/oyuncu adayları.
- * Manuel gözden geçirme arayüzü buradan okuyup onaylayacak.
- */
-export const marketValueReviewQueue = pgTable('market_value_review_queue', {
-  id: text('id').primaryKey(),
-  /** "league" | "team" | "player" */
-  entityType: text('entityType').notNull(),
-  /** API-Football id'si (leagueId, teamId veya playerId) */
-  entityId: integer('entityId').notNull(),
-  entityName: text('entityName').notNull(),
-  /** API-Football tarafındaki lig/takım/oyuncunun ülkesi (menşei/uyruğu) — manuel eşleştirmeye yardımcı olur */
-  entityCountry: text('entityCountry'),
-  /** Bulunan en yakın Transfermarkt adayının adı */
-  candidateName: text('candidateName'),
-  candidateTransfermarktId: text('candidateTransfermarktId'),
-  /** Transfermarkt adayının ülkesi (kulüp ülkesi / oyuncu uyruğu) */
-  candidateCountry: text('candidateCountry'),
-  candidateValueEur: numeric('candidateValueEur', { precision: 14, scale: 2 }),
-  /** 0-100 arası benzerlik skoru */
-  confidence: integer('confidence').notNull(),
-  /** "pending" | "approved" | "rejected" */
-  status: text('status').notNull().default('pending'),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  resolvedAt: timestamp('resolvedAt'),
-})
-
-/**
- * Admin tarafından tetiklenen, tüm ligleri sıfırdan tarayan tek seferlik
- * QStash zincirinin kalıcı durumu. Her adım (her lig/takım) bu satıra yazılır,
- * zincirin bir sonraki QStash tetiklemesi tam olarak nerede kalındığını bilir.
- */
-export const marketValueCronRun = pgTable('market_value_cron_run', {
-  id: text('id').primaryKey(),
-  /** Bu taramanın başladığı an. */
-  runStartedAt: timestamp('runStartedAt').notNull(),
-  /** "running" | "completed" */
-  status: text('status').notNull().default('running'),
-  /** "idle" | "running" | "error" | "done" — admin panelindeki durum rozeti bu alana bakar. */
-  phase: text('phase').notNull().default('idle'),
-  /** Sırada işlenecek (henüz tamamlanmamış) SCRAPABLE_LEAGUE_IDS index'i. */
-  currentLeagueIndex: integer('currentLeagueIndex').notNull().default(0),
-  /** Bu döngüde en az bir lig/takım hata verdi mi? */
-  hadErrors: boolean('hadErrors').notNull().default(false),
-  /**
-   * Her lig için { leagueId, status: "pending"|"success"|"failed", attempts, lastError, updatedAt }
-   * — hangi ligin işlendiğini, kaç kez denendiğini ve son hatasını gösterir.
-   */
-  leagueStatuses: jsonb('leagueStatuses').notNull(),
-  /** Zincirin hâlâ "canlı" ilerlediğini gösterir — her adımda güncellenir. Eskime (stale) kontrolü için buna bakılır. */
-  heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
-  /** Son QStash `publish` çağrısının döndürdüğü `Upstash-Message-Id` — debug/iptal için. */
-  chainMessageId: text('chainMessageId'),
-  /**
-   * Zincirin bir sonraki adımını tetikleyen QStash `publish` isteğinin
-   * başarısız olması durumunda kalan GERÇEK hata mesajı (örn. "HTTP 401 ...").
-   */
-  lastChainError: text('lastChainError'),
-  lastChainErrorAt: timestamp('lastChainErrorAt'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })
