@@ -307,6 +307,8 @@ export function matchTeams(
 export interface PlayerMatchResult {
   apiFootballPlayerId: number
   apiFootballPlayerName: string
+  /** API-Football uyruğu — sadece TM tarafında uyruk bulunup ülke karşılaştırması yapıldığında dolu gelir. */
+  apiFootballPlayerCountry: string | null
   transfermarktPlayerId: string | null
   transfermarktPlayerName: string | null
   transfermarktPlayerCountry: string | null
@@ -339,6 +341,7 @@ export async function matchPlayersForTeam(
   type Candidate = {
     af: { id: number; name: string }
     tm: ScrapedPlayer
+    afCountry: string | null
     nameScore: number
     countryScore: number | null
     score: number
@@ -361,11 +364,19 @@ export async function matchPlayersForTeam(
     for (const tm of scrapedPlayers) {
       const nameScore = playerSimilarityScore(af.name, tm.name)
       let countryScore: number | null = null
+      let afCountry: string | null = null
       if (tm.nationality) {
-        const afCountry = await getAfCountry(af.id)
+        afCountry = await getAfCountry(af.id)
         countryScore = afCountry ? countrySimilarityScore(afCountry, tm.nationality) : null
       }
-      candidates.push({ af: { id: af.id, name: af.name }, tm, nameScore, countryScore, score: combinedMatchScore(nameScore, countryScore) })
+      candidates.push({
+        af: { id: af.id, name: af.name },
+        tm,
+        afCountry,
+        nameScore,
+        countryScore,
+        score: combinedMatchScore(nameScore, countryScore),
+      })
     }
   }
   candidates.sort((a, b) => b.score - a.score)
@@ -381,6 +392,7 @@ export async function matchPlayersForTeam(
     results.set(c.af.id, {
       apiFootballPlayerId: c.af.id,
       apiFootballPlayerName: c.af.name,
+      apiFootballPlayerCountry: c.afCountry,
       transfermarktPlayerId: c.tm.transfermarktId,
       transfermarktPlayerName: c.tm.name,
       transfermarktPlayerCountry: c.tm.nationality,
@@ -398,6 +410,7 @@ export async function matchPlayersForTeam(
       results.set(af.id, {
         apiFootballPlayerId: af.id,
         apiFootballPlayerName: af.name,
+        apiFootballPlayerCountry: null,
         transfermarktPlayerId: null,
         transfermarktPlayerName: null,
         transfermarktPlayerCountry: null,
