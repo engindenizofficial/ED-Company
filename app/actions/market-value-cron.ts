@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { marketValueCronRun } from "@/lib/db/schema"
-import { createCronRun, getActiveCronRun, wipeAllMarketValueData } from "@/lib/market-value-cron-run"
+import { createCronRun, wipeAllMarketValueData } from "@/lib/market-value-cron-run"
 import { enqueueMarketValueSupervisor, enqueueMarketValueWorker } from "@/lib/market-value-qstash"
 import { SCRAPABLE_LEAGUE_IDS } from "@/lib/transfermarkt-scraper"
 
@@ -60,12 +60,4 @@ export async function startMarketValueScan(): Promise<{ started: true; status: C
     enqueueMarketValueSupervisor(run.id, 60),
   ])
   return { started: true, status: serialize(run) }
-}
-
-/** Backwards-compatible alias for callers updated in a separate deployment. */
-export async function triggerMarketValueScanNow() {
-  const active = await getActiveCronRun()
-  if (active) return { triggered: false, reason: "scanAlreadyRunning" }
-  const result = await startMarketValueScan()
-  return { triggered: true, status: result.status }
 }

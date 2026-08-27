@@ -202,12 +202,14 @@ export async function processCronRunBatch(initialRun: CronRunRow, budgetMs = 50_
 }
 
 export async function wipeAllMarketValueData() {
-  await db.delete(playerMarketValue)
-  await db.delete(teamMarketValue)
-  await db.delete(leagueMarketValue)
-  await db.delete(marketValueReviewQueue)
-  await db.delete(marketValuePlayerStaging)
-  await db.delete(marketValueTeamStaging)
-  await db.delete(marketValueLeagueStaging)
-  await db.delete(marketValueCronRun)
+  await db.transaction(async (tx) => {
+    await tx.delete(playerMarketValue)
+    await tx.delete(teamMarketValue)
+    await tx.delete(leagueMarketValue)
+    await tx.delete(marketValueReviewQueue)
+    await tx.delete(marketValuePlayerStaging)
+    await tx.delete(marketValueTeamStaging)
+    await tx.delete(marketValueLeagueStaging)
+    await tx.delete(marketValueCronRun)
+  })
 }
