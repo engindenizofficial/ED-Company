@@ -6,7 +6,8 @@ import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
-import { leagueMarketValue, marketValueLeagueStaging, marketValuePlayerStaging, marketValueReviewQueue, marketValueTeamStaging, playerMarketValue, teamMarketValue } from "@/lib/db/schema"
+import { leagueMarketValue, marketValueCronRun, marketValueLeagueStaging, marketValuePlayerStaging, marketValueReviewQueue, marketValueTeamStaging, playerMarketValue, teamMarketValue } from "@/lib/db/schema"
+import { matchPlayersForStagedTeams } from "@/lib/market-value-cron-run"
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -29,6 +30,9 @@ export async function approveReviewEntry(id: string) {
     const [tm] = await db.select().from(marketValueTeamStaging).where(eq(marketValueTeamStaging.id, row.tmTeamStagingId)).limit(1)
     if (!af || !tm) throw new Error("Takım staging kaydı bulunamadı.")
     await db.insert(teamMarketValue).values({ id: crypto.randomUUID(), teamId: Number(af.externalId), leagueId: row.leagueId, teamName: af.name, teamCountry: af.country, transfermarktTeamId: tm.externalId, transfermarktTeamName: tm.name, transfermarktTeamCountry: tm.country, totalValueEur: tm.valueEur, matchConfidence: row.confidence, lastScrapedAt: new Date() }).onConflictDoNothing()
+    const [run] = await db.select().from(marketValueCronRun).where(eq(marketValueCronRun.id, row.runId)).limit(1)
+    if (!run) throw new Error("Tarama kaydı bulunamadı.")
+    await matchPlayersForStagedTeams(run, row.leagueId, af.id, tm.id)
   } else {
     if (!row.afPlayerStagingId || !row.tmPlayerStagingId || !row.afTeamStagingId) throw new Error("Oyuncu adayı eksik.")
     const [afPlayer] = await db.select().from(marketValuePlayerStaging).where(eq(marketValuePlayerStaging.id, row.afPlayerStagingId)).limit(1)

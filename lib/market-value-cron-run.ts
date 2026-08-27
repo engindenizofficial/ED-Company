@@ -11,14 +11,15 @@ import {
   teamMarketValue,
 } from "@/lib/db/schema"
 import { apiFootballFetch } from "@/lib/api-football-client"
-import { currentSeason, getLeagueBasicInfo, getSquad, getTeamCountry } from "@/lib/api-football"
+import { currentSeason, getLeagueBasicInfo, getTeamCountry } from "@/lib/api-football"
 import { matchLeague, matchPlayers, matchStagedEntities, type StagedEntity } from "@/lib/market-value-matcher"
-import { SCRAPABLE_LEAGUE_IDS, scrapeLeagueTeams, scrapeTeamSquad, sleep, TM_REQUEST_DELAY_MS } from "@/lib/transfermarkt-scraper"
+import { SCRAPABLE_LEAGUE_IDS, scrapeLeagueTeams, scrapeTeamCountry, scrapeTeamSquad, sleep, TM_REQUEST_DELAY_MS } from "@/lib/transfermarkt-scraper"
 
 export type MarketValuePhase = "tm_leagues" | "tm_players" | "af_leagues" | "af_teams" | "af_players" | "matching" | "done"
 export type CronRunRow = typeof marketValueCronRun.$inferSelect
 
 type ApiTeamResponse = { team?: { id?: number; name?: string; country?: string | null } }
+type ApiPlayerResponse = { player?: { id?: number; name?: string; nationality?: string | null } }
 
 function stagingId(runId: string, side: "tm" | "af", type: "league" | "team" | "player", externalId: string) {
   return `${runId}:${side}:${type}:${externalId}`
@@ -52,6 +53,7 @@ async function failStep(run: CronRunRow, error: unknown) {
 
 async function stageTmLeague(run: CronRunRow) {
   const leagueId = SCRAPABLE_LEAGUE_IDS[run.currentLeagueIndex]
+  if (run.currentLeagueIndex > 0) await sleep(TM_REQUEST_DELAY_MS)
   const scraped = await scrapeLeagueTeams(leagueId)
   const total = scraped.teams.reduce((sum, team) => sum + (team.totalValueEur ?? 0), 0)
   await db.insert(marketValueLeagueStaging).values({ id: stagingId(run.id, "tm", "league", String(leagueId)), runId: run.id, leagueId, tmName: scraped.leagueName, tmCountry: scraped.leagueCountry, tmValueEur: String(total) }).onConflictDoUpdate({ target: marketValueLeagueStaging.leagueId, set: { runId: run.id, tmName: scraped.leagueName, tmCountry: scraped.leagueCountry, tmValueEur: String(total), updatedAt: new Date() } })
@@ -64,7 +66,10 @@ async function stageTmPlayers(run: CronRunRow) {
   const teams = await db.select().from(marketValueTeamStaging).where(and(eq(marketValueTeamStaging.runId, run.id), eq(marketValueTeamStaging.side, "tm"))).orderBy(asc(marketValueTeamStaging.createdAt))
   const team = teams[run.currentTeamIndex]
   if (!team) return updateRun(run.id, { phase: "af_leagues", currentTeamIndex: 0, currentLeagueIndex: 0 })
-  if (run.currentTeamIndex > 0) await sleep(TM_REQUEST_DELAY_MS)
+  await sleep(TM_REQUEST_DELAY_MS)
+  const country = await scrapeTeamCountry(team.externalId)
+  await db.update(marketValueTeamStaging).set({ country }).where(eq(marketValueTeamStaging.id, team.id))
+  await sleep(TM_REQUEST_DELAY_MS)
   const players = await scrapeTeamSquad(team.externalId)
   if (players.length) await db.insert(marketValuePlayerStaging).values(players.map((player) => ({ id: stagingId(run.id, "tm", "player", `${team.externalId}:${player.transfermarktId}`), runId: run.id, teamStagingId: team.id, side: "tm", externalId: player.transfermarktId, name: player.name, country: player.nationality, valueEur: player.valueEur === null ? null : String(player.valueEur) }))).onConflictDoNothing()
   return updateRun(run.id, { currentTeamIndex: run.currentTeamIndex + 1 })
@@ -92,8 +97,9 @@ async function stageAfPlayers(run: CronRunRow) {
   const teams = await db.select().from(marketValueTeamStaging).where(and(eq(marketValueTeamStaging.runId, run.id), eq(marketValueTeamStaging.side, "af"))).orderBy(asc(marketValueTeamStaging.createdAt))
   const team = teams[run.currentTeamIndex]
   if (!team) return updateRun(run.id, { phase: "matching", currentTeamIndex: 0, currentLeagueIndex: 0 })
-  const players = await getSquad(Number(team.externalId))
-  if (players.length) await db.insert(marketValuePlayerStaging).values(players.map((player) => ({ id: stagingId(run.id, "af", "player", `${team.externalId}:${player.id}`), runId: run.id, teamStagingId: team.id, side: "af", externalId: String(player.id), name: player.name, country: null }))).onConflictDoNothing()
+  const players = await apiFootballFetch<ApiPlayerResponse>("/players", { team: Number(team.externalId), season: currentSeason() }, { cache: "no-store" })
+  const validPlayers = players.flatMap((row) => row.player?.id && row.player?.name ? [{ id: row.player.id, name: row.player.name, country: row.player.nationality ?? null }] : [])
+  if (validPlayers.length) await db.insert(marketValuePlayerStaging).values(validPlayers.map((player) => ({ id: stagingId(run.id, "af", "player", `${team.externalId}:${player.id}`), runId: run.id, teamStagingId: team.id, side: "af", externalId: String(player.id), name: player.name, country: player.country }))).onConflictDoNothing()
   return updateRun(run.id, { currentTeamIndex: run.currentTeamIndex + 1 })
 }
 
@@ -103,6 +109,26 @@ async function queueReview(run: CronRunRow, input: { entityType: "league" | "tea
 
 function entity(row: typeof marketValueTeamStaging.$inferSelect | typeof marketValuePlayerStaging.$inferSelect): StagedEntity {
   return { externalId: row.externalId, name: row.name, country: row.country, valueEur: value(row.valueEur) }
+}
+
+export async function matchPlayersForStagedTeams(run: CronRunRow, leagueId: number, afTeamId: string, tmTeamId: string) {
+  const [af] = await db.select().from(marketValueTeamStaging).where(eq(marketValueTeamStaging.id, afTeamId)).limit(1)
+  const [tm] = await db.select().from(marketValueTeamStaging).where(eq(marketValueTeamStaging.id, tmTeamId)).limit(1)
+  if (!af || !tm) throw new Error("Oyuncu eşleştirmesi için takım staging kaydı bulunamadı.")
+
+  const players = await db.select().from(marketValuePlayerStaging).where(eq(marketValuePlayerStaging.runId, run.id))
+  const afPlayers = players.filter((row) => row.teamStagingId === af.id && row.side === "af")
+  const tmPlayers = players.filter((row) => row.teamStagingId === tm.id && row.side === "tm")
+  for (const playerResult of matchPlayers(afPlayers.map(entity), tmPlayers.map(entity))) {
+    const afPlayer = afPlayers.find((row) => row.externalId === playerResult.af?.externalId)
+    const tmPlayer = tmPlayers.find((row) => row.externalId === playerResult.tm?.externalId)
+    if (!afPlayer) continue
+    if (playerResult.status === "matched" && tmPlayer) {
+      await db.insert(playerMarketValue).values({ id: crypto.randomUUID(), playerId: Number(afPlayer.externalId), teamId: Number(af.externalId), playerName: afPlayer.name, fullName: tmPlayer.name, playerCountry: afPlayer.country, transfermarktPlayerId: tmPlayer.externalId, transfermarktPlayerCountry: tmPlayer.country, valueEur: tmPlayer.valueEur, nameMatchPercent: playerResult.nameMatchPercent, countryMatchPercent: playerResult.countryMatchPercent, matchConfidence: playerResult.confidence, lastScrapedAt: new Date() }).onConflictDoNothing()
+    } else {
+      await queueReview(run, { entityType: "player", leagueId, afName: afPlayer.name, afCountry: afPlayer.country, tmName: tmPlayer?.name ?? null, tmCountry: tmPlayer?.country ?? null, tmValueEur: value(tmPlayer?.valueEur ?? null), confidence: playerResult.confidence, afTeamStagingId: af.id, tmTeamStagingId: tm.id, afPlayerStagingId: afPlayer.id, tmPlayerStagingId: tmPlayer?.id })
+    }
+  }
 }
 
 async function matchOneLeague(run: CronRunRow) {
@@ -123,16 +149,7 @@ async function matchOneLeague(run: CronRunRow) {
     if (!af) continue
     if (result.status === "matched" && tm) {
       await db.insert(teamMarketValue).values({ id: crypto.randomUUID(), teamId: Number(af.externalId), leagueId, teamName: af.name, teamCountry: af.country, transfermarktTeamId: tm.externalId, transfermarktTeamName: tm.name, transfermarktTeamCountry: tm.country, totalValueEur: tm.valueEur, nameMatchPercent: result.nameMatchPercent, countryMatchPercent: result.countryMatchPercent, matchConfidence: result.confidence, lastScrapedAt: new Date() })
-      const players = await db.select().from(marketValuePlayerStaging).where(eq(marketValuePlayerStaging.runId, run.id))
-      const afPlayers = players.filter((row) => row.teamStagingId === af.id && row.side === "af")
-      const tmPlayers = players.filter((row) => row.teamStagingId === tm.id && row.side === "tm")
-      for (const playerResult of matchPlayers(afPlayers.map(entity), tmPlayers.map(entity))) {
-        const afPlayer = afPlayers.find((row) => row.externalId === playerResult.af?.externalId)
-        const tmPlayer = tmPlayers.find((row) => row.externalId === playerResult.tm?.externalId)
-        if (!afPlayer) continue
-        if (playerResult.status === "matched" && tmPlayer) await db.insert(playerMarketValue).values({ id: crypto.randomUUID(), playerId: Number(afPlayer.externalId), teamId: Number(af.externalId), playerName: afPlayer.name, fullName: tmPlayer.name, playerCountry: afPlayer.country, transfermarktPlayerId: tmPlayer.externalId, transfermarktPlayerCountry: tmPlayer.country, valueEur: tmPlayer.valueEur, nameMatchPercent: playerResult.nameMatchPercent, countryMatchPercent: playerResult.countryMatchPercent, matchConfidence: playerResult.confidence, lastScrapedAt: new Date() })
-        else await queueReview(run, { entityType: "player", leagueId, afName: afPlayer.name, afCountry: afPlayer.country, tmName: tmPlayer?.name ?? null, tmCountry: tmPlayer?.country ?? null, tmValueEur: value(tmPlayer?.valueEur ?? null), confidence: playerResult.confidence, afTeamStagingId: af.id, tmTeamStagingId: tm.id, afPlayerStagingId: afPlayer.id, tmPlayerStagingId: tmPlayer?.id })
-      }
+      await matchPlayersForStagedTeams(run, leagueId, af.id, tm.id)
     } else await queueReview(run, { entityType: "team", leagueId, afName: af.name, afCountry: af.country, tmName: tm?.name ?? null, tmCountry: tm?.country ?? null, tmValueEur: value(tm?.valueEur ?? null), confidence: result.confidence, afTeamStagingId: af.id, tmTeamStagingId: tm?.id })
   }
   const next = run.currentLeagueIndex + 1
@@ -167,6 +184,21 @@ export async function fireChainStepWithoutAwaitingResponse(url: string, headers:
   } finally {
     clearTimeout(timer)
   }
+}
+
+export async function processCronRunBatch(initialRun: CronRunRow, budgetMs = 50_000): Promise<{ run: CronRunRow; done: boolean; steps: number }> {
+  const deadline = Date.now() + budgetMs
+  let run = initialRun
+  let steps = 0
+
+  while (Date.now() < deadline && run.status === "running") {
+    const result = await processCronRunStep(run)
+    run = result.run
+    steps++
+    if (result.done || result.run.lastError) return { run, done: result.done, steps }
+  }
+
+  return { run, done: run.phase === "done", steps }
 }
 
 export async function wipeAllMarketValueData() {

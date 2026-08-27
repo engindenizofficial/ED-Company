@@ -1,4 +1,5 @@
-import { getActiveCronRun, processCronRunStep } from "@/lib/market-value-cron-run"
+import { pool } from "@/lib/db"
+import { getActiveCronRun, processCronRunBatch } from "@/lib/market-value-cron-run"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -11,16 +12,27 @@ function isAuthorized(request: Request) {
 export async function GET(request: Request) {
   if (!isAuthorized(request)) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  const active = await getActiveCronRun()
-  if (!active) return Response.json({ done: false, skipped: "noActiveRun" })
+  const lockClient = await pool.connect()
+  const lockKey = 884_210_731
+  try {
+    const lockResult = await lockClient.query<{ locked: boolean }>("select pg_try_advisory_lock($1) as locked", [lockKey])
+    if (!lockResult.rows[0]?.locked) return Response.json({ done: false, skipped: "workerAlreadyRunning" })
 
-  const result = await processCronRunStep(active)
-  return Response.json({
-    done: result.done,
-    runId: result.run.id,
-    phase: result.run.phase,
-    currentLeagueIndex: result.run.currentLeagueIndex,
-    currentTeamIndex: result.run.currentTeamIndex,
-    lastError: result.run.lastError,
-  })
+    const active = await getActiveCronRun()
+    if (!active) return Response.json({ done: false, skipped: "noActiveRun" })
+
+    const result = await processCronRunBatch(active)
+    return Response.json({
+      done: result.done,
+      steps: result.steps,
+      runId: result.run.id,
+      phase: result.run.phase,
+      currentLeagueIndex: result.run.currentLeagueIndex,
+      currentTeamIndex: result.run.currentTeamIndex,
+      lastError: result.run.lastError,
+    })
+  } finally {
+    await lockClient.query("select pg_advisory_unlock($1)", [lockKey]).catch(() => undefined)
+    lockClient.release()
+  }
 }
