@@ -1,93 +1,37 @@
 import * as cheerio from "cheerio"
 import { FEATURED_LEAGUE_IDS } from "./api-football"
 import { toTurkishCountry } from "./tr-aliases"
-import { getTmSession, setTmSession, getTmDelayMs, recordTmSuccess, recordTmBlock, type TmSystem } from "./redis"
 
 // ---------------------------------------------------------------------------
 // Transfermarkt scraping katmanı.
 //
-// Bu modül SADECE cron job (haftalık güncelleme) tarafından çağrılır.
-// Uygulamanın kullanıcıya açık kısımları bu modülü asla import etmez —
-// onlar lib/market-values.ts üzerinden veritabanından okur.
+// Bu modül SADECE admin tarafından tetiklenen tarama zinciri (bkz.
+// lib/market-value-cron-run.ts) tarafından çağrılır. Uygulamanın kullanıcıya
+// açık kısımları bu modülü asla import etmez — onlar lib/market-values.ts
+// üzerinden veritabanından okur.
 //
 // Transfermarkt, URL'deki "slug" metnini önemsemiyor; sadece competition
 // kodu (örn. TR1) ve takım/oyuncu id'si eşleşirse doğru sayfaya yönlendirir.
 // Bu sayede her lig/takım için gerçek slug'ı bilmemize gerek yok.
 //
-// ÖNCELİK: kullanıcının açık talebiyle bu modülde HIZ'dan önce "hiç blok
-// yememe" önceliklidir. Aşağıdaki mekanizmalar (kalıcı oturum kimliği,
-// soft-block tespiti, adaptif gecikme) bu yüzden var — hiçbiri "asla blok
-// yenmez" garantisi VERMEZ (Transfermarkt'ın bot koruması bizim
-// kontrolümüzde değil), ama blok riskini gözle görülür şekilde azaltmayı
-// hedefler.
+// Basit ve öngörülebilir model: her istek arasında SABİT 3 saniye beklenir,
+// hiçbir retry/backoff/oturum kalıcılığı yoktur. Bir istek başarısız olursa
+// (403/429/5xx/ağ hatası) doğrudan hata fırlatılır — üst katman (bkz.
+// lib/market-value-cron-run.ts) zincirin bir sonraki QStash tetiklemesinde
+// aynı adımı otomatik olarak tekrar dener.
 // ---------------------------------------------------------------------------
-
-/**
- * Gerçekçi masaüstü tarayıcı User-Agent'ları. Her invocation için (Redis'te
- * kayıtlı bir oturum yoksa) rastgele biri seçilir ve o oturumun ÇEREZİYLE
- * BİRLİKTE sabitlenir (bkz. ensureIdentityHydrated). Aynı çerezle her istekte
- * farklı bir User-Agent göndermek — yani "kimlik" değişse bile "oturum" aynı
- * kalıyormuş gibi davranmak — bazı bot korumalarında hiç çerez göndermemekten
- * bile daha güçlü bir şüphe sinyalidir; bu yüzden UA request bazında DEĞİL,
- * oturum bazında seçilir.
- */
-const USER_AGENT_POOL = [
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
-]
 
 const BASE_URL = "https://www.transfermarkt.com"
 
-// Tüm modül boyunca (yani tek bir invocation içinde) TEK bir çerez kutusu +
-// User-Agent paylaşılıyor. Serverless her invocation'da module state'i
-// SIFIRLAR — öncesinde bu, her yeni cron çağrısının Cloudflare'a "yepyeni bir
-// ziyaretçi" gibi görünmesine yol açıyordu. Şimdi bu kimlik Redis'e kalıcı
-// yazılıyor (bkz. ensureIdentityHydrated/persistIdentity) ve bir sonraki
-// invocation'da geri yükleniyor — art arda gelen cron çağrıları da (aynı
-// ~20dk'lık pencere içinde) "devam eden aynı oturum" gibi görünür.
-let sharedCookieJar = ""
-let sharedUserAgent = USER_AGENT_POOL[0]
-let identityHydrated = false
+/** Tüm istekler için tek, sabit bir masaüstü tarayıcı User-Agent'ı. */
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 
-/** İlk fetchHtml çağrısında Redis'ten kalıcı oturumu (çerez + UA) yükler; yoksa yeni bir kimlik seçip Redis'e yazar. */
-async function ensureIdentityHydrated(): Promise<void> {
-  if (identityHydrated) return
-  identityHydrated = true
-  const session = await getTmSession()
-  if (session?.cookieJar) sharedCookieJar = session.cookieJar
-  if (session?.userAgent) {
-    sharedUserAgent = session.userAgent
-  } else {
-    sharedUserAgent = USER_AGENT_POOL[Math.floor(Math.random() * USER_AGENT_POOL.length)]
-    await persistIdentity()
-  }
-}
+/** Sayfa istekleri arasında beklenen sabit süre (ms). */
+export const TM_REQUEST_DELAY_MS = 3000
 
-async function persistIdentity(): Promise<void> {
-  await setTmSession({ cookieJar: sharedCookieJar, userAgent: sharedUserAgent })
-}
-
-function mergeCookiesFromResponse(res: Response) {
-  const setCookie = res.headers.get("set-cookie")
-  if (!setCookie) return
-  const incoming = setCookie
-    .split(/,(?=[^;]+?=)/)
-    .map((c) => c.split(";")[0].trim())
-    .filter(Boolean)
-  const jar = new Map<string, string>()
-  for (const c of sharedCookieJar.split("; ")) {
-    const [k, v] = c.split("=")
-    if (k && v) jar.set(k, v)
-  }
-  for (const c of incoming) {
-    const [k, v] = c.split("=")
-    if (k && v) jar.set(k, v)
-  }
-  sharedCookieJar = Array.from(jar.entries())
-    .map(([k, v]) => `${k}=${v}`)
-    .join("; ")
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /** API-Football lig id'si -> Transfermarkt competition kodu. */
@@ -141,217 +85,54 @@ export interface ScrapedPlayer {
   transfermarktId: string
   name: string
   valueEur: number | null
+  /** Kadro satırındaki bayrak sütunundan okunan uyruk — ekstra istek gerekmez. */
+  nationality: string | null
 }
 
-/** Basit gecikme — Transfermarkt'a art arda çok hızlı istek atmamak için. */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+export interface ScrapedLeagueResult {
+  teams: ScrapedTeam[]
+  leagueName: string | null
+  leagueCountry: string | null
 }
 
 /**
  * Tek bir sayfa isteği için zaman aşımı. Bu OLMADAN, Transfermarkt yanıt
- * vermeden bağlantıyı askıda tutarsa `fetch()` süresiz beklerdi — cron
- * zinciri hiçbir hata/log bırakmadan, serverless'in maxDuration (300s)
- * sınırında SESSİZCE öldürülene kadar tam olarak burada donardı (haftalık
- * lig döngüsünün rastgele bir takımda "sebepsizce" durmasının asıl kök
- * nedeni buydu). Zaman aşımı burada AbortController ile catch bloğuna
- * düşürülüyor, böylece aşağıdaki mevcut retry mantığı devreye giriyor.
- *
- * 8s: gerçek sayfa yanıtları normalde 1-2s içinde gelir, bu yüzden 8s
- * "askıda kalan" bir isteği makul bir sürede fark edip retry'a düşürmeye
- * yeter, ama gerçek (biraz yavaş) bir sunucu yanıtını da erken kesip
- * gereksiz bir retry'a yol açmayacak kadar geniş bir pay bırakır.
+ * vermeden bağlantıyı askıda tutarsa `fetch()` süresiz beklerdi. 8s, gerçek
+ * sayfa yanıtlarının (normalde 1-2s) çok üzerinde bir pay bırakır.
  */
 const FETCH_TIMEOUT_MS = 8_000
 
 /**
- * Transfermarkt'ın rate-limit / bot koruması (403 Forbidden, 429 Too Many
- * Requests) ve geçici sunucu hataları (5xx) için kullanılan, giderek uzayan
- * bekleme süreleri.
- *
- * KARAR (kullanıcı geri bildirimiyle netleşti): önceki "hızlı-başarısız-ol,
- * atla, devam et" yaklaşımı burada TERK EDİLDİ. Kullanıcı açıkça "hiç hata
- * istemiyorum, sistem yavaş olsun ama hiçbir oyuncu atlanmasın/kalıcı hata
- * yemesin" dedi — yani onun tanımında "hata" = bir oyuncunun verisinin hiç
- * alınamadan es geçilmesi, "yavaşlık" ise kabul edilebilir bir maliyet.
- * Bu iki tanım birbirinden ayrıldığında doğru strateji de değişiyor: bloklu
- * bir istekte ısrar edip retry yapmak (yavaş ama veri kaybı yok) burada
- * "atlayıp devam etmek"ten (hızlı ama veri kaybı riski var) DAHA DOĞRU
- * çünkü kullanıcı hız > veri bütünlüğü tercih etmiyor, tam tersini istiyor.
- *
- * Bu yüzden bu dizi 3 adımlı, giderek uzayan (1.5s / 4s / 10s) haline geri
- * döndürüld�� — worst-case tek oyuncu için ~4×8s+15.5s ≈ 47.5s olabilir, ama
- * bu YALNIZCA gerçekten üst üste 4 kez engellenirse gerçekleşir. Bunun
- * SIKLIĞINI düşürmek için asıl güvence burada değil, istekler arası TABAN
- * gecikmenin kod tabanının kendi deneyinde "en kararlı" bulunan seviyede
- * (3000ms, bkz. player-position-sync.ts) sabit tutulmasında — yani retry
- * merdiveni bir GÜVENLİK AĞI, günlük çalışma modu değil.
+ * Transfermarkt sayfasını indirir. SADECE 404 (sayfa gerçekten yok) "veri
+ * yok" sayılıp null döner. Diğer her durumda (403/429/5xx/ağ hatası/timeout)
+ * hata FIRLATILIR — hiçbir retry/backoff YAPILMAZ. Üst katman (bkz.
+ * lib/market-value-cron-run.ts -> processCronRunStep) bu hatayı yakalayıp
+ * `phase: "error"` yazar; zincirin bir sonraki QStash tetiklemesi aynı adımı
+ * otomatik olarak tekrar dener.
  */
-const BLOCKING_RETRY_DELAYS_MS: number[] = []
+async function fetchHtml(url: string): Promise<string | null> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": USER_AGENT,
+        "Accept-Language": "en-US,en;q=0.9",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      },
+      redirect: "follow",
+      signal: controller.signal,
+    })
 
-/**
- * Transfermarkt bazen 403/429/5xx DÖNMEDEN, düz 200 ile bir Cloudflare
- * "meydan okuma" (challenge) sayfası gönderir — gerçek içerik yerine
- * JS/captcha bekleyen ara sayfa. Önceden bu durum fark edilmiyordu: `res.ok`
- * true olduğu için fonksiyon bu sahte içeriği "başarılı" sayıp döndürüyordu,
- * cheerio de içinde aradığı elementleri bulamayınca sessizce "0 sonuç" ile
- * devam ediyordu — yani bir blok, "veri yok" gibi yorumlanabiliyordu.
- * Burada bilinen meydan okuma imzaları + anormal küçük yanıt boyutu ile bu
- * durum "soft block" olarak yakalanıp normal 403/429 gibi retry+backoff'a
- * düşürülüyor.
- */
-const BLOCK_PAGE_MARKERS = [
-  "Attention Required! | Cloudflare",
-  "cf-browser-verification",
-  "Checking your browser before accessing",
-  "Just a moment...",
-  "cf_chl_opat",
-  "id=\"challenge-form\"",
-]
-
-function looksLikeBlockPage(html: string): boolean {
-  // Gerçek Transfermarkt sayfaları (lig/takım/oyuncu) her zaman birkaç KB'ın
-  // üzerindedir; bu kadar kısa bir yanıt normal bir sayfa olamaz.
-  if (html.length < 400) return true
-  return BLOCK_PAGE_MARKERS.some((marker) => html.includes(marker))
-}
-
-/**
- * İstekler arası bekleme süresini döndürür. Sabit bir taban değer DEĞİL,
- * `system`'e (bkz. TmSystem) özel, kendi kendine kalibre olan bir AIMD
- * mekanizmasının şu anki değeridir (bkz. lib/redis.ts -> getTmDelayMs /
- * recordTmSuccess / recordTmBlock). Jitter YOK — kullanıcı kararıyla
- * kaldırıldı, gecikme artık tamamen bu mekanizmanın ürettiği değere sabit.
- *
- * mevki taraması ("player-position") ve piyasa değeri taraması
- * ("market-value") birbirinden TAMAMEN BAĞIMSIZ kalibre olur — biri
- * bloklansa da diğerinin gecikmesi etkilenmez.
- */
-export async function getAdaptiveDelayMs(system: TmSystem): Promise<number> {
-  return getTmDelayMs(system)
-}
-
-/**
- * Transfermarkt sayfasını indirir. Geçici ağ hatalarında, 5xx'lerde,
- * rate-limit/bot koruması yanıtlarında (403/429) ve "soft block" (200 ama
- * meydan okuma sayfası) durumlarında giderek uzayan beklemelerle birkaç kez
- * tekrar dener (429 için "Retry-After" header'ı varsa ona uyar).
- *
- * ÖNEMLİ — SADECE 404 (sayfa gerçekten yok) "veri yok" sayılıp null döner.
- * Tüm denemeler tükendiğinde diğer her durumda (403/429/5xx/soft-block/ağ
- * hatası) bu fonksiyon artık sessizce null DÖNMEZ, hata FIRLATIR. Önceden
- * null dönmesi, çağıran tarafın (scrapeLeagueTeams/scrapeTeamSquad) bunu "bu
- * ligde/takımda hiç oyuncu/takım yok" ile ayırt edememesine ve cron'un
- * bloklanan bir ligi sessizce "başarılı, 0 eşleşme" olarak işaretlemesine yol
- * açıyordu — hiçbir hata görünmediği için sorun fark edilemiyordu. Artık bu
- * hata lib/market-value-sync.ts -> prepareLeagueTeamSync üzerinden
- * lib/market-value-cron-run.ts -> prepareLeagueWithRetries'e kadar
- * propagate olur; o katman ligi yeniden dener ve son çare olarak "failed"
- * işaretleyip admin panelindeki "X lig başarısız" göstergesine yansıtır.
- */
-async function fetchHtml(
-  url: string,
-  system: TmSystem,
-  retries = BLOCKING_RETRY_DELAYS_MS.length,
-): Promise<string | null> {
-  await ensureIdentityHydrated()
-  let lastError: string | null = null
-  // Bir tek fetchHtml çağrısı içindeki retry denemeleri TEK bir gerçek AIMD
-  // olayı sayılmalı — yoksa tek bir bloklanan istek (3 retry tükenince)
-  // gecikmeyi bir çağrıda 3 kez ×1.8 artırıp anında üst sınıra sıçratabilir.
-  let blockRecordedThisCall = false
-  const recordBlockOnce = async () => {
-    if (blockRecordedThisCall) return
-    blockRecordedThisCall = true
-    await recordTmBlock(system)
-  }
-
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": sharedUserAgent,
-          "Accept-Language": "en-US,en;q=0.9",
-          // Gerçek bir tarayıcıya daha yakın bir istek imzası, Transfermarkt'ın
-          // bot korumasının tetiklenme sıklığını azaltmayı hedefler (daha az
-          // 403/429 = daha az retry'a düşme = ortalama sürede iyileşme).
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-          "Accept-Encoding": "gzip, deflate, br",
-          "Upgrade-Insecure-Requests": "1",
-          "Sec-Fetch-Dest": "document",
-          "Sec-Fetch-Mode": "navigate",
-          "Sec-Fetch-Site": "same-origin",
-          // Sitenin kendi içinden geliyormuş gibi görünmek için — gerçek bir
-          // tarayıcıda ard arda sayfa gezintisinde Referer hep dolu olur.
-          Referer: `${BASE_URL}/`,
-          // Bkz. modül üstündeki sharedCookieJar/sharedUserAgent açıklaması —
-          // Cloudflare'ın önceki yanıtta verdiği çerezi geri göndererek
-          // "devam eden aynı oturum" görüntüsü veriyoruz.
-          ...(sharedCookieJar ? { Cookie: sharedCookieJar } : {}),
-        },
-        redirect: "follow",
-        signal: controller.signal,
-      })
-      mergeCookiesFromResponse(res)
-      await persistIdentity()
-
-      if (!res.ok) {
-        if (res.status === 404) {
-          // Sayfa gerçekten yok — bu bir hata değil, "veri yok" sonucudur.
-          // Blok sinyali de değildir; AIMD açısından da "başarılı" sayılır.
-          if (!blockRecordedThisCall) await recordTmSuccess(system)
-          return null
-        }
-        const isBlockOrTransient = res.status >= 500 || res.status === 429 || res.status === 403
-        if (isBlockOrTransient) await recordBlockOnce()
-        if (isBlockOrTransient && attempt < retries) {
-          const retryAfterHeader = res.headers.get("retry-after")
-          const retryAfterMs = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) * 1000 : Number.NaN
-          const delay = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : BLOCKING_RETRY_DELAYS_MS[attempt]
-          console.warn(
-            `[v0] Transfermarkt fetch geçici olarak başarısız (${res.status}), ${delay}ms sonra tekrar denenecek (deneme ${attempt + 1}/${retries + 1}): ${url}`,
-          )
-          await sleep(delay)
-          continue
-        }
-        lastError = `HTTP ${res.status}`
-        break
-      }
-
-      const html = await res.text()
-      if (looksLikeBlockPage(html)) {
-        await recordBlockOnce()
-        if (attempt < retries) {
-          const delay = BLOCKING_RETRY_DELAYS_MS[attempt]
-          console.warn(
-            `[v0] Transfermarkt soft-block algılandı (200 ama meydan okuma/anormal küçük sayfa), ${delay}ms sonra tekrar denenecek (deneme ${attempt + 1}/${retries + 1}): ${url}`,
-          )
-          await sleep(delay)
-          continue
-        }
-        lastError = "Soft block (meydan okuma sayfası)"
-        break
-      }
-      if (!blockRecordedThisCall) await recordTmSuccess(system)
-      return html
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : "Bilinmeyen hata"
-      await recordBlockOnce()
-      if (attempt < retries) {
-        await sleep(BLOCKING_RETRY_DELAYS_MS[attempt])
-        continue
-      }
-      break
-    } finally {
-      clearTimeout(timeoutId)
+    if (!res.ok) {
+      if (res.status === 404) return null
+      throw new Error(`HTTP ${res.status} ${res.statusText}`)
     }
-  }
 
-  console.error(`[v0] Transfermarkt fetch tüm denemelerden sonra başarısız oldu (${lastError}): ${url}`)
-  throw new Error(`Transfermarkt fetch başarısız oldu (${lastError ?? "bilinmeyen hata"}): ${url}`)
+    return await res.text()
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 /**
@@ -378,19 +159,20 @@ function extractIdFromHref(href: string | undefined, kind: "verein" | "spieler")
 }
 
 /**
- * Bir ligin (competition) takım listesini + toplam kadro piyasa değerini çeker.
- * API-Football lig id'si alır, LEAGUE_TO_TRANSFERMARKT_CODE üzerinden kodu bulur.
+ * Bir ligin (competition) takım listesini + toplam kadro piyasa değerini,
+ * lig adını ve (varsa) ülkesini çeker. API-Football lig id'si alır,
+ * LEAGUE_TO_TRANSFERMARKT_CODE üzerinden kodu bulur.
  */
-export async function scrapeLeagueTeams(leagueId: number): Promise<ScrapedTeam[]> {
+export async function scrapeLeagueTeams(leagueId: number): Promise<ScrapedLeagueResult> {
   const code = LEAGUE_TO_TRANSFERMARKT_CODE[leagueId]
   if (!code) {
     console.warn(`[v0] Lig id ${leagueId} için Transfermarkt kodu tanımlı değil, atlanıyor.`)
-    return []
+    return { teams: [], leagueName: null, leagueCountry: null }
   }
 
   const url = `${BASE_URL}/wettbewerb/startseite/wettbewerb/${code}`
-  const html = await fetchHtml(url, "market-value")
-  if (!html) return []
+  const html = await fetchHtml(url)
+  if (!html) return { teams: [], leagueName: null, leagueCountry: null }
 
   const $ = cheerio.load(html)
   const teams: ScrapedTeam[] = []
@@ -398,60 +180,82 @@ export async function scrapeLeagueTeams(leagueId: number): Promise<ScrapedTeam[]
   // Lig sayfasında "compact" ve "detailed" görünüm için aynı içerikte iki
   // table.items render edilir (biri CSS ile gizli). Sadece ilkini kullan,
   // yoksa her takım iki kez sayılır.
-  $("table.items").first().find("> tbody > tr").each((_, el) => {
-    const row = $(el)
-    const nameLink = row.find("td.hauptlink.no-border-links a[title]").first()
-    const name = nameLink.attr("title")?.trim()
-    const transfermarktId = extractIdFromHref(nameLink.attr("href"), "verein")
-    if (!name || !transfermarktId) return
+  $("table.items")
+    .first()
+    .find("> tbody > tr")
+    .each((_, el) => {
+      const row = $(el)
+      const nameLink = row.find("td.hauptlink.no-border-links a[title]").first()
+      const name = nameLink.attr("title")?.trim()
+      const transfermarktId = extractIdFromHref(nameLink.attr("href"), "verein")
+      if (!name || !transfermarktId) return
 
-    // Toplam piyasa değeri her zaman son "rechts" hücresindedir.
-    const lastValueCell = row.find("td.rechts").last()
-    const totalValueEur = parseMarketValueToEur(lastValueCell.text())
+      // Toplam piyasa değeri her zaman son "rechts" hücresindedir.
+      const lastValueCell = row.find("td.rechts").last()
+      const totalValueEur = parseMarketValueToEur(lastValueCell.text())
 
-    teams.push({ transfermarktId, name, totalValueEur })
-  })
+      teams.push({ transfermarktId, name, totalValueEur })
+    })
 
-  return teams
+  // Lig adı + ülkesi sayfanın üst bilgi bloğundan (.data-header) okunur.
+  const leagueNameRaw = $(".data-header__headline-wrapper").first().text().trim()
+  const leagueName = leagueNameRaw.length > 0 ? leagueNameRaw.replace(/\s+/g, " ") : null
+  const leagueCountryRaw = $(".data-header__club-info img.flaggenrahmen, .data-header__box--big img.flaggenrahmen")
+    .first()
+    .attr("title")
+    ?.trim()
+  const leagueCountry = leagueCountryRaw ? toTurkishCountry(leagueCountryRaw) : null
+
+  return { teams, leagueName, leagueCountry }
 }
 
 /**
- * Bir takımın kadrosundaki oyuncuları ve piyasa değerlerini çeker.
- * transfermarktTeamId, scrapeLeagueTeams() çıktısından gelir.
+ * Bir takımın kadrosundaki oyuncuları, piyasa değerlerini ve uyruklarını
+ * çeker. transfermarktTeamId, scrapeLeagueTeams() çıktısından gelir. Uyruk,
+ * aynı kadro satırındaki bayrak sütunundan okunur — bunun için oyuncu
+ * başına EKSTRA bir HTTP isteği açılmaz.
  */
 export async function scrapeTeamSquad(transfermarktTeamId: string): Promise<ScrapedPlayer[]> {
   const url = `${BASE_URL}/x/kader/verein/${transfermarktTeamId}/plus/1`
-  const html = await fetchHtml(url, "market-value")
+  const html = await fetchHtml(url)
   if (!html) return []
 
   const $ = cheerio.load(html)
   const players: ScrapedPlayer[] = []
 
-  $("table.items").first().find("> tbody > tr").each((_, el) => {
-    const row = $(el)
-    const nameLink = row.find("td.posrela table.inline-table a").first()
-    const name = nameLink.text().trim()
-    const transfermarktId = extractIdFromHref(nameLink.attr("href"), "spieler")
-    if (!name || !transfermarktId) return
+  $("table.items")
+    .first()
+    .find("> tbody > tr")
+    .each((_, el) => {
+      const row = $(el)
+      const nameLink = row.find("td.posrela table.inline-table a").first()
+      const name = nameLink.text().trim()
+      const transfermarktId = extractIdFromHref(nameLink.attr("href"), "spieler")
+      if (!name || !transfermarktId) return
 
-    const valueCell = row.find("td.rechts.hauptlink").last()
-    const valueEur = parseMarketValueToEur(valueCell.text())
+      const valueCell = row.find("td.rechts.hauptlink").last()
+      const valueEur = parseMarketValueToEur(valueCell.text())
 
-    players.push({ transfermarktId, name, valueEur })
-  })
+      // Kadro tablosunda uyruk bayrağı standart olarak "zentriert" (ortalı)
+      // bir hücrede img.flaggenrahmen olarak yer alır — birden fazla uyruk
+      // varsa ilk bayrak ana uyruk sayılır.
+      const nationalityRaw = row.find("td.zentriert img.flaggenrahmen").first().attr("title")?.trim()
+      const nationality = nationalityRaw ? toTurkishCountry(nationalityRaw) : null
+
+      players.push({ transfermarktId, name, valueEur, nationality })
+    })
 
   return players
 }
 
 /**
  * Bir Transfermarkt takımının ülkesini (oynadığı lig ülkesi) döndürür.
- * SADECE piyasa değeri manuel gözden geçirme kuyruğu (review queue) için
- * kullanılır — belirsiz eşleşmelerde admin'e karşılaştırma imkanı verir.
- * Otomatik eşleşen takımlar için çağrılmaz.
+ * Fallback olarak kullanılır — kupa liglerinde takımlar farklı ülkelerden
+ * geldiği için her zaman çağrılır; lig sayfasında ayrıca ülke bilgisi yoktur.
  */
 export async function scrapeTeamCountry(transfermarktTeamId: string): Promise<string | null> {
   const url = `${BASE_URL}/x/startseite/verein/${transfermarktTeamId}`
-  const html = await fetchHtml(url, "market-value")
+  const html = await fetchHtml(url)
   if (!html) return null
 
   const $ = cheerio.load(html)
@@ -464,12 +268,12 @@ export async function scrapeTeamCountry(transfermarktTeamId: string): Promise<st
 
 /**
  * Bir Transfermarkt oyuncusunun uyruğunu (birden fazlaysa "/" ile ayrılmış)
- * döndürür. SADECE piyasa değeri manuel gözden geçirme kuyruğu için
- * kullanılır (bkz. scrapeTeamCountry).
+ * döndürür. SADECE `scrapeTeamSquad`'ın satırdan uyruk bulamadığı (nadir)
+ * durumlarda fallback olarak çağrılır.
  */
 export async function scrapePlayerNationality(transfermarktPlayerId: string): Promise<string | null> {
   const url = `${BASE_URL}/x/profil/spieler/${transfermarktPlayerId}`
-  const html = await fetchHtml(url, "market-value")
+  const html = await fetchHtml(url)
   if (!html) return null
 
   const $ = cheerio.load(html)
@@ -492,7 +296,8 @@ export interface ScrapedPlayerPosition {
 /**
  * Bir Transfermarkt oyuncu profilinden ana/yan mevki bilgisini çeker.
  * SADECE arka planda kademeli çalışan mevki backfill'i (bkz.
- * lib/player-position-sync.ts) tarafından çağrılır.
+ * lib/player-position-sync.ts) tarafından çağrılır — piyasa değeri sistemi
+ * bu fonksiyonu kullanmaz.
  *
  * Profil sayfasındaki ilgili blok tek bir <dl> içinde sıralı dt/dd
  * çiftlerinden oluşur: `<dt>Main position:</dt><dd>...</dd>` ardından
@@ -502,7 +307,7 @@ export interface ScrapedPlayerPosition {
  */
 export async function scrapePlayerPosition(transfermarktPlayerId: string): Promise<ScrapedPlayerPosition | null> {
   const url = `${BASE_URL}/x/profil/spieler/${transfermarktPlayerId}`
-  const html = await fetchHtml(url, "player-position")
+  const html = await fetchHtml(url)
   if (!html) return null
 
   const $ = cheerio.load(html)
@@ -530,5 +335,5 @@ export async function scrapePlayerPosition(transfermarktPlayerId: string): Promi
   return { mainPosition, secondaryPositions }
 }
 
-/** Cron job'ın sırayla çağıracağı, tüm desteklenen 24 ligin id listesi. */
+/** Cron job'ın sırayla çağıracağı, tüm desteklenen ligin id listesi. */
 export const SCRAPABLE_LEAGUE_IDS: number[] = FEATURED_LEAGUE_IDS

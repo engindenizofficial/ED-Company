@@ -1,22 +1,24 @@
-import { getLeagueTeams, getSquad } from "./api-football"
+import { getLeagueTeams, getSquad, getPlayerNationality } from "./api-football"
+import { toTurkishCountry } from "./tr-aliases"
 import type { ScrapedTeam, ScrapedPlayer } from "./transfermarkt-scraper"
 
 // ---------------------------------------------------------------------------
-// İsim eşleştirme (fuzzy matching) katmanı.
+// İsim + ülke eşleştirme (fuzzy matching) katmanı.
 //
 // API-Football ve Transfermarkt birbirinden bağımsız veritabanları; ortak
-// bir ID yok. Elimizde sadece isim (string) var. Bu modül:
-//   1. Takımları lig içinde isim benzerliğiyle eşleştirir.
-//   2. Oyuncuları SADECE eşleşen takımın kadrosu içinde arar (arama alanını
-//      binlerce oyuncudan ~25'e düşürür, hata payını azaltır).
-//   3. Güven skoru eşiğin altında kalan adayları "review" (belirsiz) olarak
-//      işaretler — yanlış eşleştirmek yerine boş bırakır.
+// bir ID yok. Elimizde isim VE (varsa) ülke bilgisi var. Bu modül:
+//   1. Lig/takım/oyuncu isim benzerliğini hesaplar.
+//   2. Aynı entity için ülke benzerliğini hesaplar (varsa).
+//   3. İkisinin ortalamasını (`combinedMatchScore`) tek bir güven skoruna
+//      çevirir — ülke bilgisi eksikse sadece isim skoruna bakılır.
+//   4. Skor eşiğin altında kalan adaylar "review" (belirsiz) olarak
+//      işaretlenir — yanlış eşleştirmek yerine boş bırakılır.
 //
-// Yalnızca cron job tarafından çağrılır.
+// Yalnızca admin'in tetiklediği tarama zinciri tarafından çağrılır.
 // ---------------------------------------------------------------------------
 
 /** Bu skorun (0-100) altındaki eşleşmeler otomatik onaylanmaz, review kuyruğuna düşer. */
-export const AUTO_MATCH_CONFIDENCE_THRESHOLD = 82
+export const AUTO_MATCH_CONFIDENCE_THRESHOLD = 75
 
 /** İsmi normalize eder: küçük harf, aksan/Türkçe karakter temizliği, noktalama/boşluk sadeleştirme. */
 export function normalizeName(raw: string): string {
@@ -126,6 +128,64 @@ export function playerSimilarityScore(a: string, b: string): number {
   return Math.max(fullScore, combined)
 }
 
+/**
+ * İki ülke adı arasındaki benzerliği 0-100 skora çevirir. `toTurkishCountry`
+ * ile normalize edilir (İngilizce/Türkçe farkını gidermek için), sonra tam
+ * eşleşme veya bigram benzerliği kullanılır.
+ */
+export function countrySimilarityScore(a: string, b: string): number {
+  const na = normalizeName(toTurkishCountry(a))
+  const nb = normalizeName(toTurkishCountry(b))
+  if (na === nb) return 100
+  return rawBigramSimilarity(na, nb)
+}
+
+/**
+ * İsim skoru ile (varsa) ülke skorunun ortalamasını alır. Ülke bilgisi her
+ * iki tarafta da mevcutsa `(nameScore + countryScore) / 2`, eksikse
+ * (API-Football veya Transfermarkt tarafında null) sadece `nameScore`
+ * kullanılır — veri eksikliği cezalandırılmaz.
+ */
+export function combinedMatchScore(nameScore: number, countryScore: number | null): number {
+  if (countryScore === null) return Math.round(nameScore)
+  return Math.round((nameScore + countryScore) / 2)
+}
+
+// ---------------------------------------------------------------------------
+// Lig eşleştirme
+// ---------------------------------------------------------------------------
+
+export interface LeagueMatchResult {
+  nameMatchPercent: number
+  countryMatchPercent: number | null
+  matchPercent: number
+  /** "matched" | "review" — lig kodu eşlemesi sabit olduğundan "unmatched" yok. */
+  matchStatus: "matched" | "review"
+}
+
+/**
+ * Lig eşlemesi kod bazlı (LEAGUE_TO_TRANSFERMARKT_CODE) SABİT olduğu için
+ * burada bir "aday havuzu" aranmaz — sadece bu sabit eşlemenin isim/ülke
+ * açısından hâlâ tutarlı görünüp görünmediği admin'e sinyal olarak hesaplanır.
+ */
+export function matchLeague(
+  apiFootballName: string,
+  apiFootballCountry: string | null,
+  transfermarktName: string | null,
+  transfermarktCountry: string | null,
+): LeagueMatchResult {
+  const nameMatchPercent = transfermarktName ? similarityScore(apiFootballName, transfermarktName) : 0
+  const countryMatchPercent =
+    apiFootballCountry && transfermarktCountry ? countrySimilarityScore(apiFootballCountry, transfermarktCountry) : null
+  const matchPercent = combinedMatchScore(nameMatchPercent, countryMatchPercent)
+  return {
+    nameMatchPercent,
+    countryMatchPercent,
+    matchPercent,
+    matchStatus: matchPercent >= AUTO_MATCH_CONFIDENCE_THRESHOLD ? "matched" : "review",
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Takım eşleştirme
 // ---------------------------------------------------------------------------
@@ -133,6 +193,7 @@ export function playerSimilarityScore(a: string, b: string): number {
 export interface ApiFootballTeamRef {
   id: number
   name: string
+  country: string | null
 }
 
 export interface TeamMatchResult {
@@ -140,7 +201,10 @@ export interface TeamMatchResult {
   apiFootballTeamName: string
   transfermarktTeamId: string | null
   transfermarktTeamName: string | null
+  transfermarktTeamCountry: string | null
   totalValueEur: number | null
+  nameMatchPercent: number
+  countryMatchPercent: number | null
   confidence: number
   status: "matched" | "review" | "unmatched"
 }
@@ -162,25 +226,33 @@ export async function getLeagueTeamsForMatching(leagueId: number, season: number
       seen.set(row.id, row.name)
     }
   }
-  return Array.from(seen.entries()).map(([id, name]) => ({ id, name }))
+  return Array.from(seen.entries()).map(([id, name]) => ({ id, name, country: null }))
 }
 
 /**
  * API-Football takımlarını (bir lig içinde) Transfermarkt'tan scrape edilen
- * takımlarla en iyi isim benzerliğine göre eşleştirir. Her Transfermarkt
+ * takımlarla en iyi isim+ülke benzerliğine göre eşleştirir. Her Transfermarkt
  * takımı en fazla bir API-Football takımına eşlenir (greedy, en yüksek
- * skordan başlayarak).
+ * skordan başlayarak). `teamCountryMap` API-Football takım id'sinden ülkeye,
+ * `transfermarktCountryMap` Transfermarkt takım id'sinden ülkeye eşlenir —
+ * ikisi de opsiyoneldir (bulunamayan takım için skor sadece isme bakar).
  */
 export function matchTeams(
   apiFootballTeams: ApiFootballTeamRef[],
   scrapedTeams: ScrapedTeam[],
+  teamCountryMap: Map<number, string | null>,
+  transfermarktCountryMap: Map<string, string | null>,
 ): TeamMatchResult[] {
-  type Candidate = { af: ApiFootballTeamRef; tm: ScrapedTeam; score: number }
+  type Candidate = { af: ApiFootballTeamRef; tm: ScrapedTeam; nameScore: number; countryScore: number | null; score: number }
   const candidates: Candidate[] = []
 
   for (const af of apiFootballTeams) {
+    const afCountry = teamCountryMap.get(af.id) ?? null
     for (const tm of scrapedTeams) {
-      candidates.push({ af, tm, score: similarityScore(af.name, tm.name) })
+      const tmCountry = transfermarktCountryMap.get(tm.transfermarktId) ?? null
+      const nameScore = similarityScore(af.name, tm.name)
+      const countryScore = afCountry && tmCountry ? countrySimilarityScore(afCountry, tmCountry) : null
+      candidates.push({ af, tm, nameScore, countryScore, score: combinedMatchScore(nameScore, countryScore) })
     }
   }
   candidates.sort((a, b) => b.score - a.score)
@@ -198,7 +270,10 @@ export function matchTeams(
       apiFootballTeamName: c.af.name,
       transfermarktTeamId: c.tm.transfermarktId,
       transfermarktTeamName: c.tm.name,
+      transfermarktTeamCountry: transfermarktCountryMap.get(c.tm.transfermarktId) ?? null,
       totalValueEur: c.tm.totalValueEur,
+      nameMatchPercent: c.nameScore,
+      countryMatchPercent: c.countryScore,
       confidence: c.score,
       status: c.score >= AUTO_MATCH_CONFIDENCE_THRESHOLD ? "matched" : "review",
     })
@@ -212,7 +287,10 @@ export function matchTeams(
         apiFootballTeamName: af.name,
         transfermarktTeamId: null,
         transfermarktTeamName: null,
+        transfermarktTeamCountry: null,
         totalValueEur: null,
+        nameMatchPercent: 0,
+        countryMatchPercent: null,
         confidence: 0,
         status: "unmatched",
       })
@@ -231,7 +309,10 @@ export interface PlayerMatchResult {
   apiFootballPlayerName: string
   transfermarktPlayerId: string | null
   transfermarktPlayerName: string | null
+  transfermarktPlayerCountry: string | null
   valueEur: number | null
+  nameMatchPercent: number
+  countryMatchPercent: number | null
   confidence: number
   status: "matched" | "review" | "unmatched"
 }
@@ -240,21 +321,51 @@ export interface PlayerMatchResult {
  * Bir takımın API-Football kadrosunu Transfermarkt kadrosuyla eşleştirir.
  * Arama SADECE bu takımın kadrosu içinde yapılır (takım zaten eşleşmiş
  * olduğu için), bu yüzden binlerce oyuncu arasında değil, ~25 oyuncu
- * arasında karşılaştırma yapılır.
+ * arasında karşılaştırma yapılır. Uyruk, `scrapedPlayers`'ın kadro
+ * satırından zaten okunmuş halidir (bkz. scrapeTeamSquad) — burada API-Football
+ * tarafı için SADECE eşleşen ~25 oyuncudan `transfermarktPlayerId`
+ * bulunamayanlar için tek tek `getPlayerNationality` çağrılmaz; ülke
+ * karşılaştırması yalnızca Transfermarkt satırında uyruk mevcutsa yapılır ve
+ * API-Football tarafı gerektiğinde `getPlayerNationality` ile (nadiren, tek
+ * seferde) tamamlanır.
  */
 export async function matchPlayersForTeam(
   apiFootballTeamId: number,
   scrapedPlayers: ScrapedPlayer[],
+  season: number,
 ): Promise<PlayerMatchResult[]> {
   const squad = await getSquad(apiFootballTeamId)
 
-  type Candidate = { af: { id: number; name: string }; tm: ScrapedPlayer; score: number }
+  type Candidate = {
+    af: { id: number; name: string }
+    tm: ScrapedPlayer
+    nameScore: number
+    countryScore: number | null
+    score: number
+  }
   const candidates: Candidate[] = []
+
+  // API-Football tarafının uyruğu `getSquad`'da yer almıyor — sadece
+  // Transfermarkt'ın uyruk bulduğu (satırdan okunan) oyuncular için, o
+  // oyuncunun API-Football uyruğu tek seferde (`getPlayerNationality`) çekilir.
+  const afCountryCache = new Map<number, string | null>()
+  async function getAfCountry(playerId: number): Promise<string | null> {
+    if (afCountryCache.has(playerId)) return afCountryCache.get(playerId) ?? null
+    const country = await getPlayerNationality(playerId, season)
+    afCountryCache.set(playerId, country)
+    return country
+  }
 
   for (const af of squad) {
     if (!af.id) continue
     for (const tm of scrapedPlayers) {
-      candidates.push({ af: { id: af.id, name: af.name }, tm, score: playerSimilarityScore(af.name, tm.name) })
+      const nameScore = playerSimilarityScore(af.name, tm.name)
+      let countryScore: number | null = null
+      if (tm.nationality) {
+        const afCountry = await getAfCountry(af.id)
+        countryScore = afCountry ? countrySimilarityScore(afCountry, tm.nationality) : null
+      }
+      candidates.push({ af: { id: af.id, name: af.name }, tm, nameScore, countryScore, score: combinedMatchScore(nameScore, countryScore) })
     }
   }
   candidates.sort((a, b) => b.score - a.score)
@@ -272,7 +383,10 @@ export async function matchPlayersForTeam(
       apiFootballPlayerName: c.af.name,
       transfermarktPlayerId: c.tm.transfermarktId,
       transfermarktPlayerName: c.tm.name,
+      transfermarktPlayerCountry: c.tm.nationality,
       valueEur: c.tm.valueEur,
+      nameMatchPercent: c.nameScore,
+      countryMatchPercent: c.countryScore,
       confidence: c.score,
       status: c.score >= AUTO_MATCH_CONFIDENCE_THRESHOLD ? "matched" : "review",
     })
@@ -286,7 +400,10 @@ export async function matchPlayersForTeam(
         apiFootballPlayerName: af.name,
         transfermarktPlayerId: null,
         transfermarktPlayerName: null,
+        transfermarktPlayerCountry: null,
         valueEur: null,
+        nameMatchPercent: 0,
+        countryMatchPercent: null,
         confidence: 0,
         status: "unmatched",
       })
