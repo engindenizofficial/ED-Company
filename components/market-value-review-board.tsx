@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, useTransition } from "react"
-import { Check, Loader2, ShieldCheck } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, Loader2, ShieldCheck } from "lucide-react"
 import { approveReviewEntry } from "@/app/actions/market-value-review"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,12 +25,39 @@ export interface ReviewQueueItem {
 
 const TYPES = ["league", "team", "player"] as const
 const LABELS = { league: "Ligler", team: "Takımlar", player: "Oyuncular" }
+type SortKey = "value" | "confidence"
+type SortDirection = "desc" | "asc"
+type SortState = { key: SortKey; direction: SortDirection } | null
+
+function SortIcon({ active, direction }: { active: boolean; direction?: SortDirection }) {
+  if (!active) return <ArrowUpDown data-icon="inline-end" />
+  return direction === "desc" ? <ArrowDown data-icon="inline-end" /> : <ArrowUp data-icon="inline-end" />
+}
 
 export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) {
   const [approved, setApproved] = useState(() => new Set(items.filter((item) => item.status === "approved").map((item) => item.id)))
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [sort, setSort] = useState<SortState>(null)
   const [isPending, startTransition] = useTransition()
-  const grouped = useMemo(() => Object.fromEntries(TYPES.map((type) => [type, items.filter((item) => item.entityType === type)])) as Record<(typeof TYPES)[number], ReviewQueueItem[]>, [items])
+  const grouped = useMemo(() => Object.fromEntries(TYPES.map((type) => {
+    const rows = items.filter((item) => item.entityType === type)
+    if (!sort) return [type, rows]
+
+    return [type, [...rows].sort((a, b) => {
+      const aValue = sort.key === "value" ? a.tmValueEur : a.confidence
+      const bValue = sort.key === "value" ? b.tmValueEur : b.confidence
+      if (aValue == null && bValue == null) return 0
+      if (aValue == null) return 1
+      if (bValue == null) return -1
+      return sort.direction === "desc" ? bValue - aValue : aValue - bValue
+    })]
+  })) as Record<(typeof TYPES)[number], ReviewQueueItem[]>, [items, sort])
+
+  function toggleSort(key: SortKey) {
+    setSort((current) => current?.key === key
+      ? { key, direction: current.direction === "desc" ? "asc" : "desc" }
+      : { key, direction: "desc" })
+  }
 
   useEffect(() => {
     setApproved(new Set(items.filter((item) => item.status === "approved").map((item) => item.id)))
@@ -70,7 +97,7 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
                 <CardHeader><CardTitle>{LABELS[type]}</CardTitle><CardDescription>API-Football ve Transfermarkt adayları yan yana gösterilir.</CardDescription></CardHeader>
                 <CardContent className="overflow-x-auto px-0 sm:px-6">
                   <Table>
-                    <TableHeader><TableRow><TableHead>API-Football</TableHead><TableHead>Transfermarkt</TableHead><TableHead>Değer</TableHead><TableHead>Skor</TableHead><TableHead className="text-right">İşlem</TableHead></TableRow></TableHeader>
+                    <TableHeader><TableRow><TableHead>API-Football</TableHead><TableHead>Transfermarkt</TableHead><TableHead aria-sort={sort?.key === "value" ? (sort.direction === "desc" ? "descending" : "ascending") : "none"}><Button variant="ghost" size="sm" aria-label={`Piyasa değerine göre ${sort?.key === "value" && sort.direction === "desc" ? "düşükten yükseğe" : "yüksekten düşüğe"} sırala`} onClick={() => toggleSort("value")}>Piyasa Değeri<SortIcon active={sort?.key === "value"} direction={sort?.direction} /></Button></TableHead><TableHead aria-sort={sort?.key === "confidence" ? (sort.direction === "desc" ? "descending" : "ascending") : "none"}><Button variant="ghost" size="sm" aria-label={`Güven skoruna göre ${sort?.key === "confidence" && sort.direction === "desc" ? "düşükten yükseğe" : "yüksekten düşüğe"} sırala`} onClick={() => toggleSort("confidence")}>Güven Skoru<SortIcon active={sort?.key === "confidence"} direction={sort?.direction} /></Button></TableHead><TableHead className="text-right">İşlem</TableHead></TableRow></TableHeader>
                     <TableBody>{grouped[type].map((item) => {
                       const done = approved.has(item.id)
                       const busy = isPending && pendingId === item.id
