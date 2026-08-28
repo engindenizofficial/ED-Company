@@ -259,3 +259,52 @@ export async function safeApiFootballFetch<T>(
     return []
   }
 }
+
+/**
+ * Yalnızca admin tarafından başlatılan piyasa değeri taraması için kullanılan
+ * sade API-Football istemcisi. Transfermarkt akışıyla aynı şekilde tek tek ve
+ * sıralı çalışır; timeout, retry/backoff, bellek cache'i veya eşzamanlılık
+ * kuyruğu uygulamaz. Hata doğrudan üst katmana çıkar ve dakikalık QStash
+ * gözetmeni aynı kayıt adımını yeniden başlatır.
+ */
+export async function marketValueApiFootballFetch<T>(
+  path: string,
+  params: Record<string, string | number>,
+): Promise<T[]> {
+  const apiKey = process.env.API_FOOTBALL_KEY
+  if (!apiKey) throw new ApiFootballError("API_FOOTBALL_KEY tanımlı değil.", 500)
+
+  const all: T[] = []
+  let page = 1
+  let totalPages = 1
+
+  do {
+    if (page > 1) await sleep(3000)
+
+    const search = new URLSearchParams()
+    for (const [key, value] of Object.entries({ ...params, page })) {
+      search.set(key, String(value))
+    }
+
+    const response = await fetch(`${BASE_URL}${path}?${search.toString()}`, {
+      headers: { "x-apisports-key": apiKey },
+      cache: "no-store",
+    })
+
+    if (!response.ok) {
+      throw new ApiFootballError(`API-Football isteği başarısız (${response.status})`, response.status)
+    }
+
+    const json = await response.json()
+    if (json.errors && !Array.isArray(json.errors) && Object.keys(json.errors).length > 0) {
+      const message = Object.values(json.errors).join(" ")
+      throw new ApiFootballError(String(message || "API-Football hatası"), 502)
+    }
+
+    all.push(...(((json.response as T[]) ?? [])))
+    totalPages = typeof json.paging?.total === "number" ? json.paging.total : 1
+    page++
+  } while (page <= totalPages)
+
+  return all
+}

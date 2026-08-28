@@ -10,14 +10,15 @@ import {
   playerMarketValue,
   teamMarketValue,
 } from "@/lib/db/schema"
-import { apiFootballFetch } from "@/lib/api-football-client"
-import { currentSeason, getLeagueBasicInfo, getTeamCountry } from "@/lib/api-football"
+import { marketValueApiFootballFetch } from "@/lib/api-football-client"
+import { currentSeason } from "@/lib/api-football"
 import { matchLeague, matchPlayers, matchStagedEntities, type StagedEntity } from "@/lib/market-value-matcher"
 import { SCRAPABLE_LEAGUE_IDS, scrapeLeagueTeams, scrapeTeamCountry, scrapeTeamSquad, sleep, TM_REQUEST_DELAY_MS } from "@/lib/transfermarkt-scraper"
 
 export type MarketValuePhase = "tm_leagues" | "tm_players" | "af_leagues" | "af_teams" | "af_players" | "matching" | "done"
 export type CronRunRow = typeof marketValueCronRun.$inferSelect
 
+type ApiLeagueResponse = { league?: { id?: number; name?: string }; country?: { name?: string | null } }
 type ApiTeamResponse = { team?: { id?: number; name?: string; country?: string | null } }
 type ApiPlayerResponse = { player?: { id?: number; name?: string; nationality?: string | null } }
 
@@ -103,8 +104,9 @@ async function stageTmPlayers(run: CronRunRow) {
 
 async function stageAfLeague(run: CronRunRow) {
   const leagueId = SCRAPABLE_LEAGUE_IDS[run.currentLeagueIndex]
-  const info = await getLeagueBasicInfo(leagueId)
-  await db.update(marketValueLeagueStaging).set({ afName: info?.league.name ?? String(leagueId), afCountry: info?.league.country ?? null, updatedAt: new Date() }).where(eq(marketValueLeagueStaging.leagueId, leagueId))
+  if (run.currentLeagueIndex > 0) await sleep(TM_REQUEST_DELAY_MS)
+  const [info] = await marketValueApiFootballFetch<ApiLeagueResponse>("/leagues", { id: leagueId })
+  await db.update(marketValueLeagueStaging).set({ afName: info?.league?.name ?? String(leagueId), afCountry: info?.country?.name ?? null, updatedAt: new Date() }).where(eq(marketValueLeagueStaging.leagueId, leagueId))
   const next = run.currentLeagueIndex + 1
   return updateRun(run.id, next >= SCRAPABLE_LEAGUE_IDS.length ? { phase: "af_teams", currentLeagueIndex: 0 } : { currentLeagueIndex: next })
 }
@@ -112,8 +114,11 @@ async function stageAfLeague(run: CronRunRow) {
 async function stageAfTeams(run: CronRunRow) {
   const leagueId = SCRAPABLE_LEAGUE_IDS[run.currentLeagueIndex]
   const season = currentSeason()
-  const response = await apiFootballFetch<ApiTeamResponse>("/teams", { league: leagueId, season }, { cache: "no-store" })
-  const teams = await Promise.all(response.filter((row) => row.team?.id && row.team?.name).map(async (row) => ({ id: row.team!.id!, name: row.team!.name!, country: row.team!.country ?? await getTeamCountry(row.team!.id!) })))
+  await sleep(TM_REQUEST_DELAY_MS)
+  const response = await marketValueApiFootballFetch<ApiTeamResponse>("/teams", { league: leagueId, season })
+  const teams = response.flatMap((row) => row.team?.id && row.team?.name
+    ? [{ id: row.team.id, name: row.team.name, country: row.team.country ?? null }]
+    : [])
   if (teams.length) await db.insert(marketValueTeamStaging).values(teams.map((team) => ({ id: stagingId(run.id, "af", "team", String(team.id)), runId: run.id, leagueId, side: "af", externalId: String(team.id), name: team.name, country: team.country }))).onConflictDoNothing()
   const next = run.currentLeagueIndex + 1
   return updateRun(run.id, next >= SCRAPABLE_LEAGUE_IDS.length ? { phase: "af_players", currentLeagueIndex: 0, currentTeamIndex: 0 } : { currentLeagueIndex: next })
@@ -123,7 +128,8 @@ async function stageAfPlayers(run: CronRunRow) {
   const teams = await db.select().from(marketValueTeamStaging).where(and(eq(marketValueTeamStaging.runId, run.id), eq(marketValueTeamStaging.side, "af"))).orderBy(asc(marketValueTeamStaging.createdAt))
   const team = teams[run.currentTeamIndex]
   if (!team) return updateRun(run.id, { phase: "matching", currentTeamIndex: 0, currentLeagueIndex: 0 })
-  const players = await apiFootballFetch<ApiPlayerResponse>("/players", { team: Number(team.externalId), season: currentSeason() }, { cache: "no-store" })
+  await sleep(TM_REQUEST_DELAY_MS)
+  const players = await marketValueApiFootballFetch<ApiPlayerResponse>("/players", { team: Number(team.externalId), season: currentSeason() })
   const validPlayers = players.flatMap((row) => row.player?.id && row.player?.name ? [{ id: row.player.id, name: row.player.name, country: row.player.nationality ?? null }] : [])
   if (validPlayers.length) await db.insert(marketValuePlayerStaging).values(validPlayers.map((player) => ({ id: stagingId(run.id, "af", "player", `${team.externalId}:${player.id}`), runId: run.id, teamStagingId: team.id, side: "af", externalId: String(player.id), name: player.name, country: player.country }))).onConflictDoNothing()
   return updateRun(run.id, { currentTeamIndex: run.currentTeamIndex + 1 })
