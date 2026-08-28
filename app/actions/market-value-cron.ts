@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { marketValueCronRun } from "@/lib/db/schema"
-import { createCronRun, wipeAllMarketValueData } from "@/lib/market-value-cron-run"
+import { resetAndCreateCronRun } from "@/lib/market-value-cron-run"
 import { enqueueMarketValueSupervisor, enqueueMarketValueWorker } from "@/lib/market-value-qstash"
 import { SCRAPABLE_LEAGUE_IDS } from "@/lib/transfermarkt-scraper"
 
@@ -53,11 +53,10 @@ export async function getMarketValueCronStatus(): Promise<CronRunStatus | null> 
 
 export async function startMarketValueScan(): Promise<{ started: true; status: CronRunStatus }> {
   await requireAdmin()
-  await wipeAllMarketValueData()
-  const run = await createCronRun()
-  await Promise.all([
-    enqueueMarketValueWorker(run.id),
-    enqueueMarketValueSupervisor(run.id, 60),
-  ])
+  const run = await resetAndCreateCronRun()
+  // Gözetmeni önce kur: ilk worker yayını geçici olarak başarısız olsa bile
+  // dakikalık kontrol bu run'ı bulup kaldığı ilk adımdan başlatabilsin.
+  await enqueueMarketValueSupervisor(run.id, 60)
+  await enqueueMarketValueWorker(run.id)
   return { started: true, status: serialize(run) }
 }

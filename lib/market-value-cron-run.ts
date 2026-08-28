@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm"
+import { and, asc, eq, sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import {
   leagueMarketValue,
@@ -39,10 +39,36 @@ export async function getActiveCronRun() {
   return run ?? null
 }
 
-export async function createCronRun() {
-  const id = crypto.randomUUID()
-  const [run] = await db.insert(marketValueCronRun).values({ id, runStartedAt: new Date(), status: "running", phase: "tm_leagues" }).returning()
-  return run
+const MARKET_VALUE_START_LOCK_KEY = 884_210_732
+
+export async function resetAndCreateCronRun() {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${MARKET_VALUE_START_LOCK_KEY})`)
+
+    const [active] = await tx
+      .select({ id: marketValueCronRun.id })
+      .from(marketValueCronRun)
+      .where(eq(marketValueCronRun.status, "running"))
+      .limit(1)
+
+    if (active) throw new Error("Devam eden tarama tamamlanmadan yeni bir tarama başlatılamaz.")
+
+    await tx.delete(playerMarketValue)
+    await tx.delete(teamMarketValue)
+    await tx.delete(leagueMarketValue)
+    await tx.delete(marketValueReviewQueue)
+    await tx.delete(marketValuePlayerStaging)
+    await tx.delete(marketValueTeamStaging)
+    await tx.delete(marketValueLeagueStaging)
+    await tx.delete(marketValueCronRun)
+
+    const id = crypto.randomUUID()
+    const [run] = await tx
+      .insert(marketValueCronRun)
+      .values({ id, runStartedAt: new Date(), status: "running", phase: "tm_leagues" })
+      .returning()
+    return run
+  })
 }
 
 async function failStep(run: CronRunRow, error: unknown) {
@@ -104,7 +130,24 @@ async function stageAfPlayers(run: CronRunRow) {
 }
 
 async function queueReview(run: CronRunRow, input: { entityType: "league" | "team" | "player"; leagueId: number; afName: string; afCountry: string | null; tmName: string | null; tmCountry: string | null; tmValueEur: number | null; confidence: number; afTeamStagingId?: string; tmTeamStagingId?: string; afPlayerStagingId?: string; tmPlayerStagingId?: string }) {
-  await db.insert(marketValueReviewQueue).values({ id: crypto.randomUUID(), runId: run.id, ...input, tmValueEur: input.tmValueEur === null ? null : String(input.tmValueEur) })
+  const sourceId = input.afPlayerStagingId ?? input.afTeamStagingId ?? String(input.leagueId)
+  const id = `${run.id}:review:${input.entityType}:${sourceId}`
+  const values = { id, runId: run.id, ...input, tmValueEur: input.tmValueEur === null ? null : String(input.tmValueEur) }
+
+  await db
+    .insert(marketValueReviewQueue)
+    .values(values)
+    .onConflictDoUpdate({
+      target: marketValueReviewQueue.id,
+      set: {
+        tmName: input.tmName,
+        tmCountry: input.tmCountry,
+        tmValueEur: values.tmValueEur,
+        confidence: input.confidence,
+        tmTeamStagingId: input.tmTeamStagingId,
+        tmPlayerStagingId: input.tmPlayerStagingId,
+      },
+    })
 }
 
 function entity(row: typeof marketValueTeamStaging.$inferSelect | typeof marketValuePlayerStaging.$inferSelect): StagedEntity {
@@ -136,7 +179,7 @@ async function matchOneLeague(run: CronRunRow) {
   const [league] = await db.select().from(marketValueLeagueStaging).where(and(eq(marketValueLeagueStaging.runId, run.id), eq(marketValueLeagueStaging.leagueId, leagueId))).limit(1)
   if (!league) throw new Error(`Lig staging kaydı bulunamadı: ${leagueId}`)
   const leagueMatch = matchLeague(league.afName ?? String(leagueId), league.afCountry, league.tmName, league.tmCountry)
-  if (leagueMatch.matchStatus === "matched") await db.insert(leagueMarketValue).values({ id: crypto.randomUUID(), leagueId, leagueName: league.afName ?? String(leagueId), leagueCountry: league.afCountry, transfermarktLeagueName: league.tmName, transfermarktLeagueCountry: league.tmCountry, totalValueEur: league.tmValueEur, nameMatchPercent: leagueMatch.nameMatchPercent, countryMatchPercent: leagueMatch.countryMatchPercent, matchPercent: leagueMatch.matchPercent, lastScrapedAt: new Date() })
+  if (leagueMatch.matchStatus === "matched") await db.insert(leagueMarketValue).values({ id: crypto.randomUUID(), leagueId, leagueName: league.afName ?? String(leagueId), leagueCountry: league.afCountry, transfermarktLeagueName: league.tmName, transfermarktLeagueCountry: league.tmCountry, totalValueEur: league.tmValueEur, nameMatchPercent: leagueMatch.nameMatchPercent, countryMatchPercent: leagueMatch.countryMatchPercent, matchPercent: leagueMatch.matchPercent, lastScrapedAt: new Date() }).onConflictDoNothing()
   else await queueReview(run, { entityType: "league", leagueId, afName: league.afName ?? String(leagueId), afCountry: league.afCountry, tmName: league.tmName, tmCountry: league.tmCountry, tmValueEur: value(league.tmValueEur), confidence: leagueMatch.matchPercent })
 
   const allTeams = await db.select().from(marketValueTeamStaging).where(and(eq(marketValueTeamStaging.runId, run.id), eq(marketValueTeamStaging.leagueId, leagueId)))
@@ -199,17 +242,4 @@ export async function processCronRunBatch(initialRun: CronRunRow, budgetMs = 50_
   }
 
   return { run, done: run.phase === "done", steps }
-}
-
-export async function wipeAllMarketValueData() {
-  await db.transaction(async (tx) => {
-    await tx.delete(playerMarketValue)
-    await tx.delete(teamMarketValue)
-    await tx.delete(leagueMarketValue)
-    await tx.delete(marketValueReviewQueue)
-    await tx.delete(marketValuePlayerStaging)
-    await tx.delete(marketValueTeamStaging)
-    await tx.delete(marketValueLeagueStaging)
-    await tx.delete(marketValueCronRun)
-  })
 }

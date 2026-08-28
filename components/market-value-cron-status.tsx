@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { AlertTriangle, CheckCircle2, DatabaseZap, Loader2, PlayCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,17 +20,27 @@ const PHASE_LABELS: Record<string, string> = {
 }
 
 export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRunStatus | null }) {
+  const router = useRouter()
   const [status, setStatus] = useState(initialStatus)
   const [message, setMessage] = useState<string | null>(null)
   const [isStarting, startTransition] = useTransition()
-  const statusRef = useRef(status)
-  statusRef.current = status
+
+  useEffect(() => {
+    setStatus(initialStatus)
+  }, [initialStatus])
 
   useEffect(() => {
     if (status?.status !== "running") return
-    const timer = setInterval(() => getMarketValueCronStatus().then(setStatus).catch(() => {}), POLL_INTERVAL_MS)
+    const timer = setInterval(() => {
+      void getMarketValueCronStatus()
+        .then((nextStatus) => {
+          setStatus(nextStatus)
+          if (nextStatus?.status !== "running") router.refresh()
+        })
+        .catch(() => undefined)
+    }, POLL_INTERVAL_MS)
     return () => clearInterval(timer)
-  }, [status?.status])
+  }, [router, status?.status])
 
   function handleStart() {
     setMessage(null)
@@ -38,6 +49,7 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
         const result = await startMarketValueScan()
         setStatus(result.status)
         setMessage("Tüm eski veriler temizlendi. Yeni tarama sıfırdan başlatıldı.")
+        router.refresh()
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "Tarama başlatılamadı.")
       }

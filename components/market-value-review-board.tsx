@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { Check, Loader2, ShieldCheck } from "lucide-react"
 import { approveReviewEntry } from "@/app/actions/market-value-review"
 import { Badge } from "@/components/ui/badge"
@@ -31,6 +31,10 @@ export function MarketValueReviewBoard({ items }: { items: ReviewQueueItem[] }) 
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const grouped = useMemo(() => Object.fromEntries(TYPES.map((type) => [type, items.filter((item) => item.entityType === type)])) as Record<(typeof TYPES)[number], ReviewQueueItem[]>, [items])
+
+  useEffect(() => {
+    setApproved(new Set(items.filter((item) => item.status === "approved").map((item) => item.id)))
+  }, [items])
 
   function approve(id: string) {
     setPendingId(id)
