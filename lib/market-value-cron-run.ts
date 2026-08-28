@@ -12,7 +12,7 @@ import {
 } from "@/lib/db/schema"
 import { marketValueApiFootballFetch } from "@/lib/api-football-client"
 import { currentSeason } from "@/lib/api-football"
-import { matchLeague, matchPlayers, matchStagedEntities, type StagedEntity } from "@/lib/market-value-matcher"
+import { matchLeague, matchPlayers, matchTeams, type StagedEntity } from "@/lib/market-value-matcher"
 import { SCRAPABLE_LEAGUE_IDS, scrapeLeagueTeams, scrapeTeamCountry, scrapeTeamSquad, sleep, TM_REQUEST_DELAY_MS } from "@/lib/transfermarkt-scraper"
 
 export type MarketValuePhase = "tm_leagues" | "tm_players" | "af_leagues" | "af_teams" | "af_players" | "matching" | "done"
@@ -214,7 +214,7 @@ async function matchOneLeague(run: CronRunRow) {
   const allTeams = await db.select().from(marketValueTeamStaging).where(and(eq(marketValueTeamStaging.runId, run.id), eq(marketValueTeamStaging.leagueId, leagueId)))
   const afTeams = allTeams.filter((row) => row.side === "af")
   const tmTeams = allTeams.filter((row) => row.side === "tm")
-  const teamResults = matchStagedEntities(afTeams.map(entity), tmTeams.map(entity))
+  const teamResults = matchTeams(afTeams.map(entity), tmTeams.map(entity))
   for (const result of teamResults) {
     const af = afTeams.find((row) => row.externalId === result.af?.externalId)
     const tm = tmTeams.find((row) => row.externalId === result.tm?.externalId)

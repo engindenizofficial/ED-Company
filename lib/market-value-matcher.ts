@@ -1,205 +1,200 @@
 import { toTurkishCountry } from "./tr-aliases"
 
-// ---------------------------------------------------------------------------
-// İsim + ülke eşleştirme (fuzzy matching) katmanı.
-//
-// API-Football ve Transfermarkt birbirinden bağımsız veritabanları; ortak
-// bir ID yok. Bu modül SAF (pure) çalışır — TM ve AF verisi taramanın
-// önceki fazlarında (tm_leagues/tm_teams/tm_players, af_leagues/af_teams/
-// af_players) zaten staging tablolarına yazılmış olur; bu modül hiçbir HTTP
-// isteği yapmaz, sadece iki taraftan gelen isim/ülke/değer listelerini
-// karşılaştırır:
-//   1. Lig/takım/oyuncu isim benzerliğini hesaplar.
-//   2. Aynı entity için ülke benzerliğini hesaplar (varsa).
-//   3. İkisinin ortalamasını (`combinedMatchScore`) tek bir güven skoruna
-//      çevirir — ülke bilgisi eksikse sadece isim skoruna bakılır.
-//   4. Skor eşiğin altında kalan adaylar "review" (belirsiz) olarak
-//      işaretlenir — yanlış eşleştirmek yerine boş bırakılır.
-//
-// Yalnızca admin'in tetiklediği tarama zinciri (matching fazı) tarafından
-// çağrılır.
-// ---------------------------------------------------------------------------
+/** Liglerin sabit kod eşlemesinde kullanılan alt güven sınırı. */
+export const AUTO_MATCH_CONFIDENCE_THRESHOLD = 85
+export const TEAM_AUTO_MATCH_THRESHOLD = 88
+export const PLAYER_AUTO_MATCH_THRESHOLD = 92
+export const MINIMUM_CANDIDATE_SCORE = 45
+export const TEAM_MINIMUM_MARGIN = 8
+export const PLAYER_MINIMUM_MARGIN = 10
 
-/** Bu skorun (0-100) altındaki eşleşmeler otomatik onaylanmaz, review kuyruğuna düşer. */
-export const AUTO_MATCH_CONFIDENCE_THRESHOLD = 75
+const CLUB_NOISE = new Set([
+  "fc", "cf", "sc", "sk", "ac", "as", "cd", "fk", "afc", "ssc", "sv", "vfb", "vfl", "club", "calcio",
+  "football", "futbol", "fussball", "soccer", "kulubu", "kulubu", "spor", "deportivo", "athletic",
+])
+const PERSON_PARTICLES = new Set(["da", "de", "del", "di", "dos", "du", "la", "le", "van", "von"])
+const TEAM_TOKEN_ALIASES: Record<string, string> = {
+  munchen: "munich",
+  muenchen: "munich",
+  koln: "cologne",
+  koeln: "cologne",
+  milano: "milan",
+  lisboa: "lisbon",
+}
 
-/** İsmi normalize eder: küçük harf, aksan/Türkçe karakter temizliği, noktalama/boşluk sadeleştirme. */
-export function normalizeName(raw: string): string {
+function fold(raw: string): string {
   return raw
-    .toLowerCase()
-    // Türkçe karakterleri sadeleştir
+    .toLocaleLowerCase("tr-TR")
     .replace(/ı/g, "i")
-    .replace(/İ/g, "i")
     .replace(/ş/g, "s")
     .replace(/ğ/g, "g")
     .replace(/ü/g, "u")
     .replace(/ö/g, "o")
     .replace(/ç/g, "c")
-    // Genel Latin aksanlarını kaldır (é, á, ñ, ø, æ vb.)
+    .replace(/ß/g, "ss")
+    .replace(/æ/g, "ae")
+    .replace(/ø/g, "o")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    // Kulüp isimlerinde anlamı olmayan ekleri at (FC, CF, SK, United, vb. çok agresif
-    // olmasın diye sadece en yaygın önek/soneklere dokunuyoruz)
-    .replace(/\b(fc|cf|sc|sk|ac|as|cd|ss|us|club|calcio)\b/g, "")
+    .replace(/&/g, " and ")
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
 }
 
-/** Bir string'in karakter bigram'larını (ikili harf çiftleri) çıkarır. */
+/** Genel isim normalizasyonu. Varlığa özel gürültü temizliği skorlama sırasında yapılır. */
+export function normalizeName(raw: string): string {
+  return fold(raw)
+}
+
+function tokens(raw: string): string[] {
+  return normalizeName(raw).split(" ").filter(Boolean)
+}
+
 function bigrams(s: string): string[] {
   const clean = s.replace(/\s+/g, "")
   const result: string[] = []
-  for (let i = 0; i < clean.length - 1; i++) {
-    result.push(clean.slice(i, i + 2))
-  }
+  for (let i = 0; i < clean.length - 1; i++) result.push(clean.slice(i, i + 2))
   return result
 }
 
-/** Zaten normalize edilmiş iki string için Dice katsayısı (bigram overlap), 0-100. */
-function rawBigramSimilarity(na: string, nb: string): number {
-  if (!na || !nb) return 0
-  if (na === nb) return 100
-
-  const ba = bigrams(na)
-  const bb = bigrams(nb)
-  if (ba.length === 0 || bb.length === 0) {
-    return na === nb ? 100 : 0
-  }
-
-  const bCounts = new Map<string, number>()
-  for (const bg of bb) bCounts.set(bg, (bCounts.get(bg) ?? 0) + 1)
-
+function rawBigramSimilarity(a: string, b: string): number {
+  if (!a || !b) return 0
+  if (a === b) return 100
+  const ba = bigrams(a)
+  const bb = bigrams(b)
+  if (!ba.length || !bb.length) return 0
+  const counts = new Map<string, number>()
+  for (const item of bb) counts.set(item, (counts.get(item) ?? 0) + 1)
   let overlap = 0
-  for (const bg of ba) {
-    const count = bCounts.get(bg) ?? 0
+  for (const item of ba) {
+    const count = counts.get(item) ?? 0
     if (count > 0) {
       overlap++
-      bCounts.set(bg, count - 1)
+      counts.set(item, count - 1)
     }
   }
-
-  const dice = (2 * overlap) / (ba.length + bb.length)
-  return Math.round(dice * 100)
+  return Math.round((2 * overlap * 100) / (ba.length + bb.length))
 }
 
-/**
- * İki isim arasındaki benzerliği Dice katsayısı (bigram overlap) ile 0-100
- * arası bir skora çevirir. Harici bir kütüphaneye gerek kalmadan, isim
- * eşleştirme için yeterince güvenilir bir yöntemdir.
- */
+function levenshteinSimilarity(a: string, b: string): number {
+  if (!a || !b) return 0
+  if (a === b) return 100
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index)
+  for (let i = 1; i <= a.length; i++) {
+    let diagonal = previous[0]
+    previous[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const old = previous[j]
+      previous[j] = Math.min(previous[j] + 1, previous[j - 1] + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1))
+      diagonal = old
+    }
+  }
+  return Math.round((1 - previous[b.length] / Math.max(a.length, b.length)) * 100)
+}
+
+function tokenSimilarity(a: string[], b: string[]): number {
+  if (!a.length || !b.length) return 0
+  const used = new Set<number>()
+  let total = 0
+  for (const left of a) {
+    let best = 0
+    let bestIndex = -1
+    for (let index = 0; index < b.length; index++) {
+      if (used.has(index)) continue
+      const score = Math.max(rawBigramSimilarity(left, b[index]), levenshteinSimilarity(left, b[index]))
+      if (score > best) {
+        best = score
+        bestIndex = index
+      }
+    }
+    if (bestIndex >= 0 && best >= 55) used.add(bestIndex)
+    total += best
+  }
+  const coverage = (2 * Math.min(a.length, b.length)) / (a.length + b.length)
+  return Math.round((total / Math.max(a.length, b.length)) * coverage)
+}
+
 export function similarityScore(a: string, b: string): number {
   const na = normalizeName(a)
   const nb = normalizeName(b)
-  return rawBigramSimilarity(na, nb)
+  return Math.max(rawBigramSimilarity(na, nb), levenshteinSimilarity(na, nb), tokenSimilarity(tokens(a), tokens(b)))
 }
 
-/**
- * Oyuncu isimleri için benzerlik skoru. API-Football isimleri çoğunlukla
- * kısaltılmış gelir (örn. "K. Ayhan"), Transfermarkt ise tam adı verir
- * (örn. "Kaan Ayhan"). Düz bigram benzerliği bu durumda çok düşük skor
- * üretir, bu yüzden soyadı odaklı bir skor da hesaplanıp ikisinin en
- * yükseği alınır.
- */
+/** Kulüp eklerini kaldırır; şehir/marka/kulüp kimliğini taşıyan kelimeleri korur. */
+export function normalizeTeamName(raw: string): string {
+  return tokens(raw)
+    .filter((token) => !CLUB_NOISE.has(token))
+    .map((token) => TEAM_TOKEN_ALIASES[token] ?? token)
+    .join(" ")
+}
+
+export function teamSimilarityScore(a: string, b: string): number {
+  const na = normalizeTeamName(a)
+  const nb = normalizeTeamName(b)
+  if (!na || !nb) return similarityScore(a, b)
+  const direct = Math.max(rawBigramSimilarity(na, nb), levenshteinSimilarity(na, nb))
+  const token = tokenSimilarity(na.split(" "), nb.split(" "))
+  const containment = na.includes(nb) || nb.includes(na) ? Math.round(92 * Math.min(na.length, nb.length) / Math.max(na.length, nb.length) + 8) : 0
+  return Math.min(100, Math.max(direct, token, containment))
+}
+
+function personTokens(raw: string): string[] {
+  return tokens(raw).filter((token) => !PERSON_PARTICLES.has(token))
+}
+
 export function playerSimilarityScore(a: string, b: string): number {
-  const na = normalizeName(a)
-  const nb = normalizeName(b)
-  const fullScore = rawBigramSimilarity(na, nb)
+  const left = personTokens(a)
+  const right = personTokens(b)
+  if (!left.length || !right.length) return 0
+  const full = Math.max(tokenSimilarity(left, right), rawBigramSimilarity(left.join(" "), right.join(" ")))
+  const surnameA = left[left.length - 1]
+  const surnameB = right[right.length - 1]
+  const surname = Math.max(rawBigramSimilarity(surnameA, surnameB), levenshteinSimilarity(surnameA, surnameB))
+  if (surname < 72) return full
 
-  const ta = na.split(" ").filter(Boolean)
-  const tb = nb.split(" ").filter(Boolean)
-  if (ta.length === 0 || tb.length === 0) return fullScore
-
-  const lastA = ta[ta.length - 1]
-  const lastB = tb[tb.length - 1]
-  const surnameScore = rawBigramSimilarity(lastA, lastB)
-
-  // Soyadı hiç benzemiyorsa (farklı oyuncu olma ihtimali yüksek), düz skora güven.
-  if (surnameScore < 60) return fullScore
-
-  const firstA = ta[0]
-  const firstB = tb[0]
-  let firstNameBonus = 0
-  if (firstA.length <= 2 || firstB.length <= 2) {
-    // Biri kısaltma ("k" gibi) — ilk harf eşleşiyorsa bonus ver.
-    firstNameBonus = firstA[0] === firstB[0] ? 25 : 0
-  } else {
-    firstNameBonus = Math.round(rawBigramSimilarity(firstA, firstB) * 0.25)
-  }
-
-  const combined = Math.min(100, Math.round(surnameScore * 0.75) + firstNameBonus)
-  return Math.max(fullScore, combined)
+  const firstA = left[0]
+  const firstB = right[0]
+  const initialMatch = firstA[0] === firstB[0]
+  const abbreviated = firstA.length <= 2 || firstB.length <= 2
+  const first = abbreviated ? (initialMatch ? 100 : 0) : Math.max(rawBigramSimilarity(firstA, firstB), levenshteinSimilarity(firstA, firstB))
+  const identity = Math.round(surname * 0.72 + first * 0.28)
+  return Math.max(full, identity)
 }
 
-/**
- * İki ülke adı arasındaki benzerliği 0-100 skora çevirir. `toTurkishCountry`
- * ile normalize edilir (İngilizce/Türkçe farkını gidermek için), sonra tam
- * eşleşme veya bigram benzerliği kullanılır.
- */
 export function countrySimilarityScore(a: string, b: string): number {
   const na = normalizeName(toTurkishCountry(a))
   const nb = normalizeName(toTurkishCountry(b))
   if (na === nb) return 100
-  return rawBigramSimilarity(na, nb)
+  return Math.max(rawBigramSimilarity(na, nb), levenshteinSimilarity(na, nb))
 }
 
-/**
- * İsim skoru ile (varsa) ülke skorunun ortalamasını alır. Ülke bilgisi her
- * iki tarafta da mevcutsa `(nameScore + countryScore) / 2`, eksikse
- * (API-Football veya Transfermarkt tarafında null) sadece `nameScore`
- * kullanılır — veri eksikliği cezalandırılmaz.
- */
+/** Ülkeyi isim kadar ağır basan eski ortalama yerine doğrulayıcı sinyal olarak kullanır. */
 export function combinedMatchScore(nameScore: number, countryScore: number | null): number {
   if (countryScore === null) return Math.round(nameScore)
-  return Math.round((nameScore + countryScore) / 2)
+  if (countryScore >= 90) return Math.min(100, Math.round(nameScore * 0.9 + 10))
+  if (countryScore < 45) return Math.max(0, Math.round(nameScore * 0.85 - 5))
+  return Math.round(nameScore * 0.9 + countryScore * 0.1)
 }
-
-// ---------------------------------------------------------------------------
-// Lig eşleştirme
-// ---------------------------------------------------------------------------
 
 export interface LeagueMatchResult {
   nameMatchPercent: number
   countryMatchPercent: number | null
   matchPercent: number
-  /** "matched" | "review" — lig kodu eşlemesi sabit olduğundan "unmatched" yok. */
   matchStatus: "matched" | "review"
 }
 
-/**
- * Lig eşlemesi kod bazlı (LEAGUE_TO_TRANSFERMARKT_CODE) SABİT olduğu için
- * burada bir "aday havuzu" aranmaz — sadece bu sabit eşlemenin isim/ülke
- * açısından hâlâ tutarlı görünüp görünmediği admin'e sinyal olarak hesaplanır.
- */
-export function matchLeague(
-  apiFootballName: string,
-  apiFootballCountry: string | null,
-  transfermarktName: string | null,
-  transfermarktCountry: string | null,
-): LeagueMatchResult {
-  const nameMatchPercent = transfermarktName ? similarityScore(apiFootballName, transfermarktName) : 0
-  const countryMatchPercent =
-    apiFootballCountry && transfermarktCountry ? countrySimilarityScore(apiFootballCountry, transfermarktCountry) : null
+export function matchLeague(apiName: string, apiCountry: string | null, tmName: string | null, tmCountry: string | null): LeagueMatchResult {
+  const nameMatchPercent = tmName ? similarityScore(apiName, tmName) : 0
+  const countryMatchPercent = apiCountry && tmCountry ? countrySimilarityScore(apiCountry, tmCountry) : null
   const matchPercent = combinedMatchScore(nameMatchPercent, countryMatchPercent)
-  return {
-    nameMatchPercent,
-    countryMatchPercent,
-    matchPercent,
-    matchStatus: matchPercent >= AUTO_MATCH_CONFIDENCE_THRESHOLD ? "matched" : "review",
-  }
+  return { nameMatchPercent, countryMatchPercent, matchPercent, matchStatus: matchPercent >= AUTO_MATCH_CONFIDENCE_THRESHOLD ? "matched" : "review" }
 }
 
-// ---------------------------------------------------------------------------
-// Takım eşleştirme
-// ---------------------------------------------------------------------------
-
-/** Bir taraftan (TM veya AF) gelen, tek bir varlığı (takım veya oyuncu) temsil eden genel satır. */
 export interface StagedEntity {
-  /** TM tarafında Transfermarkt id/slug, AF tarafında API-Football id'si (string'e çevrilmiş). */
   externalId: string
   name: string
   country: string | null
-  /** Sadece TM tarafında dolu — AF kimlik verisi sunmadığı için piyasa değeri kavramı yok. */
   valueEur: number | null
 }
 
@@ -209,83 +204,107 @@ export interface EntityMatchResult {
   nameMatchPercent: number
   countryMatchPercent: number | null
   confidence: number
-  /** "matched" | "review" | "unmatched" — "unmatched" sadece AF tarafında karşılığı olmayan TM adayları veya karşılığı hiç bulunamayan AF satırları için kullanılır. */
   status: "matched" | "review" | "unmatched"
 }
 
+export interface EntityMatchOptions {
+  nameScoreFn?: (a: string, b: string) => number
+  autoThreshold?: number
+  minimumMargin?: number
+  minimumCandidateScore?: number
+  /** Takımlarda farklı ülke güçlü bir çelişkidir; oyuncu uyruğunda değildir. */
+  rejectCountryMismatch?: boolean
+}
+
+type Candidate = {
+  af: StagedEntity
+  tm: StagedEntity
+  nameScore: number
+  countryScore: number | null
+  score: number
+}
+
 /**
- * Bir tarafın (AF) varlıklarını diğer tarafın (TM) varlıklarıyla en iyi
- * isim+ülke benzerliğine göre eşleştirir. Her TM varlığı en fazla bir AF
- * varlığına eşlenir (greedy, en yüksek skordan başlayarak). Takım ve oyuncu
- * eşleştirmesinin ikisi de bu genel fonksiyonu kullanır — sadece
- * `nameScoreFn` değişir (oyuncular için `playerSimilarityScore`, takımlar
- * için `similarityScore`).
+ * Önce her iki yöndeki en iyi adayı bulur. Sadece karşılıklı en iyi, eşik üstü,
+ * rakibinden açıkça ayrılan ve bağlamla çelişmeyen çiftler otomatik eşleşir.
+ * Böylece zayıf bir çift doğru TM kaydını tüketemez; kararsız AF kaydı ise
+ * admin kuyruğu için tek en iyi adayı taşır.
  */
 export function matchStagedEntities(
   afEntities: StagedEntity[],
   tmEntities: StagedEntity[],
-  nameScoreFn: (a: string, b: string) => number = similarityScore,
+  optionsOrScoreFn: EntityMatchOptions | ((a: string, b: string) => number) = {},
 ): EntityMatchResult[] {
-  type Candidate = { af: StagedEntity; tm: StagedEntity; nameScore: number; countryScore: number | null; score: number }
+  const options: EntityMatchOptions = typeof optionsOrScoreFn === "function" ? { nameScoreFn: optionsOrScoreFn } : optionsOrScoreFn
+  const nameScoreFn = options.nameScoreFn ?? teamSimilarityScore
+  const threshold = options.autoThreshold ?? TEAM_AUTO_MATCH_THRESHOLD
+  const margin = options.minimumMargin ?? TEAM_MINIMUM_MARGIN
+  const minimumCandidate = options.minimumCandidateScore ?? MINIMUM_CANDIDATE_SCORE
   const candidates: Candidate[] = []
 
   for (const af of afEntities) {
     for (const tm of tmEntities) {
       const nameScore = nameScoreFn(af.name, tm.name)
       const countryScore = af.country && tm.country ? countrySimilarityScore(af.country, tm.country) : null
-      candidates.push({ af, tm, nameScore, countryScore, score: combinedMatchScore(nameScore, countryScore) })
+      const countryConflict = options.rejectCountryMismatch && countryScore !== null && countryScore < 45
+      const score = countryConflict ? Math.min(69, combinedMatchScore(nameScore, countryScore)) : combinedMatchScore(nameScore, countryScore)
+      candidates.push({ af, tm, nameScore, countryScore, score })
     }
   }
-  candidates.sort((a, b) => b.score - a.score)
 
-  const usedAf = new Set<string>()
+  const byAf = new Map<string, Candidate[]>()
+  const byTm = new Map<string, Candidate[]>()
+  for (const candidate of candidates) {
+    const afList = byAf.get(candidate.af.externalId) ?? []
+    afList.push(candidate)
+    byAf.set(candidate.af.externalId, afList)
+    const tmList = byTm.get(candidate.tm.externalId) ?? []
+    tmList.push(candidate)
+    byTm.set(candidate.tm.externalId, tmList)
+  }
+  for (const list of [...byAf.values(), ...byTm.values()]) list.sort((a, b) => b.score - a.score || b.nameScore - a.nameScore)
+
+  const autoMatches = new Map<string, Candidate>()
   const usedTm = new Set<string>()
-  const results = new Map<string, EntityMatchResult>()
-
-  for (const c of candidates) {
-    if (usedAf.has(c.af.externalId) || usedTm.has(c.tm.externalId)) continue
-    usedAf.add(c.af.externalId)
-    usedTm.add(c.tm.externalId)
-    results.set(c.af.externalId, {
-      af: c.af,
-      tm: c.tm,
-      nameMatchPercent: c.nameScore,
-      countryMatchPercent: c.countryScore,
-      confidence: c.score,
-      status: c.score >= AUTO_MATCH_CONFIDENCE_THRESHOLD ? "matched" : "review",
-    })
-  }
-
-  // Hiç eşleşmeyen (aday havuzunda karşılığı çıkmayan) AF varlıkları
   for (const af of afEntities) {
-    if (!results.has(af.externalId)) {
-      results.set(af.externalId, {
-        af,
-        tm: null,
-        nameMatchPercent: 0,
-        countryMatchPercent: null,
-        confidence: 0,
-        status: "unmatched",
-      })
+    const ranked = byAf.get(af.externalId) ?? []
+    const best = ranked[0]
+    if (!best || best.score < threshold) continue
+    const afMargin = best.score - (ranked[1]?.score ?? 0)
+    const tmRanked = byTm.get(best.tm.externalId) ?? []
+    const reciprocal = tmRanked[0]?.af.externalId === af.externalId
+    const tmMargin = best.score - (tmRanked[1]?.score ?? 0)
+    const countryConflict = options.rejectCountryMismatch && best.countryScore !== null && best.countryScore < 45
+    if (reciprocal && afMargin >= margin && tmMargin >= margin && !countryConflict) {
+      autoMatches.set(af.externalId, best)
+      usedTm.add(best.tm.externalId)
     }
   }
 
-  return Array.from(results.values())
+  return afEntities.map((af) => {
+    const matched = autoMatches.get(af.externalId)
+    if (matched) return { af, tm: matched.tm, nameMatchPercent: matched.nameScore, countryMatchPercent: matched.countryScore, confidence: matched.score, status: "matched" }
+
+    const reviewCandidate = (byAf.get(af.externalId) ?? []).find((candidate) => !usedTm.has(candidate.tm.externalId) && candidate.score >= minimumCandidate)
+    if (!reviewCandidate) return { af, tm: null, nameMatchPercent: 0, countryMatchPercent: null, confidence: 0, status: "unmatched" }
+    return { af, tm: reviewCandidate.tm, nameMatchPercent: reviewCandidate.nameScore, countryMatchPercent: reviewCandidate.countryScore, confidence: reviewCandidate.score, status: "review" }
+  })
 }
 
-// ---------------------------------------------------------------------------
-// Oyuncu eşleştirme (takım içi arama ile)
-// ---------------------------------------------------------------------------
+export function matchTeams(afTeams: StagedEntity[], tmTeams: StagedEntity[]): EntityMatchResult[] {
+  return matchStagedEntities(afTeams, tmTeams, {
+    nameScoreFn: teamSimilarityScore,
+    autoThreshold: TEAM_AUTO_MATCH_THRESHOLD,
+    minimumMargin: TEAM_MINIMUM_MARGIN,
+    rejectCountryMismatch: true,
+  })
+}
 
-/**
- * Bir takımın (zaten eşleşmiş olduğu için) staged AF kadrosunu, aynı takımın
- * staged TM kadrosuyla eşleştirir. Arama SADECE bu takımın kadrosu içinde
- * yapılır (binlerce oyuncu arasında değil, ~25 oyuncu arasında), isim
- * benzerliği için soyadı-ağırlıklı `playerSimilarityScore` kullanılır. AF
- * tarafında oyuncu uyruğu taranmaz (kota maliyeti yüksek, kimlik verisi için
- * gerekli değil) — bu yüzden ülke skoru burada her zaman `null` çıkar ve
- * eşleşme tamamen isme göre yapılır.
- */
 export function matchPlayers(afPlayers: StagedEntity[], tmPlayers: StagedEntity[]): EntityMatchResult[] {
-  return matchStagedEntities(afPlayers, tmPlayers, playerSimilarityScore)
+  return matchStagedEntities(afPlayers, tmPlayers, {
+    nameScoreFn: playerSimilarityScore,
+    autoThreshold: PLAYER_AUTO_MATCH_THRESHOLD,
+    minimumMargin: PLAYER_MINIMUM_MARGIN,
+    rejectCountryMismatch: false,
+  })
 }
