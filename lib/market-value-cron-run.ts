@@ -31,8 +31,12 @@ function value(value: string | null): number | null {
 }
 
 async function updateRun(runId: string, values: Partial<typeof marketValueCronRun.$inferInsert>) {
-  const [updated] = await db.update(marketValueCronRun).set({ ...values, heartbeatAt: new Date(), updatedAt: new Date(), lastError: null, lastErrorAt: null }).where(eq(marketValueCronRun.id, runId)).returning()
-  return updated
+  const [updated] = await db.update(marketValueCronRun).set({ ...values, heartbeatAt: new Date(), updatedAt: new Date(), lastError: null, lastErrorAt: null }).where(and(eq(marketValueCronRun.id, runId), eq(marketValueCronRun.status, "running"))).returning()
+  if (updated) return updated
+
+  const [current] = await db.select().from(marketValueCronRun).where(eq(marketValueCronRun.id, runId)).limit(1)
+  if (!current) throw new Error("Tarama artık mevcut değil.")
+  return current
 }
 
 export async function getActiveCronRun() {
@@ -40,19 +44,13 @@ export async function getActiveCronRun() {
   return run ?? null
 }
 
-const MARKET_VALUE_START_LOCK_KEY = 884_210_732
+export const MARKET_VALUE_WORKER_LOCK_KEY = 884_210_731
 
 export async function resetAndCreateCronRun() {
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(${MARKET_VALUE_START_LOCK_KEY})`)
-
-    const [active] = await tx
-      .select({ id: marketValueCronRun.id })
-      .from(marketValueCronRun)
-      .where(eq(marketValueCronRun.status, "running"))
-      .limit(1)
-
-    if (active) throw new Error("Devam eden tarama tamamlanmadan yeni bir tarama başlatılamaz.")
+    // Çalışan atomik adım tamamlanana kadar bekler; ardından eski run dahil
+    // bütün piyasa değeri verisini tek transaction içinde sıfırlar.
+    await tx.execute(sql`select pg_advisory_xact_lock(${MARKET_VALUE_WORKER_LOCK_KEY})`)
 
     await tx.delete(playerMarketValue)
     await tx.delete(teamMarketValue)
@@ -72,10 +70,35 @@ export async function resetAndCreateCronRun() {
   })
 }
 
+export async function pauseCronRun(runId: string) {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${MARKET_VALUE_WORKER_LOCK_KEY})`)
+    const [paused] = await tx
+      .update(marketValueCronRun)
+      .set({ status: "paused", updatedAt: new Date() })
+      .where(and(eq(marketValueCronRun.id, runId), eq(marketValueCronRun.status, "running")))
+      .returning()
+    if (!paused) throw new Error("Yalnızca çalışan bir tarama durdurulabilir.")
+    return paused
+  })
+}
+
+export async function resumeCronRun(runId: string) {
+  const [resumed] = await db
+    .update(marketValueCronRun)
+    .set({ status: "running", heartbeatAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(marketValueCronRun.id, runId), eq(marketValueCronRun.status, "paused")))
+    .returning()
+  if (!resumed) throw new Error("Yalnızca durdurulmuş bir tarama devam ettirilebilir.")
+  return resumed
+}
+
 async function failStep(run: CronRunRow, error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
-  const [updated] = await db.update(marketValueCronRun).set({ lastError: message, lastErrorAt: new Date(), heartbeatAt: new Date(), updatedAt: new Date() }).where(eq(marketValueCronRun.id, run.id)).returning()
-  return updated
+  const [updated] = await db.update(marketValueCronRun).set({ lastError: message, lastErrorAt: new Date(), heartbeatAt: new Date(), updatedAt: new Date() }).where(and(eq(marketValueCronRun.id, run.id), eq(marketValueCronRun.status, "running"))).returning()
+  if (updated) return updated
+  const [current] = await db.select().from(marketValueCronRun).where(eq(marketValueCronRun.id, run.id)).limit(1)
+  return current ?? run
 }
 
 async function stageTmLeague(run: CronRunRow) {

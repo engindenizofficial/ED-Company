@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, CheckCircle2, DatabaseZap, Loader2, PlayCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, DatabaseZap, Loader2, PauseCircle, PlayCircle, RotateCcw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getMarketValueCronStatus, startMarketValueScan, type CronRunStatus } from "@/app/actions/market-value-cron"
+import { getMarketValueCronStatus, pauseMarketValueScan, resumeMarketValueScan, startMarketValueScan, type CronRunStatus } from "@/app/actions/market-value-cron"
 
 const POLL_INTERVAL_MS = 5000
 const PHASE_LABELS: Record<string, string> = {
@@ -23,7 +23,7 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
   const router = useRouter()
   const [status, setStatus] = useState(initialStatus)
   const [message, setMessage] = useState<string | null>(null)
-  const [isStarting, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     setStatus(initialStatus)
@@ -56,7 +56,38 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
     })
   }
 
+  function handlePause() {
+    if (!status) return
+    setMessage(null)
+    startTransition(async () => {
+      try {
+        const result = await pauseMarketValueScan(status.id)
+        setStatus(result.status)
+        setMessage("Tarama mevcut adım tamamlandıktan sonra durduruldu.")
+        router.refresh()
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Tarama durdurulamadı.")
+      }
+    })
+  }
+
+  function handleResume() {
+    if (!status) return
+    setMessage(null)
+    startTransition(async () => {
+      try {
+        const result = await resumeMarketValueScan(status.id)
+        setStatus(result.status)
+        setMessage("Tarama kaldığı yerden devam ediyor.")
+        router.refresh()
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Tarama devam ettirilemedi.")
+      }
+    })
+  }
+
   const running = status?.status === "running"
+  const paused = status?.status === "paused"
   const finished = status?.status === "done"
 
   return (
@@ -69,10 +100,24 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
           </CardTitle>
           <CardDescription>27 lig, iki kaynak ve 75 puanlık otomatik eşleştirme eşiği.</CardDescription>
         </div>
-        <Button size="sm" onClick={handleStart} disabled={isStarting || running}>
-          {isStarting ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <PlayCircle data-icon="inline-start" />}
-          Taramayı Başlat
-        </Button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {running && (
+            <Button size="sm" variant="outline" onClick={handlePause} disabled={isPending}>
+              <PauseCircle data-icon="inline-start" />
+              Durdur
+            </Button>
+          )}
+          {paused && (
+            <Button size="sm" variant="outline" onClick={handleResume} disabled={isPending}>
+              <RotateCcw data-icon="inline-start" />
+              Devam Ettir
+            </Button>
+          )}
+          <Button size="sm" onClick={handleStart} disabled={isPending}>
+            {isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <PlayCircle data-icon="inline-start" />}
+            Taramayı Başlat
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {!status ? (
@@ -81,8 +126,8 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
           <>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={status.lastError ? "destructive" : "secondary"}>
-                {status.lastError ? <AlertTriangle data-icon="inline-start" /> : finished ? <CheckCircle2 data-icon="inline-start" /> : <Loader2 className="animate-spin" data-icon="inline-start" />}
-                {status.lastError ? "Adım yeniden denenecek" : finished ? "Tamamlandı" : "Çalışıyor"}
+                {status.lastError ? <AlertTriangle data-icon="inline-start" /> : finished ? <CheckCircle2 data-icon="inline-start" /> : paused ? <PauseCircle data-icon="inline-start" /> : <Loader2 className="animate-spin" data-icon="inline-start" />}
+                {status.lastError ? "Adım yeniden denenecek" : finished ? "Tamamlandı" : paused ? "Durduruldu" : "Çalışıyor"}
               </Badge>
               <span className="text-sm font-medium">{PHASE_LABELS[status.phase] ?? status.phase}</span>
               <span className="text-sm text-muted-foreground">Lig {Math.min(status.currentLeagueIndex + 1, status.totalLeagues)}/{status.totalLeagues}</span>

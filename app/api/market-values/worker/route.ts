@@ -1,5 +1,5 @@
 import { pool } from "@/lib/db"
-import { getActiveCronRun, processCronRunBatch } from "@/lib/market-value-cron-run"
+import { getActiveCronRun, MARKET_VALUE_WORKER_LOCK_KEY, processCronRunBatch } from "@/lib/market-value-cron-run"
 import { enqueueMarketValueWorker } from "@/lib/market-value-qstash"
 
 export const dynamic = "force-dynamic"
@@ -14,10 +14,9 @@ export async function POST(request: Request) {
   if (!message.runId) return Response.json({ error: "runId gerekli" }, { status: 400 })
 
   const lockClient = await pool.connect()
-  const lockKey = 884_210_731
 
   try {
-    const lockResult = await lockClient.query<{ locked: boolean }>("select pg_try_advisory_lock($1) as locked", [lockKey])
+    const lockResult = await lockClient.query<{ locked: boolean }>("select pg_try_advisory_lock($1) as locked", [MARKET_VALUE_WORKER_LOCK_KEY])
     if (!lockResult.rows[0]?.locked) return Response.json({ done: false, skipped: "workerAlreadyRunning" })
 
     const active = await getActiveCronRun()
@@ -26,7 +25,7 @@ export async function POST(request: Request) {
     }
 
     const result = await processCronRunBatch(active)
-    if (!result.done && !result.run.lastError) {
+    if (result.run.status === "running" && !result.done && !result.run.lastError) {
       await enqueueMarketValueWorker(result.run.id, 1)
     }
 
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
       lastError: result.run.lastError,
     })
   } finally {
-    await lockClient.query("select pg_advisory_unlock($1)", [lockKey]).catch(() => undefined)
+    await lockClient.query("select pg_advisory_unlock($1)", [MARKET_VALUE_WORKER_LOCK_KEY]).catch(() => undefined)
     lockClient.release()
   }
 }

@@ -300,7 +300,7 @@ export const marketValueCronRun = pgTable('market_value_cron_run', {
   id: text('id').primaryKey(),
   /** Bu taramanın başladığı an. */
   runStartedAt: timestamp('runStartedAt').notNull(),
-  /** "running" | "done" */
+  /** "running" | "paused" | "done" */
   status: text('status').notNull().default('running'),
   /**
    * "tm_leagues" | "tm_players" | "af_leagues" | "af_teams" | "af_players" | "matching" | "done"

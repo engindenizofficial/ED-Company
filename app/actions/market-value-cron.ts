@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { marketValueCronRun } from "@/lib/db/schema"
-import { resetAndCreateCronRun } from "@/lib/market-value-cron-run"
+import { pauseCronRun, resetAndCreateCronRun, resumeCronRun } from "@/lib/market-value-cron-run"
 import { enqueueMarketValueSupervisor, enqueueMarketValueWorker } from "@/lib/market-value-qstash"
 import { SCRAPABLE_LEAGUE_IDS } from "@/lib/transfermarkt-scraper"
 
@@ -59,4 +59,18 @@ export async function startMarketValueScan(): Promise<{ started: true; status: C
   await enqueueMarketValueSupervisor(run.id, 60)
   await enqueueMarketValueWorker(run.id)
   return { started: true, status: serialize(run) }
+}
+
+export async function pauseMarketValueScan(runId: string): Promise<{ paused: true; status: CronRunStatus }> {
+  await requireAdmin()
+  const run = await pauseCronRun(runId)
+  return { paused: true, status: serialize(run) }
+}
+
+export async function resumeMarketValueScan(runId: string): Promise<{ resumed: true; status: CronRunStatus }> {
+  await requireAdmin()
+  const run = await resumeCronRun(runId)
+  await enqueueMarketValueSupervisor(run.id, 60)
+  await enqueueMarketValueWorker(run.id)
+  return { resumed: true, status: serialize(run) }
 }
