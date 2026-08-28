@@ -8,7 +8,7 @@ import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { leagueMarketValue, marketValueCronRun, marketValueLeagueStaging, marketValuePlayerStaging, marketValueReviewQueue, marketValueTeamStaging, playerMarketValue, teamMarketValue } from "@/lib/db/schema"
 import { matchPlayersForStagedTeams } from "@/lib/market-value-cron-run"
-import { combinedMatchScore, countrySimilarityScore, playerSimilarityScore, similarityScore } from "@/lib/market-value-matcher"
+import { combinedMatchScore, countrySimilarityScore, playerSimilarityScore, similarityScore, teamSimilarityScore } from "@/lib/market-value-matcher"
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -33,7 +33,7 @@ export async function approveReviewEntry(id: string) {
     const [af] = await db.select().from(marketValueTeamStaging).where(eq(marketValueTeamStaging.id, row.afTeamStagingId)).limit(1)
     const [tm] = await db.select().from(marketValueTeamStaging).where(eq(marketValueTeamStaging.id, row.tmTeamStagingId)).limit(1)
     if (!af || !tm) throw new Error("Takım staging kaydı bulunamadı.")
-    const nameMatchPercent = similarityScore(af.name, tm.name)
+    const nameMatchPercent = teamSimilarityScore(af.name, tm.name)
     const countryMatchPercent = af.country && tm.country ? countrySimilarityScore(af.country, tm.country) : null
     const matchConfidence = combinedMatchScore(nameMatchPercent, countryMatchPercent)
     await db.insert(teamMarketValue).values({ id: crypto.randomUUID(), teamId: Number(af.externalId), leagueId: row.leagueId, teamName: af.name, teamCountry: af.country, transfermarktTeamId: tm.externalId, transfermarktTeamName: tm.name, transfermarktTeamCountry: tm.country, totalValueEur: tm.valueEur, nameMatchPercent, countryMatchPercent, matchConfidence, matchStatus: "matched", lastScrapedAt: new Date() }).onConflictDoNothing()
