@@ -282,7 +282,8 @@ export async function marketValueApiFootballFetch<T>(
     if (page > 1) await sleep(3000)
 
     const search = new URLSearchParams()
-    for (const [key, value] of Object.entries({ ...params, page })) {
+    const requestParams = page > 1 ? { ...params, page } : params
+    for (const [key, value] of Object.entries(requestParams)) {
       search.set(key, String(value))
     }
 
