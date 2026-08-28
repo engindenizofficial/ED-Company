@@ -148,8 +148,49 @@ async function serialize(row: CronRow): Promise<CronRunStatus> {
 
 export async function getMarketValueCronStatus(): Promise<CronRunStatus | null> {
   await requireAdmin()
-  const [row] = await db.select().from(marketValueCronRun).orderBy(desc(marketValueCronRun.createdAt)).limit(1)
-  return row ? serialize(row) : null
+  let [row] = await db.select().from(marketValueCronRun).orderBy(desc(marketValueCronRun.createdAt)).limit(1)
+  if (!row) return null
+
+  // Admin ekranı açıkken supervisor zinciri de kopmuşsa stale run için yalnız
+  // bir istek kurtarma hakkını atomik olarak alır. Böylece 5 saniyelik durum
+  // sorguları aynı anda yeni worker mesajları üretmez.
+  if (row.status === "running" && Date.now() - row.heartbeatAt.getTime() > 3 * 60_000) {
+    const previousHeartbeat = row.heartbeatAt
+    const [claimed] = await db
+      .update(marketValueCronRun)
+      .set({ heartbeatAt: new Date(), updatedAt: new Date() })
+      .where(and(
+        eq(marketValueCronRun.id, row.id),
+        eq(marketValueCronRun.status, "running"),
+        eq(marketValueCronRun.heartbeatAt, previousHeartbeat),
+      ))
+      .returning()
+
+    if (claimed) {
+      try {
+        await Promise.all([
+          enqueueMarketValueWorker(claimed.id),
+          enqueueMarketValueSupervisor(claimed.id, 60),
+        ])
+        row = claimed
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        const [failed] = await db
+          .update(marketValueCronRun)
+          .set({
+            heartbeatAt: previousHeartbeat,
+            lastError: `Otomatik kurtarma tetiklenemedi: ${message}`,
+            lastErrorAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(marketValueCronRun.id, claimed.id))
+          .returning()
+        row = failed ?? row
+      }
+    }
+  }
+
+  return serialize(row)
 }
 
 export async function startMarketValueScan(): Promise<{ started: true; status: CronRunStatus }> {

@@ -9,10 +9,9 @@ interface SupervisorMessage {
 
 export async function POST(request: Request) {
   const message = (await request.json().catch(() => ({}))) as SupervisorMessage
-  if (!message.runId) return Response.json({ error: "runId gerekli" }, { status: 400 })
-
   const active = await getActiveCronRun()
-  if (!active || active.id !== message.runId) {
+  if (!active) return Response.json({ done: true, skipped: "noActiveRun" })
+  if (message.runId && active.id !== message.runId) {
     return Response.json({ done: true, skipped: "runNoLongerActive" })
   }
 

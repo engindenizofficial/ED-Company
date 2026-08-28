@@ -5,6 +5,12 @@ interface RunMessage {
   runId: string
 }
 
+function getDeliveryBaseUrl() {
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
+  if (productionHost) return `https://${productionHost.replace(/^https?:\/\//, "").replace(/\/$/, "")}`
+  return getSiteUrl()
+}
+
 function getClient() {
   const token = process.env.QSTASH_TOKEN
   if (!token) throw new Error("QSTASH_TOKEN tanımlı değil.")
@@ -12,11 +18,18 @@ function getClient() {
 }
 
 async function publish(path: string, body: RunMessage, delay: number) {
+  const protectionBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
   return getClient().publishJSON({
-    url: `${getSiteUrl()}${path}`,
+    url: `${getDeliveryBaseUrl()}${path}`,
     body,
+    headers: protectionBypass
+      ? { "x-vercel-protection-bypass": protectionBypass }
+      : undefined,
     delay,
-    retries: 0,
+    // Tek bir geçici ağ/5xx hatası worker zincirini sonsuza dek kesmesin.
+    // QStash teslimatları artan gecikmeyle yeniden dener; advisory lock aynı
+    // adımın paralel işlenmesini engellemeye devam eder.
+    retries: 3,
   })
 }
 
