@@ -1,6 +1,6 @@
 "use server"
 
-import { and, asc, count, desc, eq } from "drizzle-orm"
+import { and, asc, count, desc, eq, sql } from "drizzle-orm"
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
@@ -15,7 +15,7 @@ import {
   playerMarketValue,
   teamMarketValue,
 } from "@/lib/db/schema"
-import { pauseCronRun, resetAndCreateCronRun, resumeCronRun } from "@/lib/market-value-cron-run"
+import { MARKET_VALUE_WORKER_LOCK_KEY, pauseCronRun, resetAndCreateCronRun, resumeCronRun } from "@/lib/market-value-cron-run"
 import { enqueueMarketValueSupervisor, enqueueMarketValueWorker } from "@/lib/market-value-qstash"
 import { SCRAPABLE_LEAGUE_IDS } from "@/lib/transfermarkt-scraper"
 
@@ -44,6 +44,7 @@ export interface CronRunStatus {
     transfermarktPlayers: number
     apiFootballTeams: number
     apiFootballPlayers: number
+    missingTransfermarktSquads: number
   }
   results: { leagues: number; teams: number; players: number; pendingReviews: number }
 }
@@ -62,16 +63,18 @@ async function serialize(row: CronRow): Promise<CronRunStatus> {
     tmPlayerCount,
     afTeamCount,
     afPlayerCount,
+    missingTmSquadCount,
     finalLeagueCount,
     finalTeamCount,
     finalPlayerCount,
     reviewCount,
   ] = await Promise.all([
     db.select({ value: count() }).from(marketValueLeagueStaging).where(eq(marketValueLeagueStaging.runId, runId)),
-    db.select({ value: count() }).from(marketValueTeamStaging).where(and(eq(marketValueTeamStaging.runId, runId), eq(marketValueTeamStaging.side, "tm"))),
-    db.select({ value: count() }).from(marketValuePlayerStaging).where(and(eq(marketValuePlayerStaging.runId, runId), eq(marketValuePlayerStaging.side, "tm"))),
-    db.select({ value: count() }).from(marketValueTeamStaging).where(and(eq(marketValueTeamStaging.runId, runId), eq(marketValueTeamStaging.side, "af"))),
-    db.select({ value: count() }).from(marketValuePlayerStaging).where(and(eq(marketValuePlayerStaging.runId, runId), eq(marketValuePlayerStaging.side, "af"))),
+    db.select({ value: sql<number>`count(distinct ${marketValueTeamStaging.externalId})` }).from(marketValueTeamStaging).where(and(eq(marketValueTeamStaging.runId, runId), eq(marketValueTeamStaging.side, "tm"))),
+    db.select({ value: sql<number>`count(distinct ${marketValuePlayerStaging.externalId})` }).from(marketValuePlayerStaging).where(and(eq(marketValuePlayerStaging.runId, runId), eq(marketValuePlayerStaging.side, "tm"))),
+    db.select({ value: sql<number>`count(distinct ${marketValueTeamStaging.externalId})` }).from(marketValueTeamStaging).where(and(eq(marketValueTeamStaging.runId, runId), eq(marketValueTeamStaging.side, "af"))),
+    db.select({ value: sql<number>`count(distinct ${marketValuePlayerStaging.externalId})` }).from(marketValuePlayerStaging).where(and(eq(marketValuePlayerStaging.runId, runId), eq(marketValuePlayerStaging.side, "af"))),
+    db.execute(sql`select count(*)::int as value from market_value_team_staging team where team."runId" = ${runId} and team.side = 'tm' and not exists (select 1 from market_value_player_staging player where player."runId" = team."runId" and player.side = 'tm' and player."teamStagingId" = team.id)`),
     db.select({ value: count() }).from(leagueMarketValue),
     db.select({ value: count() }).from(teamMarketValue),
     db.select({ value: count() }).from(playerMarketValue),
@@ -84,6 +87,7 @@ async function serialize(row: CronRow): Promise<CronRunStatus> {
     transfermarktPlayers: totalOf(tmPlayerCount),
     apiFootballTeams: totalOf(afTeamCount),
     apiFootballPlayers: totalOf(afPlayerCount),
+    missingTransfermarktSquads: Number(missingTmSquadCount.rows[0]?.value ?? 0),
   }
 
   const teamPhase = row.phase === "tm_players" || row.phase === "af_players"
@@ -151,6 +155,35 @@ export async function getMarketValueCronStatus(): Promise<CronRunStatus | null> 
 export async function startMarketValueScan(): Promise<{ started: true; status: CronRunStatus }> {
   await requireAdmin()
   const run = await resetAndCreateCronRun()
+  await enqueueMarketValueSupervisor(run.id, 60)
+  await enqueueMarketValueWorker(run.id)
+  return { started: true, status: await serialize(run) }
+}
+
+export async function retryMissingTransfermarktSquads(runId: string): Promise<{ started: true; status: CronRunStatus }> {
+  await requireAdmin()
+  const [run] = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${MARKET_VALUE_WORKER_LOCK_KEY})`)
+    await tx.delete(playerMarketValue)
+    await tx.delete(teamMarketValue)
+    await tx.delete(leagueMarketValue)
+    await tx.delete(marketValueReviewQueue).where(eq(marketValueReviewQueue.runId, runId))
+    return tx
+      .update(marketValueCronRun)
+      .set({
+        status: "running",
+        phase: "tm_players",
+        currentLeagueIndex: 0,
+        currentTeamIndex: 0,
+        lastError: null,
+        lastErrorAt: null,
+        heartbeatAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(marketValueCronRun.id, runId))
+      .returning()
+  })
+  if (!run) throw new Error("Tamamlanacak tarama bulunamadı.")
   await enqueueMarketValueSupervisor(run.id, 60)
   await enqueueMarketValueWorker(run.id)
   return { started: true, status: await serialize(run) }

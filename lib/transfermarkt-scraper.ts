@@ -195,7 +195,7 @@ export async function scrapeLeagueTeams(leagueId: number): Promise<ScrapedLeague
 /**
  * Bir takımın kadrosundaki oyuncuları, piyasa değerlerini ve uyruklarını
  * çeker. transfermarktTeamId, scrapeLeagueTeams() çıktısından gelir. Uyruk,
- * aynı kadro satırındaki bayrak sütunundan okunur — bunun için oyuncu
+ * ayn�� kadro satırındaki bayrak sütunundan okunur — bunun için oyuncu
  * başına EKSTRA bir HTTP isteği açılmaz.
  */
 export async function scrapeTeamSquad(transfermarktTeamId: string): Promise<ScrapedPlayer[]> {
@@ -205,28 +205,37 @@ export async function scrapeTeamSquad(transfermarktTeamId: string): Promise<Scra
 
   const $ = cheerio.load(html)
   const players: ScrapedPlayer[] = []
+  const squadRows = $("table.items").first().find("> tbody > tr")
 
-  $("table.items")
-    .first()
-    .find("> tbody > tr")
-    .each((_, el) => {
-      const row = $(el)
-      const nameLink = row.find("td.posrela table.inline-table a").first()
-      const name = nameLink.text().trim()
-      const transfermarktId = extractIdFromHref(nameLink.attr("href"), "spieler")
-      if (!name || !transfermarktId) return
+  squadRows.each((_, el) => {
+    const row = $(el)
+    // Transfermarkt zaman zaman hücre sınıflarını değiştiriyor. Oyuncu profil
+    // bağlantısı satırdaki kalıcı kimlik olduğu için ana seçici olarak onu kullan.
+    const playerLinks = row.find('a[href*="/profil/spieler/"], a[href*="/spieler/"]')
+    const nameLink = playerLinks
+      .filter((__, link) => Boolean($(link).text().trim()))
+      .first()
+    const transfermarktId = extractIdFromHref(nameLink.attr("href"), "spieler")
+    const name = nameLink.text().replace(/\s+/g, " ").trim()
+    if (!name || !transfermarktId) return
 
-      const valueCell = row.find("td.rechts.hauptlink").last()
-      const valueEur = parseMarketValueToEur(valueCell.text())
+    const valueCell = row.find("td.rechts.hauptlink, td.rechts").last()
+    const valueEur = parseMarketValueToEur(valueCell.text())
+    const nationalityRaw = row.find("img.flaggenrahmen").first().attr("title")?.trim()
+    const nationality = nationalityRaw ? toTurkishCountry(nationalityRaw) : null
 
-      // Kadro tablosunda uyruk bayrağı standart olarak "zentriert" (ortalı)
-      // bir hücrede img.flaggenrahmen olarak yer alır — birden fazla uyruk
-      // varsa ilk bayrak ana uyruk sayılır.
-      const nationalityRaw = row.find("td.zentriert img.flaggenrahmen").first().attr("title")?.trim()
-      const nationality = nationalityRaw ? toTurkishCountry(nationalityRaw) : null
+    players.push({ transfermarktId, name, valueEur, nationality })
+  })
 
-      players.push({ transfermarktId, name, valueEur, nationality })
-    })
+  // Cloudflare/consent/challenge sayfaları bazen HTTP 200 döndürüyor. Önceki
+  // davranış bunu boş kadro sanıp takım indeksini ilerletiyor ve bütün API
+  // oyuncularını adaysız bırakıyordu. Gerçek bir takım sayfasında kadro boş olamaz.
+  if (players.length === 0) {
+    const title = $("title").text().replace(/\s+/g, " ").trim()
+    throw new Error(
+      `Transfermarkt kadrosu ayrıştırılamadı (takım ${transfermarktTeamId}, satır ${squadRows.length}${title ? `, sayfa: ${title}` : ""}). Aynı takım yeniden denenecek.`,
+    )
+  }
 
   return players
 }

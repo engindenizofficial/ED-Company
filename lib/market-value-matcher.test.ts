@@ -74,3 +74,15 @@ test("aynı kadrodaki kesin oyuncu eşleşmelerini otomatik yapar", () => {
 
   assert.deepEqual(results.map((result) => result.status), ["matched", "matched"])
 })
+
+test("aksan ve çok parçalı soyad içeren kısaltılmış oyuncuyu tanır", () => {
+  assert.ok(playerSimilarityScore("E. Smith Rowe", "Emile Smith Rowe") >= 92)
+  assert.ok(playerSimilarityScore("G. García", "Gonzalo García") >= 92)
+})
+
+test("boş Transfermarkt aday listesi oyuncuyu yanlışlıkla eşleştirmez", () => {
+  const [result] = matchPlayers([entity("1", "Mohamed Salah", "Egypt")], [])
+
+  assert.equal(result.status, "unmatched")
+  assert.equal(result.tm, null)
+})
