@@ -31,6 +31,7 @@ import {
   getMarketValueCronStatus,
   pauseMarketValueScan,
   resumeMarketValueScan,
+  retryMissingTransfermarktSquads,
   startMarketValueScan,
   type CronRunStatus,
 } from "@/app/actions/market-value-cron"
@@ -189,11 +190,12 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
               <ProgressValue>{() => `${status.progress.current}/${status.progress.total} ${status.progress.unit} · %${status.progress.percent}`}</ProgressValue>
             </Progress>
 
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
               <Metric label="TM takımları" value={status.staging.transfermarktTeams} />
               <Metric label="TM oyuncuları" value={status.staging.transfermarktPlayers} />
               <Metric label="API takımları" value={status.staging.apiFootballTeams} />
               <Metric label="API oyuncuları" value={status.staging.apiFootballPlayers} />
+              <Metric label="Eksik TM kadrosu" value={status.staging.missingTransfermarktSquads} />
               <Metric label="İnceleme bekleyen" value={status.results.pendingReviews} />
             </div>
 
@@ -243,6 +245,17 @@ export function MarketValueCronStatus({ initialStatus }: { initialStatus: CronRu
 
       {status && (
         <CardFooter className="flex flex-wrap justify-end gap-2">
+          {!running && status.staging.missingTransfermarktSquads > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => runAction(() => retryMissingTransfermarktSquads(status.id), "Eksik Transfermarkt kadroları tamamlanıyor; ardından eşleştirme yeniden çalışacak.")}
+              disabled={isPending}
+            >
+              {isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <RefreshCw data-icon="inline-start" />}
+              Eksik Kadroları Tamamla
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => runAction(startMarketValueScan, "Eski veriler temizlendi ve yeni tarama başlatıldı.")} disabled={isPending}>
             {isPending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <PlayCircle data-icon="inline-start" />}
             Sıfırdan Başlat

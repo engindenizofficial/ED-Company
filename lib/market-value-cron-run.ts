@@ -115,7 +115,26 @@ async function stageTmLeague(run: CronRunRow) {
 async function stageTmPlayers(run: CronRunRow) {
   const teams = await db.select().from(marketValueTeamStaging).where(and(eq(marketValueTeamStaging.runId, run.id), eq(marketValueTeamStaging.side, "tm"))).orderBy(asc(marketValueTeamStaging.createdAt))
   const team = teams[run.currentTeamIndex]
-  if (!team) return updateRun(run.id, { phase: "af_leagues", currentTeamIndex: 0, currentLeagueIndex: 0 })
+  if (!team) {
+    const [existingAfPlayer] = await db
+      .select({ id: marketValuePlayerStaging.id })
+      .from(marketValuePlayerStaging)
+      .where(and(eq(marketValuePlayerStaging.runId, run.id), eq(marketValuePlayerStaging.side, "af")))
+      .limit(1)
+    return updateRun(run.id, existingAfPlayer
+      ? { phase: "matching", currentTeamIndex: 0, currentLeagueIndex: 0 }
+      : { phase: "af_leagues", currentTeamIndex: 0, currentLeagueIndex: 0 })
+  }
+
+  // Yeniden başlatılan bir kadro tamamlama turunda mevcut takımları HTTP
+  // isteği açmadan geç; yalnız gerçekten boş kalmış kadrolar tekrar taranır.
+  const [existingPlayer] = await db
+    .select({ id: marketValuePlayerStaging.id })
+    .from(marketValuePlayerStaging)
+    .where(and(eq(marketValuePlayerStaging.runId, run.id), eq(marketValuePlayerStaging.side, "tm"), eq(marketValuePlayerStaging.teamStagingId, team.id)))
+    .limit(1)
+  if (existingPlayer) return updateRun(run.id, { currentTeamIndex: run.currentTeamIndex + 1 })
+
   await sleep(TM_REQUEST_DELAY_MS)
   const country = await scrapeTeamCountry(team.externalId)
   await db.update(marketValueTeamStaging).set({ country }).where(eq(marketValueTeamStaging.id, team.id))
@@ -191,6 +210,9 @@ export async function matchPlayersForStagedTeams(run: CronRunRow, leagueId: numb
   const players = await db.select().from(marketValuePlayerStaging).where(eq(marketValuePlayerStaging.runId, run.id))
   const afPlayers = players.filter((row) => row.teamStagingId === af.id && row.side === "af")
   const tmPlayers = players.filter((row) => row.teamStagingId === tm.id && row.side === "tm")
+  if (afPlayers.length > 0 && tmPlayers.length === 0) {
+    throw new Error(`Transfermarkt kadrosu eksik: ${tm.name} (${tm.externalId}). Oyuncular admin kuyruğuna gönderilmedi.`)
+  }
   for (const playerResult of matchPlayers(afPlayers.map(entity), tmPlayers.map(entity))) {
     const afPlayer = afPlayers.find((row) => row.externalId === playerResult.af?.externalId)
     const tmPlayer = tmPlayers.find((row) => row.externalId === playerResult.tm?.externalId)
