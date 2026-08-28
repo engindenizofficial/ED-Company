@@ -8,6 +8,7 @@ import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { leagueMarketValue, marketValueCronRun, marketValueLeagueStaging, marketValuePlayerStaging, marketValueReviewQueue, marketValueTeamStaging, playerMarketValue, teamMarketValue } from "@/lib/db/schema"
 import { matchPlayersForStagedTeams } from "@/lib/market-value-cron-run"
+import { combinedMatchScore, countrySimilarityScore, playerSimilarityScore, similarityScore } from "@/lib/market-value-matcher"
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -23,13 +24,19 @@ export async function approveReviewEntry(id: string) {
   if (row.entityType === "league") {
     const [league] = await db.select().from(marketValueLeagueStaging).where(and(eq(marketValueLeagueStaging.runId, row.runId), eq(marketValueLeagueStaging.leagueId, row.leagueId))).limit(1)
     if (!league) throw new Error("Lig staging kaydı bulunamadı.")
-    await db.insert(leagueMarketValue).values({ id: crypto.randomUUID(), leagueId: row.leagueId, leagueName: row.afName, leagueCountry: row.afCountry, transfermarktLeagueName: row.tmName, transfermarktLeagueCountry: row.tmCountry, totalValueEur: row.tmValueEur, matchPercent: row.confidence, lastScrapedAt: new Date() }).onConflictDoNothing()
+    const nameMatchPercent = similarityScore(row.afName, row.tmName)
+    const countryMatchPercent = row.afCountry && row.tmCountry ? countrySimilarityScore(row.afCountry, row.tmCountry) : null
+    const matchPercent = combinedMatchScore(nameMatchPercent, countryMatchPercent)
+    await db.insert(leagueMarketValue).values({ id: crypto.randomUUID(), leagueId: row.leagueId, leagueName: row.afName, leagueCountry: row.afCountry, transfermarktLeagueName: row.tmName, transfermarktLeagueCountry: row.tmCountry, totalValueEur: row.tmValueEur, nameMatchPercent, countryMatchPercent, matchPercent, matchStatus: "matched", lastScrapedAt: new Date() }).onConflictDoNothing()
   } else if (row.entityType === "team") {
     if (!row.afTeamStagingId || !row.tmTeamStagingId) throw new Error("Takım adayı eksik.")
     const [af] = await db.select().from(marketValueTeamStaging).where(eq(marketValueTeamStaging.id, row.afTeamStagingId)).limit(1)
     const [tm] = await db.select().from(marketValueTeamStaging).where(eq(marketValueTeamStaging.id, row.tmTeamStagingId)).limit(1)
     if (!af || !tm) throw new Error("Takım staging kaydı bulunamadı.")
-    await db.insert(teamMarketValue).values({ id: crypto.randomUUID(), teamId: Number(af.externalId), leagueId: row.leagueId, teamName: af.name, teamCountry: af.country, transfermarktTeamId: tm.externalId, transfermarktTeamName: tm.name, transfermarktTeamCountry: tm.country, totalValueEur: tm.valueEur, matchConfidence: row.confidence, lastScrapedAt: new Date() }).onConflictDoNothing()
+    const nameMatchPercent = similarityScore(af.name, tm.name)
+    const countryMatchPercent = af.country && tm.country ? countrySimilarityScore(af.country, tm.country) : null
+    const matchConfidence = combinedMatchScore(nameMatchPercent, countryMatchPercent)
+    await db.insert(teamMarketValue).values({ id: crypto.randomUUID(), teamId: Number(af.externalId), leagueId: row.leagueId, teamName: af.name, teamCountry: af.country, transfermarktTeamId: tm.externalId, transfermarktTeamName: tm.name, transfermarktTeamCountry: tm.country, totalValueEur: tm.valueEur, nameMatchPercent, countryMatchPercent, matchConfidence, matchStatus: "matched", lastScrapedAt: new Date() }).onConflictDoNothing()
     const [run] = await db.select().from(marketValueCronRun).where(eq(marketValueCronRun.id, row.runId)).limit(1)
     if (!run) throw new Error("Tarama kaydı bulunamadı.")
     await matchPlayersForStagedTeams(run, row.leagueId, af.id, tm.id)
@@ -39,7 +46,10 @@ export async function approveReviewEntry(id: string) {
     const [tmPlayer] = await db.select().from(marketValuePlayerStaging).where(eq(marketValuePlayerStaging.id, row.tmPlayerStagingId)).limit(1)
     const [afTeam] = await db.select().from(marketValueTeamStaging).where(eq(marketValueTeamStaging.id, row.afTeamStagingId)).limit(1)
     if (!afPlayer || !tmPlayer || !afTeam) throw new Error("Oyuncu staging kaydı bulunamadı.")
-    await db.insert(playerMarketValue).values({ id: crypto.randomUUID(), playerId: Number(afPlayer.externalId), teamId: Number(afTeam.externalId), playerName: afPlayer.name, fullName: tmPlayer.name, playerCountry: afPlayer.country, transfermarktPlayerId: tmPlayer.externalId, transfermarktPlayerCountry: tmPlayer.country, valueEur: tmPlayer.valueEur, matchConfidence: row.confidence, lastScrapedAt: new Date() }).onConflictDoNothing()
+    const nameMatchPercent = playerSimilarityScore(afPlayer.name, tmPlayer.name)
+    const countryMatchPercent = afPlayer.country && tmPlayer.country ? countrySimilarityScore(afPlayer.country, tmPlayer.country) : null
+    const matchConfidence = combinedMatchScore(nameMatchPercent, countryMatchPercent)
+    await db.insert(playerMarketValue).values({ id: crypto.randomUUID(), playerId: Number(afPlayer.externalId), teamId: Number(afTeam.externalId), playerName: afPlayer.name, fullName: tmPlayer.name, playerCountry: afPlayer.country, transfermarktPlayerId: tmPlayer.externalId, transfermarktPlayerCountry: tmPlayer.country, valueEur: tmPlayer.valueEur, nameMatchPercent, countryMatchPercent, matchConfidence, matchStatus: "matched", lastScrapedAt: new Date() }).onConflictDoNothing()
   }
 
   await db.update(marketValueReviewQueue).set({ status: "approved", resolvedAt: new Date() }).where(eq(marketValueReviewQueue.id, id))
