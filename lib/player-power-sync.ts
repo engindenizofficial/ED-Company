@@ -4,13 +4,7 @@ import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm"
 import { getFixturesByDate, getFixturePlayerStats, currentSeason } from "./api-football"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
 import type { FixturePlayerStat, Fixture } from "./types"
-import {
-  computeBasePower,
-  computeCurrentPower,
-  marketPowerFromValue,
-  addMatchToRecent,
-  type MatchPerformance,
-} from "./player-power"
+import { computeBasePower, marketPowerFromValue, type PlayerMatchRating } from "./player-power"
 
 // ---------------------------------------------------------------------------
 // Günlük cron'un çağırdığı yazma (write) katmanı. API-Football'dan son
@@ -49,39 +43,17 @@ export interface PlayerPowerSyncResult {
   playersUpdated: number
 }
 
-/** Bir fixture'ın oyuncu istatistiklerinden, oyuncu bazlı MatchPerformance listesi çıkarır. */
+/** Bir fixture'ın oyuncu istatistiklerinden, oyuncu bazlı PlayerMatchRating listesi çıkarır. */
 export function extractPerformancesFromFixture(
   fixture: Fixture,
   stats: FixturePlayerStat[],
-): Map<number, { teamId: number; perf: MatchPerformance }[]> {
-  const performancesByPlayer = new Map<number, { teamId: number; perf: MatchPerformance }[]>()
+): Map<number, { teamId: number; perf: PlayerMatchRating }[]> {
+  const performancesByPlayer = new Map<number, { teamId: number; perf: PlayerMatchRating }[]>()
 
   for (const s of stats) {
     if (!s.player.id || s.minutes === null || s.minutes <= 0) continue
-    const perf: MatchPerformance = {
-      fixtureId: fixture.id,
-      teamId: s.teamId,
-      teamName: s.team,
-      date: fixture.date,
+    const perf: PlayerMatchRating = {
       rating: s.rating !== null ? Number.parseFloat(s.rating) : null,
-      goals: s.goals ?? 0,
-      assists: s.assists ?? 0,
-      minutes: s.minutes,
-      position: s.player.pos,
-      shots: s.shots,
-      shotsOn: s.shotsOn,
-      passes: s.passes,
-      passesAccuracy: s.passesAccuracy ? Number.parseFloat(s.passesAccuracy) : null,
-      tackles: s.tackles,
-      dribbles: s.dribbles,
-      saves: s.saves,
-      goalsConceded: s.goalsConceded,
-      keyPasses: s.keyPasses,
-      interceptions: s.interceptions,
-      blocks: s.blocks,
-      duelsTotal: s.duelsTotal,
-      duelsWon: s.duelsWon,
-      dribblesSuccess: s.dribblesSuccess,
     }
     const list = performancesByPlayer.get(s.player.id) ?? []
     list.push({ teamId: s.teamId, perf })
@@ -101,7 +73,7 @@ export function extractPerformancesFromFixture(
  * currentPower = basePower (bkz. lib/player-power.ts computeCurrentPower()).
  */
 export async function applyPerformances(
-  performancesByPlayer: Map<number, { teamId: number; perf: MatchPerformance }[]>,
+  performancesByPlayer: Map<number, { teamId: number; perf: PlayerMatchRating }[]>,
   season: number,
 ): Promise<number> {
   if (performancesByPlayer.size === 0) return 0
@@ -125,10 +97,9 @@ export async function applyPerformances(
     const sameSeason = existing !== null && existing.seasonYear === season
     const valueEur = marketValueMap.get(playerId) ?? null
 
-    // Sezon değiştiyse (Ağustos geçişi) biriken rating ve form geçmişi sıfırlanır.
+    // Sezon değiştiyse (Ağustos geçişi) biriken rating sıfırlanır.
     let seasonRatingSum = sameSeason ? Number(existing!.seasonRatingSum) : 0
     let seasonRatingCount = sameSeason ? existing!.seasonRatingCount : 0
-    let recentMatches: MatchPerformance[] = sameSeason ? ((existing!.recentMatches as MatchPerformance[]) ?? []) : []
 
     let teamId = existing?.teamId ?? null
     for (const { teamId: entryTeamId, perf } of entries) {
@@ -137,13 +108,9 @@ export async function applyPerformances(
         seasonRatingSum += perf.rating
         seasonRatingCount += 1
       }
-      recentMatches = addMatchToRecent(recentMatches, perf)
     }
 
     const basePower = computeBasePower({ valueEur, seasonRatingSum, seasonRatingCount })
-    // Momentum/form katmanı kaldırıldı — currentPower artık sabit basePower ile aynı.
-    const formModifier = 0
-    const currentPower = computeCurrentPower(basePower)
     const marketPower = marketPowerFromValue(valueEur)
 
     const id = `player-power-${playerId}`
@@ -158,10 +125,6 @@ export async function applyPerformances(
         seasonRatingSum: String(seasonRatingSum),
         seasonRatingCount,
         basePower,
-        formModifier,
-        currentPower,
-        recentMatches,
-        lastFormUpdateAt: now,
         updatedAt: now,
       })
       .onConflictDoUpdate({
@@ -173,10 +136,6 @@ export async function applyPerformances(
           seasonRatingSum: String(seasonRatingSum),
           seasonRatingCount,
           basePower,
-          formModifier,
-          currentPower,
-          recentMatches,
-          lastFormUpdateAt: now,
           updatedAt: now,
         },
       })
@@ -212,10 +171,6 @@ export async function resetAllPlayerPowerData(): Promise<{ resetCount: number }>
       seasonRatingSum: "0",
       seasonRatingCount: 0,
       basePower: 0,
-      formModifier: 0,
-      currentPower: 0,
-      recentMatches: [],
-      lastFormUpdateAt: now,
       updatedAt: now,
     })
     .returning({ id: playerPower.id })
@@ -253,7 +208,7 @@ export async function recomputeAllPlayerPowerData(): Promise<{ updated: number }
 
   if (rows.length === 0) return { updated: 0 }
 
-  // Tek tek await edilen 2500+ UPDATE round-trip'i yerine, her parçada tek bir
+  // Tek tek await edilen 2500+ UPDATE round-trip'i yerine, her par��ada tek bir
   // SQL sorgusuyla (VALUES listesi + UPDATE...FROM) toplu güncelleme yapılır —
   // hem çok daha hızlı hem de bir server action'ın zaman bütçesini zorlamaz.
   const CHUNK_SIZE = 500
@@ -267,8 +222,7 @@ export async function recomputeAllPlayerPowerData(): Promise<{ updated: number }
       const seasonRatingCount = r.seasonRatingCount
       const marketPower = marketPowerFromValue(valueEur)
       const basePower = computeBasePower({ valueEur, seasonRatingSum, seasonRatingCount })
-      const currentPower = computeCurrentPower(basePower)
-      return sql`(${r.playerId}, ${marketPower}, ${basePower}, ${currentPower})`
+      return sql`(${r.playerId}, ${marketPower}, ${basePower})`
     })
 
     await db.execute(sql`
@@ -276,10 +230,8 @@ export async function recomputeAllPlayerPowerData(): Promise<{ updated: number }
       set
         "marketPower" = v.market_power::int,
         "basePower" = v.base_power::int,
-        "currentPower" = v.current_power::int,
-        "formModifier" = 0,
         "updatedAt" = now()
-      from (values ${sql.join(valueTuples, sql`, `)}) as v(player_id, market_power, base_power, current_power)
+      from (values ${sql.join(valueTuples, sql`, `)}) as v(player_id, market_power, base_power)
       where pp."playerId" = v.player_id::int
     `)
 
@@ -310,11 +262,7 @@ export async function resetStaleSeasonRows(season: number): Promise<number> {
       seasonYear: season,
       seasonRatingSum: "0",
       seasonRatingCount: 0,
-      recentMatches: [],
-      formModifier: 0,
       basePower: sql`${playerPower.marketPower}`,
-      currentPower: sql`${playerPower.marketPower}`,
-      lastFormUpdateAt: now,
       updatedAt: now,
     })
     .where(and(isNotNull(playerPower.seasonYear), ne(playerPower.seasonYear, season)))
@@ -361,7 +309,7 @@ export async function runPlayerPowerSync(): Promise<PlayerPowerSyncResult> {
 
   // Bu koşuda toplanan performansları oyuncu bazında grupla (bir oyuncu aynı
   // gün içinde nadiren birden fazla maça çıkabilir — örn. art arda kupa maçı).
-  const performancesByPlayer = new Map<number, { teamId: number; perf: MatchPerformance }[]>()
+  const performancesByPlayer = new Map<number, { teamId: number; perf: PlayerMatchRating }[]>()
 
   for (const { fixture, stats } of statsResults) {
     if (stats.length === 0) {

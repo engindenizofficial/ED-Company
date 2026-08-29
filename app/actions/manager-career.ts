@@ -10,14 +10,13 @@ import { revalidatePath } from "next/cache"
 import {
   DIFFICULTY_SETTINGS,
   CLUB_LOGO_FILES,
-  PLAYER_ROLES,
   STARTING_XI_SIZE,
   BENCH_SIZE,
   isValidFormationId,
   getFormationSlots,
   type ManagerDifficulty,
-  type PlayerRole,
 } from "@/lib/games/manager-career"
+import { isPlayerPosition, type PlayerPosition } from "@/lib/player-positions"
 import { DUEL_SELECTABLE_LEAGUE_IDS } from "@/lib/leagues"
 
 /**
@@ -71,7 +70,7 @@ export interface SquadPlayerInput {
   photo: string | null
   realTeamName: string | null
   realTeamLogo: string | null
-  role: PlayerRole
+  role: PlayerPosition
   /** İstemcinin gösterdiği fiyat — GÜVENİLMEZ, sunucu her zaman DB'deki gerçek değeri baz alır. */
   clientPriceEur: number
   slot: { kind: "starting"; slotKey: string } | { kind: "bench"; benchIndex: number }
@@ -125,13 +124,13 @@ export async function createManagerCareer(
   const seenPlayerIds = new Set<number>()
 
   for (const s of input.squad) {
-    if (!PLAYER_ROLES.includes(s.role)) return { ok: false, error: "invalidPlayer" }
+    if (!isPlayerPosition(s.role)) return { ok: false, error: "invalidPlayer" }
     if (seenPlayerIds.has(s.playerId)) return { ok: false, error: "duplicatePlayer" }
     seenPlayerIds.add(s.playerId)
 
     if (s.slot.kind === "starting") {
       const slotDef = slotByKey.get(s.slot.slotKey)
-      if (!slotDef || slotDef.role !== s.role) return { ok: false, error: "invalidSlot" }
+      if (!slotDef) return { ok: false, error: "invalidSlot" }
       if (usedSlotKeys.has(s.slot.slotKey)) return { ok: false, error: "duplicateSlot" }
       usedSlotKeys.add(s.slot.slotKey)
     } else {

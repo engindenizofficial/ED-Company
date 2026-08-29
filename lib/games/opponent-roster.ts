@@ -1,23 +1,16 @@
 import { getSquad } from "@/lib/api-football"
 import { db } from "@/lib/db"
-import { playerMarketValue, playerPower } from "@/lib/db/schema"
+import { playerMarketValue, playerPosition, playerPower } from "@/lib/db/schema"
 import { inArray } from "drizzle-orm"
 import { computeLivePowerFromMarketValue } from "@/lib/player-power"
-import { PLAYER_ROLES, type PlayerRole } from "@/lib/games/manager-career"
+import { isPlayerPosition, type PlayerPosition } from "@/lib/player-positions"
 
-/**
- * Oyuncunun kayıtlı mevki verisi veya piyasa değeri DB satırı yoksa (yeni transfer,
- * gençlik takımı vb.) kullanılan taban güç. Takım gücünü tamamen sıfıra
- * düşürmemek için nötr-altı bir değer.
- */
 const DEFAULT_FALLBACK_POWER = 45
 
 export interface RosterPlayer {
   id: number
   name: string
-  /** Ham API-Football mevki kategorisi: "Goalkeeper" | "Defender" | "Midfielder" | "Attacker" */
-  role: PlayerRole
-  /** 1-99 arası güç puanı */
+  position: PlayerPosition
   power: number
 }
 
@@ -28,69 +21,47 @@ export interface TeamStrength {
   overall: number
 }
 
-/** Her grup için, ortalamaya girecek en güçlü oyuncu sayısı — yaklaşık bir başlangıç 11'i temsil eder. */
-const TOP_N_PER_GROUP: Record<"defense" | "midfield" | "attack", number> = {
-  defense: 5,
-  midfield: 4,
-  attack: 3,
-}
+const TOP_N_PER_GROUP = { defense: 5, midfield: 4, attack: 3 } as const
+const DEFENSE = new Set<PlayerPosition>(["GK", "LB", "CB", "RB"])
+const MIDFIELD = new Set<PlayerPosition>(["DM", "CM", "AM", "LM", "RM"])
+const ATTACK = new Set<PlayerPosition>(["LW", "RW", "CF", "ST"])
 
 function averageTopN(powers: number[], n: number): number {
   if (powers.length === 0) return DEFAULT_FALLBACK_POWER
   const sorted = [...powers].sort((a, b) => b - a).slice(0, n)
-  return sorted.reduce((sum, p) => sum + p, 0) / sorted.length
+  return sorted.reduce((sum, power) => sum + power, 0) / sorted.length
 }
 
-/**
- * Bir gerçek (API-Football) takımın kadrosunu, piyasa değeri ve güç motoru
- * verisiyle birleştirip RosterPlayer[] olarak döner. Menajer kariyeri oyuncu
- * aramasındaki (`players/search/route.ts`) mantığın basitleştirilmiş bir
- * türevidir — burada isim eşleştirmesi gerekmediğinden (doğrudan teamId ile
- * kadro çekiliyor) candidate-cache / fallback tekil sorgu adımları yok.
- */
 export async function getTeamRoster(teamId: number): Promise<RosterPlayer[]> {
   const squad = await getSquad(teamId)
   if (squad.length === 0) return []
+  const ids = squad.map((player) => player.id)
 
-  const ids = squad.map((p) => p.id)
-  const [marketRows, powerRows] = await Promise.all([
-    db
-      .select({ playerId: playerMarketValue.playerId, valueEur: playerMarketValue.valueEur })
-      .from(playerMarketValue)
-      .where(inArray(playerMarketValue.playerId, ids)),
-    db
-      .select({ playerId: playerPower.playerId, currentPower: playerPower.currentPower })
-      .from(playerPower)
-      .where(inArray(playerPower.playerId, ids)),
+  const [marketRows, powerRows, positionRows] = await Promise.all([
+    db.select({ playerId: playerMarketValue.playerId, valueEur: playerMarketValue.valueEur })
+      .from(playerMarketValue).where(inArray(playerMarketValue.playerId, ids)),
+    db.select({ playerId: playerPower.playerId, power: playerPower.basePower })
+      .from(playerPower).where(inArray(playerPower.playerId, ids)),
+    db.select({ playerId: playerPosition.playerId, primary: playerPosition.mainPosition })
+      .from(playerPosition).where(inArray(playerPosition.playerId, ids)),
   ])
 
-  const valueByPlayerId = new Map(marketRows.map((r) => [r.playerId, r.valueEur !== null ? Number(r.valueEur) : null]))
-  const powerByPlayerId = new Map(powerRows.map((r) => [r.playerId, r.currentPower]))
+  const values = new Map(marketRows.map((row) => [row.playerId, row.valueEur === null ? null : Number(row.valueEur)]))
+  const powers = new Map(powerRows.map((row) => [row.playerId, row.power]))
+  const positions = new Map(positionRows.map((row) => [row.playerId, row.primary]))
 
-  return squad
-    .filter((p) => p.id > 0 && p.name)
-    .map((p) => {
-      const valueEur = valueByPlayerId.get(p.id) ?? null
-      const power = powerByPlayerId.get(p.id) ?? computeLivePowerFromMarketValue(valueEur) ?? DEFAULT_FALLBACK_POWER
-      const role: PlayerRole = p.pos && PLAYER_ROLES.includes(p.pos as PlayerRole) ? (p.pos as PlayerRole) : "Midfielder"
-      return { id: p.id, name: p.name, role, power }
-    })
+  return squad.flatMap((player) => {
+    const position = positions.get(player.id)
+    if (player.id <= 0 || !player.name || typeof position !== "string" || !isPlayerPosition(position)) return []
+    const valueEur = values.get(player.id) ?? null
+    const power = powers.get(player.id) ?? computeLivePowerFromMarketValue(valueEur) ?? DEFAULT_FALLBACK_POWER
+    return [{ id: player.id, name: player.name, position, power }]
+  })
 }
 
-/**
- * Bir kadronun (gerçek takım ya da kullanıcının 11'i) defans/orta saha/hücum
- * ve genel gücünü, her grubun en güçlü oyuncularının ortalamasıyla hesaplar.
- * Kaleciler defans grubuna dahil edilir (klasik "defensive third" mantığı).
- */
 export function groupStrengthFromRoster(roster: RosterPlayer[]): TeamStrength {
-  const defensePowers = roster.filter((p) => p.role === "Goalkeeper" || p.role === "Defender").map((p) => p.power)
-  const midfieldPowers = roster.filter((p) => p.role === "Midfielder").map((p) => p.power)
-  const attackPowers = roster.filter((p) => p.role === "Attacker").map((p) => p.power)
-
-  const defense = averageTopN(defensePowers, TOP_N_PER_GROUP.defense)
-  const midfield = averageTopN(midfieldPowers, TOP_N_PER_GROUP.midfield)
-  const attack = averageTopN(attackPowers, TOP_N_PER_GROUP.attack)
-  const overall = (defense + midfield + attack) / 3
-
-  return { defense, midfield, attack, overall }
+  const defense = averageTopN(roster.filter((p) => DEFENSE.has(p.position)).map((p) => p.power), TOP_N_PER_GROUP.defense)
+  const midfield = averageTopN(roster.filter((p) => MIDFIELD.has(p.position)).map((p) => p.power), TOP_N_PER_GROUP.midfield)
+  const attack = averageTopN(roster.filter((p) => ATTACK.has(p.position)).map((p) => p.power), TOP_N_PER_GROUP.attack)
+  return { defense, midfield, attack, overall: (defense + midfield + attack) / 3 }
 }

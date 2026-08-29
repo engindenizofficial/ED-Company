@@ -2,7 +2,7 @@ import { db } from "@/lib/db"
 import { managerTeamStrength, managerSquadPlayer, playerPosition, playerPower } from "@/lib/db/schema"
 import { and, eq, inArray } from "drizzle-orm"
 import { getTeamRoster, groupStrengthFromRoster, type RosterPlayer, type TeamStrength } from "@/lib/games/opponent-roster"
-import { getFormationSlots, type PlayerRole } from "@/lib/games/manager-career"
+import { getFormationSlots } from "@/lib/games/manager-career"
 import { computeLivePowerFromMarketValue } from "@/lib/player-power"
 import { profile, ratingAtPosition, type PlayerPosition } from "@/lib/player-positions"
 
@@ -88,7 +88,7 @@ export async function getUserSquadRoster(careerId: string, formationId: string):
       .from(playerPosition)
       .where(inArray(playerPosition.playerId, playerIds)),
     db
-      .select({ playerId: playerPower.playerId, currentPower: playerPower.currentPower })
+      .select({ playerId: playerPower.playerId, currentPower: playerPower.basePower })
       .from(playerPower)
       .where(inArray(playerPower.playerId, playerIds)),
   ])
@@ -111,7 +111,7 @@ export async function getUserSquadRoster(careerId: string, formationId: string):
     return {
       id: s.playerId,
       name: s.playerName,
-      role: s.position as PlayerRole,
+      position: positionProfile?.primary ?? "CM",
       power,
     }
   })

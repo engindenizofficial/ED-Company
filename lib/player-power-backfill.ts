@@ -9,7 +9,7 @@ import {
   markFixtureProcessed,
   resetStaleSeasonRows,
 } from "./player-power-sync"
-import type { MatchPerformance } from "./player-power"
+import type { PlayerMatchRating } from "./player-power"
 
 // ---------------------------------------------------------------------------
 // Tam-sezon güç backfill'i. Günlük cron (lib/player-power-sync.ts) sadece son
@@ -90,7 +90,7 @@ export async function runPlayerPowerBackfillBatch(): Promise<PowerBackfillBatchR
   let currentFixtureIndex = progress.currentFixtureIndex
   let fixturesProcessedThisCall = 0
   let activeLeagueId: number | null = null
-  const performancesByPlayer = new Map<number, { teamId: number; perf: MatchPerformance }[]>()
+  const performancesByPlayer = new Map<number, { teamId: number; perf: PlayerMatchRating }[]>()
 
   while (fixturesProcessedThisCall < FIXTURE_BATCH_SIZE) {
     if (currentLeagueIndex >= FEATURED_LEAGUE_IDS.length) {

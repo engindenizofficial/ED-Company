@@ -140,16 +140,15 @@ export const playerMarketValue = pgTable('player_market_value', {
 
 // ---------------------------------------------------------------------------
 // Oyuncu güç motoru (player power engine).
-// Taban güç = piyasa değeri (marketPower) + biriken sezon maç rating ortalaması
-// (ratingPower) karışımı. Form katmanı = son ~8 maçın üstel azalan ağırlıklı
-// etkisi (formModifier). currentPower = clamp(basePower + formModifier, 1, 99).
+// Nihai güç = piyasa değeri (marketPower) + biriken sezon maç rating ortalaması
+// karışımıdır ve doğrudan basePower alanında saklanır.
 // Sadece günlük cron (bkz. lib/player-power-sync.ts, app/api/cron/
 // update-player-power) tarafından yazılır. Uygulama tarafı bu tabloyu sadece
 // OKUR; satırı olmayan oyuncular için güç piyasa değerinden anlık hesaplanır
 // (bkz. lib/player-power.ts).
 // ---------------------------------------------------------------------------
 
-/** Oyuncu bazlı güç durumu — taban güç bileşenleri + biriken form geçmişi. */
+/** Oyuncu bazlı güç durumu ve sezon rating birikimi. */
 export const playerPower = pgTable('player_power', {
   id: text('id').primaryKey(),
   /** API-Football oyuncu id'si */
@@ -164,23 +163,13 @@ export const playerPower = pgTable('player_power', {
   seasonRatingSum: numeric('seasonRatingSum', { precision: 10, scale: 2 }).notNull().default('0'),
   /** Biriken sezon maç sayısı (rating verilmiş maçlar) */
   seasonRatingCount: integer('seasonRatingCount').notNull().default(0),
-  /** marketPower ve sezon rating ortalamasının ağırlıklı karışımı (1-99) */
+  /** marketPower ve sezon rating ortalamasının ağırlıklı karışımı; gösterilen nihai güç (1-99) */
   basePower: integer('basePower'),
-  /** Son ~8 maçın üstel azalan ağırlıklı etkisi, -10..+10 aralığında */
-  formModifier: integer('formModifier').notNull().default(0),
-  /** clamp(basePower + formModifier, 1, 99) — kadro kurma ekranında gösterilen nihai puan */
-  currentPower: integer('currentPower'),
-  /**
-   * Son işlenen maçların özeti (en yeni önde), form hesaplamasında kullanılır.
-   * Her eleman: { fixtureId, date, rating, goals, assists, minutes }
-   */
-  recentMatches: jsonb('recentMatches').notNull().default([]),
-  lastFormUpdateAt: timestamp('lastFormUpdateAt'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })
 
-/** Güç cron'unun zaten işlediği fixture'lar — aynı maçın istatistiklerinin iki kez form'a eklenmesini engeller. */
+/** Güç cron'unun zaten işlediği fixture'lar — aynı maç rating'inin iki kez sayılmasını engeller. */
 export const playerPowerProcessedFixture = pgTable('player_power_processed_fixture', {
   id: text('id').primaryKey(),
   /** API-Football fixture id'si */

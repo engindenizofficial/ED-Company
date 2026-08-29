@@ -17,10 +17,6 @@ const statements = [
     "seasonRatingSum" numeric(10, 2) NOT NULL DEFAULT '0',
     "seasonRatingCount" integer NOT NULL DEFAULT 0,
     "basePower" integer,
-    "formModifier" integer NOT NULL DEFAULT 0,
-    "currentPower" integer,
-    "recentMatches" jsonb NOT NULL DEFAULT '[]',
-    "lastFormUpdateAt" timestamp,
     "createdAt" timestamp NOT NULL DEFAULT now(),
     "updatedAt" timestamp NOT NULL DEFAULT now()
   )`,

@@ -45,14 +45,6 @@ export function positionLabel(position: PlayerPosition): string {
   return ({ GK: "Kaleci", LB: "Sol Bek", CB: "Stoper", RB: "Sağ Bek", DM: "Defansif Orta Saha", CM: "Merkez Orta Saha", AM: "Ofansif Orta Saha", LM: "Sol Orta Saha", RM: "Sağ Orta Saha", LW: "Sol Kanat", RW: "Sağ Kanat", CF: "Forvet Arkası", ST: "Santrfor" })[position]
 }
 
-export function rolePositions(role: "Goalkeeper" | "Defender" | "Midfielder" | "Attacker"): PlayerPosition[] {
-  return role === "Goalkeeper" ? ["GK"] : role === "Defender" ? ["LB", "CB", "RB"] : role === "Midfielder" ? ["DM", "CM", "AM", "LM", "RM"] : ["LW", "RW", "CF", "ST"]
-}
-
-export function roleForPosition(position: PlayerPosition): "Goalkeeper" | "Defender" | "Midfielder" | "Attacker" {
-  return position === "GK" ? "Goalkeeper" : ["LB", "CB", "RB"].includes(position) ? "Defender" : ["DM", "CM", "AM", "LM", "RM"].includes(position) ? "Midfielder" : "Attacker"
-}
-
 export function hasVerifiedPosition(player: PositionProfile | null | undefined): boolean {
   return Boolean(player?.primary)
 }

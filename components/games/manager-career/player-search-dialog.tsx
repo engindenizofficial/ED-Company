@@ -100,7 +100,7 @@ export function PlayerSearchDialog({
     let cancelled = false
     setLoading(true)
     const params = new URLSearchParams({ q: debouncedQuery.trim() })
-    if (role) params.set("role", role)
+    if (targetPosition) params.set("position", targetPosition)
     fetch(`/api/games/manager-career/players/search?${params}`)
       .then((r) => r.json())
       .then((data: { results: ManagerPlayerSearchResult[] }) => {

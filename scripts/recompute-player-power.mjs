@@ -91,11 +91,9 @@ async function main() {
 
     const marketPower = marketPowerFromValue(valueEur)
     const basePower = computeBasePower({ valueEur, seasonRatingSum, seasonRatingCount })
-    const currentPower = basePower === null ? null : clampPower(basePower)
-
     await pool.query(
-      `update player_power set "marketPower" = $1, "basePower" = $2, "currentPower" = $3, "formModifier" = 0, "updatedAt" = now() where "playerId" = $4`,
-      [marketPower, basePower, currentPower, row.playerId],
+      `update player_power set "marketPower" = $1, "basePower" = $2, "updatedAt" = now() where "playerId" = $3`,
+      [marketPower, basePower, row.playerId],
     )
     updated++
   }

@@ -65,17 +65,16 @@ function weightedPick(roster: RosterPlayer[], weightFn: (p: RosterPlayer) => num
 
 function scorerWeight(p: RosterPlayer): number {
   const base = p.power * p.power
-  if (p.role === "Attacker") return base * 3
-  if (p.role === "Midfielder") return base * 1.4
-  if (p.role === "Defender") return base * 0.35
+  if (["LW", "RW", "CF", "ST"].includes(p.position)) return base * 3
+  if (["DM", "CM", "AM", "LM", "RM"].includes(p.position)) return base * 1.4
+  if (["LB", "CB", "RB"].includes(p.position)) return base * 0.35
   return 0
 }
 
 function cardWeight(p: RosterPlayer): number {
-  // Defans ve orta saha oyuncuları biraz daha fazla kart görür; kaleciler nadiren.
-  if (p.role === "Goalkeeper") return 0.15
-  if (p.role === "Defender") return 1.2
-  if (p.role === "Midfielder") return 1.1
+  if (p.position === "GK") return 0.15
+  if (["LB", "CB", "RB"].includes(p.position)) return 1.2
+  if (["DM", "CM", "AM", "LM", "RM"].includes(p.position)) return 1.1
   return 0.8
 }
 

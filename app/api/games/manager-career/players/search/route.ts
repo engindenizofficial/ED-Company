@@ -3,8 +3,6 @@ import { getSquad, getPlayerRoleAndPhoto } from "@/lib/api-football"
 import { db } from "@/lib/db"
 import { playerMarketValue, teamMarketValue, playerPower, playerPosition } from "@/lib/db/schema"
 import { and, eq, gt, inArray } from "drizzle-orm"
-import type { PlayerRole } from "@/lib/games/manager-career"
-import { PLAYER_ROLES } from "@/lib/games/manager-career"
 import { computeLivePowerFromMarketValue } from "@/lib/player-power"
 import { profile, type PositionProfile } from "@/lib/player-positions"
 
@@ -18,8 +16,6 @@ export interface ManagerPlayerSearchResult {
   age: number | null
   teamName: string | null
   teamLogo: string | null
-  /** Ham API-Football mevki kategorisi. */
-  role: PlayerRole
   /** Piyasa değeri, tam euro — kadroya eklerken bütçeden düşülecek tutar. */
   priceEur: number
   /**
@@ -155,8 +151,7 @@ function normalizeTR(s: string): string {
  */
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? ""
-  const roleParam = req.nextUrl.searchParams.get("role")
-  const roleFilter: PlayerRole | null = roleParam && PLAYER_ROLES.includes(roleParam as PlayerRole) ? (roleParam as PlayerRole) : null
+  const positionFilter = req.nextUrl.searchParams.get("position")
 
   if (q.length < 2) {
     return NextResponse.json({ results: [] })
@@ -198,20 +193,16 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  const roleByPlayerId = new Map<number, { role: PlayerRole; photo: string | null; age: number | null }>()
+  const infoByPlayerId = new Map<number, { photo: string | null; age: number | null }>()
   for (const [, squad] of squadEntries) {
-    for (const sp of squad) {
-      if (sp.pos && PLAYER_ROLES.includes(sp.pos as PlayerRole)) {
-        roleByPlayerId.set(sp.id, { role: sp.pos as PlayerRole, photo: sp.photo, age: sp.age })
-      }
-    }
+    for (const sp of squad) infoByPlayerId.set(sp.id, { photo: sp.photo, age: sp.age })
   }
 
   // DB'de piyasa değeriyle eşleşmiş ama takımının GÜNCEL kadro listesinde
   // (transfer, kiralık, listeye eklenmemiş vb. nedenlerle) bulunamayan
   // adaylar için oyuncunun kendi profilinden tek-tek fallback sorgusu
   // yapılır — aksi halde bu oyuncular arama sonuçlarından tamamen kaybolur.
-  const missingIds = matches.map((m) => m.playerId).filter((id) => !roleByPlayerId.has(id))
+  const missingIds = matches.map((m) => m.playerId).filter((id) => !infoByPlayerId.has(id))
   if (missingIds.length > 0) {
     const fallbackEntries = await mapWithConcurrency(missingIds, 4, async (playerId) => {
       try {
@@ -221,16 +212,14 @@ export async function GET(req: NextRequest) {
       }
     })
     for (const [playerId, info] of fallbackEntries) {
-      if (info?.role && PLAYER_ROLES.includes(info.role as PlayerRole)) {
-        roleByPlayerId.set(playerId, { role: info.role as PlayerRole, photo: info.photo, age: info.age })
-      }
+      if (info) infoByPlayerId.set(playerId, { photo: info.photo, age: info.age })
     }
   }
 
   // Güç motorunun bu adaylar için üretmiş olduğu satırları toplu oku — satırı
   // olmayan oyuncular için aşağıda piyasa değerinden anlık hesaplanır.
   const powerRows = await db
-    .select({ playerId: playerPower.playerId, currentPower: playerPower.currentPower })
+    .select({ playerId: playerPower.playerId, currentPower: playerPower.basePower })
     .from(playerPower)
     .where(inArray(playerPower.playerId, matches.map((m) => m.playerId)))
   const powerByPlayerId = new Map(powerRows.map((r) => [r.playerId, r.currentPower]))
@@ -253,9 +242,10 @@ export async function GET(req: NextRequest) {
 
   const results: ManagerPlayerSearchResult[] = matches
     .map((c) => {
-      const info = roleByPlayerId.get(c.playerId)
-      if (!info) return null
-      if (roleFilter && info.role !== roleFilter) return null
+      const info = infoByPlayerId.get(c.playerId)
+      const playerPositionProfile = positionByPlayerId.get(c.playerId) ?? null
+      if (!info || !playerPositionProfile) return null
+      if (positionFilter && playerPositionProfile.primary !== positionFilter) return null
       const result: ManagerPlayerSearchResult = {
         id: c.playerId,
         name: c.playerName,
@@ -264,10 +254,9 @@ export async function GET(req: NextRequest) {
         age: info.age,
         teamName: c.teamName,
         teamLogo: teamLogoUrl(c.teamId),
-        role: info.role,
         priceEur: c.valueEur,
         power: powerByPlayerId.get(c.playerId) ?? computeLivePowerFromMarketValue(c.valueEur),
-        position: positionByPlayerId.get(c.playerId) ?? null,
+        position: playerPositionProfile,
       }
       return result
     })

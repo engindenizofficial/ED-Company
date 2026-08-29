@@ -48,7 +48,7 @@ import { PowerBadge } from "@/components/games/manager-career/power-badge"
 import type { ManagerPlayerSearchResult } from "@/app/api/games/manager-career/players/search/route"
 import type { SquadPlayerInput } from "@/app/actions/manager-career"
 import { cn } from "@/lib/utils"
-import { ratingAtPosition, positionLabel, type PositionProfile } from "@/lib/player-positions"
+import { ratingAtPosition, positionLabel, type PlayerPosition, type PositionProfile } from "@/lib/player-positions"
 
 export interface SquadEntry {
   playerId: number
@@ -56,7 +56,7 @@ export interface SquadEntry {
   photo: string | null
   teamName: string | null
   teamLogo: string | null
-  role: PlayerRole
+  role: PlayerPosition
   priceEur: number
   /** Oyuncu güç motorunun ürettiği 1-99 puan (bkz. lib/player-power.ts) — sadece gösterim amaçlı, kadroya kaydedilmez. */
   power: number | null
@@ -170,7 +170,7 @@ export function SquadBuilder({ totalBudgetEur, onBack, onComplete, submitting }:
       photo: result.photo,
       teamName: result.teamName,
       teamLogo: result.teamLogo,
-      role: result.role,
+      role: result.position!.primary!,
       priceEur: result.priceEur,
       power: result.power,
       position: result.position,
@@ -611,7 +611,7 @@ function BenchSlot({
         title={entry.position?.primary ? positionLabel(entry.position.primary) : undefined}
         className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground"
       >
-        {entry.position?.primary ?? ROLE_ABBR[entry.role]}
+        {entry.role}
       </span>
     </div>
   )
