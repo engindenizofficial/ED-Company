@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
-// Piyasa değeri gösterim yardımcıları. Hem client hem server bileşenlerinden
-// import edilebilir — bu dosya veritabanına (pg) bağımlı DEĞİLDİR. DB'ye
-// erişen okuma fonksiyonları için bkz. lib/market-values.ts (server-only).
+// Eski kayıtlarla uyumluluk için piyasa değeri gösterim yardımcıları.
+// Hem client hem server bileşenlerinden import edilebilir ve veritabanına
+// bağlı değildir.
 // ---------------------------------------------------------------------------
 
 /**

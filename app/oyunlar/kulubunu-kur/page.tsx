@@ -21,10 +21,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export const dynamic = "force-dynamic"
 
-// "Kulübünü Kur" oyunu şu an sadece admin hesabına açık — yayına hazır
-// olmadığı için diğer kullanıcılar (giriş yapmış olsalar da) ana sayfaya
-// geri yönlendirilir. Alttaki server action'lar (app/actions/manager-career.ts)
-// zaten aynı kontrolü tekrar yapıyor, burası sadece sayfanın kendisini kapatır.
+// "Kulübünü Kur" sayfası yalnızca admin hesabına açıktır.
+// Veri altyapısı kaldırıldığı sürece güvenli boş durum gösterilir.
 export default async function ManagerCareerPage() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!isAdminEmail(session?.user?.email)) {

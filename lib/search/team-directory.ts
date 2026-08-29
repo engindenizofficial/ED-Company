@@ -90,11 +90,9 @@ async function fetchFeaturedTeams(season: number): Promise<FeaturedTeamEntry[]> 
   const seen = new Set<number>()
   const all: FeaturedTeamEntry[] = []
 
-  // ÖNEMLI: Etiketleme sırasında ulusal ligler Avrupa kupalarından ÖNCE
-  // işlenmeli. FEATURED_LEAGUES dizisinde kupalar (Şampiyonlar Ligi vb.)
-  // başta yer alıyor (bkz. dosya başındaki DUEL_SELECTABLE_LEAGUES notu —
-  // piyasa değeri senkronu için kasıtlı). "seen" mantığı ilk gelen ligi
-  // kalıcı etiket olarak kaydettiğinden, sıralamayı burada değiştirmezsek
+  // Etiketleme sırasında ulusal ligler Avrupa kupalarından önce işlenmeli.
+  // "seen" mantığı ilk gelen ligi kalıcı etiket olarak kaydettiğinden,
+  // sıralamayı burada değiştirmezsek
   // Fenerbahçe gibi hem Süper Lig'de hem Şampiyonlar Ligi'nde olan takımlar
   // yanlışlıkla "Champions League" etiketiyle görünür. Fetch sırası
   // (allLeagueResults) değişmiyor, sadece bu döngünün işleme sırası.

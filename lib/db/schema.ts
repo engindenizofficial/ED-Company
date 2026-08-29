@@ -124,7 +124,7 @@ export const managerCareer = pgTable('manager_career', {
   logoFile: text('logoFile').notNull(),
   clubName: text('clubName').notNull(),
   managerName: text('managerName').notNull(),
-  /** API-Football lig id'si — DUEL_SELECTABLE_LEAGUES içinden biri */
+  /** API-Football lig id'si */
   leagueId: integer('leagueId').notNull(),
   /** Aktif diziliş, örn. "4-3-3" */
   formation: text('formation').notNull().default('4-4-2'),

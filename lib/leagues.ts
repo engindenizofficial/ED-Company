@@ -243,27 +243,3 @@ export const FEATURED_LEAGUES: FeaturedLeague[] = [
 /** `FEATURED_LEAGUES`'ten türetilen sıralı id listesi — asla elle düzenlenmez. */
 export const FEATURED_LEAGUE_IDS: number[] = FEATURED_LEAGUES.map((l) => l.id)
 
-/**
- * "Piyasa Değeri Düellosu" oyununda kullanıcının seçebileceği ligler —
- * SADECE ulusal ligler, Avrupa kupaları (Şampiyonlar Ligi, Avrupa Ligi,
- * Konferans Ligi, UEFA Süper Kupa) HARİÇ.
- *
- * Sebep: `team_market_value.leagueId` her takım için TEK bir değer tutar ve
- * senkron döngüsü her ligi (kupalar dahil) tarasa da, upsert `teamId` üzerine
- * "son yazan kazanır" şeklinde çalışır (bkz. lib/market-value-sync.ts). Kupa
- * ligleri FEATURED_LEAGUES dizisinde ulusal liglerden ÖNCE geldiği için,
- * ulusal lig senkronu her zaman en son çalışıp üzerine yazar — yani hiçbir
- * takım pratikte bir kupa ligine ait olarak SAKLANMAZ (DB'de doğrulandı: 4
- * kupa id'sinden hiçbiri teamMarketValue'da hiç görünmüyor). Kupa liglerini
- * seçilebilir yapmak, kullanıcıya her zaman "yeterli oyuncu verisi yok"
- * hatasıyla sonuçlanacak boş bir seçenek sunmak olurdu.
- *
- * Bu liste `country !== "Avrupa"` filtresiyle türetilir — FEATURED_LEAGUES'te
- * sadece 4 kupa yarışması "Avrupa" ülkesine sahiptir, tüm ulusal ligler
- * kendi ülkelerine sahiptir. Yeni bir kupa yarışması eklenirse otomatik
- * olarak dışlanır.
- */
-export const DUEL_SELECTABLE_LEAGUES: FeaturedLeague[] = FEATURED_LEAGUES.filter((l) => l.country !== "Avrupa")
-
-/** `DUEL_SELECTABLE_LEAGUES`'ten türetilen id listesi. */
-export const DUEL_SELECTABLE_LEAGUE_IDS: number[] = DUEL_SELECTABLE_LEAGUES.map((l) => l.id)
