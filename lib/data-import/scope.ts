@@ -1,5 +1,4 @@
 import { FEATURED_LEAGUES } from '@/lib/leagues'
-import { buildCompetitionClubsUrl } from './transfermarkt-parser'
 
 function getCurrentTransfermarktSeason(date = new Date()) {
   const year = date.getUTCFullYear()
@@ -21,7 +20,7 @@ export const IMPORT_LEAGUES = FEATURED_LEAGUES.filter((league) => league.country
     transfermarktId: TRANSFERMARKT_COMPETITIONS[league.id],
     name: league.name,
     country: league.country,
-    transfermarktUrl: buildCompetitionClubsUrl(TRANSFERMARKT_COMPETITIONS[league.id], TRANSFERMARKT_SEASON),
+    transfermarktUrl: `https://www.transfermarkt.com/wettbewerb/startseite/wettbewerb/${TRANSFERMARKT_COMPETITIONS[league.id]}/saison_id/${TRANSFERMARKT_SEASON}`,
   }),
 )
 
