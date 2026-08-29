@@ -40,8 +40,7 @@ export const dynamic = "force-dynamic"
 // da bu invocation'ın toplam süre bütçesine dahildir — bu satır olmadan
 // platform varsayılan süresi dolduğunda iş yarıda kesilir, tahmin Redis'e
 // hiç yazılmaz ve istemci 5 dakikalık polling limitine çarpıp sessizce
-// vazgeçer. Diğer after()/arka plan route'larıyla (update-player-power,
-// update-market-values, backfill-*) aynı desen.
+// vazgeçer. Diğer uzun süren after()/arka plan route'larıyla aynı desen.
 export const maxDuration = 300
 
 // Sadece başlamamış / belirsiz maçlar için tahmin yapılır
@@ -803,7 +802,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   }
 
   // 7b. Confidence kalibrasyonu — LLM'ler doğası gereği overconfident olma
-  // eğilimindedir (örn. "%85 güven" dediklerinde ger����ekte %60 tutması gibi).
+  // eğilimindedir (örn. "%85 güven" dediklerinde ger������ekte %60 tutması gibi).
   // Ensemble'ın ham güven skorunu, geçmiş çözümlenmiş tahminlerin o güven
   // aralığında GERÇEKTE ne oranda tuttuğuna göre düzeltiyoruz (bkz.
   // lib/confidence-calibration.ts). Yeterli geçmiş veri yoksa (cold start)

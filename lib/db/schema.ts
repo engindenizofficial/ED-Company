@@ -102,14 +102,9 @@ export const liveFixtureNotificationState = pgTable('live_fixture_notification_s
 
 // ---------------------------------------------------------------------------
 // Piyasa değeri (market value) tabloları
-// Kaynak: Transfermarkt scraping + API-Football kimlik verisi. SADECE admin
-// panelindeki "Taramayı Başlat" butonuyla tetiklenen QStash-tabanlı tarama
-// tarafından yazılır. Her yeni tarama, önceki taramanın TÜM verisini
-// (nihai tablolar + staging + review kuyruğu) silip sıfırdan başlar —
-// bu yüzden burada "manuel kilit" / "unmatched satır" kavramı yok: bir
-// satır varsa eşleşmiştir, yoksa henüz eşleşmemiş veya review'dadır.
-// Uygulama tarafı bu tabloları sadece OKUR, hiçbir zaman anlık scrape
-// tetiklemez.
+// Tarihsel piyasa değeri ve kaynak eşleştirme verilerini saklar.
+// Otomatik veri çekme sistemi kaldırılmıştır; uygulama bu tabloları yalnızca
+// mevcut kayıtları okumak için kullanır.
 // ---------------------------------------------------------------------------
 
 /** Lig bazlı eşleşme (matched olduğunda yazılır) + ligdeki tüm takımların toplam piyasa değeri. */
