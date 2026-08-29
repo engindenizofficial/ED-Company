@@ -23,7 +23,6 @@ import type {
 } from "./types"
 import { toTurkishCountry } from "./tr-aliases"
 import { apiFootballFetch, safeApiFootballFetch } from "./api-football-client"
-import { getPlayerMarketValue, getTeamMarketValue } from "./market-values"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
 
 // Sezon geçişi (Ağustos) TR takvimine göre kabul edilir — panel header
@@ -270,8 +269,6 @@ export async function getPlayerBasicProfile(playerId: number): Promise<PlayerPro
   const p = entry.player ?? {}
   const currentStats = entry.statistics?.[0] ?? {}
 
-  const marketValue = p.id ? await getPlayerMarketValue(p.id).catch(() => null) : null
-
   return {
     id: p.id ?? 0,
     name: p.name ?? "",
@@ -300,7 +297,7 @@ export async function getPlayerBasicProfile(playerId: number): Promise<PlayerPro
           season: currentStats.league.season,
         }
       : null,
-    marketValueEur: marketValue?.valueEur ?? null,
+    marketValueEur: null,
   }
 }
 
@@ -338,8 +335,6 @@ export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | 
     flagUrl: await getCountryFlagUrl(rawTeam.team.country ?? null),
   }
 
-  const marketValue = await getTeamMarketValue(teamId).catch(() => null)
-
   return {
     team,
     venue: {
@@ -349,7 +344,7 @@ export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | 
       image: rawTeam.venue?.image ?? null,
     },
     currentSeason: currentSeason(),
-    marketValueEur: marketValue?.totalValueEur ?? null,
+    marketValueEur: null,
   }
 }
 

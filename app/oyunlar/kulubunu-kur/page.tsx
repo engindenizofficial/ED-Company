@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import type { Metadata } from "next"
 import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
-import { ManagerCareerHero } from "@/components/games/manager-career/manager-career-hero"
+import { GameDataEmptyState } from "@/components/games/game-data-empty-state"
 import { getServerLocale } from "@/lib/i18n/server-locale"
 import { translate } from "@/lib/i18n/dictionaries"
 
@@ -31,5 +31,10 @@ export default async function ManagerCareerPage() {
     redirect("/")
   }
 
-  return <ManagerCareerHero />
+  return (
+    <GameDataEmptyState
+      title="Kulübünü Kur"
+      description="Kadro kurmak için gereken oyuncu değeri ve mevki verileri şu anda mevcut değil. Yeni veri kaynağı eklendiğinde özellik yeniden açılacak."
+    />
+  )
 }

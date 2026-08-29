@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
-import { getTeamMarketValues } from "@/lib/market-values"
 import type {
   Fixture,
   LeagueSeasonStats,
@@ -80,9 +79,6 @@ function mapFixture(r: RawFixture): Fixture {
   }
 }
 
-// Piyasa değerini yalnızca DB'deki teamMarketValue tablosundan okur (bkz.
-// lib/market-values.ts) — asla canlı scrape tetiklemez, sadece haftalık
-// cron'un doldurduğu veriyi gösterir.
 async function fetchStandings(leagueId: number, season: number): Promise<StandingRow[]> {
   const standingsRaw = await apiFetch<any>("/standings", { league: leagueId, season })
   const standings: StandingRow[] = []
@@ -100,14 +96,6 @@ async function fetchStandings(leagueId: number, season: number): Promise<Standin
           marketValueEur: null,
         })
       }
-    }
-  }
-
-  if (standings.length > 0) {
-    const teamIds = [...new Set(standings.map((r) => r.teamId).filter((id) => id > 0))]
-    const values = await getTeamMarketValues(teamIds)
-    for (const row of standings) {
-      row.marketValueEur = values.get(row.teamId)?.totalValueEur ?? null
     }
   }
 

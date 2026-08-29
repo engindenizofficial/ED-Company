@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getFeaturedTeamsDirectory, type FeaturedTeamEntry } from "@/lib/search/team-directory"
-import { getTeamMarketValueMapByTeamIds } from "@/lib/search/market-index"
 import { normalizeTR } from "@/lib/search/text-normalize"
 
 export const dynamic = "force-dynamic"
@@ -35,8 +34,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ results: [] })
   }
 
-  const valueMap = await getTeamMarketValueMapByTeamIds(matched.map((t: FeaturedTeamEntry) => t.id))
-
   const results: HomeSearchTeamResult[] = matched
     .map((t: FeaturedTeamEntry) => ({
       id: t.id,
@@ -46,12 +43,9 @@ export async function GET(req: NextRequest) {
       leagueId: t.leagueId,
       leagueName: t.leagueName,
       leagueLogo: t.leagueLogo,
-      marketValueEur: valueMap.get(t.id) ?? 0,
+      marketValueEur: 0,
     }))
-    .sort((a: HomeSearchTeamResult, b: HomeSearchTeamResult) => {
-      if (b.marketValueEur !== a.marketValueEur) return b.marketValueEur - a.marketValueEur
-      return a.name.localeCompare(b.name, "tr")
-    })
+    .sort((a: HomeSearchTeamResult, b: HomeSearchTeamResult) => a.name.localeCompare(b.name, "tr"))
     .slice(0, 20)
 
   return NextResponse.json({ results })

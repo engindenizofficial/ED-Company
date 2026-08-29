@@ -56,23 +56,10 @@ const schedules = [
     withBypass: false,
   },
   {
-    scheduleId: "backfill-player-positions",
-    cron: "*/5 * * * *",
-    path: "/api/cron/backfill-player-positions",
-    withBypass: true,
-  },
-  {
     scheduleId: "revalidate-sitemap",
     // 21:05 UTC = 00:05 TR (eski GitHub Actions workflow'uyla birebir aynı)
     cron: "5 21 * * *",
     path: "/api/cron/revalidate-sitemap",
-    withBypass: false,
-  },
-  {
-    scheduleId: "update-player-power",
-    // eski vercel.json girdisiyle birebir aynı: her gün 00:00 UTC
-    cron: "0 0 * * *",
-    path: "/api/cron/update-player-power",
     withBypass: false,
   },
   {

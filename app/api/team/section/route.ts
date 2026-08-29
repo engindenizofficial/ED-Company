@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
-import { getPlayerMarketValues } from "@/lib/market-values"
 import { calculateAge } from "@/lib/api-football"
 import type {
   Fixture,
@@ -253,19 +252,11 @@ export async function GET(request: Request) {
         const squadData = squadRaw?.[0] as any
         const rawPlayers = squadData?.players ?? []
 
-        // Piyasa değerleri veritabanından tek sorguda okunur; veri kaynağı
-        // bu endpoint'ten bağımsızdır.
-        const playerIds: number[] = rawPlayers.map((p: any) => p.id).filter(Boolean)
-        const marketValues = await getPlayerMarketValues(playerIds).catch(() => new Map())
-
-        const players: SquadPlayer[] = rawPlayers.map((p: any) => {
-          const mv = marketValues.get(p.id)
-          return {
-            id: p.id, name: p.name, age: p.age ?? null,
-            number: p.number ?? null, pos: p.position ?? null, photo: p.photo ?? null,
-            marketValueEur: mv?.valueEur ?? null,
-          }
-        })
+        const players: SquadPlayer[] = rawPlayers.map((p: any) => ({
+          id: p.id, name: p.name, age: p.age ?? null,
+          number: p.number ?? null, pos: p.position ?? null, photo: p.photo ?? null,
+          marketValueEur: null,
+        }))
         if (players.length === 0) return noStoreJson({ data: null })
         return noStoreJson({ data: players })
       }

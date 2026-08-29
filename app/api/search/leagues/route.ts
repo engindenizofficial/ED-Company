@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { FEATURED_LEAGUES } from "@/lib/leagues"
-import { getFeaturedLeagueMarketValueMap } from "@/lib/search/market-index"
 import { normalizeTR } from "@/lib/search/text-normalize"
 import { countryMatchesQuery, toTurkishCountry } from "@/lib/tr-aliases"
 
@@ -35,8 +34,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ results: [] })
   }
 
-  const valueMap = await getFeaturedLeagueMarketValueMap()
-
   const results: HomeSearchLeagueResult[] = matched
     .map((l) => ({
       id: l.id,
@@ -44,12 +41,9 @@ export async function GET(req: NextRequest) {
       logo: l.logo,
       country: toTurkishCountry(l.country),
       flagUrl: l.flagUrl,
-      marketValueEur: valueMap.get(l.id) ?? 0,
+      marketValueEur: 0,
     }))
-    .sort((a, b) => {
-      if (b.marketValueEur !== a.marketValueEur) return b.marketValueEur - a.marketValueEur
-      return a.name.localeCompare(b.name, "tr")
-    })
+    .sort((a, b) => a.name.localeCompare(b.name, "tr"))
     .slice(0, 20)
 
   return NextResponse.json({ results })
