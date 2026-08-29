@@ -4,8 +4,7 @@ import { fireChainStepWithoutAwaitingResponse } from "@/lib/fire-chain-step"
 
 // ---------------------------------------------------------------------------
 // Tam sezon güç motoru backfill'i. vercel.json'da otomatik bir cron
-// ZAMANLAMASI YOK — `app/api/cron/backfill-player-positions` ile aynı
-// bilinçli tasarım: tek bir tetikleme (admin panelinden veya bu route'a bir
+// ZAMANLAMASI YOK: tek bir tetikleme (admin panelinden veya bu route'a bir
 // GET isteğiyle) başlatılır ve kendi kendini `after()` ile tetikleyerek tüm
 // 24 lig (bkz. lib/leagues.ts FEATURED_LEAGUE_IDS) taranana kadar arka
 // planda devam eder.
@@ -26,8 +25,7 @@ function isAuthorized(request: Request): boolean {
   return header === `Bearer ${secret}`
 }
 
-// Bkz. app/api/cron/backfill-player-positions/route.ts — bu adım da (25
-// fikstürün istatistiğini paralel çeken bir batch) worst-case'te
+// Bu adım (25 fikstürün istatistiğini paralel çeken bir batch) worst-case'te
 // triggerChainContinuation'ın varsayılan 15s self-fetch timeout'unu kolayca
 // aşabiliyordu; bu da AYNI çoklanma felaketine (self-fetch "zaman aşımı"
 // deyip ikinci bir paralel istek başlatır, sunucudaki ilki iptal olmaz) yol

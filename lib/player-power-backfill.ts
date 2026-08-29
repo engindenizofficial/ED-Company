@@ -18,8 +18,7 @@ import type { MatchPerformance } from "./player-power"
 // (bkz. lib/leagues.ts FEATURED_LEAGUE_IDS) her birini sırayla tarayarak
 // yeniden inşa eder.
 //
-// `backfill-player-positions` route'undaki zincirleme (`after()` ile kendini
-// tetikleyen) desenin aynısını izler — ilerleme burada lig index'i +
+// Kendi kendini `after()` ile tetikleyen zincirleme deseni izler — ilerleme burada lig index'i +
 // lig-içi fikstür index'i olarak `player_power_backfill_cron_run` satırında
 // kalıcı tutulur, böylece zincir kesilse (deploy, zaman aşımı, ağ hatası)
 // bile bir sonraki tetikleme kaldığı yerden devam eder.

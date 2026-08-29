@@ -235,8 +235,7 @@ export async function GET(req: NextRequest) {
     .where(inArray(playerPower.playerId, matches.map((m) => m.playerId)))
   const powerByPlayerId = new Map(powerRows.map((r) => [r.playerId, r.currentPower]))
 
-  // Mevki backfill'i kademeli çalıştığı için (bkz. lib/player-position-sync.ts)
-  // her oyuncu için satır olmayabilir — bu durumda position: null döner ve
+  // Her oyuncu için kayıtlı mevki satırı olmayabilir — bu durumda position: null döner ve
   // kadro ekranı doğrulanmamış (nötr) fallback kullanır.
   const positionRows = await db
     .select({

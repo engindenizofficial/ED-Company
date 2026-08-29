@@ -5,8 +5,7 @@ import { acquireChainLock, releaseChainLock } from "@/lib/redis"
 // Canlı maç bildirim taraması — favori takımlardan biri sahadayken gol / maç
 // başlangıcı / devre arası / 2. yarı / maç bitişi olaylarını kontrol eder.
 //
-// ÖNEMLİ GEÇMİŞ — bu route ÖNCEDEN (backfill-player-positions'la BİREBİR
-// AYNI hatayı taşıyarak) kendi kendini `after()` + self-fetch ile
+// ÖNEMLİ GEÇMİŞ — bu route ÖNCEDEN kendi kendini `after()` + self-fetch ile
 // tetikleyip, canlı maç varken 30s / boşta 2dk aralıklarla sonsuza kadar
 // süren bir zincir oluşturmaya çalışıyordu. Bu YAPISAL olarak asla güvenilir
 // çalışamazdı: Vercel platformu bir fonksiyonun kendini ZİNCİRLEME şekilde
@@ -18,8 +17,8 @@ import { acquireChainLock, releaseChainLock } from "@/lib/redis"
 // arası bildirimi geç geliyor, sonra bir anda toplu geliyor" şikayetinin kök
 // nedeniydi.
 //
-// ÇÖZÜM (backfill-player-positions'ta uygulanan AYNI desen): bu route artık
-// kendini HİÇ tetiklemiyor — SADECE gelen TEK bir GET isteğine karşılık TEK
+// ÇÖZÜM: bu route artık kendini HİÇ tetiklemiyor — SADECE gelen TEK bir GET
+// isteğine karşılık TEK
 // bir tarama yapar ve döner. Sürekliliği DIŞARIDAN, QStash'in kendisi
 // sağlıyor (bkz. scripts/setup-qstash-schedules.mjs, scheduleId:
 // "live-fixture-notifications", 1 dakikada bir — canlı maç olsun olmasın

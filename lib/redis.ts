@@ -43,8 +43,6 @@ const K = {
   voteCounts: (fixtureId: number) => `ed:vote:counts:${fixtureId}`,
   voteChoices: (fixtureId: number) => `ed:vote:choices:${fixtureId}`,
   chainLock: (name: string) => `ed:chain-lock:${name}`,
-  tmSession: () => `ed:tm:session`,
-  tmDelay: (system: TmSystem) => `ed:tm:delay:${system}`,
 }
 
 // ---------------------------------------------------------------------------
@@ -86,73 +84,6 @@ export async function releaseChainLock(name: string): Promise<void> {
     console.log("[v0] redis releaseChainLock failed:", err instanceof Error ? err.message : err)
   }
 }
-
-// ---------------------------------------------------------------------------
-// Transfermarkt scraping oturumu — çerez + User-Agent kimliği (tmSession):
-// Serverless her invocation'da (her cron çağrısında) module state SIFIRLANIR
-// — yani sharedCookieJar öncesinde her çağrı Cloudflare'a "yepyeni bir
-// ziyaretçi" gibi görünürdü. Burada bu kimlik Redis'e kalıcı yazılır ve bir
-// sonraki invocation'da geri yüklenir; böylece art arda gelen cron çağrıları
-// da (aynı 20dk'lık pencere içinde) Cloudflare'ın gözünde "devam eden aynı
-// oturum" gibi görünür. User-Agent, kimlikle BİRLİKTE sabitlenir çünkü aynı
-// çerezle farklı User-Agent göndermek (kimlik tutarsızlığı) bazı bot
-// korumalarında çerezden bile daha güçlü bir şüphe sinyalidir.
-//
-// NOT: Daha önce burada, herhangi bir blok/timeout sinyalinde artan ve
-// mevki taraması ile piyasa değeri taramasının istekler arası bekleme
-// sürelerini PAYLAŞIMLI olarak uzatan bir "blok seviyesi" (tmBlockLevel)
-// mekanizması vardı. Bu mekanizma kalıcı olarak kaldırıldı — iki sistem
-// artık birbirinin blok sinyalinden etkilenmiyor, her biri sadece kendi
-// sabit taban gecikmesini kullanıyor.
-// ---------------------------------------------------------------------------
-
-export interface TmSession {
-  cookieJar: string
-  userAgent: string
-}
-
-const TM_SESSION_TTL = 60 * 20 // 20 dakika
-
-export async function getTmSession(): Promise<TmSession | null> {
-  if (!redis) return null
-  try {
-    return (await redis.get<TmSession>(K.tmSession())) ?? null
-  } catch (err) {
-    console.log("[v0] redis getTmSession failed:", err instanceof Error ? err.message : err)
-    return null
-  }
-}
-
-export async function setTmSession(session: TmSession): Promise<void> {
-  if (!redis) return
-  try {
-    await redis.set(K.tmSession(), session, { ex: TM_SESSION_TTL })
-  } catch (err) {
-    console.log("[v0] redis setTmSession failed:", err instanceof Error ? err.message : err)
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Transfermarkt istekler arası gecikme — sabit değer. Önceki adaptif
-// (AIMD / ban koruma) mekanizma kullanıcı talebiyle kaldırıldı; artık
-// blok/başarı sinyaline göre büyüyüp küçülen bir gecikme yok, sabit ve
-// hızlı bir bekleme süresi kullanılıyor.
-// ---------------------------------------------------------------------------
-
-export type TmSystem = "market-value" | "player-position"
-
-const TM_FIXED_DELAY_MS = 4000
-
-/** Sabit istekler arası gecikmeyi döndürür. */
-export async function getTmDelayMs(_system: TmSystem): Promise<number> {
-  return TM_FIXED_DELAY_MS
-}
-
-/** Adaptif koruma kaldırıldı — no-op olarak tutuluyor (geriye dönük uyumluluk). */
-export async function recordTmSuccess(_system: TmSystem): Promise<void> {}
-
-/** Adaptif koruma kaldırıldı — no-op olarak tutuluyor (geriye dönük uyumluluk). */
-export async function recordTmBlock(_system: TmSystem): Promise<void> {}
 
 export interface PendingPrediction {
   fixtureId: number

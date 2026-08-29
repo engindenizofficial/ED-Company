@@ -6,8 +6,7 @@ import { computeLivePowerFromMarketValue } from "@/lib/player-power"
 import { PLAYER_ROLES, type PlayerRole } from "@/lib/games/manager-career"
 
 /**
- * Mevki gücü backfill'i (bkz. lib/player-position-sync.ts) henüz bu oyuncuya
- * ulaşmamışsa VEYA piyasa değeri DB'sinde satırı yoksa (yeni transfer,
+ * Oyuncunun kayıtlı mevki verisi veya piyasa değeri DB satırı yoksa (yeni transfer,
  * gençlik takımı vb.) kullanılan taban güç. Takım gücünü tamamen sıfıra
  * düşürmemek için nötr-altı bir değer.
  */

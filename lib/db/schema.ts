@@ -267,8 +267,8 @@ export const playerPowerCronRun = pgTable('player_power_cron_run', {
 
 /**
  * Tam-sezon güç backfill'inin (bkz. lib/player-power-backfill.ts,
- * app/api/cron/backfill-player-power) kalıcı durumu. `backfill-player-positions`
- * ile aynı zincirleme (`after()` ile kendini tetikleyen) desene sahiptir,
+ * app/api/cron/backfill-player-power) kalıcı durumu. Kendi kendini `after()`
+ * ile tetikleyen zincirleme desene sahiptir,
  * tek fark ilerlemenin lig + lig-içi fixture index'iyle takip edilmesi —
  * bkz. FEATURED_LEAGUE_IDS (lib/leagues.ts).
  */
@@ -293,18 +293,12 @@ export const playerPowerBackfillCronRun = pgTable('player_power_backfill_cron_ru
 })
 
 // ---------------------------------------------------------------------------
-// Oyuncu alt mevki verisi (Transfermarkt profil sayfası).
-// Kaynak: her oyuncunun Transfermarkt profilindeki "Main position" / "Other
-// position" alanları — bkz. lib/player-position-scraper.ts scrapePlayerPosition().
-// Sadece arka planda kademeli çalışan backfill route'u (bkz.
-// app/api/cron/backfill-player-positions) tarafından yazılır. Uygulama
-// tarafı bu tabloyu sadece OKUR. Satırı olmayan/henüz doldurulmamış
-// oyuncular "unverified" kabul edilir (bkz. lib/player-positions.ts fit()
-// — doğrulanmamış oyuncular için nötr 0.72 sabit çarpan kullanılır),
-// böylece backfill ilerlerken kadro ekranı kademeli olarak iyileşir.
+// Oyuncu alt mevki verisi. Canlı Transfermarkt taraması kaldırılmıştır;
+// uygulama mevcut kayıtları sadece okur. Satırı olmayan oyuncular
+// "unverified" kabul edilir (bkz. lib/player-positions.ts fit()).
 // ---------------------------------------------------------------------------
 
-/** Oyuncu bazlı Transfermarkt alt mevki verisi. */
+/** Oyuncu bazlı alt mevki verisi. */
 export const playerPosition = pgTable('player_position', {
   id: text('id').primaryKey(),
   /** API-Football oyuncu id'si */
@@ -324,34 +318,6 @@ export const playerPosition = pgTable('player_position', {
   lastScrapedAt: timestamp('lastScrapedAt'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
-})
-
-/** Kademeli mevki backfill'inin basit çalışma günlüğü — ayrı bir izleme ekranı olmadan gözlemlenebilirlik sağlar. */
-export const playerPositionCronRun = pgTable('player_position_cron_run', {
-  id: text('id').primaryKey(),
-  runStartedAt: timestamp('runStartedAt').notNull(),
-  runFinishedAt: timestamp('runFinishedAt'),
-  /** "running" | "completed" | "failed" — "completed" tüm adaylar bitince, aksi halde zincir kendini after() ile tetikleyip devam eder. */
-  status: text('status').notNull().default('running'),
-  /** Bu koşuda (bu satırın ömrü boyunca, zincir dahil) işlenen oyuncu sayısı. */
-  playersProcessed: integer('playersProcessed').notNull().default(0),
-  /** Bu koşuda mevki bulunan (mainPosition doldurulan) oyuncu sayısı. */
-  playersMatched: integer('playersMatched').notNull().default(0),
-  lastError: text('lastError'),
-  /**
-   * KRİTİK — market_value_cron_run'daki heartbeatAt ile AYNI amaç: her batch
-   * adımında (zincir devam ederken) güncellenir. `runStartedAt` YALNIZCA
-   * zincirin en başında (ilk batch açıldığında) bir kere yazılır ve tüm
-   * zincir boyunca (satır tek satır olarak yeniden kullanıldığı için,
-   * bkz. app/api/cron/backfill-player-positions) SABİT kalır — bu yüzden
-   * "zincir kırıldı mı" kontrolü runStartedAt'a bakarsa, zincir 6 dakikadan
-   * uzun sürer sürmez (binlerce oyuncu için normal, saatler sürer) SAĞLIKLI
-   * bir zincir bile hep "kırılmış" görünürdü. heartbeatAt bu yanlışı
-   * düzeltir: her batch bittiğinde tazelenir, sadece GERÇEKTEN bir süredir
-   * ilerlemeyen (bir sonraki adımı tetikleyemeyen) zincirler stale sayılır.
-   */
-  heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
 })
 
 // ---------------------------------------------------------------------------
