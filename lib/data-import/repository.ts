@@ -31,6 +31,7 @@ export async function bindWorkflowRun(importRunId: string, workflowRunId: string
   const [run] = await db.update(dataImportRun).set({
     workflowRunId,
     status: 'running',
+    stage: restarting ? 'restart-queued' : 'queued',
     heartbeatAt: new Date(),
     updatedAt: new Date(),
     ...(restarting ? { restartCount: sql`${dataImportRun.restartCount} + 1` } : {}),
@@ -111,10 +112,9 @@ export async function getImportDashboard() {
 }
 
 export async function findRestartCandidates() {
-  const staleBefore = new Date(Date.now() - STALE_AFTER_MS)
   return db.select().from(dataImportRun).where(and(
     eq(dataImportRun.autoResume, true),
-    sql`(${dataImportRun.status} IN ('failed','stopped','stale') OR (${dataImportRun.status} = 'running' AND ${dataImportRun.heartbeatAt} < ${staleBefore}))`,
+    inArray(dataImportRun.status, ['failed', 'stopped', 'stale']),
   )).orderBy(desc(dataImportRun.createdAt))
 }
 
