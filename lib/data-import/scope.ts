@@ -1,7 +1,12 @@
 import { FEATURED_LEAGUES } from '@/lib/leagues'
 import { buildCompetitionClubsUrl } from './transfermarkt-parser'
 
-export const TRANSFERMARKT_SEASON = new Date().getUTCFullYear()
+function getCurrentTransfermarktSeason(date = new Date()) {
+  const year = date.getUTCFullYear()
+  return date.getUTCMonth() >= 6 ? year : year - 1
+}
+
+export const TRANSFERMARKT_SEASON = getCurrentTransfermarktSeason()
 
 const TRANSFERMARKT_COMPETITIONS: Record<number, string> = {
   39: 'GB1', 140: 'ES1', 135: 'IT1', 78: 'L1', 61: 'FR1', 94: 'PO1',
