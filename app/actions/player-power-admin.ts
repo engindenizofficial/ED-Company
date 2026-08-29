@@ -20,7 +20,7 @@ import { resetAllPlayerPowerData, recomputeAllPlayerPowerData } from "@/lib/play
 //   ÜSTÜNE YAZAR (silmeden çalıştırılsa da fark etmez, her zaman overwrite).
 // ---------------------------------------------------------------------------
 
-const REVIEW_PATH = "/admin/market-value-review"
+const ADMIN_PATH = "/admin"
 
 async function requireAdmin(): Promise<void> {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -40,7 +40,7 @@ export interface ResetPlayerPowerResult {
 export async function resetPlayerPowerNow(): Promise<ResetPlayerPowerResult> {
   await requireAdmin()
   const result = await resetAllPlayerPowerData()
-  revalidatePath(REVIEW_PATH)
+  revalidatePath(ADMIN_PATH)
   return result
 }
 
@@ -52,6 +52,6 @@ export interface RecomputePlayerPowerResult {
 export async function recomputePlayerPowerNow(): Promise<RecomputePlayerPowerResult> {
   await requireAdmin()
   const result = await recomputeAllPlayerPowerData()
-  revalidatePath(REVIEW_PATH)
+  revalidatePath(ADMIN_PATH)
   return result
 }

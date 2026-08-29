@@ -1,6 +1,6 @@
 import { after } from "next/server"
 import { runPlayerPowerBackfillBatch } from "@/lib/player-power-backfill"
-import { fireChainStepWithoutAwaitingResponse } from "@/lib/market-value-cron-run"
+import { fireChainStepWithoutAwaitingResponse } from "@/lib/fire-chain-step"
 
 // ---------------------------------------------------------------------------
 // Tam sezon güç motoru backfill'i. vercel.json'da otomatik bir cron

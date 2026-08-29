@@ -9,7 +9,7 @@ import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { playerPosition, playerPositionCronRun } from "@/lib/db/schema"
 import { countRemainingCandidates } from "@/lib/player-position-sync"
-import { fireChainStepWithoutAwaitingResponse } from "@/lib/market-value-cron-run"
+import { fireChainStepWithoutAwaitingResponse } from "@/lib/fire-chain-step"
 import { getSiteUrl } from "@/lib/site-url"
 
 // ---------------------------------------------------------------------------
@@ -31,9 +31,6 @@ import { getSiteUrl } from "@/lib/site-url"
 // "Şimdi Tara" düğmesi tek başına TÜM taramayı bitirmez — sadece zamanlayıcı
 // kurulana kadar birer birer ilerlemeyi elle tetiklemek için de kullanılabilir.
 //
-// Piyasa değeri sistemindeki app/actions/market-value-cron.ts ile ORTAK olan
-// tek şey: aynı requireAdmin kontrolü ve aynı bypass/secret header'ları.
-//
 // run satırı deseni: app/api/cron/backfill-player-positions devam eden
 // ("running") bir satır varsa onu yeniden kullanır, yoksa yeni bir satır
 // açar — "en son satır" tüm koşunun toplam ilerlemesini gösterir. Genel
@@ -41,7 +38,7 @@ import { getSiteUrl } from "@/lib/site-url"
 // (countRemainingCandidates) canlı hesaplanır.
 // ---------------------------------------------------------------------------
 
-const REVIEW_PATH = "/admin/market-value-review"
+const ADMIN_PATH = "/admin"
 
 /**
  * Bir "running" satırın son batch'inden bu kadar süre sonra hâlâ heartbeat
@@ -202,7 +199,7 @@ export async function triggerPlayerPositionScanNow(): Promise<{ triggered: boole
   // tetiklemeyecek (bkz. dosya başı açıklaması).
   after(() => fireChainStepWithoutAwaitingResponse(url, headersInit))
 
-  revalidatePath(REVIEW_PATH)
+  revalidatePath(ADMIN_PATH)
   return { triggered: true }
 }
 
@@ -226,7 +223,7 @@ export async function resetAllPlayerPositionData(): Promise<ResetPlayerPositionD
     db.delete(playerPositionCronRun).returning({ id: playerPositionCronRun.id }),
   ])
 
-  revalidatePath(REVIEW_PATH)
+  revalidatePath(ADMIN_PATH)
 
   return {
     deletedPositions: deletedPositions.length,

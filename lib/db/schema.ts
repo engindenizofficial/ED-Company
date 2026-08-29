@@ -198,130 +198,6 @@ export const playerMarketValue = pgTable('player_market_value', {
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })
 
-/**
- * Bir taramanın (`marketValueCronRun`) TM ve AF fazları arasında ham veriyi
- * taşıyan geçici tablolar. `matching` fazı bunlardan okuyup nihai
- * `leagueMarketValue`/`teamMarketValue`/`playerMarketValue` veya
- * `marketValueReviewQueue`'ya yazar. Her yeni "Taramayı Başlat" önce bu
- * tabloların TÜMÜNÜ siler.
- */
-export const marketValueLeagueStaging = pgTable('market_value_league_staging', {
-  id: text('id').primaryKey(),
-  runId: text('runId').notNull(),
-  /** API-Football lig id'si — FEATURED_LEAGUE_IDS'den biri */
-  leagueId: integer('leagueId').notNull().unique(),
-  tmName: text('tmName'),
-  tmCountry: text('tmCountry'),
-  tmValueEur: numeric('tmValueEur', { precision: 14, scale: 2 }),
-  afName: text('afName'),
-  afCountry: text('afCountry'),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
-})
-
-/** Bir taramanın TM veya AF tarafından taranan tek bir takımı — `side` hangi kaynaktan geldiğini gösterir. */
-export const marketValueTeamStaging = pgTable('market_value_team_staging', {
-  id: text('id').primaryKey(),
-  runId: text('runId').notNull(),
-  /** API-Football lig id'si — hangi ligin takımı olduğunu gösterir */
-  leagueId: integer('leagueId').notNull(),
-  /** "tm" | "af" */
-  side: text('side').notNull(),
-  /** TM tarafında slug/id (örn. "fc-barcelona"), AF tarafında API-Football takım id'si (string'e çevrilmiş) */
-  externalId: text('externalId').notNull(),
-  name: text('name').notNull(),
-  country: text('country'),
-  /** Sadece TM tarafında dolu — kadronun toplam piyasa değeri, tam euro cinsinden */
-  valueEur: numeric('valueEur', { precision: 14, scale: 2 }),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-})
-
-/** Bir taramanın TM veya AF tarafından taranan tek bir oyuncusu — hangi staging takımına ait olduğu `teamStagingId` ile izlenir. */
-export const marketValuePlayerStaging = pgTable('market_value_player_staging', {
-  id: text('id').primaryKey(),
-  runId: text('runId').notNull(),
-  /** marketValueTeamStaging.id — bu oyuncunun tarandığı takım satırı */
-  teamStagingId: text('teamStagingId').notNull(),
-  /** "tm" | "af" */
-  side: text('side').notNull(),
-  /** TM tarafında Transfermarkt oyuncu id'si, AF tarafında API-Football oyuncu id'si (string'e çevrilmiş) */
-  externalId: text('externalId').notNull(),
-  name: text('name').notNull(),
-  country: text('country'),
-  /** Sadece TM tarafında dolu, tam euro cinsinden */
-  valueEur: numeric('valueEur', { precision: 14, scale: 2 }),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-})
-
-/**
- * Otomatik eşleştirmenin güven eşiğinin (75) altında kaldığı lig/takım/oyuncu
- * adayları — TM ve AF tarafının verisi yan yana tutulur. Manuel gözden geçirme
- * arayüzü buradan okuyup SADECE onaylayabilir (reddetme yok — reddedilen bir
- * kayıt bir sonraki taramada zaten tamamen silinir).
- */
-export const marketValueReviewQueue = pgTable('market_value_review_queue', {
-  id: text('id').primaryKey(),
-  runId: text('runId').notNull(),
-  /** "league" | "team" | "player" */
-  entityType: text('entityType').notNull(),
-  /** Onaylandığında nihai tabloya yazmak için gereken bağlam — lig id'si her tipte dolu, takım/oyuncu için ayrıca kendi staging id'leri */
-  leagueId: integer('leagueId').notNull(),
-  /** entityType "team"|"player" olduğunda marketValueTeamStaging.id (AF tarafı) */
-  afTeamStagingId: text('afTeamStagingId'),
-  /** entityType "team"|"player" olduğunda marketValueTeamStaging.id (TM tarafı) */
-  tmTeamStagingId: text('tmTeamStagingId'),
-  /** entityType "player" olduğunda marketValuePlayerStaging.id (AF tarafı) */
-  afPlayerStagingId: text('afPlayerStagingId'),
-  /** entityType "player" olduğunda marketValuePlayerStaging.id (TM tarafı) */
-  tmPlayerStagingId: text('tmPlayerStagingId'),
-  /** API-Football tarafındaki ad/ülke (kimlik verisi) */
-  afName: text('afName').notNull(),
-  afCountry: text('afCountry'),
-  /** Transfermarkt tarafındaki ad/ülke/piyasa değeri (varsa) */
-  tmName: text('tmName'),
-  tmCountry: text('tmCountry'),
-  tmValueEur: numeric('tmValueEur', { precision: 14, scale: 2 }),
-  /** 0-100 arası benzerlik skoru */
-  confidence: integer('confidence').notNull(),
-  /** "pending" | "approved" */
-  status: text('status').notNull().default('pending'),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  resolvedAt: timestamp('resolvedAt'),
-})
-
-/**
- * Admin tarafından tetiklenen, tüm ligleri sıfırdan tarayan tek seferlik
- * taramanın kalıcı durumu. Dıştaki QStash "güvenlik görevlisi" (1 dakikada
- * bir) bu satırı okuyup `phase`'e göre TEK bir iş birimi işler ve döner.
- * Adım içinde retry YOK: hata olursa `lastError` yazılır, index İLERLEMEZ —
- * bir sonraki dakikalık tetikleme aynı iş birimini tekrar dener.
- */
-export const marketValueCronRun = pgTable('market_value_cron_run', {
-  id: text('id').primaryKey(),
-  /** Bu taramanın başladığı an. */
-  runStartedAt: timestamp('runStartedAt').notNull(),
-  /** "running" | "paused" | "done" */
-  status: text('status').notNull().default('running'),
-  /**
-   * "tm_leagues" | "tm_players" | "af_leagues" | "af_teams" | "af_players" | "matching" | "done"
-   * — `tm_leagues` TM lig sayfasını (Transfermarkt tek bir sayfada lig
-   * bilgisini VE takım listesini birlikte verdiği için) hem lig hem takım
-   * staging satırlarını tek adımda yazar.
-   */
-  phase: text('phase').notNull().default('tm_leagues'),
-  /** Sırada işlenecek FEATURED_LEAGUE_IDS index'i (tm_leagues/af_leagues/af_teams/matching fazlarının lig döngüsü için). */
-  currentLeagueIndex: integer('currentLeagueIndex').notNull().default(0),
-  /** tm_players/af_players fazlarında, o taraftaki (side) tüm takım staging satırları arasında sıradaki takımın index'i. */
-  currentTeamIndex: integer('currentTeamIndex').notNull().default(0),
-  /** Son işlenmeye çalışılan iş biriminin hatası — başarılı adımda null'a döner. */
-  lastError: text('lastError'),
-  lastErrorAt: timestamp('lastErrorAt'),
-  /** Zincirin hâlâ "canlı" ilerlediğini gösterir — her adımda güncellenir. Eskime (stale) kontrolü için buna bakılır. */
-  heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
-})
-
 // ---------------------------------------------------------------------------
 // Oyuncu güç motoru (player power engine).
 // Taban güç = piyasa değeri (marketPower) + biriken sezon maç rating ortalaması
@@ -419,7 +295,7 @@ export const playerPowerBackfillCronRun = pgTable('player_power_backfill_cron_ru
 // ---------------------------------------------------------------------------
 // Oyuncu alt mevki verisi (Transfermarkt profil sayfası).
 // Kaynak: her oyuncunun Transfermarkt profilindeki "Main position" / "Other
-// position" alanları — bkz. lib/transfermarkt-scraper.ts scrapePlayerPosition().
+// position" alanları — bkz. lib/player-position-scraper.ts scrapePlayerPosition().
 // Sadece arka planda kademeli çalışan backfill route'u (bkz.
 // app/api/cron/backfill-player-positions) tarafından yazılır. Uygulama
 // tarafı bu tabloyu sadece OKUR. Satırı olmayan/henüz doldurulmamış

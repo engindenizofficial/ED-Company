@@ -12,9 +12,8 @@ import type { Fixture } from "@/lib/types"
 // tutulur ki aynı olay iki kez gönderilmesin (bkz. lib/db/schema.ts).
 //
 // Bu modül SADECE "bir taramada ne değişti, kime bildirim gitmeli" mantığını
-// içerir — HTTP zincirleme (self-fetch, heartbeat, budget) app/api/cron/
-// live-fixture-notifications/route.ts'de, market-value-cron-run.ts ile aynı
-// desende yaşar.
+// içerir. HTTP zincirleme, heartbeat ve süre bütçesi app/api/cron/
+// live-fixture-notifications/route.ts içinde yönetilir.
 // ---------------------------------------------------------------------------
 
 /** API-Football statusShort değerlerinden "canlı veya az önce bitmiş" sayılanlar. */

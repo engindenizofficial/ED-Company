@@ -1,7 +1,7 @@
 import { and, desc, eq, gt, isNull, sql } from "drizzle-orm"
 import { db } from "./db"
 import { playerMarketValue, playerPosition } from "./db/schema"
-import { scrapePlayerPosition } from "./transfermarkt-scraper"
+import { scrapePlayerPosition } from "./player-position-scraper"
 import { getTmDelayMs } from "./redis"
 import { profile } from "./player-positions"
 

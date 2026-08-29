@@ -25,7 +25,6 @@ import {
   Mail,
   Palette,
   Send,
-  ShieldCheck,
   Star,
   Trash2,
   TriangleAlert,
@@ -227,21 +226,6 @@ export function FavoritesMenuPanel({ onRequestClose }: { onRequestClose: () => v
                 </div>
                 <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
-            ) : null}
-
-            {/* Yönetim Paneli — sadece admin e-postasıyla giriş yapılmışsa, Hesabım'ın altında */}
-            {isAdmin ? (
-              <Link
-                href="/admin/market-value-review"
-                onClick={close}
-                className="mt-1 flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
-                  <ShieldCheck className="h-4 w-4 text-primary" />
-                </div>
-                <span className="flex-1 text-sm font-semibold text-foreground">{t("menu.adminPanel")}</span>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-              </Link>
             ) : null}
 
             {/* Favorilerim — giriş yapmışsa Hesabım'ın altında, misafirse en üstte */}

@@ -89,8 +89,7 @@ export async function GET(request: Request) {
   // kullanıyoruz — yeni satır açmak yerine aynı satırın sayaçlarını
   // (playersProcessed/playersMatched) her çağrıda ARTIRARAK güncelliyoruz.
   // Böylece tüm koşu boyunca (ilk çağrıdan "completed"e kadar) TEK bir satır
-  // var olur — market-value cron sistemindeki "tek satır, yerinde güncelle"
-  // deseninin aynısı (bkz. lib/market-value-cron-run.ts).
+  // var olur ve sayaçlar yerinde güncellenir.
   const [activeRun] = await db
     .select({ id: playerPositionCronRun.id })
     .from(playerPositionCronRun)

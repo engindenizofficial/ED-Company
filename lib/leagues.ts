@@ -2,16 +2,11 @@
 // TEK KAYNAK (single source of truth): "öne çıkan" 24 lig.
 //
 // Bu dosya, id, isim, ülke, logo, bayrak ve arama takma adlarını (aliases)
-// TEK bir yerde tutar. Aşağıdaki üç yer bu diziden türetilir:
-//   1. lib/api-football.ts        -> FEATURED_LEAGUE_IDS (maç sıralaması)
-//   2. app/api/leagues/search/... -> TOP_LEAGUES (arama kutusu)
-//   3. lib/transfermarkt-scraper.ts -> SCRAPABLE_LEAGUE_IDS (piyasa değeri cron'u)
+// TEK bir yerde tutar. API-Football maç sıralaması ve lig arama sonuçları
+// doğrudan bu listeden türetilir.
 //
-// Yeni bir lig eklemek / çıkarmak / sırasını değiştirmek istediğinde SADECE
-// bu diziyi güncelle — diğer üç yer otomatik olarak senkron kalır.
-// (Transfermarkt kod eşleşmesi hâlâ lib/transfermarkt-scraper.ts içindeki
-// LEAGUE_TO_TRANSFERMARKT_CODE haritasına elle eklenmeli; o harita için de
-// derleme zamanında eksik id kontrolü zaten var.)
+// Yeni bir lig eklemek, çıkarmak veya sırasını değiştirmek için yalnızca bu
+// diziyi güncellemek yeterlidir.
 // ---------------------------------------------------------------------------
 
 export interface FeaturedLeague {

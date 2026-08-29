@@ -12,11 +12,9 @@ import {
   type PlayerPositionCronStatus,
 } from "@/app/actions/player-position-cron"
 
-// Piyasa değeri kartındaki (market-value-cron-status.tsx) AYNI polling
-// deseni: "Şimdi Tara"ya bastıktan sonra arka planda backfill gerçekten
-// ilerlese bile, admin manuel tam sayfa yenilemesi yapmadan kartta hiçbir
-// şey değişmez. Bu yüzden tetikleme sonrası veya zaten "running" bir batch
-// varken durumu periyodik olarak sunucudan tazeliyoruz.
+// "Şimdi Tara"ya bastıktan sonra arka planda backfill ilerlerken kartın
+// manuel sayfa yenilemesi gerektirmeden güncel kalması için çalışma durumunu
+// periyodik olarak sunucudan tazeliyoruz.
 const POLL_INTERVAL_MS = 4000
 
 // ---------------------------------------------------------------------------
