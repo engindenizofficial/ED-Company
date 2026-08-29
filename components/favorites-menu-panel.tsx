@@ -19,6 +19,7 @@ import {
   BellOff,
   ChevronLeft,
   ChevronRight,
+  Database,
   GripVertical,
   KeyRound,
   LogOut,
@@ -280,6 +281,20 @@ export function FavoritesMenuPanel({ onRequestClose }: { onRequestClose: () => v
               <span className="flex-1 text-sm font-semibold text-foreground">{t("menu.notifications")}</span>
               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
+
+            {isAdmin ? (
+              <Link
+                href="/yonetim/veri-aktarimi"
+                onClick={close}
+                className="mt-1 flex items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-secondary"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">
+                  <Database className="h-4 w-4 text-primary" />
+                </div>
+                <span className="flex-1 text-sm font-semibold text-foreground">Veri aktarımı</span>
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              </Link>
+            ) : null}
 
             {/* Çıkış Yap (giriş yapmışsa) / Giriş Yap daveti (misafirse) — en altta */}
             {session?.user ? (

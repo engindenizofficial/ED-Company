@@ -1,4 +1,14 @@
-import { pgTable, text, timestamp, boolean, integer, numeric, jsonb } from 'drizzle-orm/pg-core'
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  integer,
+  numeric,
+  jsonb,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -210,3 +220,175 @@ export const managerTeamStrength = pgTable('manager_team_strength', {
   overall: numeric('overall', { precision: 6, scale: 2 }).notNull(),
   computedAt: timestamp('computedAt').notNull().defaultNow(),
 })
+
+// Kaynaklar bilinçli olarak ayrı snapshot tablolarında tutulur. Bu sürümde
+// kaynaklar arası takım/oyuncu eşleştirmesi yoktur.
+export const dataImportRun = pgTable(
+  'data_import_run',
+  {
+    id: text('id').primaryKey(),
+    source: text('source').notNull(),
+    status: text('status').notNull().default('queued'),
+    stage: text('stage').notNull().default('initializing'),
+    mode: text('mode').notNull().default('full'),
+    autoResume: boolean('autoResume').notNull().default(true),
+    idempotencyKey: text('idempotencyKey').notNull(),
+    workflowRunId: text('workflowRunId'),
+    totalLeagues: integer('totalLeagues').notNull().default(23),
+    processedLeagues: integer('processedLeagues').notNull().default(0),
+    successfulLeagues: integer('successfulLeagues').notNull().default(0),
+    failedLeagues: integer('failedLeagues').notNull().default(0),
+    totalTeams: integer('totalTeams').notNull().default(0),
+    processedTeams: integer('processedTeams').notNull().default(0),
+    successfulTeams: integer('successfulTeams').notNull().default(0),
+    failedTeams: integer('failedTeams').notNull().default(0),
+    totalPlayers: integer('totalPlayers').notNull().default(0),
+    processedPlayers: integer('processedPlayers').notNull().default(0),
+    successfulPlayers: integer('successfulPlayers').notNull().default(0),
+    failedPlayers: integer('failedPlayers').notNull().default(0),
+    missingPlayers: integer('missingPlayers').notNull().default(0),
+    activeLeague: text('activeLeague'),
+    activeTeam: text('activeTeam'),
+    activeUrl: text('activeUrl'),
+    errorType: text('errorType'),
+    errorMessage: text('errorMessage'),
+    restartCount: integer('restartCount').notNull().default(0),
+    startedAt: timestamp('startedAt').notNull().defaultNow(),
+    finishedAt: timestamp('finishedAt'),
+    heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('data_import_run_idempotency_uq').on(table.idempotencyKey),
+    index('data_import_run_source_status_idx').on(table.source, table.status),
+    index('data_import_run_heartbeat_idx').on(table.heartbeatAt),
+  ],
+)
+
+export const dataImportCheckpoint = pgTable(
+  'data_import_checkpoint',
+  {
+    id: text('id').primaryKey(),
+    runId: text('runId').notNull().references(() => dataImportRun.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    kind: text('kind').notNull(),
+    itemKey: text('itemKey').notNull(),
+    parentKey: text('parentKey'),
+    status: text('status').notNull().default('pending'),
+    url: text('url'),
+    attempts: integer('attempts').notNull().default(0),
+    metadata: jsonb('metadata').notNull().default({}),
+    completedAt: timestamp('completedAt'),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('data_import_checkpoint_run_item_uq').on(table.runId, table.kind, table.itemKey),
+    index('data_import_checkpoint_lookup_idx').on(table.runId, table.status, table.kind),
+  ],
+)
+
+export const dataImportError = pgTable(
+  'data_import_error',
+  {
+    id: text('id').primaryKey(),
+    runId: text('runId').notNull().references(() => dataImportRun.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    kind: text('kind').notNull(),
+    itemKey: text('itemKey'),
+    errorType: text('errorType').notNull(),
+    message: text('message').notNull(),
+    url: text('url'),
+    retryable: boolean('retryable').notNull().default(false),
+    attempt: integer('attempt').notNull().default(1),
+    details: jsonb('details').notNull().default({}),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => [index('data_import_error_run_idx').on(table.runId, table.createdAt)],
+)
+
+export const transfermarktLeague = pgTable(
+  'transfermarkt_league_snapshot',
+  {
+    sourceId: text('sourceId').primaryKey(),
+    runId: text('runId').notNull().references(() => dataImportRun.id),
+    name: text('name').notNull(),
+    country: text('country').notNull(),
+    sourceUrl: text('sourceUrl').notNull(),
+    seenAt: timestamp('seenAt').notNull().defaultNow(),
+  },
+  (table) => [index('transfermarkt_league_run_idx').on(table.runId)],
+)
+
+export const transfermarktTeam = pgTable(
+  'transfermarkt_team_snapshot',
+  {
+    sourceId: text('sourceId').primaryKey(),
+    runId: text('runId').notNull().references(() => dataImportRun.id),
+    leagueSourceId: text('leagueSourceId').notNull().references(() => transfermarktLeague.sourceId),
+    name: text('name').notNull(),
+    sourceUrl: text('sourceUrl').notNull(),
+    seenAt: timestamp('seenAt').notNull().defaultNow(),
+  },
+  (table) => [index('transfermarkt_team_league_idx').on(table.leagueSourceId)],
+)
+
+export const transfermarktPlayer = pgTable(
+  'transfermarkt_player_snapshot',
+  {
+    sourceId: text('sourceId').primaryKey(),
+    runId: text('runId').notNull().references(() => dataImportRun.id),
+    teamSourceId: text('teamSourceId').notNull().references(() => transfermarktTeam.sourceId),
+    name: text('name').notNull(),
+    birthDate: timestamp('birthDate', { mode: 'date' }),
+    detailedPosition: text('detailedPosition').notNull(),
+    marketValueRaw: text('marketValueRaw'),
+    marketValueEur: numeric('marketValueEur', { precision: 16, scale: 0 }),
+    currentTeamName: text('currentTeamName').notNull(),
+    sourceUrl: text('sourceUrl').notNull(),
+    seenAt: timestamp('seenAt').notNull().defaultNow(),
+  },
+  (table) => [
+    index('transfermarkt_player_team_idx').on(table.teamSourceId),
+    index('transfermarkt_player_market_idx').on(table.marketValueEur),
+  ],
+)
+
+export const apiFootballLeagueSnapshot = pgTable(
+  'api_football_league_snapshot',
+  {
+    sourceId: integer('sourceId').primaryKey(),
+    runId: text('runId').notNull().references(() => dataImportRun.id),
+    name: text('name').notNull(),
+    country: text('country').notNull(),
+    season: integer('season').notNull(),
+    seenAt: timestamp('seenAt').notNull().defaultNow(),
+  },
+  (table) => [index('api_football_league_run_idx').on(table.runId)],
+)
+
+export const apiFootballTeamSnapshot = pgTable(
+  'api_football_team_snapshot',
+  {
+    sourceId: integer('sourceId').primaryKey(),
+    runId: text('runId').notNull().references(() => dataImportRun.id),
+    leagueSourceId: integer('leagueSourceId').notNull().references(() => apiFootballLeagueSnapshot.sourceId),
+    name: text('name').notNull(),
+    seenAt: timestamp('seenAt').notNull().defaultNow(),
+  },
+  (table) => [index('api_football_team_league_idx').on(table.leagueSourceId)],
+)
+
+export const apiFootballPlayerSnapshot = pgTable(
+  'api_football_player_snapshot',
+  {
+    sourceId: integer('sourceId').primaryKey(),
+    runId: text('runId').notNull().references(() => dataImportRun.id),
+    teamSourceId: integer('teamSourceId').notNull().references(() => apiFootballTeamSnapshot.sourceId),
+    name: text('name').notNull(),
+    birthDate: timestamp('birthDate', { mode: 'date' }),
+    currentTeamName: text('currentTeamName').notNull(),
+    seenAt: timestamp('seenAt').notNull().defaultNow(),
+  },
+  (table) => [index('api_football_player_team_idx').on(table.teamSourceId)],
+)

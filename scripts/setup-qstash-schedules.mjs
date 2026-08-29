@@ -45,6 +45,12 @@ if (!QSTASH_TOKEN) {
 /** @type {ScheduleDef[]} */
 const schedules = [
   {
+    scheduleId: "data-import-watchdog",
+    cron: "* * * * *",
+    path: "/api/cron/data-import-watchdog",
+    withBypass: false,
+  },
+  {
     scheduleId: "live-fixture-notifications",
     // QStash'in izin verdiği en sık aralık 1 dakikadır (6 alanlı/saniye
     // bazlı cron ifadeleri DESTEKLENMİYOR — resmi dokümantasyon minimum
