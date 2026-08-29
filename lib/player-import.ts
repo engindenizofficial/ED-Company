@@ -112,20 +112,25 @@ export function parsePlayerCsv(contents: string): CsvPlayer[] {
   for (const column of required) if (!headers.includes(column)) throw new Error(`CSV zorunlu sütunu eksik: ${column}`)
   const index = Object.fromEntries(headers.map((header, columnIndex) => [header, columnIndex]))
 
-  return lines.slice(1).map((line, rowIndex) => {
-    const row = parseCsvLine(line)
-    const rawValue = row[index.market_value_in_eur]?.trim()
-    const marketValueEur = rawValue && /^\d+$/.test(rawValue) && Number(rawValue) >= 0 ? Number(rawValue) : null
-    const name = row[index.name]?.trim()
-    const dateOfBirth = normalizeDate(row[index.date_of_birth] ?? "")
-    if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) throw new Error(`CSV satırı geçersiz: ${rowIndex + 2}`)
-    return {
-      csvPlayerId: row[index.player_id]?.trim() ?? "",
-      name,
-      dateOfBirth,
-      citizenship: row[index.country_of_citizenship]?.trim() || null,
-      subPosition: row[index.sub_position]?.trim() || null,
-      marketValueEur,
-    }
-  })
+  return lines
+    .slice(1)
+    .map((line) => {
+      const row = parseCsvLine(line)
+      const rawValue = row[index.market_value_in_eur]?.trim()
+      const marketValueEur = rawValue && /^\d+$/.test(rawValue) && Number(rawValue) >= 0 ? Number(rawValue) : null
+      const name = row[index.name]?.trim()
+      const dateOfBirth = normalizeDate(row[index.date_of_birth] ?? "")
+      // Kaynak arşivde doğum tarihi eksik eski oyuncular bulunuyor. Güvenli eşleştirme
+      // doğum tarihini zorunlu tuttuğu için bu satırlar import havuzuna alınmaz.
+      if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return null
+      return {
+        csvPlayerId: row[index.player_id]?.trim() ?? "",
+        name,
+        dateOfBirth,
+        citizenship: row[index.country_of_citizenship]?.trim() || null,
+        subPosition: row[index.sub_position]?.trim() || null,
+        marketValueEur,
+      }
+    })
+    .filter((player): player is CsvPlayer => player !== null)
 }

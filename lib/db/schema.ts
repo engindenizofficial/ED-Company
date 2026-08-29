@@ -241,8 +241,6 @@ export const playerPosition = pgTable('player_position', {
   id: text('id').primaryKey(),
   playerId: integer('playerId').notNull().unique(),
   mainPosition: text('mainPosition'),
-  secondaryPositions: jsonb('secondaryPositions').notNull().default([]),
-  source: text('source').notNull().default('external'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })

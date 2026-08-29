@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// TEK KAYNAK (single source of truth): "öne çıkan" 24 lig.
+// TEK KAYNAK (single source of truth): seçilmiş 27 lig.
 //
 // Bu dosya, id, isim, ülke, logo, bayrak ve arama takma adlarını (aliases)
 // TEK bir yerde tutar. API-Football maç sıralaması ve lig arama sonuçları

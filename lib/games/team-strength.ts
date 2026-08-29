@@ -84,8 +84,6 @@ export async function getUserSquadRoster(careerId: string, formationId: string):
       .select({
         playerId: playerPosition.playerId,
         mainPosition: playerPosition.mainPosition,
-        secondaryPositions: playerPosition.secondaryPositions,
-        source: playerPosition.source,
       })
       .from(playerPosition)
       .where(inArray(playerPosition.playerId, playerIds)),
@@ -98,7 +96,7 @@ export async function getUserSquadRoster(careerId: string, formationId: string):
   const positionByPlayerId = new Map(
     positionRows.map((r) => [
       r.playerId,
-      profile(r.mainPosition, (r.secondaryPositions as string[]) ?? [], r.source as "external" | "unverified"),
+      profile(r.mainPosition),
     ]),
   )
   const powerByPlayerId = new Map(powerRows.map((r) => [r.playerId, r.currentPower]))

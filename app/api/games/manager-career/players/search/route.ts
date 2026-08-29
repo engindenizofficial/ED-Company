@@ -241,15 +241,13 @@ export async function GET(req: NextRequest) {
     .select({
       playerId: playerPosition.playerId,
       mainPosition: playerPosition.mainPosition,
-      secondaryPositions: playerPosition.secondaryPositions,
-      source: playerPosition.source,
     })
     .from(playerPosition)
     .where(inArray(playerPosition.playerId, matches.map((m) => m.playerId)))
   const positionByPlayerId = new Map(
     positionRows.map((r) => [
       r.playerId,
-      profile(r.mainPosition, (r.secondaryPositions as string[]) ?? [], r.source as "external" | "unverified"),
+      profile(r.mainPosition),
     ]),
   )
 

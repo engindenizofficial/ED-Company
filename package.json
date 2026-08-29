@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:player-import": "tsx --test lib/player-import.test.ts",
+    "import:players": "tsx scripts/import-player-csv.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.41",
