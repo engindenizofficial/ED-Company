@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildCompetitionClubsUrl,
+  buildTeamSquadUrl,
   classifyTransfermarktPage,
   parseDate,
   parseLeagueTeams,
@@ -21,9 +23,15 @@ describe('Transfermarkt fixture parser', () => {
     expect(parseDate('29.12.1998')).toBe('1998-12-29')
   })
 
+  it('builds season-specific competition and full-squad URLs', () => {
+    expect(buildCompetitionClubsUrl('TR1', 2026)).toBe('https://www.transfermarkt.com/wettbewerb/startseite/wettbewerb/TR1/saison_id/2026')
+    expect(buildTeamSquadUrl('/galatasaray-sk/startseite/verein/141', 2026)).toBe('https://www.transfermarkt.com/galatasaray-sk/kader/verein/141/saison_id/2026/plus/1')
+  })
+
   it('extracts source-local league, team, and player identity', () => {
     expect(parseLeagueTeams(leagueFixture)[0]).toMatchObject({ sourceId: '141', name: 'Galatasaray' })
     expect(parseTeamSquad(squadFixture)[0]).toMatchObject({ sourceId: '401923', name: 'Victor Osimhen' })
+    expect(parseTeamSquad('<a href="/player-name/marktwertverlauf/spieler/99"><img alt="Player Name"></a>')[0]).toMatchObject({ sourceId: '99', name: 'Player Name' })
   })
 
   it('extracts one detailed position and player detail fields', () => {
