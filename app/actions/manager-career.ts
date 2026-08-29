@@ -145,13 +145,13 @@ export async function createManagerCareer(
 
   // --- Sunucu tarafı fiyat/bütçe doğrulaması -----------------------------
   const priceRows = await db
-    .select({ playerId: playerMarketValue.playerId, valueEur: playerMarketValue.valueEur, matchStatus: playerMarketValue.matchStatus })
+    .select({ playerId: playerMarketValue.playerId, valueEur: playerMarketValue.valueEur })
     .from(playerMarketValue)
     .where(inArray(playerMarketValue.playerId, input.squad.map((s) => s.playerId)))
 
   const realPrice = new Map<number, number>()
   for (const row of priceRows) {
-    if (row.matchStatus === "matched" && row.valueEur !== null && Number(row.valueEur) > 0) {
+    if (row.valueEur !== null && Number(row.valueEur) > 0) {
       realPrice.set(row.playerId, Number(row.valueEur))
     }
   }

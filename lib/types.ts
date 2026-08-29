@@ -97,7 +97,7 @@ export interface StandingRow {
   form: string | null
   group: string
   /**
-   * Transfermarkt kaynaklı toplam kadro piyasa değeri (tam euro). Sadece lig
+   * Harici veri sağlayıcısından alınan toplam kadro piyasa değeri (tam euro). Sadece lig
    * puan durumu (standings) sekmesinde doldurulur; diğer üreticilerde (maç
    * detayı, takım sayfası) alan atlanır ve undefined kalır.
    */
@@ -204,7 +204,7 @@ export interface PlayerProfile {
   team: TeamInfo | null
   /** Current league */
   league: { id: number; name: string; country: string; logo: string; season: number } | null
-  /** Transfermarkt kaynaklı piyasa değeri (tam euro). DB'de eşleşme yoksa null. */
+  /** Harici veri sağlayıcısından alınan piyasa değeri (tam euro). DB'de eşleşme yoksa null. */
   marketValueEur: number | null
 }
 
@@ -498,7 +498,7 @@ export interface LeagueSeasonStats {
   yellowCards: number
   /** Toplam kırmızı kart */
   redCards: number
-  /** Transfermarkt kaynaklı, ligdeki tüm takımların toplam kadro piyasa değeri (tam euro). Hiçbir takım eşleşmemişse null. */
+  /** Harici veri sağlayıcısından alınan, ligdeki tüm takımların toplam kadro piyasa değeri (tam euro). Hiçbir takım eşleşmemişse null. */
   totalMarketValueEur: number | null
 }
 
@@ -546,7 +546,7 @@ export interface SquadPlayer {
   number: number | null
   pos: string | null
   photo: string | null
-  /** Transfermarkt kaynaklı piyasa değeri (tam euro). DB'de eşleşme yoksa null. */
+  /** Harici veri sağlayıcısından alınan piyasa değeri (tam euro). DB'de eşleşme yoksa null. */
   marketValueEur: number | null
 }
 
@@ -605,7 +605,7 @@ export interface TeamBasicInfo {
   team: TeamInfo
   venue: { name: string | null; city: string | null; capacity: number | null; image: string | null }
   currentSeason: number
-  /** Transfermarkt kaynaklı toplam kadro piyasa değeri (tam euro). DB'de eşleşme yoksa null. */
+  /** Harici veri sağlayıcısından alınan toplam kadro piyasa değeri (tam euro). DB'de eşleşme yoksa null. */
   marketValueEur: number | null
 }
 

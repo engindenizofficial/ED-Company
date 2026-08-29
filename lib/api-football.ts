@@ -37,8 +37,8 @@ export function currentSeason(): number {
 
 // ---------------------------------------------------------------------------
 // Featured leagues — tek kaynak lib/leagues.ts'de tanımlı. Bu diziye buradan
-// erişilir ki maç listesi sıralaması, arama kutusu (TOP_LEAGUES) ve
-// Transfermarkt cron'u (SCRAPABLE_LEAGUE_IDS) hep aynı listeden türesin.
+// erişilir ki maç listesi sıralaması ve arama kutusu (TOP_LEAGUES)
+// hep aynı listeden türesin.
 // Yeni bir lig eklemek/çıkarmak için lib/leagues.ts'i güncelle.
 // ---------------------------------------------------------------------------
 export { FEATURED_LEAGUE_IDS }
@@ -300,7 +300,7 @@ export async function getPlayerBasicProfile(playerId: number): Promise<PlayerPro
           season: currentStats.league.season,
         }
       : null,
-    marketValueEur: marketValue?.matchStatus === "matched" ? marketValue.valueEur : null,
+    marketValueEur: marketValue?.valueEur ?? null,
   }
 }
 
@@ -349,7 +349,7 @@ export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | 
       image: rawTeam.venue?.image ?? null,
     },
     currentSeason: currentSeason(),
-    marketValueEur: marketValue?.matchStatus === "matched" ? marketValue.totalValueEur : null,
+    marketValueEur: marketValue?.totalValueEur ?? null,
   }
 }
 
@@ -648,9 +648,7 @@ export async function getPlayerRoleAndPhoto(
 
 /**
  * Bir takımın API-Football'daki menşei ülkesini döndürür. SADECE piyasa
- * değeri manuel gözden geçirme kuyruğu (review queue) için kullanılır —
- * belirsiz eşleşmelerde admin'e Transfermarkt adayıyla karşılaştırma imkanı
- * verir. Otomatik eşleşen takımlar için çağrılmaz.
+ * değeri takım adı karşılaştırması gereken yerlerde kullanılır.
  */
 export async function getTeamCountry(teamId: number): Promise<string | null> {
   const raw = await safeFetch<any>("/teams", { id: teamId }, 3600)

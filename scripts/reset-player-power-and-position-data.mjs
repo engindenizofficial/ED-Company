@@ -10,8 +10,7 @@
 // - player_power_processed_fixture (hangi fikstürlerin işlendiği takibi)
 // - player_power_cron_run (günlük güç güncelleme cron ilerleme durumu)
 // - player_power_backfill_cron_run (tam sezon backfill ilerleme durumu)
-// - player_position (Transfermarkt kaynaklı alt mevki profilleri)
-// - player_position_cron_run (mevki backfill ilerleme durumu)
+// - player_position (harici kaynaktan alınan alt mevki profilleri)
 //
 // Menajer kariyeri kadroları (manager_career, manager_squad_player) BU
 // SCRIPT'TEN ETKİLENMEZ.
@@ -29,7 +28,6 @@ async function main() {
     const powerDailyCronDeleted = await client.query("DELETE FROM player_power_cron_run")
     const powerBackfillCronDeleted = await client.query("DELETE FROM player_power_backfill_cron_run")
     const positionDeleted = await client.query("DELETE FROM player_position")
-    const positionCronDeleted = await client.query("DELETE FROM player_position_cron_run")
 
     await client.query("COMMIT")
 
@@ -39,7 +37,6 @@ async function main() {
     console.log(`  - player_power_cron_run: ${powerDailyCronDeleted.rowCount} kayıt silindi`)
     console.log(`  - player_power_backfill_cron_run: ${powerBackfillCronDeleted.rowCount} kayıt silindi`)
     console.log(`  - player_position: ${positionDeleted.rowCount} kayıt silindi`)
-    console.log(`  - player_position_cron_run: ${positionCronDeleted.rowCount} kayıt silindi`)
   } catch (err) {
     await client.query("ROLLBACK")
     throw err

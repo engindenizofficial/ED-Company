@@ -5,8 +5,8 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Tam euro değerini kısa, okunabilir bir gösterime çevirir (Transfermarkt
- * tarzı): 1.470.000.000 -> "€1,47 Mr", 47.430.000 -> "€47,4 M", 850.000 -> "€850 B".
+ * Tam euro değerini kısa, okunabilir bir gösterime çevirir:
+ * 1.470.000.000 -> "€1,47 Mr", 47.430.000 -> "€47,4 M", 850.000 -> "€850 B".
  * İngilizce modda (locale === "en") "€1.47 bn", "€47.4 m", "€850 k" biçimini kullanır.
  * null/geçersiz/<=0 değerler için null döner — bileşen bu durumda hiçbir şey
  * göstermemeli.

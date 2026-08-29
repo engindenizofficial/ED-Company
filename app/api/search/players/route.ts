@@ -8,24 +8,9 @@ import { normalizeTR } from "@/lib/search/text-normalize"
 
 export const dynamic = "force-dynamic"
 
-// Ana sayfadaki 4 sekmeli aramanın "Oyuncular" sekmesi.
-//
-// ÖNEMLİ: API-Football'ın /players?search= endpoint'i EN AZ 4 karakter
-// gerektiriyor ("The Search field must be at least 4 characters in length"),
-// bu yüzden "Fe" gibi 2-3 karakterlik aramalarda hep boş dönüyordu. Bunun
-// yerine, zaten haftalık cron tarafından 24 öne çıkan lig kapsamındaki
-// takımların kadroları için doldurulan player_market_value tablosu TEK
-// kaynak olarak kullanılır — isim eşleştirmesi tamamen bizim tarafımızda
-// yapılır, API çağrısı gerektirmez ve 2 karakterden itibaren çalışır
-// (bkz. app/api/games/manager-career/players/search/route.ts'teki aynı desen).
-//
-// ÖNEMLİ 2: matchStatus filtresi KASITLI OLARAK "matched" ile sınırlı DEĞİL.
-// Cron (lib/market-value-sync.ts) kadrodaki HER oyuncu için bir satır yazar —
-// Transfermarkt eşleşmesi bulunamayan oyuncular "unmatched"/"review" statüsü
-// ve valueEur=null ile yine tabloya girer. Filtreyi "matched" ile sınırlamak
-// piyasa değeri olmayan oyuncuların arama sonuçlarından TAMAMEN kaybolmasına
-// yol açıyordu (kullanıcı isteği: bu oyuncular da görünmeli, değer 0 kabul
-// edilmeli). Bu yüzden burada matchStatus'a hiç bakılmaz.
+// Ana sayfadaki oyuncu araması yerel piyasa değeri tablosunu kullanır.
+// Böylece API-Football'ın en az 4 karakter isteyen arama sınırına takılmaz ve
+// yeni veri sağlayıcısının doldurduğu adlarla 2 karakterden itibaren çalışır.
 
 export interface HomeSearchPlayerResult {
   id: number

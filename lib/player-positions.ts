@@ -1,15 +1,15 @@
 export const PLAYER_POSITIONS = ["GK", "LB", "CB", "RB", "DM", "CM", "AM", "LM", "RM", "LW", "RW", "CF", "ST"] as const
 export type PlayerPosition = (typeof PLAYER_POSITIONS)[number]
-export type PositionSource = "api-football" | "transfermarkt" | "unverified"
+export type PositionSource = "api-football" | "external" | "unverified"
 export type PositionProfile = { primary: PlayerPosition | null; secondary: PlayerPosition[]; source: PositionSource }
 
 const ALIASES: Record<string, PlayerPosition> = {
-  GK: "GK", Goalkeeper: "GK", "Torwart": "GK",
+  GK: "GK", Goalkeeper: "GK", Torwart: "GK",
   LB: "LB", "Left Back": "LB", "Left-Back": "LB", "Left back": "LB",
-  CB: "CB", "Centre Back": "CB", "Center Back": "CB", "Centre-Back": "CB", "Center-Back": "CB", "Sweeper": "CB", "Libero": "CB",
+  CB: "CB", "Centre Back": "CB", "Center Back": "CB", "Centre-Back": "CB", "Center-Back": "CB", Sweeper: "CB", Libero: "CB",
   RB: "RB", "Right Back": "RB", "Right-Back": "RB", "Right back": "RB",
   DM: "DM", "Defensive Midfielder": "DM", "Defensive Midfield": "DM",
-  CM: "CM", "Central Midfielder": "CM", "Central Midfield": "CM", "Midfielder": "CM",
+  CM: "CM", "Central Midfielder": "CM", "Central Midfield": "CM", Midfielder: "CM",
   AM: "AM", "Attacking Midfielder": "AM", "Attacking Midfield": "AM",
   LM: "LM", "Left Midfielder": "LM", "Left Midfield": "LM",
   RM: "RM", "Right Midfielder": "RM", "Right Midfield": "RM",
@@ -29,5 +29,5 @@ export function roleForPosition(position: PlayerPosition): "Goalkeeper" | "Defen
 export function hasVerifiedPosition(player: PositionProfile | null | undefined): boolean { return Boolean(player?.primary || player?.secondary.length) && player?.source !== "unverified" }
 export function isPlayerPosition(value: string): value is PlayerPosition { return (PLAYER_POSITIONS as readonly string[]).includes(value) }
 export function positionSummary(player: PositionProfile | null | undefined): string { return [player?.primary, ...(player?.secondary ?? [])].filter(Boolean).join("/") || "Mevki doğrulanmadı" }
-export function sourceLabel(source: PositionSource): string { return source === "transfermarkt" ? "Transfermarkt" : source === "api-football" ? "API-Football" : "Doğrulanmamış" }
+export function sourceLabel(source: PositionSource): string { return source === "api-football" ? "API-Football" : source === "external" ? "Harici veri" : "Doğrulanmamış" }
 export const POSITION_GROUPS = { defense: ["LB", "CB", "RB"], midfield: ["DM", "CM", "AM", "LM", "RM"], attack: ["LW", "RW", "CF", "ST"] } as const

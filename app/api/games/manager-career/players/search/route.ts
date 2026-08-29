@@ -29,7 +29,7 @@ export interface ManagerPlayerSearchResult {
    */
   power: number | null
   /**
-   * Transfermarkt kaynaklı alt mevki profili (bkz. lib/player-positions.ts).
+   * Harici veri sağlayıcısından alınan alt mevki profili (bkz. lib/player-positions.ts).
    * Backfill henüz bu oyuncuya ulaşmadıysa null döner — kadro ekranı bu
    * durumda doğrulanmamış (nötr) olarak ele alır, hatalı bir mevki
    * uydurmaz.
@@ -41,7 +41,7 @@ interface CandidateRow {
   playerId: number
   playerName: string
   /**
-   * Transfermarkt kaynaklı TAM ad, örn. "Ousmane Dembélé" — playerName ise
+   * Harici veri sağlayıcısından alınan TAM ad, örn. "Ousmane Dembélé" — playerName ise
    * API-Football'ın kısaltılmış formatı ("O. Dembélé"). Kullanıcı ismiyle
    * VEYA soyismiyle arayabilsin diye arama bu ikisinin BİRLEŞİMİNE bakar.
    * Eski (backfill'den önce eklenen) satırlarda null olabilir.
@@ -88,7 +88,7 @@ async function getCandidateRows(): Promise<CandidateRow[]> {
     })
     .from(playerMarketValue)
     .leftJoin(teamMarketValue, eq(teamMarketValue.teamId, playerMarketValue.teamId))
-    .where(and(eq(playerMarketValue.matchStatus, "matched"), gt(playerMarketValue.valueEur, "0")))
+    .where(gt(playerMarketValue.valueEur, "0"))
 
   const parsed: CandidateRow[] = rows.map((r) => ({
     playerId: r.playerId,
@@ -124,7 +124,7 @@ async function mapWithConcurrency<T, R>(items: T[], size: number, fn: (item: T) 
 
 /**
  * Türkçe harfleri (ş,ç,ğ,ü,ö,ı,İ) VE genel Latin aksanlarını (é,í,á,ã,ê,ñ,ç...)
- * sadeleştirir. Oyuncu isimleri Transfermarkt kaynaklı olduğundan çoğu
+ * sadeleştirir. Oyuncu isimleri Harici veri sağlayıcısından alınan olduğundan çoğu
  * (Mbappé, Vinícius, Müller vb.) aksanlı yazılıyor — kullanıcı aksansız
  * yazdığında (Mbappe, Vinicius) da eşleşmesi için ikisi de gerekli.
  */
@@ -249,7 +249,7 @@ export async function GET(req: NextRequest) {
   const positionByPlayerId = new Map(
     positionRows.map((r) => [
       r.playerId,
-      profile(r.mainPosition, (r.secondaryPositions as string[]) ?? [], r.source as "transfermarkt" | "unverified"),
+      profile(r.mainPosition, (r.secondaryPositions as string[]) ?? [], r.source as "external" | "unverified"),
     ]),
   )
 

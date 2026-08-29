@@ -6,9 +6,8 @@ import { countryMatchesQuery } from "@/lib/tr-aliases"
 // FeaturedLeague ile birebir aynı — statik liste, API isteği gerekmez, hızlı.
 export type LeagueSearchResult = FeaturedLeague
 
-// Tek kaynaktan türetilir (bkz. lib/leagues.ts). Maç listesi sıralaması ve
-// Transfermarkt cron'u da aynı diziden beslenir, bu yüzden yeni bir lig
-// eklendiğinde burası ayrıca güncellenmesine gerek kalmadan senkron kalır.
+// Tek kaynaktan türetilir (bkz. lib/leagues.ts). Yeni bir lig eklendiğinde
+// burası ayrıca güncellenmesine gerek kalmadan senkron kalır.
 const TOP_LEAGUES: LeagueSearchResult[] = FEATURED_LEAGUES
 
 function normalizeTR(s: string): string {

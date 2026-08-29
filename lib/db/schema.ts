@@ -101,94 +101,39 @@ export const liveFixtureNotificationState = pgTable('live_fixture_notification_s
 })
 
 // ---------------------------------------------------------------------------
-// Piyasa değeri (market value) tabloları
-// Tarihsel piyasa değeri ve kaynak eşleştirme verilerini saklar.
-// Otomatik veri çekme sistemi kaldırılmıştır; uygulama bu tabloları yalnızca
-// mevcut kayıtları okumak için kullanır.
+// Kaynaktan bağımsız piyasa değeri tabloları.
+// Yeni veri sağlayıcısı bu tabloları doldurur; uygulama yalnızca okur.
 // ---------------------------------------------------------------------------
 
-/** Lig bazlı eşleşme (matched olduğunda yazılır) + ligdeki tüm takımların toplam piyasa değeri. */
 export const leagueMarketValue = pgTable('league_market_value', {
   id: text('id').primaryKey(),
-  /** API-Football lig id'si — FEATURED_LEAGUE_IDS'den biri */
   leagueId: integer('leagueId').notNull().unique(),
   leagueName: text('leagueName').notNull(),
-  /** API-Football lig ülkesi */
   leagueCountry: text('leagueCountry'),
-  transfermarktLeagueName: text('transfermarktLeagueName'),
-  transfermarktLeagueCountry: text('transfermarktLeagueCountry'),
-  /** Ligdeki tüm takımların piyasa değeri toplamı, tam euro cinsinden */
   totalValueEur: numeric('totalValueEur', { precision: 14, scale: 2 }),
-  nameMatchPercent: integer('nameMatchPercent'),
-  countryMatchPercent: integer('countryMatchPercent'),
-  /** avg(nameMatchPercent, countryMatchPercent) */
-  matchPercent: integer('matchPercent').notNull().default(0),
-  /** Satır sadece eşleşince (otomatik ≥75 veya manuel onay sonrası) yazılır — her zaman "matched". */
-  matchStatus: text('matchStatus').notNull().default('matched'),
-  lastScrapedAt: timestamp('lastScrapedAt'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })
 
-/** Takım bazlı eşleşme (matched olduğunda yazılır) + toplam kadro piyasa değeri. */
 export const teamMarketValue = pgTable('team_market_value', {
   id: text('id').primaryKey(),
-  /** API-Football takım id'si (lib/types.ts -> Team.id) */
   teamId: integer('teamId').notNull().unique(),
-  /** API-Football lig id'si */
   leagueId: integer('leagueId').notNull(),
   teamName: text('teamName').notNull(),
-  /** API-Football takım ülkesi */
   teamCountry: text('teamCountry'),
-  /** Transfermarkt takım slug/id'si, örn. "fc-barcelona" veya "131" */
-  transfermarktTeamId: text('transfermarktTeamId'),
-  transfermarktTeamSlug: text('transfermarktTeamSlug'),
-  transfermarktTeamName: text('transfermarktTeamName'),
-  transfermarktTeamCountry: text('transfermarktTeamCountry'),
-  /** Toplam kadro piyasa değeri, tam euro cinsinden (örn. 850000000) */
   totalValueEur: numeric('totalValueEur', { precision: 14, scale: 2 }),
-  nameMatchPercent: integer('nameMatchPercent'),
-  countryMatchPercent: integer('countryMatchPercent'),
-  /** avg(nameMatchPercent, countryMatchPercent) — eşleştirme güven skoru 0-100 */
-  matchConfidence: integer('matchConfidence'),
-  /** Satır sadece eşleşince yazılır — her zaman "matched". */
-  matchStatus: text('matchStatus').notNull().default('matched'),
-  lastScrapedAt: timestamp('lastScrapedAt'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })
 
-/** Oyuncu bazlı eşleşme (matched olduğunda yazılır) + piyasa değeri. */
 export const playerMarketValue = pgTable('player_market_value', {
   id: text('id').primaryKey(),
-  /** API-Football oyuncu id'si (lib/types.ts -> Player.id) */
   playerId: integer('playerId').notNull().unique(),
-  /** Bu oyuncunun eşleştirildiği anda oynadığı API-Football takım id'si */
   teamId: integer('teamId').notNull(),
-  /** API-Football'ın kısa adı, örn. "O. Dembélé" — kadro/arayüz gösterimi için. */
   playerName: text('playerName').notNull(),
-  /**
-   * Transfermarkt kadro sayfasından gelen TAM ad, örn. "Ousmane Dembélé" —
-   * yalnızca isim/soyisim aramasını (menajer kariyeri kadro arama ekranı)
-   * `playerName`'in kısaltma formatına ("O. Dembélé") takılmadan yapabilmek
-   * için tutulur.
-   */
   fullName: text('fullName'),
-  /** API-Football oyuncu uyruğu */
   playerCountry: text('playerCountry'),
-  /** Transfermarkt oyuncu id'si, örn. "28003" */
-  transfermarktPlayerId: text('transfermarktPlayerId'),
-  transfermarktPlayerSlug: text('transfermarktPlayerSlug'),
-  transfermarktPlayerCountry: text('transfermarktPlayerCountry'),
-  /** Piyasa değeri, tam euro cinsinden (örn. 120000000) */
   valueEur: numeric('valueEur', { precision: 14, scale: 2 }),
-  nameMatchPercent: integer('nameMatchPercent'),
-  countryMatchPercent: integer('countryMatchPercent'),
-  /** avg(nameMatchPercent, countryMatchPercent) — eşleştirme güven skoru 0-100 */
-  matchConfidence: integer('matchConfidence'),
-  /** Satır sadece eşleşince yazılır — her zaman "matched". */
-  matchStatus: text('matchStatus').notNull().default('matched'),
-  lastScrapedAt: timestamp('lastScrapedAt'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })
@@ -288,29 +233,16 @@ export const playerPowerBackfillCronRun = pgTable('player_power_backfill_cron_ru
 })
 
 // ---------------------------------------------------------------------------
-// Oyuncu alt mevki verisi. Canlı Transfermarkt taraması kaldırılmıştır;
-// uygulama mevcut kayıtları sadece okur. Satırı olmayan oyuncular
-// "unverified" kabul edilir (bkz. lib/player-positions.ts fit()).
+// Kaynaktan bağımsız normalize oyuncu alt mevki verisi.
+// Satırı olmayan oyuncular "unverified" kabul edilir.
 // ---------------------------------------------------------------------------
 
-/** Oyuncu bazlı alt mevki verisi. */
 export const playerPosition = pgTable('player_position', {
   id: text('id').primaryKey(),
-  /** API-Football oyuncu id'si */
   playerId: integer('playerId').notNull().unique(),
-  /** playerMarketValue.transfermarktPlayerId'den kopyalanır — hangi profil sayfasından çekildiğini izler. */
-  transfermarktPlayerId: text('transfermarktPlayerId'),
-  /** Transfermarkt'ın ham metni, örn. "Defensive Midfield" — tanı/debug amaçlı saklanır. */
-  mainPositionRaw: text('mainPositionRaw'),
-  /** mainPositionRaw'ın lib/player-positions.ts ALIASES ile normalize edilmiş hali, örn. "DM" */
   mainPosition: text('mainPosition'),
-  /** Transfermarkt'ın ham "Other position" metinleri, örn. ["Central Midfield", "Attacking Midfield"] */
-  secondaryPositionsRaw: jsonb('secondaryPositionsRaw').notNull().default([]),
-  /** secondaryPositionsRaw'ın normalize edilmiş hali, örn. ["CM", "AM"] */
   secondaryPositions: jsonb('secondaryPositions').notNull().default([]),
-  /** "transfermarkt" | "unverified" — profil sayfasında pozisyon bulunamazsa (nadiren) "unverified" yazılır. */
-  source: text('source').notNull().default('transfermarkt'),
-  lastScrapedAt: timestamp('lastScrapedAt'),
+  source: text('source').notNull().default('external'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })

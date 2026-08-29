@@ -12,8 +12,7 @@ import { DUEL_SELECTABLE_LEAGUE_IDS } from "@/lib/leagues"
 // "Piyasa Değeri Düellosu" oyunu — sunucu tarafı yardımcıları.
 //
 // Akış:
-// 1. DB'den piyasa değeri eşleşmiş (matchStatus="matched") 2 rastgele oyuncu
-//    seçilir.
+// 1. DB'den piyasa değeri bulunan 2 rastgele oyuncu seçilir.
 // 2. API-Football'dan fotoğraf/takım/uyruk bilgisi zenginleştirilir.
 // 3. İstemciye piyasa değeri GÖNDERİLMEZ — sadece imzalı bir "roundToken"
 //    (iki oyuncu id'sini taşır) gönderilir.
@@ -177,10 +176,8 @@ async function pickRandomMatchedPlayers(
         percent_rank() over (order by ${playerMarketValue.valueEur} desc) as "pctRank"
       from ${playerMarketValue}
       inner join ${teamMarketValue} on ${teamMarketValue.teamId} = ${playerMarketValue.teamId}
-      where ${playerMarketValue.matchStatus} = 'matched'
-        and ${playerMarketValue.valueEur} is not null
+      where ${playerMarketValue.valueEur} is not null
         and ${playerMarketValue.valueEur} > 0
-        and ${teamMarketValue.matchStatus} = 'matched'
         ${leagueCondition}
     )
     select "playerId", "playerName", "valueEur", "teamId"
@@ -262,7 +259,7 @@ function resolveTeamFromTransfers(transfersEntry: any, now: Date): ResolvedTeam 
  * 1. Transfer geçmişindeki en son (bugüne kadarki) transfer — en güvenilir,
  *    çünkü transfer olsa da olmasa da her zaman doğrudur.
  * 2. Bulunamazsa (oyuncunun kayıtlı transferi yoksa — örn. altyapıdan çıkıp
- *    hiç satılmamış), DB'deki (Transfermarkt eşleşmesi anındaki) bilinen
+ *    hiç satılmamış), DB'deki son bilinen bilinen
  *    takıma geri düşülür; isim/logo bilgisi için istatistik bloklarına
  *    bakılır (bkz. enrichPlayer).
  */
@@ -275,7 +272,7 @@ function resolveActualTeam(transfersEntry: any, knownTeamId: number): ResolvedTe
  * çeker. Fotoğraf, takım veya ülke bilgisinden biri eksikse `null` döner — bu
  * oyuncu kart olarak asla gösterilmeyecek (yarım/eksik kart oyunu bozar).
  *
- * `knownTeamId`, oyuncunun DB'deki (Transfermarkt eşleşmesi anındaki)
+ * `knownTeamId`, oyuncunun DB'deki son bilinen
  * takımıdır — sadece transfer geçmişi bulunamazsa yedek olarak kullanılır.
  */
 async function enrichPlayer(playerId: number, fallbackName: string, knownTeamId: number): Promise<DuelPlayer | null> {

@@ -253,8 +253,8 @@ export async function GET(request: Request) {
         const squadData = squadRaw?.[0] as any
         const rawPlayers = squadData?.players ?? []
 
-        // Piyasa değerleri veritabanından tek sorguda okunur (cron tarafından
-        // haftalık dolduruluyor); burada asla canlı scrape tetiklenmez.
+        // Piyasa değerleri veritabanından tek sorguda okunur; veri kaynağı
+        // bu endpoint'ten bağımsızdır.
         const playerIds: number[] = rawPlayers.map((p: any) => p.id).filter(Boolean)
         const marketValues = await getPlayerMarketValues(playerIds).catch(() => new Map())
 
@@ -263,7 +263,7 @@ export async function GET(request: Request) {
           return {
             id: p.id, name: p.name, age: p.age ?? null,
             number: p.number ?? null, pos: p.position ?? null, photo: p.photo ?? null,
-            marketValueEur: mv?.matchStatus === "matched" ? mv.valueEur : null,
+            marketValueEur: mv?.valueEur ?? null,
           }
         })
         if (players.length === 0) return noStoreJson({ data: null })

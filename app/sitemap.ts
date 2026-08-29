@@ -153,8 +153,8 @@ async function getDbPlayerRows(): Promise<{ playerId: number; updatedAt: Date }[
 }
 
 /**
- * Sadece 24 ligdeki takımlar (piyasa değeri tablosu — Transfermarkt cron'u
- * bu ligleri kapsıyor). Bugün maçı olan ama 24 lig kapsamı dışındaki
+ * Sadece piyasa değeri tablosundaki öne çıkan liglerin takımları.
+ * Bugün maçı olan ama 24 lig kapsamı dışındaki
  * takımlar kasıtlı olarak dışarıda bırakılıyor (bkz. getLeagueRoutes'taki
  * URL churn notu) — sayfaları hâlâ erişilebilir, sadece sitemap listesine
  * girip çıkmıyorlar.

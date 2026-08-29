@@ -60,7 +60,7 @@ export interface SquadEntry {
   priceEur: number
   /** Oyuncu güç motorunun ürettiği 1-99 puan (bkz. lib/player-power.ts) — sadece gösterim amaçlı, kadroya kaydedilmez. */
   power: number | null
-  /** Transfermarkt kaynaklı alt mevki profili — slota göre reyting düşürmek için kullanılır (bkz. lib/player-positions.ts). */
+  /** Harici veri sağlayıcısından alınan alt mevki profili — slota göre reyting düşürmek için kullanılır. */
   position: PositionProfile | null
 }
 

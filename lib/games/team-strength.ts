@@ -98,7 +98,7 @@ export async function getUserSquadRoster(careerId: string, formationId: string):
   const positionByPlayerId = new Map(
     positionRows.map((r) => [
       r.playerId,
-      profile(r.mainPosition, (r.secondaryPositions as string[]) ?? [], r.source as "transfermarkt" | "unverified"),
+      profile(r.mainPosition, (r.secondaryPositions as string[]) ?? [], r.source as "external" | "unverified"),
     ]),
   )
   const powerByPlayerId = new Map(powerRows.map((r) => [r.playerId, r.currentPower]))
