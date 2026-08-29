@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { and, desc, eq, inArray, lt, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db, pool } from '@/lib/db'
 import {
   apiFootballLeagueSnapshot,
@@ -105,7 +105,7 @@ export async function getImportDashboard() {
       db.select().from(dataImportError).where(inArray(dataImportError.runId, latestIds)).orderBy(desc(dataImportError.createdAt)).limit(200),
     ]) : [[], []]
     return { available: true, runs: Object.fromEntries(latest), checkpoints, errors }
-  } catch (error) {
+  } catch {
     return { available: false, runs: {}, checkpoints: [], errors: [], message: 'Migration henüz uygulanmadı veya veri tabanı kullanılamıyor.' }
   }
 }
