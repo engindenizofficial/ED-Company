@@ -15,7 +15,7 @@ import { formatMarketValueEur } from "@/lib/market-value-format"
 import type { PlayerRole } from "@/lib/games/manager-career"
 import type { ManagerPlayerSearchResult } from "@/app/api/games/manager-career/players/search/route"
 import { PowerBadge } from "@/components/games/manager-career/power-badge"
-import { hasVerifiedPosition, positionSummary, ratingAtPosition, fit, positionLabel, type PlayerPosition } from "@/lib/player-positions"
+import { hasVerifiedPosition, ratingAtPosition, fit, positionLabel, type PlayerPosition } from "@/lib/player-positions"
 
 /**
  * Arama sonuçlarındaki dairesel oyuncu avatarı — fotoğraf URL'i geçersiz/bozuksa
@@ -187,18 +187,20 @@ export function PlayerSearchDialog({
                         <PowerBadge power={adjustedPower} />
                         {hasVerifiedPosition(r.position) && (
                           <span className="shrink-0 rounded bg-secondary px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
-                            {positionSummary(r.position)}
+                            {positionLabel(r.position!.primary!, locale)}
                           </span>
                         )}
                         {targetPosition && fitRatio < 1 && (
                           <span
-                            title={`${positionLabel(targetPosition)} için tam mevkisi değil`}
+                            title={locale === "tr" ? `${positionLabel(targetPosition, locale)} için tam mevkisi değil` : `Not a natural ${positionLabel(targetPosition, locale)}`}
                             className={
                               "shrink-0 rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide " +
                               (fitRatio >= 0.85 ? "bg-amber-500/15 text-amber-600" : "bg-destructive/15 text-destructive")
                             }
                           >
-                            {fitRatio >= 0.85 ? "Yakın mevki" : "Uyumsuz mevki"}
+                            {fitRatio >= 0.85
+                              ? locale === "tr" ? "Yakın mevki" : "Related position"
+                              : locale === "tr" ? "Uyumsuz mevki" : "Out of position"}
                           </span>
                         )}
                       </div>

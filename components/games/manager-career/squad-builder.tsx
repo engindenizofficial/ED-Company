@@ -460,7 +460,7 @@ function PitchSlot({
   onOpen: () => void
   onRemove: () => void
 }) {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const id = startingSlotId(slot.key)
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id })
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ id, disabled: !entry })
@@ -477,7 +477,7 @@ function PitchSlot({
       style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
     >
       <span
-        title={positionLabel(slot.position)}
+        title={positionLabel(slot.position, locale)}
         className="rounded bg-black/60 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-white/90"
       >
         {slot.position}
@@ -549,7 +549,7 @@ function BenchSlot({
   onOpen: () => void
   onRemove: () => void
 }) {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const id = benchSlotId(index)
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id })
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ id, disabled: !entry })
@@ -608,7 +608,7 @@ function BenchSlot({
         <PowerBadge power={entry.power} />
       </div>
       <span
-        title={entry.position?.primary ? positionLabel(entry.position.primary) : undefined}
+        title={entry.position?.primary ? positionLabel(entry.position.primary, locale) : undefined}
         className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground"
       >
         {entry.role}

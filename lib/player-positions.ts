@@ -41,8 +41,21 @@ export function ratingAtPosition(base: number, player: PositionProfile | null | 
   return Math.max(1, Math.min(99, Math.round(base * fit(player, slot))))
 }
 
-export function positionLabel(position: PlayerPosition): string {
-  return ({ GK: "Kaleci", LB: "Sol Bek", CB: "Stoper", RB: "Sağ Bek", DM: "Defansif Orta Saha", CM: "Merkez Orta Saha", AM: "Ofansif Orta Saha", LM: "Sol Orta Saha", RM: "Sağ Orta Saha", LW: "Sol Kanat", RW: "Sağ Kanat", CF: "Forvet Arkası", ST: "Santrfor" })[position]
+const POSITION_LABELS: Record<"tr" | "en", Record<PlayerPosition, string>> = {
+  tr: {
+    GK: "Kaleci", LB: "Sol Bek", CB: "Stoper", RB: "Sağ Bek", DM: "Defansif Orta Saha",
+    CM: "Merkez Orta Saha", AM: "Ofansif Orta Saha", LM: "Sol Orta Saha", RM: "Sağ Orta Saha",
+    LW: "Sol Kanat", RW: "Sağ Kanat", CF: "İkinci Forvet", ST: "Santrfor",
+  },
+  en: {
+    GK: "Goalkeeper", LB: "Left Back", CB: "Centre Back", RB: "Right Back", DM: "Defensive Midfielder",
+    CM: "Central Midfielder", AM: "Attacking Midfielder", LM: "Left Midfielder", RM: "Right Midfielder",
+    LW: "Left Winger", RW: "Right Winger", CF: "Second Striker", ST: "Striker",
+  },
+}
+
+export function positionLabel(position: PlayerPosition, locale: string = "tr"): string {
+  return POSITION_LABELS[locale === "tr" ? "tr" : "en"][position]
 }
 
 export function hasVerifiedPosition(player: PositionProfile | null | undefined): boolean {
