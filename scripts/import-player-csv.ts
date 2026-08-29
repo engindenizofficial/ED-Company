@@ -35,7 +35,17 @@ async function apiPage(leagueId: number, page: number): Promise<{ rows: RawPlaye
     const response = await fetch(url, { headers: { "x-apisports-key": key }, cache: "no-store" })
     if (response.ok) {
       const body = await response.json()
-      if (body.errors && Object.keys(body.errors).length) throw new Error(`API-Football: ${JSON.stringify(body.errors)}`)
+      if (body.errors && Object.keys(body.errors).length) {
+        const errors = JSON.stringify(body.errors)
+        if (attempt < 5) {
+          const rateLimited = /rateLimit|too many requests|per minute/i.test(errors)
+          const waitMs = rateLimited ? 65_000 : 5_000 * attempt
+          console.log(`[v0] API geçici hatası; ${Math.ceil(waitMs / 1000)} saniye bekleniyor (deneme ${attempt}/5).`)
+          await sleep(waitMs)
+          continue
+        }
+        throw new Error(`API-Football: ${errors}`)
+      }
       return { rows: body.response ?? [], pages: body.paging?.total ?? 1 }
     }
     if (attempt === 5 || (response.status < 429 && response.status < 500)) {
