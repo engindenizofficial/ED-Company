@@ -219,7 +219,6 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
     })
     if (!res.ok) throw new Error("Tahmin silinemedi")
     setStack((prev) => prev.map((entry) => (entry.fixture.id === fixture.id ? { ...entry, prediction: null } : entry)))
-    savedResultIds.current.delete(fixture.id)
   }, [panel])
 
   return (
@@ -236,5 +235,3 @@ export function useMatchPanel(): MatchContextValue {
   if (!ctx) throw new Error("useMatchPanel must be used within MatchProvider")
   return ctx
 }
-
-export type { PredictionResult }

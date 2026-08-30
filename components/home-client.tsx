@@ -13,7 +13,7 @@ import { useLanguage } from "@/contexts/language-context"
 import { useMatchPanel } from "@/contexts/match-context"
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { cn } from "@/lib/utils"
-import type { FixturesResponse, PredictionResult } from "@/lib/types"
+import type { Fixture, FixturesResponse, PredictionResult } from "@/lib/types"
 
 function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
@@ -131,14 +131,6 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
   // gerçek yenileme aralığı 30 saniyeden, o anki fetch süresi kadar daha uzun sürüyordu.
   const isRefreshingRef = useRef(false)
 
-  // Hangi fixtureId'ler için sonuç zaten kaydedildi (çift kayıt önlemi).
-  // initialPredictionResults sunucudan geldiyse buradaki id'lerle başlatılır,
-  // aksi halde autoCheckFinished bu maçları henüz "kaydedilmemiş" sanıp
-  // gereksiz yere tekrar kaydetmeye çalışırdı.
-  const savedResultIds = useRef<Set<number>>(
-    new Set(initialPredictionResults?.map((r) => r.fixtureId) ?? []),
-  )
-
   // Ekranda gösterilen fixturesData hangi tarihe ait, onu tutar. "Maçlar
   // yükleniyor" animasyonu artık SADECE gerçek ilk yüklemede (elimizde hiç
   // veri yokken) gösterilir. "Dün/Bugün/Yarın" sekmesi değiştirildiğinde
@@ -181,7 +173,6 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
       const data = await res.json() as { results: PredictionResult[] }
       if (data.results) {
         setPredictionResults(data.results)
-        data.results.forEach((r) => savedResultIds.current.add(r.fixtureId))
       }
     } catch {
       // sessizce geç

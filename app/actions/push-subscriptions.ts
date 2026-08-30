@@ -6,11 +6,17 @@ import { pushSubscription } from "@/lib/db/schema"
 import { sendPushToUsers } from "@/lib/push-notifications"
 import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
+import { z } from "zod"
 
-/**
- * Her kullanıcı verisine dokunan action bu helper'dan geçmek ZORUNDA —
- * bir kullanıcının satırlarını diğerinden ayıran tek şey bu.
- */
+const endpointSchema = z.string().url().max(4096).refine((value) => value.startsWith("https://"), "Push endpoint must use HTTPS")
+const pushSubscriptionSchema = z.object({
+  endpoint: endpointSchema,
+  keys: z.object({
+    p256dh: z.string().min(32).max(512),
+    auth: z.string().min(16).max(256),
+  }).strict(),
+}).strict()
+
 async function getUserId() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) throw new Error("Unauthorized")
@@ -19,47 +25,46 @@ async function getUserId() {
 
 export interface PushSubscriptionInput {
   endpoint: string
-  keys: {
-    p256dh: string
-    auth: string
-  }
+  keys: { p256dh: string; auth: string }
 }
 
-/** Tarayıcıdan gelen push aboneliğini kaydeder (aynı endpoint tekrar gelirse günceller). */
-export async function savePushSubscription(input: PushSubscriptionInput): Promise<void> {
+export async function savePushSubscription(input: unknown): Promise<void> {
   const userId = await getUserId()
+  const parsed = pushSubscriptionSchema.parse(input)
 
-  const existing = await db
-    .select({ id: pushSubscription.id })
-    .from(pushSubscription)
-    .where(eq(pushSubscription.endpoint, input.endpoint))
+  await db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ id: pushSubscription.id })
+      .from(pushSubscription)
+      .where(eq(pushSubscription.endpoint, parsed.endpoint))
+      .limit(1)
 
-  if (existing.length > 0) {
-    await db
-      .update(pushSubscription)
-      .set({ userId, p256dh: input.keys.p256dh, auth: input.keys.auth })
-      .where(eq(pushSubscription.endpoint, input.endpoint))
-    return
-  }
+    if (existing.length > 0) {
+      await tx
+        .update(pushSubscription)
+        .set({ userId, p256dh: parsed.keys.p256dh, auth: parsed.keys.auth })
+        .where(eq(pushSubscription.endpoint, parsed.endpoint))
+      return
+    }
 
-  await db.insert(pushSubscription).values({
-    id: crypto.randomUUID(),
-    userId,
-    endpoint: input.endpoint,
-    p256dh: input.keys.p256dh,
-    auth: input.keys.auth,
+    await tx.insert(pushSubscription).values({
+      id: crypto.randomUUID(),
+      userId,
+      endpoint: parsed.endpoint,
+      p256dh: parsed.keys.p256dh,
+      auth: parsed.keys.auth,
+    })
   })
 }
 
-/** Kullanıcı bildirimleri kapattığında ilgili endpoint'i siler. */
-export async function deletePushSubscription(endpoint: string): Promise<void> {
+export async function deletePushSubscription(endpoint: unknown): Promise<void> {
   const userId = await getUserId()
+  const parsedEndpoint = endpointSchema.parse(endpoint)
   await db
     .delete(pushSubscription)
-    .where(and(eq(pushSubscription.endpoint, endpoint), eq(pushSubscription.userId, userId)))
+    .where(and(eq(pushSubscription.endpoint, parsedEndpoint), eq(pushSubscription.userId, userId)))
 }
 
-/** Bu kullanıcının en az bir aktif push aboneliği var mı? (ayarlar ekranında toggle durumu için) */
 export async function hasActivePushSubscription(): Promise<boolean> {
   const userId = await getUserId()
   const rows = await db
@@ -70,15 +75,11 @@ export async function hasActivePushSubscription(): Promise<boolean> {
   return rows.length > 0
 }
 
-/**
- * Test amaçlı: gerçek bir maç olayı beklemeden giriş yapmış kullanıcının
- * kayıtlı tüm cihazlarına anında bir örnek bildirim gönderir.
- */
 export async function sendTestPushNotification(): Promise<void> {
   const userId = await getUserId()
   await sendPushToUsers([userId], {
-    title: "Test bildirimi ⚽",
-    body: "Push bildirimleri çalışıyor! Gerçek maçlarda gol, başlangıç ve bitiş anlarında böyle bildirim alacaksın.",
+    title: "Test bildirimi",
+    body: "Push bildirimleri çalışıyor. Gerçek maçlarda gol, başlangıç ve bitiş anlarında bildirim alacaksın.",
     tag: "test-notification",
   })
 }

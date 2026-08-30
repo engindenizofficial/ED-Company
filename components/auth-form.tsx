@@ -77,9 +77,8 @@ export function AuthForm({ mode }: AuthFormProps) {
           }
 
           if (session.data) {
-            // router.push yerine tam sayfa navigasyonu: middleware'in güncel
-            // session cookie'sini görmesini garantiler.
-            window.location.href = '/'
+            router.push('/')
+            router.refresh()
           } else {
             setGoogleLoading(false)
             setError(t('auth.sessionNotDetected'))
@@ -405,7 +404,8 @@ export function AuthForm({ mode }: AuthFormProps) {
               try {
                 sessionStorage.setItem("guest_mode", "1")
               } catch {}
-              window.location.href = "/"
+              router.push("/")
+              router.refresh()
             }}
             className="text-xs text-muted-foreground hover:text-foreground transition"
           >
