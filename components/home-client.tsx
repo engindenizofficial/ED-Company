@@ -1,6 +1,7 @@
 "use client"
 
 import { LoaderCircle } from "lucide-react"
+import { motion, useReducedMotion } from "motion/react"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
@@ -81,6 +82,7 @@ interface HomeClientProps {
 
 export function HomeClient({ initialFixturesData, initialPredictionResults, initialDateTab = "today" }: HomeClientProps = {}) {
   const router = useRouter()
+  const prefersReducedMotion = useReducedMotion()
   // Kullanıcının ana sayfadan geçiş yapabildiği "Dün" / "Bugün" / "Yarın"
   // sekmesi. Her üç tarih de TR saatiyle hesaplanır, gece 00:00'da (TR
   // saati) otomatik olarak bir gün kayar. Sadece "Bugün" "/" URL'inde
@@ -267,48 +269,43 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
               {/* relative + before:-inset-y-* : görsel pill boyutu (py-1) aynı kalır,
                   ama gerçek dokunma alanı dikeyde ~44px'e çıkar (Lighthouse
                   "dokunma hedefleri yeterli boyuta sahip değil" uyarısı). */}
-              <button
-                type="button"
-                role="tab"
-                aria-selected={dateTab === "yesterday"}
-                onClick={() => handleDateTabChange("yesterday")}
-                className={cn(
-                  "relative rounded-full px-3 py-1 text-xs font-semibold transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-['']",
-                  dateTab === "yesterday"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t("home.dateTabYesterday")}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={dateTab === "today"}
-                onClick={() => handleDateTabChange("today")}
-                className={cn(
-                  "relative rounded-full px-3 py-1 text-xs font-semibold transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-['']",
-                  dateTab === "today"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t("home.dateTabToday")}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={dateTab === "tomorrow"}
-                onClick={() => handleDateTabChange("tomorrow")}
-                className={cn(
-                  "relative rounded-full px-3 py-1 text-xs font-semibold transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-['']",
-                  dateTab === "tomorrow"
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t("home.dateTabTomorrow")}
-              </button>
+              {([
+                ["yesterday", t("home.dateTabYesterday")],
+                ["today", t("home.dateTabToday")],
+                ["tomorrow", t("home.dateTabTomorrow")],
+              ] as const).map(([tab, label]) => {
+                const isActive = dateTab === tab
+
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => handleDateTabChange(tab)}
+                    className={cn(
+                      "relative rounded-full px-3 py-1 text-xs font-semibold transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-['']",
+                      isActive
+                        ? "text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {isActive && (
+                      <motion.span
+                        layoutId="active-date-tab"
+                        className="absolute inset-0 rounded-full bg-primary"
+                        transition={
+                          prefersReducedMotion
+                            ? { duration: 0 }
+                            : { type: "spring", stiffness: 460, damping: 34 }
+                        }
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className="relative z-10">{label}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
