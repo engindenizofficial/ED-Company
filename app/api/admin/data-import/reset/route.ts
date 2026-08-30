@@ -18,6 +18,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ reset: true, launched })
   } catch (error) {
     if (error instanceof Error && error.message === 'FORBIDDEN') return NextResponse.json({ error: 'forbidden' }, { status: 403 })
-    return NextResponse.json({ error: 'invalidRequest' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'resetFailed', message: error instanceof Error ? error.message : 'Sıfırlama tamamlanamadı.' },
+      { status: 500 },
+    )
   }
 }

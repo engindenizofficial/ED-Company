@@ -8,6 +8,7 @@ import {
   dataImportCheckpoint,
   dataImportError,
   dataImportRun,
+  playerMatchRun,
   transfermarktLeague,
   transfermarktPlayer,
   transfermarktTeam,
@@ -251,12 +252,29 @@ export async function withSourceLock<T>(source: ImportSource, action: () => Prom
 
 export async function resetSource(source: ImportSource) {
   await db.transaction(async (tx) => {
+    const runIds = await tx
+      .select({ id: dataImportRun.id })
+      .from(dataImportRun)
+      .where(eq(dataImportRun.source, source))
+
+    if (!runIds.length) return
+
+    const ids = runIds.map((row) => row.id)
+
+    // Eşleştirme koşuları kaynak koşularına FK ile bağlıdır. Sonuçları cascade ile
+    // temizlemek ve data_import_run silimini engellememeleri için önce onları sil.
     if (source === 'transfermarkt') {
-      await tx.delete(transfermarktPlayer); await tx.delete(transfermarktTeam); await tx.delete(transfermarktLeague)
+      await tx.delete(playerMatchRun).where(inArray(playerMatchRun.transfermarktRunId, ids))
+      await tx.delete(transfermarktPlayer)
+      await tx.delete(transfermarktTeam)
+      await tx.delete(transfermarktLeague)
     } else {
-      await tx.delete(apiFootballPlayerSnapshot); await tx.delete(apiFootballTeamSnapshot); await tx.delete(apiFootballLeagueSnapshot)
+      await tx.delete(playerMatchRun).where(inArray(playerMatchRun.apiFootballRunId, ids))
+      await tx.delete(apiFootballPlayerSnapshot)
+      await tx.delete(apiFootballTeamSnapshot)
+      await tx.delete(apiFootballLeagueSnapshot)
     }
-    const runIds = await tx.select({ id: dataImportRun.id }).from(dataImportRun).where(eq(dataImportRun.source, source))
-    if (runIds.length) await tx.delete(dataImportRun).where(inArray(dataImportRun.id, runIds.map((row) => row.id)))
+
+    await tx.delete(dataImportRun).where(inArray(dataImportRun.id, ids))
   })
 }

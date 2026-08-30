@@ -42,7 +42,13 @@ function SourceCard({ source, run, summary, onStart, busy, serverNow }: { source
   const statusText = displayStatus === 'completed' && uniqueFailures > 0 ? `Tamamlandı · ${uniqueFailures} hatalı` : statusLabels[displayStatus ?? ''] ?? 'Henüz yok'
   async function reset() {
     const response = await fetch('/api/admin/data-import/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source, phrase }) })
-    if (!response.ok) throw new Error('Sıfırlama başarısız')
+    const body = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const message = body.error === 'sourceLocked'
+        ? 'Kaynak şu anda başka bir işlem tarafından kullanılıyor. Biraz sonra tekrar deneyin.'
+        : body.message || 'Sıfırlama başarısız.'
+      throw new Error(message)
+    }
     setPhrase(''); toast.success(`${sourceLabels[source]} sıfırlandı ve yeni koşu başlatıldı.`)
   }
   return <Card>
@@ -71,7 +77,7 @@ function SourceCard({ source, run, summary, onStart, busy, serverNow }: { source
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>{sourceLabels[source]} verilerini sıfırla</AlertDialogTitle><AlertDialogDescription>Bu işlem yalnız seçilen kaynağın snapshot ve çalışma kayıtlarını siler. Onaylamak için <strong>{RESET_PHRASES[source]}</strong> yazın.</AlertDialogDescription></AlertDialogHeader>
           <Input value={phrase} onChange={(event) => setPhrase(event.target.value)} aria-label="Sıfırlama doğrulama ifadesi" placeholder={RESET_PHRASES[source]} />
-          <AlertDialogFooter><AlertDialogCancel>Vazgeç</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={phrase !== RESET_PHRASES[source]} onClick={() => void reset().catch(() => toast.error('Sıfırlama başarısız.'))}>İkinci onay: sil ve başlat</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogCancel>Vazgeç</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={phrase !== RESET_PHRASES[source]} onClick={() => void reset().catch((error) => toast.error(error instanceof Error ? error.message : 'Sıfırlama başarısız.'))}>İkinci onay: sil ve başlat</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </CardFooter>
