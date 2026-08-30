@@ -17,6 +17,25 @@ import type { ImportSource } from './scope'
 
 export const ACTIVE_STATUSES = ['queued', 'running', 'stale'] as const
 export const STALE_AFTER_MS = 3 * 60 * 1000
+export const IMPORT_CANCELLED_ERROR = 'IMPORT_RUN_CANCELLED'
+
+export async function assertImportRunActive(runId: string) {
+  const run = await db.query.dataImportRun.findFirst({
+    columns: { status: true },
+    where: eq(dataImportRun.id, runId),
+  })
+  if (!run || !ACTIVE_STATUSES.includes(run.status as (typeof ACTIVE_STATUSES)[number])) {
+    throw new Error(IMPORT_CANCELLED_ERROR)
+  }
+}
+
+export async function getActiveWorkflowRunIds(source: ImportSource) {
+  const runs = await db
+    .select({ workflowRunId: dataImportRun.workflowRunId })
+    .from(dataImportRun)
+    .where(and(eq(dataImportRun.source, source), inArray(dataImportRun.status, [...ACTIVE_STATUSES])))
+  return runs.flatMap((run) => run.workflowRunId ? [run.workflowRunId] : [])
+}
 
 export async function createImportRun(source: ImportSource, idempotencyKey = `${source}:${Date.now()}`) {
   const existing = await db.query.dataImportRun.findFirst({

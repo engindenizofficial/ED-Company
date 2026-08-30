@@ -5,7 +5,7 @@ import {
   transfermarktLeague, transfermarktPlayer, transfermarktTeam,
 } from '@/lib/db/schema'
 import { type ImportLeague, type ImportSource } from './scope'
-import { completeCheckpoint, failCheckpoint, failRun, finishRun, getImportErrorCount, heartbeat, incrementProgress, isCheckpointComplete, recordImportError } from './repository'
+import { assertImportRunActive, completeCheckpoint, failCheckpoint, failRun, finishRun, getImportErrorCount, heartbeat, IMPORT_CANCELLED_ERROR, incrementProgress, isCheckpointComplete, recordImportError } from './repository'
 import { fetchTransfermarktHtml } from './transfermarkt-http'
 import { buildTeamSquadUrl, parseLeagueTeams, parsePlayerDetail, parseTeamSquad } from './transfermarkt-parser'
 
@@ -17,6 +17,7 @@ export async function prepareImportStep(runId: string, source: ImportSource) {
 
 export async function importTransfermarktLeagueStep(runId: string, league: ImportLeague) {
   'use step'
+  await assertImportRunActive(runId)
   const calendarYearRetry = ['NO1', 'MLS1', 'AR1N'].includes(league.transfermarktId)
   if (!calendarYearRetry && await isCheckpointComplete(runId, 'league', league.transfermarktId)) return true
   await heartbeat(runId, { stage: 'league-teams', activeLeague: league.name, activeUrl: league.transfermarktUrl })
@@ -32,6 +33,7 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
     if (discoveredTeams) await incrementProgress(runId, 'totalTeams', discoveredTeams)
     let leagueComplete = true
     for (const team of teams) {
+      await assertImportRunActive(runId)
       if (await isCheckpointComplete(runId, 'team', team.sourceId)) continue
       const squadUrl = buildTeamSquadUrl(team.url, league.transfermarktSeason)
       const previousFailures = await getImportErrorCount(runId, 'team', team.sourceId, squadUrl)
@@ -53,6 +55,7 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
         let teamComplete = true
         let hasRetryablePlayerFailure = false
         for (const player of squad) {
+          await assertImportRunActive(runId)
           if (await isCheckpointComplete(runId, 'player', player.sourceId)) continue
           const previousPlayerFailures = await getImportErrorCount(runId, 'player', player.sourceId)
           if (previousPlayerFailures >= 3) {
@@ -68,6 +71,7 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
             await incrementProgress(runId, 'processedPlayers')
             await incrementProgress(runId, 'successfulPlayers')
           } catch (error) {
+    if (error instanceof Error && error.message === IMPORT_CANCELLED_ERROR) throw error
             teamComplete = false
             await recordImportError({ runId, source: 'transfermarkt', kind: 'player', itemKey: player.sourceId, errorType: error instanceof Error && 'kind' in error ? String(error.kind) : 'player_parse', message: error instanceof Error ? error.message : 'Oyuncu hatası', url: player.url, retryable: true })
             const playerFailureCount = previousPlayerFailures + 1
@@ -93,6 +97,7 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
           await incrementProgress(runId, 'failedTeams')
         }
       } catch (error) {
+    if (error instanceof Error && error.message === IMPORT_CANCELLED_ERROR) throw error
         await recordImportError({ runId, source: 'transfermarkt', kind: 'team', itemKey: team.sourceId, errorType: 'team_import', message: error instanceof Error ? error.message : 'Takım hatası', url: squadUrl, retryable: true })
         const failureCount = previousFailures + 1
         if (failureCount >= 3) {
@@ -113,6 +118,7 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
     }
     return leagueComplete
   } catch (error) {
+    if (error instanceof Error && error.message === IMPORT_CANCELLED_ERROR) throw error
     await recordImportError({ runId, source: 'transfermarkt', kind: 'league', itemKey: league.transfermarktId, errorType: 'league_import', message: error instanceof Error ? error.message : 'Lig hatası', url: league.transfermarktUrl, retryable: true })
     await incrementProgress(runId, 'processedLeagues')
     await incrementProgress(runId, 'failedLeagues')
@@ -126,6 +132,7 @@ type ApiPlayer = { player: { id: number; name: string; birth?: { date?: string }
 
 export async function importApiFootballLeagueStep(runId: string, league: ImportLeague, season: number) {
   'use step'
+  await assertImportRunActive(runId)
   const key = String(league.apiFootballId)
   if (await isCheckpointComplete(runId, 'league', key)) return
   await heartbeat(runId, { stage: 'league-teams', activeLeague: league.name, activeUrl: `/teams?league=${key}&season=${season}` })
@@ -134,6 +141,7 @@ export async function importApiFootballLeagueStep(runId: string, league: ImportL
     await db.insert(apiFootballLeagueSnapshot).values({ sourceId: league.apiFootballId, runId, name: league.name, country: league.country, season, seenAt: new Date() }).onConflictDoUpdate({ target: apiFootballLeagueSnapshot.sourceId, set: { runId, name: league.name, country: league.country, season, seenAt: new Date() } })
     await incrementProgress(runId, 'totalTeams', teams.length)
     for (const item of teams) {
+      await assertImportRunActive(runId)
       const team = item.team; const teamKey = String(team.id)
       if (await isCheckpointComplete(runId, 'team', teamKey)) continue
       await heartbeat(runId, { stage: 'team-squad', activeTeam: team.name, activeUrl: `/players/squads?team=${team.id}` })
@@ -143,6 +151,7 @@ export async function importApiFootballLeagueStep(runId: string, league: ImportL
         const squadPlayers = squads.flatMap((squad) => squad.players)
         await incrementProgress(runId, 'totalPlayers', squadPlayers.length)
         for (const squadPlayer of squadPlayers) {
+          await assertImportRunActive(runId)
           if (await isCheckpointComplete(runId, 'player', String(squadPlayer.id))) continue
           const details = await apiFootballFetch<ApiPlayer>('/players', { id: squadPlayer.id, season }, { cache: 'no-store' })
           const detail = details[0]
@@ -156,6 +165,7 @@ export async function importApiFootballLeagueStep(runId: string, league: ImportL
         await incrementProgress(runId, 'processedTeams')
         await incrementProgress(runId, 'successfulTeams')
       } catch (error) {
+    if (error instanceof Error && error.message === IMPORT_CANCELLED_ERROR) throw error
         await recordImportError({ runId, source: 'api_football', kind: 'team', itemKey: teamKey, errorType: 'api_football', message: error instanceof Error ? error.message : 'Takım hatası', url: `/players/squads?team=${team.id}`, retryable: true })
         await incrementProgress(runId, 'processedTeams')
         await incrementProgress(runId, 'failedTeams')
@@ -165,6 +175,7 @@ export async function importApiFootballLeagueStep(runId: string, league: ImportL
     await incrementProgress(runId, 'processedLeagues')
     await incrementProgress(runId, 'successfulLeagues')
   } catch (error) {
+    if (error instanceof Error && error.message === IMPORT_CANCELLED_ERROR) throw error
     await recordImportError({ runId, source: 'api_football', kind: 'league', itemKey: key, errorType: 'api_football', message: error instanceof Error ? error.message : 'Lig hatası', retryable: true })
     await incrementProgress(runId, 'processedLeagues')
     await incrementProgress(runId, 'failedLeagues')
