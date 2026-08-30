@@ -101,13 +101,102 @@ export async function getImportDashboard() {
     const latest = new Map<ImportSource, (typeof runs)[number]>()
     for (const run of runs) if (!latest.has(run.source as ImportSource)) latest.set(run.source as ImportSource, run)
     const latestIds = [...latest.values()].map((run) => run.id)
-    const [checkpoints, errors] = latestIds.length ? await Promise.all([
+
+    if (!latestIds.length) {
+      return { available: true, runs: {}, checkpoints: [], errors: [], summaries: {} }
+    }
+
+    const [checkpoints, summaryResult, errorResult] = await Promise.all([
       db.select().from(dataImportCheckpoint).where(inArray(dataImportCheckpoint.runId, latestIds)).orderBy(desc(dataImportCheckpoint.updatedAt)).limit(500),
-      db.select().from(dataImportError).where(inArray(dataImportError.runId, latestIds)).orderBy(desc(dataImportError.createdAt)).limit(200),
-    ]) : [[], []]
-    return { available: true, runs: Object.fromEntries(latest), checkpoints, errors }
+      pool.query<{
+        runId: string
+        discoveredTeams: number
+        successfulTeams: number
+        discoveredPlayers: number
+        successfulPlayers: number
+        failedTeams: number
+        failedPlayers: number
+        failedLeagues: number
+        uniqueErrors: number
+        repeatedErrors: number
+      }>(`
+        WITH selected_runs AS (
+          SELECT UNNEST($1::text[]) AS "runId"
+        ), checkpoint_counts AS (
+          SELECT c."runId",
+            COUNT(DISTINCT c."itemKey") FILTER (WHERE c.kind = 'team_discovered')::int AS discovered_teams,
+            COUNT(DISTINCT c."itemKey") FILTER (WHERE c.kind = 'team' AND c.status = 'completed')::int AS successful_teams,
+            COUNT(DISTINCT c."itemKey") FILTER (WHERE c.kind = 'player_discovered')::int AS discovered_players,
+            COUNT(DISTINCT c."itemKey") FILTER (WHERE c.kind = 'player' AND c.status = 'completed')::int AS successful_players
+          FROM data_import_checkpoint c
+          WHERE c."runId" = ANY($1::text[])
+          GROUP BY c."runId"
+        ), error_counts AS (
+          SELECT e."runId",
+            COUNT(DISTINCT e."itemKey") FILTER (WHERE e.kind = 'team')::int AS failed_teams,
+            COUNT(DISTINCT e."itemKey") FILTER (WHERE e.kind = 'player')::int AS failed_players,
+            COUNT(DISTINCT e."itemKey") FILTER (WHERE e.kind = 'league')::int AS failed_leagues,
+            COUNT(DISTINCT (e.kind, COALESCE(e."itemKey", e.id)))::int AS unique_errors,
+            COUNT(*)::int AS repeated_errors
+          FROM data_import_error e
+          WHERE e."runId" = ANY($1::text[])
+          GROUP BY e."runId"
+        ), error_discovery AS (
+          SELECT e."runId",
+            COUNT(DISTINCT e."itemKey") FILTER (WHERE e.kind = 'team')::int AS teams,
+            COUNT(DISTINCT e."itemKey") FILTER (WHERE e.kind = 'player')::int AS players
+          FROM data_import_error e
+          WHERE e."runId" = ANY($1::text[])
+          GROUP BY e."runId"
+        )
+        SELECT r."runId" AS "runId",
+          (CASE WHEN COALESCE(c.discovered_teams, 0) > 0 THEN c.discovered_teams
+            ELSE COALESCE(c.successful_teams, 0) + COALESCE(d.teams, 0) END)::int AS "discoveredTeams",
+          COALESCE(c.successful_teams, 0)::int AS "successfulTeams",
+          (CASE WHEN COALESCE(c.discovered_players, 0) > 0 THEN c.discovered_players
+            ELSE COALESCE(c.successful_players, 0) + COALESCE(d.players, 0) END)::int AS "discoveredPlayers",
+          COALESCE(c.successful_players, 0)::int AS "successfulPlayers",
+          COALESCE(e.failed_teams, 0)::int AS "failedTeams",
+          COALESCE(e.failed_players, 0)::int AS "failedPlayers",
+          COALESCE(e.failed_leagues, 0)::int AS "failedLeagues",
+          COALESCE(e.unique_errors, 0)::int AS "uniqueErrors",
+          COALESCE(e.repeated_errors, 0)::int AS "repeatedErrors"
+        FROM selected_runs r
+        LEFT JOIN checkpoint_counts c ON c."runId" = r."runId"
+        LEFT JOIN error_counts e ON e."runId" = r."runId"
+        LEFT JOIN error_discovery d ON d."runId" = r."runId"
+      `, [latestIds]),
+      pool.query<{
+        id: string
+        runId: string
+        source: string
+        kind: string
+        itemKey: string | null
+        errorType: string
+        message: string
+        retryable: boolean
+        occurrences: number
+        createdAt: Date
+      }>(`
+        SELECT CONCAT(e."runId", ':', e.kind, ':', COALESCE(e."itemKey", e.id)) AS id,
+          e."runId" AS "runId", e.source, e.kind, e."itemKey" AS "itemKey",
+          (ARRAY_AGG(e."errorType" ORDER BY e."createdAt" DESC))[1] AS "errorType",
+          (ARRAY_AGG(e.message ORDER BY e."createdAt" DESC))[1] AS message,
+          BOOL_OR(e.retryable) AS retryable,
+          COUNT(*)::int AS occurrences,
+          MAX(e."createdAt") AS "createdAt"
+        FROM data_import_error e
+        WHERE e."runId" = ANY($1::text[])
+        GROUP BY e."runId", e.source, e.kind, e."itemKey", COALESCE(e."itemKey", e.id)
+        ORDER BY MAX(e."createdAt") DESC
+        LIMIT 200
+      `, [latestIds]),
+    ])
+
+    const summaries = Object.fromEntries(summaryResult.rows.map((summary) => [summary.runId, summary]))
+    return { available: true, runs: Object.fromEntries(latest), checkpoints, errors: errorResult.rows, summaries }
   } catch {
-    return { available: false, runs: {}, checkpoints: [], errors: [], message: 'Migration henüz uygulanmadı veya veri tabanı kullanılamıyor.' }
+    return { available: false, runs: {}, checkpoints: [], errors: [], summaries: {}, message: 'Migration henüz uygulanmadı veya veri tabanı kullanılamıyor.' }
   }
 }
 
