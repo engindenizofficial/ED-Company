@@ -133,7 +133,6 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
     initialPredictionResults ?? [],
   )
 
-  const [refreshing, setRefreshing] = useState(false)
   // handleRefresh'in kimliğini (referansını) refreshing state'inden bağımsız tutmak için ref
   // kullanıyoruz. Aksi halde her yenilemede refreshing true/false arasında değiştiği için
   // handleRefresh yeniden oluşuyor, bu da aşağıdaki 30 saniyelik interval'in her seferinde
@@ -272,7 +271,6 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
   const handleRefresh = useCallback(async () => {
     if (isRefreshingRef.current) return
     isRefreshingRef.current = true
-    setRefreshing(true)
     try {
       // Bekleyen tahminleri kontrol et (geçmiş tarihlerdekiler dahil)
       const checkRes = await fetch("/api/predict/pending-check", { method: "POST", cache: "no-store" })
@@ -293,7 +291,6 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
       await Promise.all([loadFixtures(true), loadPredictionResults()])
     } finally {
       isRefreshingRef.current = false
-      setRefreshing(false)
     }
   }, [loadFixtures, loadPredictionResults])
 

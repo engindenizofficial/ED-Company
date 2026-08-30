@@ -84,7 +84,7 @@ export function LeagueProvider({ children }: { children: React.ReactNode }) {
       const msg = err instanceof Error ? err.message : t("common.unexpectedError")
       setStack((prev) => prev.map((entry) => (entry.league.id === league.id ? { league, basic: null, loading: false, error: msg, seq: entry.seq } : entry)))
     }
-  }, [t])
+  }, [nextSeq, t])
 
   const closeLeague = useCallback(() => {
     setStack((prev) => prev.slice(0, -1))

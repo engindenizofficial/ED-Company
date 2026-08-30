@@ -79,7 +79,7 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
       const msg = err instanceof Error ? err.message : t("common.unexpectedError")
       setStack((prev) => prev.map((entry) => (entry.team.id === team.id ? { team, basic: null, loading: false, error: msg, seq: entry.seq } : entry)))
     }
-  }, [t])
+  }, [nextSeq, t])
 
   const closeTeam = useCallback(() => {
     setStack((prev) => prev.slice(0, -1))

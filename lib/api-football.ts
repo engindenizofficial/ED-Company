@@ -9,7 +9,6 @@ import type {
   LiveMatchData,
   MatchEvent,
   PlayerProfile,
-  PlayerSeasonStats,
   SquadPlayer,
   StandingRow,
   StatItem,
@@ -17,9 +16,6 @@ import type {
   TeamInfo,
   TeamLineup,
   TeamSeasonStats,
-  TopScorer,
-  Transfer,
-  Trophy,
 } from "./types"
 import { toTurkishCountry } from "./tr-aliases"
 import { apiFootballFetch, safeApiFootballFetch } from "./api-football-client"

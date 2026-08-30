@@ -26,6 +26,7 @@ import {
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
+import Image from "next/image"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -341,7 +342,7 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
       {/* League strip */}
       <div className="flex items-center justify-center gap-2 border-b border-border/60 bg-secondary/30 px-4 py-2">
         {fixture.league.logo && (
-          <img src={fixture.league.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5"  width={16} height={16} loading="lazy" decoding="async"/>
+          <Image src={fixture.league.logo} alt="" className="h-4 w-4 rounded-full bg-white/95 object-contain p-0.5 ring-1 ring-black/5" width={16} height={16} unoptimized />
         )}
         <span className="text-[11px] font-semibold text-muted-foreground tracking-wide">
           {fixture.league.name}
@@ -354,7 +355,7 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
         {/* Home */}
         <TeamButton team={fixture.home} className="flex flex-col items-center gap-2 group">
           {fixture.home.logo && (
-            <img src={fixture.home.logo} alt={fixture.home.name} className="h-14 w-14 object-contain drop-shadow-sm transition-transform group-hover:scale-105 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={56} height={56} fetchPriority="high" decoding="async" />
+            <Image src={fixture.home.logo} alt={fixture.home.name} className="h-14 w-14 rounded-full bg-white/95 object-contain p-0.5 drop-shadow-sm ring-1 ring-black/5 transition-transform group-hover:scale-105" width={56} height={56} priority unoptimized />
           )}
           <span className="text-center text-sm font-bold text-foreground text-balance leading-tight group-hover:text-primary transition-colors">{fixture.home.name}</span>
         </TeamButton>
@@ -413,7 +414,7 @@ function MatchHeader({ fixture }: { fixture: Fixture }) {
         {/* Away */}
         <TeamButton team={fixture.away} className="flex flex-col items-center gap-2 group">
           {fixture.away.logo && (
-            <img src={fixture.away.logo} alt={fixture.away.name} className="h-14 w-14 object-contain drop-shadow-sm transition-transform group-hover:scale-105 rounded-full bg-white/95 p-0.5 ring-1 ring-black/5" width={56} height={56} fetchPriority="high" decoding="async" />
+            <Image src={fixture.away.logo} alt={fixture.away.name} className="h-14 w-14 rounded-full bg-white/95 object-contain p-0.5 drop-shadow-sm ring-1 ring-black/5 transition-transform group-hover:scale-105" width={56} height={56} priority unoptimized />
           )}
           <span className="text-center text-sm font-bold text-foreground text-balance leading-tight group-hover:text-primary transition-colors">{fixture.away.name}</span>
         </TeamButton>
@@ -881,7 +882,7 @@ function PlayerStatsTable({
               tab === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            {side.team.logo && <img src={side.team.logo} alt="" className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5"  width={16} height={16} loading="lazy" decoding="async"/>}
+            {side.team.logo && <Image src={side.team.logo} alt="" className="h-4 w-4 rounded-full bg-white/95 object-contain p-0.5 ring-1 ring-black/5" width={16} height={16} unoptimized />}
             {side.team.name}
           </button>
         ))}
@@ -1694,7 +1695,7 @@ function TeamStatsCard({ stats, label }: { stats: TeamSeasonStats; label: string
       <div className="flex items-center justify-between gap-2">
         <TeamButton team={stats.team} className="flex items-center gap-2 group">
           {stats.team.logo && (
-            <img src={stats.team.logo} alt={stats.team.name} className="h-7 w-7 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5"  width={28} height={28} loading="lazy" decoding="async"/>
+            <Image src={stats.team.logo} alt={stats.team.name} className="h-7 w-7 rounded-full bg-white/95 object-contain p-0.5 ring-1 ring-black/5" width={28} height={28} unoptimized />
           )}
           <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{stats.team.name}</span>
         </TeamButton>

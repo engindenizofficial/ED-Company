@@ -79,7 +79,6 @@ export function useGoalCelebrationQueue(
       // gol kaçırılmış, kasıtlı olarak hiçbir animasyon gösterilmiyor.
     }
     writeStoredScore(fixtureIdForCatchUp, goalsHome, goalsAway)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fixtureIdForCatchUp, isLive, goalsHome, goalsAway])
 
   // Maç, sayfa açıkken bitti bilgisi geldiği an kaydı sil — kullanıcı bir

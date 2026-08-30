@@ -16,7 +16,6 @@ import {
   ShieldAlert,
   Star,
   Trophy,
-  UserRound,
   UserRoundX,
   Weight,
   X,

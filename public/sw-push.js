@@ -2,7 +2,7 @@
 // Sadece bildirim gösterme ve tıklama yönlendirmesi yapar; önbellekleme/offline
 // desteği barındırmaz (bunun için ayrı bir SW gerekirse burası genişletilebilir).
 
-self.addEventListener("install", (event) => {
+self.addEventListener("install", () => {
   self.skipWaiting()
 })
 

@@ -35,7 +35,7 @@ function kickoff(iso: string, locale: Locale): string {
 
 const LIVE_STATUSES = new Set(["1H", "2H", "ET", "BT", "P", "LIVE", "INT", "SUSP", "HT"])
 
-function Logo({ src, alt, fallback }: { src: string | null; alt: string; fallback: string }) {
+function Logo({ src, fallback }: { src: string | null; alt: string; fallback: string }) {
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -93,7 +93,7 @@ export function HomeSearchBar({ date }: { date: string }) {
     if (query.length === 0) {
       queueMicrotask(() => setTab("matches"))
     }
-  }, [query.length === 0])
+  }, [query])
 
   // Aktif sekme veya sorgu değiştiğinde SADECE o sekmenin verisini çek.
   useEffect(() => {

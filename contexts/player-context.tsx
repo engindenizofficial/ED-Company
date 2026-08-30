@@ -80,7 +80,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const msg = err instanceof Error ? err.message : t("common.unexpectedError")
       setStack((prev) => prev.map((entry) => (entry.player.id === player.id ? { player, profile: null, loading: false, error: msg, seq: entry.seq } : entry)))
     }
-  }, [t])
+  }, [nextSeq, t])
 
   const closePlayer = useCallback(() => {
     setStack((prev) => prev.slice(0, -1))

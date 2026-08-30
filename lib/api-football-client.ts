@@ -112,7 +112,7 @@ export async function apiFootballFetch<T>(
   if (existing) return existing as Promise<T[]>
 
   const ttlMs = options.revalidate != null ? options.revalidate * 1000 : DEFAULT_CACHE_TTL_MS
-  const promise = doFetch<T>(path, params, options)
+  const promise = doFetch<T>(path, params)
     .then((data) => {
       // no-store çağrılarında ne başarılı response ne de boş fallback cache'lenir.
       // Böylece ilk açılıştaki geçici boş/eksik cevap sonraki sekme açılışlarına
@@ -143,7 +143,6 @@ export async function apiFootballFetch<T>(
 async function doFetchPage<T>(
   path: string,
   params: Record<string, string | number>,
-  options: FetchOptions = {},
 ): Promise<{ data: T[]; paging: { current: number; total: number } | null }> {
   const apiKey = process.env.API_FOOTBALL_KEY
   if (!apiKey) {
@@ -229,14 +228,13 @@ async function doFetchPage<T>(
 async function doFetch<T>(
   path: string,
   params: Record<string, string | number>,
-  options: FetchOptions = {},
 ): Promise<T[]> {
-  const first = await doFetchPage<T>(path, params, options)
+  const first = await doFetchPage<T>(path, params)
   if (!first.paging || first.paging.total <= 1) return first.data
 
   const all = [...first.data]
   for (let page = first.paging.current + 1; page <= first.paging.total; page++) {
-    const next = await doFetchPage<T>(path, { ...params, page }, options)
+    const next = await doFetchPage<T>(path, { ...params, page })
     all.push(...next.data)
   }
   return all

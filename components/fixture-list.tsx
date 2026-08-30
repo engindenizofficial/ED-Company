@@ -220,7 +220,7 @@ function sortFixturesByFavoriteTeam(fixtures: Fixture[], teamPosition: Map<numbe
  *   maçı da o blok içinde en üstte gösterilir).
  * - Favori olmayan bir ligde favori bir takımın maçı varsa: SADECE o maç(lar)
  *   ayrı, "{lig adı}" başlıklı yeni bir blok olarak en üste (favori liglerin
- *   altına) taşınır. Aynı ligin diğer maçları kendi orijinal konumunda,
+ *   altına) taşınır. Aynı ligin diğer ma��ları kendi orijinal konumunda,
  *   ayrı bir blok olarak kalır.
  * - Favorisi olmayan ligler kendi orijinal sırasında değişmeden kalır.
  */
@@ -423,8 +423,8 @@ export function FixtureList({
   onSelect: (f: Fixture) => void
   favorites?: FavoriteItem[]
 }) {
-  const { isFavorite, toggleFavorite } = useFavorites()
-  const { t, locale } = useLanguage()
+  const { toggleFavorite } = useFavorites()
+  const { locale } = useLanguage()
   const { countryCode } = useCountry()
   const countryName = getNationalTeamName(countryCode)
   const groups = buildRenderGroups(fixtures, favorites, countryName)

@@ -6,7 +6,6 @@ import { usePanelSeq } from "@/contexts/panel-stack-context"
 
 // Bkz. eski home-client.tsx: bir maçın tahmini yeniden üretilebilir mi
 // (henüz oynanmadıysa) ve bir maç bitmiş mi (otomatik sonuç kaydı için).
-const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
 const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "AWD", "WO"])
 
 function actualWinner(homeGoals: number, awayGoals: number): "home" | "away" | "draw" {

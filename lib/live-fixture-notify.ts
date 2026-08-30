@@ -37,11 +37,6 @@ function todayIstanbulDate(): string {
   return `${y}-${m}-${d}`
 }
 
-interface FixtureEvent {
-  fixture: Fixture
-  payload: PushPayload
-}
-
 /** İki durum arasındaki farkı olay listesine çevirir (bir taramada birden fazla olay birikmiş olabilir, örn. gol + maç bitişi aynı anda). */
 function diffFixtureEvents(
   fixture: Fixture,
