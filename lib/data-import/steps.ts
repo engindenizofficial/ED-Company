@@ -7,6 +7,7 @@ import {
 import { type ImportLeague, type ImportSource } from './scope'
 import { assertImportRunActive, completeCheckpoint, failCheckpoint, failRun, finishRun, getImportErrorCount, heartbeat, IMPORT_CANCELLED_ERROR, incrementProgress, isCheckpointComplete, recordImportError } from './repository'
 import { fetchTransfermarktHtml } from './transfermarkt-http'
+import { fetchApiPlayerProfile, parseApiBirthDate } from './api-football-player'
 import { buildTeamSquadUrl, parseLeagueTeams, parsePlayerDetail, parseTeamSquad } from './transfermarkt-parser'
 
 export async function prepareImportStep(runId: string, source: ImportSource) {
@@ -128,89 +129,126 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
 
 type ApiTeam = { team: { id: number; name: string } }
 type ApiSquad = { team: { id: number; name: string }; players: Array<{ id: number; name: string; age?: number; number?: number; position?: string; photo?: string }> }
-type ApiPlayer = { player: { id: number; name: string; birth?: { date?: string } }; statistics?: Array<{ team?: { id: number; name: string } }> }
-
-async function fetchApiPlayerWithBirthDate(playerId: number, season: number) {
-  const maxAttempts = 3
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const details = await apiFootballFetch<ApiPlayer>(
-      '/players',
-      { id: playerId, season },
-      { cache: 'no-store' },
-    )
-    const detail = details[0]
-
-    if (detail?.player?.birth?.date) return detail
-    if (attempt < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, attempt * 500))
-    }
-  }
-
-  throw new Error(`Oyuncu detayı veya doğum tarihi alınamadı (playerId=${playerId})`)
-}
 
 export async function importApiFootballLeagueStep(runId: string, league: ImportLeague, season: number) {
   'use step'
   await assertImportRunActive(runId)
   const key = String(league.apiFootballId)
-  if (await isCheckpointComplete(runId, 'league', key)) return
-  await heartbeat(runId, { stage: 'league-teams', activeLeague: league.name, activeUrl: `/teams?league=${key}&season=${season}` })
+  if (await isCheckpointComplete(runId, 'league', key)) return true
+  const teamsUrl = `/teams?league=${key}&season=${season}`
+  await heartbeat(runId, { stage: 'league-teams', activeLeague: league.name, activeUrl: teamsUrl })
+
   try {
     const teams = await apiFootballFetch<ApiTeam>('/teams', { league: league.apiFootballId, season }, { cache: 'no-store' })
     await db.insert(apiFootballLeagueSnapshot).values({ sourceId: league.apiFootballId, runId, name: league.name, country: league.country, season, seenAt: new Date() }).onConflictDoUpdate({ target: apiFootballLeagueSnapshot.sourceId, set: { runId, name: league.name, country: league.country, season, seenAt: new Date() } })
-    await incrementProgress(runId, 'totalTeams', teams.length)
+
+    let discoveredTeams = 0
+    for (const item of teams) {
+      const teamKey = String(item.team.id)
+      if (await isCheckpointComplete(runId, 'team_discovered', teamKey)) continue
+      await completeCheckpoint({ runId, source: 'api_football', kind: 'team_discovered', itemKey: teamKey, parentKey: key })
+      discoveredTeams++
+    }
+    if (discoveredTeams) await incrementProgress(runId, 'totalTeams', discoveredTeams)
+
+    let leagueComplete = true
     for (const item of teams) {
       await assertImportRunActive(runId)
-      const team = item.team; const teamKey = String(team.id)
+      const team = item.team
+      const teamKey = String(team.id)
       if (await isCheckpointComplete(runId, 'team', teamKey)) continue
-      await heartbeat(runId, { stage: 'team-squad', activeTeam: team.name, activeUrl: `/players/squads?team=${team.id}` })
+      const squadUrl = `/players/squads?team=${team.id}`
+      await heartbeat(runId, { stage: 'team-squad', activeTeam: team.name, activeUrl: squadUrl })
+
       try {
         const squads = await apiFootballFetch<ApiSquad>('/players/squads', { team: team.id }, { cache: 'no-store' })
         await db.insert(apiFootballTeamSnapshot).values({ sourceId: team.id, runId, leagueSourceId: league.apiFootballId, name: team.name, seenAt: new Date() }).onConflictDoUpdate({ target: apiFootballTeamSnapshot.sourceId, set: { runId, leagueSourceId: league.apiFootballId, name: team.name, seenAt: new Date() } })
         const squadPlayers = squads.flatMap((squad) => squad.players)
-        const validSquadPlayers = squadPlayers.filter(
-          (player) => Number.isInteger(player.id) && player.id > 0,
-        )
+        const validSquadPlayers = squadPlayers.filter((player) => Number.isInteger(player.id) && player.id > 0)
         const skippedPlayers = squadPlayers.length - validSquadPlayers.length
-        await incrementProgress(runId, 'totalPlayers', validSquadPlayers.length)
+
+        let discoveredPlayers = 0
+        for (const player of validSquadPlayers) {
+          const playerKey = String(player.id)
+          if (await isCheckpointComplete(runId, 'player_discovered', playerKey)) continue
+          await completeCheckpoint({ runId, source: 'api_football', kind: 'player_discovered', itemKey: playerKey, parentKey: teamKey })
+          discoveredPlayers++
+        }
+        if (discoveredPlayers) await incrementProgress(runId, 'totalPlayers', discoveredPlayers)
+
+        let teamComplete = skippedPlayers === 0
+        let hasRetryablePlayerFailure = false
         for (const squadPlayer of validSquadPlayers) {
           await assertImportRunActive(runId)
-          if (await isCheckpointComplete(runId, 'player', String(squadPlayer.id))) continue
-          const detail = await fetchApiPlayerWithBirthDate(squadPlayer.id, season)
-          const currentTeamName = detail.statistics?.find((stat) => stat.team?.id === team.id)?.team?.name ?? team.name
-          const birthDate = new Date(`${detail.player.birth!.date}T00:00:00.000Z`)
-          await db.insert(apiFootballPlayerSnapshot).values({ sourceId: squadPlayer.id, runId, teamSourceId: team.id, name: detail.player.name ?? squadPlayer.name, birthDate, currentTeamName, seenAt: new Date() }).onConflictDoUpdate({ target: apiFootballPlayerSnapshot.sourceId, set: { runId, teamSourceId: team.id, name: detail.player.name ?? squadPlayer.name, birthDate, currentTeamName, seenAt: new Date() } })
-          await completeCheckpoint({ runId, source: 'api_football', kind: 'player', itemKey: String(squadPlayer.id), parentKey: teamKey })
-          await incrementProgress(runId, 'processedPlayers')
-          await incrementProgress(runId, 'successfulPlayers')
+          const playerKey = String(squadPlayer.id)
+          if (await isCheckpointComplete(runId, 'player', playerKey)) continue
+          const profileUrl = `/players/profiles?player=${squadPlayer.id}`
+          const previousFailures = await getImportErrorCount(runId, 'player', playerKey)
+          if (previousFailures >= 3) {
+            teamComplete = false
+            await failCheckpoint({ runId, source: 'api_football', kind: 'player', itemKey: playerKey, parentKey: teamKey, url: profileUrl, metadata: { reason: 'retry_limit', attempts: previousFailures } })
+            continue
+          }
+
+          await heartbeat(runId, { stage: 'player-detail', activeUrl: profileUrl })
+          try {
+            const detail = await fetchApiPlayerProfile(squadPlayer.id)
+            const currentTeamName = detail.statistics?.find((stat) => stat.team?.id === team.id)?.team?.name ?? team.name
+            const birthDate = parseApiBirthDate(detail.player.birth?.date)
+            await db.insert(apiFootballPlayerSnapshot).values({ sourceId: squadPlayer.id, runId, teamSourceId: team.id, name: detail.player.name ?? squadPlayer.name, birthDate, currentTeamName, seenAt: new Date() }).onConflictDoUpdate({ target: apiFootballPlayerSnapshot.sourceId, set: { runId, teamSourceId: team.id, name: detail.player.name ?? squadPlayer.name, birthDate, currentTeamName, seenAt: new Date() } })
+            await completeCheckpoint({ runId, source: 'api_football', kind: 'player', itemKey: playerKey, parentKey: teamKey, url: profileUrl })
+            await incrementProgress(runId, 'processedPlayers')
+            await incrementProgress(runId, 'successfulPlayers')
+          } catch (error) {
+            if (error instanceof Error && error.message === IMPORT_CANCELLED_ERROR) throw error
+            teamComplete = false
+            const failureCount = previousFailures + 1
+            await recordImportError({ runId, source: 'api_football', kind: 'player', itemKey: playerKey, errorType: 'player_profile', message: error instanceof Error ? error.message : 'Oyuncu profili hatası', url: profileUrl, retryable: failureCount < 3, attempt: failureCount })
+            if (failureCount >= 3) {
+              await failCheckpoint({ runId, source: 'api_football', kind: 'player', itemKey: playerKey, parentKey: teamKey, url: profileUrl, metadata: { reason: 'retry_limit', attempts: failureCount } })
+            } else {
+              hasRetryablePlayerFailure = true
+            }
+            await incrementProgress(runId, 'processedPlayers')
+            await incrementProgress(runId, 'failedPlayers')
+          }
         }
-        await completeCheckpoint({
-          runId,
-          source: 'api_football',
-          kind: 'team',
-          itemKey: teamKey,
-          parentKey: key,
-          metadata: { players: validSquadPlayers.length, skippedInvalidPlayers: skippedPlayers },
-        })
+
         await incrementProgress(runId, 'processedTeams')
-        await incrementProgress(runId, 'successfulTeams')
+        if (teamComplete) {
+          await completeCheckpoint({ runId, source: 'api_football', kind: 'team', itemKey: teamKey, parentKey: key, url: squadUrl, metadata: { players: validSquadPlayers.length, skippedInvalidPlayers: skippedPlayers } })
+          await incrementProgress(runId, 'successfulTeams')
+        } else {
+          if (hasRetryablePlayerFailure) {
+            leagueComplete = false
+          } else {
+            await failCheckpoint({ runId, source: 'api_football', kind: 'team', itemKey: teamKey, parentKey: key, url: squadUrl, metadata: { reason: skippedPlayers ? 'invalid_players' : 'player_retry_limit', skippedInvalidPlayers: skippedPlayers } })
+          }
+          await incrementProgress(runId, 'failedTeams')
+        }
       } catch (error) {
-    if (error instanceof Error && error.message === IMPORT_CANCELLED_ERROR) throw error
-        await recordImportError({ runId, source: 'api_football', kind: 'team', itemKey: teamKey, errorType: 'api_football', message: error instanceof Error ? error.message : 'Takım hatası', url: `/players/squads?team=${team.id}`, retryable: true })
+        if (error instanceof Error && error.message === IMPORT_CANCELLED_ERROR) throw error
+        leagueComplete = false
+        await recordImportError({ runId, source: 'api_football', kind: 'team', itemKey: teamKey, errorType: 'api_football', message: error instanceof Error ? error.message : 'Takım hatası', url: squadUrl, retryable: true })
         await incrementProgress(runId, 'processedTeams')
         await incrementProgress(runId, 'failedTeams')
       }
     }
-    await completeCheckpoint({ runId, source: 'api_football', kind: 'league', itemKey: key, metadata: { teams: teams.length } })
+
     await incrementProgress(runId, 'processedLeagues')
-    await incrementProgress(runId, 'successfulLeagues')
+    if (leagueComplete) {
+      await completeCheckpoint({ runId, source: 'api_football', kind: 'league', itemKey: key, url: teamsUrl, metadata: { teams: teams.length } })
+      await incrementProgress(runId, 'successfulLeagues')
+    } else {
+      await incrementProgress(runId, 'failedLeagues')
+    }
+    return leagueComplete
   } catch (error) {
     if (error instanceof Error && error.message === IMPORT_CANCELLED_ERROR) throw error
-    await recordImportError({ runId, source: 'api_football', kind: 'league', itemKey: key, errorType: 'api_football', message: error instanceof Error ? error.message : 'Lig hatası', retryable: true })
+    await recordImportError({ runId, source: 'api_football', kind: 'league', itemKey: key, errorType: 'api_football', message: error instanceof Error ? error.message : 'Lig hatası', url: teamsUrl, retryable: true })
     await incrementProgress(runId, 'processedLeagues')
     await incrementProgress(runId, 'failedLeagues')
-    throw error
+    return false
   }
 }
 
