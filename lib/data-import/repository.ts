@@ -207,9 +207,10 @@ export async function getImportDashboard() {
 }
 
 export async function findRestartCandidates() {
+  const staleBefore = new Date(Date.now() - STALE_AFTER_MS)
   return db.select().from(dataImportRun).where(and(
     eq(dataImportRun.autoResume, true),
-    inArray(dataImportRun.status, ['failed', 'stopped', 'stale']),
+    sql`(${dataImportRun.status} IN ('failed', 'stopped', 'stale') OR (${dataImportRun.status} = 'running' AND ${dataImportRun.heartbeatAt} < ${staleBefore}))`,
   )).orderBy(desc(dataImportRun.createdAt))
 }
 
