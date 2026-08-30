@@ -221,8 +221,8 @@ export const managerTeamStrength = pgTable('manager_team_strength', {
   computedAt: timestamp('computedAt').notNull().defaultNow(),
 })
 
-// Kaynaklar bilinçli olarak ayrı snapshot tablolarında tutulur. Bu sürümde
-// kaynaklar arası takım/oyuncu eşleştirmesi yoktur.
+// Kaynak snapshotları ayrı tutulur; kaynaklar arası oyuncu bağlantıları
+// aşağıdaki player_match tablolarında koşu bazında saklanır.
 export const dataImportRun = pgTable(
   'data_import_run',
   {
@@ -391,4 +391,57 @@ export const apiFootballPlayerSnapshot = pgTable(
     seenAt: timestamp('seenAt').notNull().defaultNow(),
   },
   (table) => [index('api_football_player_team_idx').on(table.teamSourceId)],
+)
+
+export const playerMatchRun = pgTable(
+  'player_match_run',
+  {
+    id: text('id').primaryKey(),
+    transfermarktRunId: text('transfermarktRunId').notNull().references(() => dataImportRun.id),
+    apiFootballRunId: text('apiFootballRunId').notNull().references(() => dataImportRun.id),
+    workflowRunId: text('workflowRunId'),
+    status: text('status').notNull().default('queued'),
+    stage: text('stage').notNull().default('initializing'),
+    totalPlayers: integer('totalPlayers').notNull().default(0),
+    processedPlayers: integer('processedPlayers').notNull().default(0),
+    exactMatches: integer('exactMatches').notNull().default(0),
+    fuzzyMatches: integer('fuzzyMatches').notNull().default(0),
+    unmatchedPlayers: integer('unmatchedPlayers').notNull().default(0),
+    errorCount: integer('errorCount').notNull().default(0),
+    activePlayer: text('activePlayer'),
+    errorMessage: text('errorMessage'),
+    startedAt: timestamp('startedAt').notNull().defaultNow(),
+    finishedAt: timestamp('finishedAt'),
+    heartbeatAt: timestamp('heartbeatAt').notNull().defaultNow(),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => [
+    index('player_match_run_status_idx').on(table.status),
+    index('player_match_run_created_idx').on(table.createdAt),
+  ],
+)
+
+export const playerMatchResult = pgTable(
+  'player_match_result',
+  {
+    id: text('id').primaryKey(),
+    matchRunId: text('matchRunId').notNull().references(() => playerMatchRun.id, { onDelete: 'cascade' }),
+    transfermarktPlayerId: text('transfermarktPlayerId').notNull(),
+    apiFootballPlayerId: integer('apiFootballPlayerId'),
+    matchedLevel: text('matchedLevel').notNull(),
+    normalizedTransfermarktName: text('normalizedTransfermarktName').notNull(),
+    normalizedApiFootballName: text('normalizedApiFootballName'),
+    normalizedTeamName: text('normalizedTeamName').notNull(),
+    birthDate: text('birthDate'),
+    nameScore: numeric('nameScore', { precision: 6, scale: 5 }),
+    metadata: jsonb('metadata').notNull().default({}),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('player_match_result_tm_uq').on(table.matchRunId, table.transfermarktPlayerId),
+    uniqueIndex('player_match_result_af_uq').on(table.matchRunId, table.apiFootballPlayerId),
+    index('player_match_result_level_idx').on(table.matchRunId, table.matchedLevel),
+  ],
 )
