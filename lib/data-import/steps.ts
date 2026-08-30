@@ -149,8 +149,12 @@ export async function importApiFootballLeagueStep(runId: string, league: ImportL
         const squads = await apiFootballFetch<ApiSquad>('/players/squads', { team: team.id }, { cache: 'no-store' })
         await db.insert(apiFootballTeamSnapshot).values({ sourceId: team.id, runId, leagueSourceId: league.apiFootballId, name: team.name, seenAt: new Date() }).onConflictDoUpdate({ target: apiFootballTeamSnapshot.sourceId, set: { runId, leagueSourceId: league.apiFootballId, name: team.name, seenAt: new Date() } })
         const squadPlayers = squads.flatMap((squad) => squad.players)
-        await incrementProgress(runId, 'totalPlayers', squadPlayers.length)
-        for (const squadPlayer of squadPlayers) {
+        const validSquadPlayers = squadPlayers.filter(
+          (player) => Number.isInteger(player.id) && player.id > 0,
+        )
+        const skippedPlayers = squadPlayers.length - validSquadPlayers.length
+        await incrementProgress(runId, 'totalPlayers', validSquadPlayers.length)
+        for (const squadPlayer of validSquadPlayers) {
           await assertImportRunActive(runId)
           if (await isCheckpointComplete(runId, 'player', String(squadPlayer.id))) continue
           const details = await apiFootballFetch<ApiPlayer>('/players', { id: squadPlayer.id, season }, { cache: 'no-store' })
@@ -161,7 +165,14 @@ export async function importApiFootballLeagueStep(runId: string, league: ImportL
           await incrementProgress(runId, 'processedPlayers')
           await incrementProgress(runId, 'successfulPlayers')
         }
-        await completeCheckpoint({ runId, source: 'api_football', kind: 'team', itemKey: teamKey, parentKey: key, metadata: { players: squadPlayers.length } })
+        await completeCheckpoint({
+          runId,
+          source: 'api_football',
+          kind: 'team',
+          itemKey: teamKey,
+          parentKey: key,
+          metadata: { players: validSquadPlayers.length, skippedInvalidPlayers: skippedPlayers },
+        })
         await incrementProgress(runId, 'processedTeams')
         await incrementProgress(runId, 'successfulTeams')
       } catch (error) {
