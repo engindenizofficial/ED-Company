@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { Redis } from "@upstash/redis"
+import { isCronAuthorized } from "@/lib/cron-auth"
 import { getPendingPredictions, getCachedPrediction, removePendingPrediction, savePredictionResult, getAllTimePredictionResults, addPendingPrediction } from "@/lib/redis"
 import type { PredictionResult, MatchPrediction } from "@/lib/types"
 
@@ -49,15 +50,6 @@ async function discoverOrphanedPredictions(): Promise<{ fixtureId: number; pred:
   } catch {
     return []
   }
-}
-
-// QStash cron'undan gelen çağrıyı doğrular. CRON_SECRET tanımlı değilse
-// (yerel geliştirme) kontrolü atlar — diğer /api/cron/* route'larıyla aynı desen.
-function isAuthorizedCron(request: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return true
-  const header = request.headers.get("authorization")
-  return header === `Bearer ${secret}`
 }
 
 /**
@@ -186,7 +178,7 @@ async function checkPendingPredictions() {
  * CRON_SECRET ile korunur, aynı /api/cron/* route'larındaki desen.
  */
 export async function GET(request: Request) {
-  if (!isAuthorizedCron(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   const { checked, resolved } = await checkPendingPredictions()
@@ -201,7 +193,3 @@ export async function GET(request: Request) {
  * bekleyen listesinden çıkarır. Pending listesinde olmayan eski tahminleri
  * de (ed:prediction:* taramasıyla) kontrol eder.
  */
-export async function POST() {
-  const { checked, resolved } = await checkPendingPredictions()
-  return NextResponse.json({ checked, resolved })
-}

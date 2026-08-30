@@ -1,18 +1,8 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import type { Fixture, MatchPrediction, PredictionResult } from "@/lib/types"
+import type { Fixture, MatchPrediction } from "@/lib/types"
 import { usePanelSeq } from "@/contexts/panel-stack-context"
-
-// Bkz. eski home-client.tsx: bir maçın tahmini yeniden üretilebilir mi
-// (henüz oynanmadıysa) ve bir maç bitmiş mi (otomatik sonuç kaydı için).
-const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "AWD", "WO"])
-
-function actualWinner(homeGoals: number, awayGoals: number): "home" | "away" | "draw" {
-  if (homeGoals > awayGoals) return "home"
-  if (awayGoals > homeGoals) return "away"
-  return "draw"
-}
 
 interface MatchPanelState {
   fixture: Fixture
@@ -68,9 +58,16 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
   const nextSeq = usePanelSeq()
   const requestIdRef = useRef(0)
   const openedFixtureIdRef = useRef<number | null>(null)
-  // Hangi fixtureId'ler için sonuç zaten kaydedildi (çift kayıt önlemi) —
-  // bkz. eski home-client.tsx'teki aynı isimli ref.
-  const savedResultIds = useRef<Set<number>>(new Set())
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearPollTimer = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearTimeout(pollTimerRef.current)
+      pollTimerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => clearPollTimer, [clearPollTimer])
 
   // Tahmin oluşturma /api/predict tarafında artık arka planda (after()) sürüyor
   // ve HTTP isteği hemen 202 "processing" ile dönüyor — bkz. app/api/predict/route.ts.
@@ -82,6 +79,8 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
   const POLL_MAX_ATTEMPTS = 100 // ~5 dakika güvenlik sınırı
 
   const pollPrediction = useCallback(function poll(fixtureId: number, requestId: number, attempt = 0) {
+    if (requestId !== requestIdRef.current) return
+
     fetch(`/api/predict/cached?fixtureId=${fixtureId}`, { cache: "no-store" })
       .then(async (res) => {
         if (requestId !== requestIdRef.current) return
@@ -92,7 +91,11 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
             setStack((prev) => prev.map((entry) => (entry.fixture.id === fixtureId ? { ...entry, prediction: null, predictionLoading: false } : entry)))
             return
           }
-          setTimeout(() => poll(fixtureId, requestId, attempt + 1), POLL_INTERVAL_MS)
+          clearPollTimer()
+          pollTimerRef.current = setTimeout(
+            () => poll(fixtureId, requestId, attempt + 1),
+            POLL_INTERVAL_MS,
+          )
           return
         }
 
@@ -103,13 +106,14 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
         if (requestId !== requestIdRef.current) return
         setStack((prev) => prev.map((entry) => (entry.fixture.id === fixtureId ? { ...entry, prediction: null, predictionLoading: false } : entry)))
       })
-  }, [])
+  }, [clearPollTimer])
 
   const loadPrediction = useCallback((fixtureId: number, requestId: number) => {
     pollPrediction(fixtureId, requestId)
   }, [pollPrediction])
 
   const openMatch = useCallback((fixtureOrId: Fixture | { id: number }) => {
+    clearPollTimer()
     const requestId = ++requestIdRef.current
 
     const pushOrUpdate = (fixture: Fixture) => {
@@ -142,19 +146,21 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
         loadPrediction(fixture.id, requestId)
       })
       .catch(() => {})
-  }, [loadPrediction, nextSeq])
+  }, [clearPollTimer, loadPrediction, nextSeq])
 
   const closeMatch = useCallback(() => {
+    clearPollTimer()
     requestIdRef.current++
     openedFixtureIdRef.current = null
     setStack((prev) => prev.slice(0, -1))
-  }, [])
+  }, [clearPollTimer])
 
   const closeAllMatch = useCallback(() => {
+    clearPollTimer()
     requestIdRef.current++
     openedFixtureIdRef.current = null
     setStack([])
-  }, [])
+  }, [clearPollTimer])
 
   const syncFixture = useCallback((fixtures: Fixture[]) => {
     setStack((prev) => {
@@ -214,45 +220,6 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
     if (!res.ok) throw new Error("Tahmin silinemedi")
     setStack((prev) => prev.map((entry) => (entry.fixture.id === fixture.id ? { ...entry, prediction: null } : entry)))
     savedResultIds.current.delete(fixture.id)
-  }, [panel])
-
-  // Tahmin hazır olduğunda, bitmiş maçlar için otomatik sonuç kaydet — bkz.
-  // eski home-client.tsx'teki aynı isimli effect.
-  useEffect(() => {
-    if (!panel || panel.predictionLoading) return
-    const { fixture, prediction } = panel
-    if (!prediction) return
-    if (!FINISHED_STATUSES.has(fixture.statusShort)) return
-    if (savedResultIds.current.has(fixture.id)) return
-
-    const homeGoals = fixture.goalsHome
-    const awayGoals = fixture.goalsAway
-    if (homeGoals == null || awayGoals == null) return
-
-    const winner = actualWinner(homeGoals, awayGoals)
-
-    fetch("/api/prediction-results", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fixtureId: fixture.id,
-        homeName: fixture.home.name,
-        awayName: fixture.away.name,
-        predictedHome: prediction.homeScore,
-        predictedAway: prediction.awayScore,
-        predictedWinner: prediction.winner,
-        actualHome: homeGoals,
-        actualAway: awayGoals,
-        actualWinner: winner,
-        confidence: prediction.confidence,
-        modelVotes: prediction.modelVotes ?? [],
-      }),
-      cache: "no-store",
-    })
-      .then((res) => {
-        if (res.ok) savedResultIds.current.add(fixture.id)
-      })
-      .catch(() => {})
   }, [panel])
 
   return (

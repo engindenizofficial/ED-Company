@@ -1,3 +1,4 @@
+import { isCronAuthorized } from "@/lib/cron-auth"
 import { scanLiveFixturesOnce } from "@/lib/live-fixture-notify"
 import { acquireChainLock, releaseChainLock } from "@/lib/redis"
 
@@ -46,15 +47,8 @@ export const maxDuration = 60
 const LOCK_TTL_SECONDS = 25
 const LOCK_NAME = "live-fixture-notifications"
 
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return true
-  const header = request.headers.get("authorization")
-  return header === `Bearer ${secret}`
-}
-
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

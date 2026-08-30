@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getFixturesByDate } from "@/lib/api-football"
+import { requireImportAdmin } from "@/lib/data-import/admin-access"
 import { setCachedFixtures } from "@/lib/redis"
 import type { FixturesResponse } from "@/lib/types"
 
@@ -11,6 +12,12 @@ function todayTR(): string {
 }
 
 export async function POST() {
+  try {
+    await requireImportAdmin()
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   const date = todayTR()
 
   try {

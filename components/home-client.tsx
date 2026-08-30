@@ -13,7 +13,7 @@ import { useLanguage } from "@/contexts/language-context"
 import { useMatchPanel } from "@/contexts/match-context"
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { cn } from "@/lib/utils"
-import type { Fixture, FixturesResponse, MatchPrediction, PredictionResult } from "@/lib/types"
+import type { FixturesResponse, PredictionResult } from "@/lib/types"
 
 function todayTR(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
@@ -45,9 +45,6 @@ function formatDateLabel(iso: string, locale: string): string {
   })
 }
 
-// Statü grupları
-const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "AWD", "WO"])
-
 // Her tarih sekmesinin gerçek bir sayfa rotasına karşılık gelen URL'i.
 // Önceden "Dün" / "Bugün" / "Yarın" arasında geçiş yapmak URL'i hiç
 // değiştirmiyordu — üçü de "/" üzerinde kalıyordu. Artık sadece "Bugün"
@@ -58,12 +55,6 @@ const DATE_TAB_PATHS: Record<"yesterday" | "today" | "tomorrow", string> = {
   yesterday: "/dun",
   today: "/",
   tomorrow: "/yarin",
-}
-
-function actualWinner(homeGoals: number, awayGoals: number): "home" | "away" | "draw" {
-  if (homeGoals > awayGoals) return "home"
-  if (awayGoals > homeGoals) return "away"
-  return "draw"
 }
 
 interface HomeClientProps {
@@ -197,97 +188,10 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
     }
   }, [])
 
-  // Sayfa açılışında bitmiş maçları otomatik kontrol et:
-  // Redis'te tahmini varsa skoru karşılaştır ve panele ekle.
-  // Tahmini yoksa hiçbir şey yapma.
-  const autoCheckFinished = useCallback(async (fixtures: Fixture[]) => {
-    const finished = fixtures.filter((f) => FINISHED_STATUSES.has(f.statusShort))
-    if (finished.length === 0) return
-
-    await Promise.allSettled(
-      finished.map(async (fixture) => {
-        if (savedResultIds.current.has(fixture.id)) return
-
-        // Sadece cache'den tahmin çek — yeni tahmin oluşturma
-        let pred: MatchPrediction | null = null
-        try {
-          const res = await fetch(`/api/predict/cached?fixtureId=${fixture.id}`, { cache: "no-store" })
-          if (res.ok) pred = (await res.json()) as MatchPrediction
-        } catch {
-          return
-        }
-
-        if (!pred) return // Bu maç için kayıtlı tahmin yok, geç
-
-        const homeGoals = fixture.goalsHome
-        const awayGoals = fixture.goalsAway
-        if (homeGoals == null || awayGoals == null) return
-
-        const winner = actualWinner(homeGoals, awayGoals)
-
-        try {
-          const res = await fetch("/api/prediction-results", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              fixtureId: fixture.id,
-              homeName: fixture.home.name,
-              awayName: fixture.away.name,
-              predictedHome: pred.homeScore,
-              predictedAway: pred.awayScore,
-              predictedWinner: pred.winner,
-              actualHome: homeGoals,
-              actualAway: awayGoals,
-              actualWinner: winner,
-              confidence: pred.confidence,
-              modelVotes: pred.modelVotes ?? [],
-            }),
-            cache: "no-store",
-          })
-          if (res.ok) {
-            savedResultIds.current.add(fixture.id)
-            const data = (await res.json()) as { ok: boolean; result: PredictionResult }
-            if (data.ok) {
-              setPredictionResults((prev) => {
-                if (prev.some((r) => r.fixtureId === fixture.id)) return prev
-                return [...prev, data.result]
-              })
-            }
-          }
-        } catch {
-          // sessizce geç
-        }
-      }),
-    )
-  }, [])
-
-  // Fikstürler yüklenince otomatik kontrol başlat
-  useEffect(() => {
-    if (!fixturesLoading && fixturesData) {
-      autoCheckFinished(fixturesData.fixtures ?? [])
-    }
-  }, [fixturesLoading, fixturesData, autoCheckFinished])
-
   const handleRefresh = useCallback(async () => {
     if (isRefreshingRef.current) return
     isRefreshingRef.current = true
     try {
-      // Bekleyen tahminleri kontrol et (geçmiş tarihlerdekiler dahil)
-      const checkRes = await fetch("/api/predict/pending-check", { method: "POST", cache: "no-store" })
-      if (checkRes.ok) {
-        const { resolved } = await checkRes.json() as { resolved: PredictionResult[] }
-        if (resolved.length > 0) {
-          setPredictionResults((prev) => {
-            const next = [...prev]
-            for (const r of resolved) {
-              const idx = next.findIndex((x) => x.fixtureId === r.fixtureId)
-              if (idx >= 0) next[idx] = r
-              else next.push(r)
-            }
-            return next
-          })
-        }
-      }
       await Promise.all([loadFixtures(true), loadPredictionResults()])
     } finally {
       isRefreshingRef.current = false

@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache"
+import { isCronAuthorized } from "@/lib/cron-auth"
 
 // ---------------------------------------------------------------------------
 // Bu route günde bir kez QStash tarafından tetikleniyor (bkz.
@@ -18,16 +19,8 @@ import { revalidatePath } from "next/cache"
 // kullanıcı) ziyaretinde güncel gün + güncel maçlarla yeniden üretilir.
 // ---------------------------------------------------------------------------
 
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  // CRON_SECRET henüz tanımlı değilse kontrolü atla (geliştirme/ilk kurulum).
-  if (!secret) return true
-  const header = request.headers.get("authorization")
-  return header === `Bearer ${secret}`
-}
-
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 

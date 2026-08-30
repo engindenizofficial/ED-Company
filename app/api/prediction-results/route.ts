@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { getPredictionResults, getAllTimePredictionResults, savePredictionResult } from "@/lib/redis"
-import type { PredictionResult } from "@/lib/types"
+import { getPredictionResults, getAllTimePredictionResults } from "@/lib/redis"
 
 export const dynamic = "force-dynamic"
 
@@ -23,79 +22,3 @@ export async function GET(request: Request) {
   return NextResponse.json({ date, results })
 }
 
-/** Yeni bir tahmin sonucu kaydeder (maç bittikten sonra otomatik çağrılır) */
-export async function POST(request: Request) {
-  let body: Partial<PredictionResult> & { modelVotes?: Array<{ model: string; label?: string; winner: "home" | "away" | "draw"; homeScore: number; awayScore: number }> }
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: "Geçersiz istek gövdesi." }, { status: 400 })
-  }
-
-  const {
-    fixtureId,
-    homeName,
-    awayName,
-    predictedHome,
-    predictedAway,
-    predictedWinner,
-    actualHome,
-    actualAway,
-    actualWinner,
-    confidence,
-    modelVotes,
-  } = body
-
-  if (
-    fixtureId == null ||
-    homeName == null ||
-    awayName == null ||
-    predictedHome == null ||
-    predictedAway == null ||
-    predictedWinner == null ||
-    actualHome == null ||
-    actualAway == null ||
-    actualWinner == null ||
-    confidence == null
-  ) {
-    return NextResponse.json({ error: "Eksik alanlar var." }, { status: 400 })
-  }
-
-  const scoreCorrect = predictedHome === actualHome && predictedAway === actualAway
-  const sideCorrect = predictedWinner === actualWinner
-
-  // Her modelin bireysel doğruluğunu hesapla
-  const modelResults = Array.isArray(modelVotes)
-    ? modelVotes.map((v) => ({
-        model: v.model ?? "",
-        label: v.label ?? v.model ?? "",
-        winner: v.winner,
-        sideCorrect: v.winner === actualWinner,
-        homeScore: v.homeScore,
-        awayScore: v.awayScore,
-        scoreCorrect: v.homeScore === actualHome && v.awayScore === actualAway,
-      }))
-    : undefined
-
-  const result: PredictionResult = {
-    fixtureId,
-    homeName,
-    awayName,
-    predictedHome,
-    predictedAway,
-    predictedWinner,
-    actualHome,
-    actualAway,
-    actualWinner,
-    scoreCorrect,
-    sideCorrect,
-    confidence,
-    savedAt: Date.now(),
-    modelResults,
-  }
-
-  const date = todayTR()
-  await savePredictionResult(date, result)
-
-  return NextResponse.json({ ok: true, result })
-}

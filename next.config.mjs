@@ -2,9 +2,6 @@ import { withWorkflow } from 'workflow/next'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   env: {
     // Sunucu tarafındaki VAPID_PUBLIC_KEY'i client'a expose eder — kullanıcıdan
     // aynı değeri ikinci kez istemeye gerek kalmaz (Web Push abonelik akışı

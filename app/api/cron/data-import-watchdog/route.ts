@@ -1,20 +1,13 @@
-import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
+import { isCronAuthorized } from '@/lib/cron-auth'
 import { launchImport } from '@/lib/data-import/launcher'
 import { findRestartCandidates, markStale, recordImportError } from '@/lib/data-import/repository'
 import type { ImportSource } from '@/lib/data-import/scope'
 
 export const dynamic = 'force-dynamic'
 
-function authorized(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const received = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
-  if (!secret || secret.length !== received.length) return false
-  return timingSafeEqual(Buffer.from(secret), Buffer.from(received))
-}
-
 export async function GET(request: Request) {
-  if (!authorized(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!isCronAuthorized(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   try {
     const candidates = await findRestartCandidates()
     const restarted: string[] = []
