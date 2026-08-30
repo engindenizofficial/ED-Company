@@ -5,7 +5,7 @@ import {
   transfermarktLeague, transfermarktPlayer, transfermarktTeam,
 } from '@/lib/db/schema'
 import { TRANSFERMARKT_SEASON, type ImportLeague, type ImportSource } from './scope'
-import { completeCheckpoint, failRun, finishRun, heartbeat, incrementProgress, isCheckpointComplete, recordImportError } from './repository'
+import { completeCheckpoint, failCheckpoint, failRun, finishRun, getImportErrorCount, heartbeat, incrementProgress, isCheckpointComplete, recordImportError } from './repository'
 import { fetchTransfermarktHtml } from './transfermarkt-http'
 import { buildTeamSquadUrl, parseLeagueTeams, parsePlayerDetail, parseTeamSquad } from './transfermarkt-parser'
 
@@ -33,6 +33,11 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
     for (const team of teams) {
       if (await isCheckpointComplete(runId, 'team', team.sourceId)) continue
       const squadUrl = buildTeamSquadUrl(team.url, TRANSFERMARKT_SEASON)
+      const previousFailures = await getImportErrorCount(runId, 'team', team.sourceId)
+      if (previousFailures >= 3) {
+        await failCheckpoint({ runId, source: 'transfermarkt', kind: 'team', itemKey: team.sourceId, parentKey: league.transfermarktId, url: squadUrl, metadata: { reason: 'retry_limit', attempts: previousFailures } })
+        continue
+      }
       await heartbeat(runId, { stage: 'team-squad', activeTeam: team.name, activeUrl: squadUrl })
       try {
         const squad = parseTeamSquad(await fetchTransfermarktHtml(squadUrl))
@@ -45,8 +50,15 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
         }
         if (discoveredPlayers) await incrementProgress(runId, 'totalPlayers', discoveredPlayers)
         let teamComplete = true
+        let hasRetryablePlayerFailure = false
         for (const player of squad) {
           if (await isCheckpointComplete(runId, 'player', player.sourceId)) continue
+          const previousPlayerFailures = await getImportErrorCount(runId, 'player', player.sourceId)
+          if (previousPlayerFailures >= 3) {
+            teamComplete = false
+            await failCheckpoint({ runId, source: 'transfermarkt', kind: 'player', itemKey: player.sourceId, parentKey: team.sourceId, url: player.url, metadata: { reason: 'retry_limit', attempts: previousPlayerFailures } })
+            continue
+          }
           await heartbeat(runId, { stage: 'player-detail', activeUrl: player.url })
           try {
             const detail = parsePlayerDetail(await fetchTransfermarktHtml(player.url))
@@ -57,6 +69,12 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
           } catch (error) {
             teamComplete = false
             await recordImportError({ runId, source: 'transfermarkt', kind: 'player', itemKey: player.sourceId, errorType: error instanceof Error && 'kind' in error ? String(error.kind) : 'player_parse', message: error instanceof Error ? error.message : 'Oyuncu hatası', url: player.url, retryable: true })
+            const playerFailureCount = previousPlayerFailures + 1
+            if (playerFailureCount >= 3) {
+              await failCheckpoint({ runId, source: 'transfermarkt', kind: 'player', itemKey: player.sourceId, parentKey: team.sourceId, url: player.url, metadata: { reason: 'retry_limit', attempts: playerFailureCount } })
+            } else {
+              hasRetryablePlayerFailure = true
+            }
             await incrementProgress(runId, 'processedPlayers')
             await incrementProgress(runId, 'failedPlayers')
           }
@@ -66,12 +84,21 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
           await completeCheckpoint({ runId, source: 'transfermarkt', kind: 'team', itemKey: team.sourceId, parentKey: league.transfermarktId, url: squadUrl, metadata: { players: squad.length, detailedPlayers: squad.length } })
           await incrementProgress(runId, 'successfulTeams')
         } else {
-          leagueComplete = false
+          if (hasRetryablePlayerFailure) {
+            leagueComplete = false
+          } else {
+            await failCheckpoint({ runId, source: 'transfermarkt', kind: 'team', itemKey: team.sourceId, parentKey: league.transfermarktId, url: squadUrl, metadata: { reason: 'player_retry_limit' } })
+          }
           await incrementProgress(runId, 'failedTeams')
         }
       } catch (error) {
-        leagueComplete = false
         await recordImportError({ runId, source: 'transfermarkt', kind: 'team', itemKey: team.sourceId, errorType: 'team_import', message: error instanceof Error ? error.message : 'Takım hatası', url: squadUrl, retryable: true })
+        const failureCount = previousFailures + 1
+        if (failureCount >= 3) {
+          await failCheckpoint({ runId, source: 'transfermarkt', kind: 'team', itemKey: team.sourceId, parentKey: league.transfermarktId, url: squadUrl, metadata: { reason: 'retry_limit', attempts: failureCount } })
+        } else {
+          leagueComplete = false
+        }
         await incrementProgress(runId, 'processedTeams')
         await incrementProgress(runId, 'failedTeams')
       }

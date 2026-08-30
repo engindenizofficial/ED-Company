@@ -56,6 +56,26 @@ export async function isCheckpointComplete(runId: string, kind: string, itemKey:
   return checkpoint?.status === 'completed'
 }
 
+export async function getImportErrorCount(runId: string, kind: string, itemKey: string) {
+  const [result] = await db.select({ count: sql<number>`count(*)::int` }).from(dataImportError).where(and(
+    eq(dataImportError.runId, runId),
+    eq(dataImportError.kind, kind),
+    eq(dataImportError.itemKey, itemKey),
+  ))
+  return result?.count ?? 0
+}
+
+export async function failCheckpoint(input: {
+  runId: string; source: ImportSource; kind: string; itemKey: string; parentKey?: string; url?: string; metadata?: Record<string, unknown>
+}) {
+  await db.insert(dataImportCheckpoint).values({
+    id: randomUUID(), ...input, status: 'failed', attempts: 1, updatedAt: new Date(),
+  }).onConflictDoUpdate({
+    target: [dataImportCheckpoint.runId, dataImportCheckpoint.kind, dataImportCheckpoint.itemKey],
+    set: { status: 'failed', updatedAt: new Date(), metadata: input.metadata ?? {} },
+  })
+}
+
 export async function completeCheckpoint(input: {
   runId: string; source: ImportSource; kind: string; itemKey: string; parentKey?: string; url?: string; metadata?: Record<string, unknown>
 }) {
