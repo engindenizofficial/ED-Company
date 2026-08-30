@@ -79,7 +79,7 @@ function usePlayerSection<T>(playerId: number, section: string, open: boolean) {
     if (!open) return
     const requestId = ++requestIdRef.current
     const controller = new AbortController()
-    setState({ status: "loading", data: null, error: null })
+    queueMicrotask(() => setState({ status: "loading", data: null, error: null }))
 
     const requestUrl = `/api/player/section?playerId=${playerId}&section=${section}&request=${Date.now()}-${requestId}`
     fetch(requestUrl, {

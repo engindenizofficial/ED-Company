@@ -12,6 +12,10 @@ type SoundName = "tick" | "select" | "correct" | "wrong" | "combo" | "newRound"
 
 const STORAGE_KEY = "duel-sound-muted"
 
+type AudioWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext
+}
+
 function playTone(
   ctx: AudioContext,
   {
@@ -66,13 +70,13 @@ export function useSoundEffects() {
 
   useEffect(() => {
     const stored = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null
-    if (stored === "1") setMuted(true)
+    if (stored === "1") queueMicrotask(() => setMuted(true))
   }, [])
 
   const getCtx = useCallback(() => {
     if (typeof window === "undefined") return null
     if (!ctxRef.current) {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      const AudioCtx = window.AudioContext || (window as AudioWindow).webkitAudioContext
       if (!AudioCtx) return null
       ctxRef.current = new AudioCtx()
     }

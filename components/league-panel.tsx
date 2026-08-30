@@ -117,7 +117,7 @@ function useLeagueSection<T>(leagueId: number, section: string, open: boolean) {
     if (!open) return
     const requestId = ++requestIdRef.current
     const controller = new AbortController()
-    setState({ status: "loading", data: null, error: null })
+    queueMicrotask(() => setState({ status: "loading", data: null, error: null }))
     const requestUrl = `/api/league/section?leagueId=${leagueId}&section=${section}&request=${Date.now()}-${requestId}`
     fetch(requestUrl, { cache: "no-store", signal: controller.signal })
       .then(async (res) => {

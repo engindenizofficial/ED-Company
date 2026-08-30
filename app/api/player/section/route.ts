@@ -23,6 +23,7 @@ export const revalidate = 0
 // bir sezonun geçici olarak başarısız olması diğer 19 sezonu etkilemiyor.
 const VALID_SECTIONS = ["stats", "trophies", "transfers", "sidelined"] as const
 type Section = (typeof VALID_SECTIONS)[number]
+type ApiData = ReturnType<JSON["parse"]>
 
 function apiFetch<T>(path: string, params: Record<string, string | number>): Promise<T[]> {
   return safeApiFootballFetch<T>(path, params, { cache: "no-store" })
@@ -70,14 +71,14 @@ async function fetchSeasonStats(playerId: number): Promise<PlayerSeasonStats[]> 
   // kaybolmuyor — bir sonraki TTL sonrası istek başarılı olursa otomatik
   // tamamlanıyor.
   const allSeasonRaw = await Promise.all(
-    seasons.map((s) => safeApiFootballFetch<any>("/players", { id: playerId, season: s })),
+    seasons.map((s) => safeApiFootballFetch<ApiData>("/players", { id: playerId, season: s })),
   )
 
   // Aynı sezon içindeki tüm turnuva/takım kayıtlarını (lig, kupa, Şampiyonlar
   // Ligi, transfer sonrası ikinci takım vb.) tek bir "sezon toplamı" altında
   // birleştiriyoruz — kullanıcı arayüzünde lig lig değil, sezon sezon
   // (22-23, 23-24, ...) gösterim istendiği için.
-  const bySeason = new Map<number, any[]>()
+  const bySeason = new Map<number, ApiData[]>()
   for (const seasonData of allSeasonRaw) {
     for (const se of seasonData) {
       for (const stat of se.statistics ?? []) {
@@ -295,7 +296,7 @@ export async function GET(request: Request) {
       }
 
       case "trophies": {
-        const trophiesRaw = await apiFetch<any>("/trophies", { player: playerId })
+        const trophiesRaw = await apiFetch<ApiData>("/trophies", { player: playerId })
         // ÖNEMLİ — API-Football'ın "/trophies" endpoint'i aynı kupayı (aynı
         // lig + ülke + sezon + sıralama) bazen birden fazla kez döndürüyor.
         // Hiçbir dedup yapılmadan doğrudan map'lendiği için ekranda "Süper Lig
@@ -320,9 +321,9 @@ export async function GET(request: Request) {
       }
 
       case "transfers": {
-        const transfersRaw = await apiFetch<any>("/transfers", { player: playerId })
-        const allTransfers: Transfer[] = (transfersRaw ?? []).flatMap((entry: any) =>
-          (entry.transfers ?? []).map((tx: any) => ({
+        const transfersRaw = await apiFetch<ApiData>("/transfers", { player: playerId })
+        const allTransfers: Transfer[] = (transfersRaw ?? []).flatMap((entry: ApiData) =>
+          (entry.transfers ?? []).map((tx: ApiData) => ({
             date: tx.date ?? null,
             type: tx.type ?? "",
             teamFrom: { id: tx.teams?.out?.id ?? 0, name: tx.teams?.out?.name ?? "", logo: tx.teams?.out?.logo ?? "" },
@@ -351,7 +352,7 @@ export async function GET(request: Request) {
       }
 
       case "sidelined": {
-        const sidelinedRaw = await apiFetch<any>("/sidelined", { player: playerId })
+        const sidelinedRaw = await apiFetch<ApiData>("/sidelined", { player: playerId })
         // ÖNEMLİ — API-Football'ın "/sidelined" endpoint'i aynı sakatlık/ceza
         // kaydını (aynı tip + başlangıç + bitiş tarihi) bazen birden fazla kez
         // döndürüyor, bu da oyuncu panelindeki "raporlanamayan süre" listesinde
@@ -359,7 +360,7 @@ export async function GET(request: Request) {
         // göre dedup yapılıyor.
         const seenSidelinedKeys = new Set<string>()
         const data: SidelinedEntry[] = []
-        const mapped: SidelinedEntry[] = (sidelinedRaw ?? []).map((s: any) => ({
+        const mapped: SidelinedEntry[] = (sidelinedRaw ?? []).map((s: ApiData) => ({
           type: s.player?.reason ?? s.type ?? s.reason ?? "Bilinmiyor",
           start: s.start ?? null,
           end: s.end ?? null,

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useEffectEvent } from "react"
 
 /**
  * Sitedeki tüm otomatik yenilemelerin (ana fikstür listesi, canlı maç
@@ -18,15 +18,14 @@ import { useEffect, useRef } from "react"
  * bu sayede `enabled`/`intervalMs` değişmediği sürece interval sıfırlanmaz.
  */
 export function useAutoRefresh(callback: () => void, enabled: boolean, intervalMs = 30_000) {
-  const callbackRef = useRef(callback)
-  callbackRef.current = callback
+  const runLatestCallback = useEffectEvent(callback)
 
   useEffect(() => {
     if (!enabled) return
 
     let intervalId: ReturnType<typeof setInterval> | null = null
 
-    const run = () => callbackRef.current()
+    const run = () => runLatestCallback()
 
     const startInterval = () => {
       if (intervalId) return

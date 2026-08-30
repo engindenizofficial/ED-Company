@@ -70,9 +70,9 @@ export function useGoalCelebrationQueue(
       const totalDiff = goalsHome + goalsAway - (stored.home + stored.away)
       if (totalDiff === 1) {
         if (goalsHome > stored.home) {
-          setQueue((q) => [...q, { team: "home", key: celebrationKeySeq++, goalCount: goalsHome }])
+          queueMicrotask(() => setQueue((q) => [...q, { team: "home", key: celebrationKeySeq++, goalCount: goalsHome }]))
         } else if (goalsAway > stored.away) {
-          setQueue((q) => [...q, { team: "away", key: celebrationKeySeq++, goalCount: goalsAway }])
+          queueMicrotask(() => setQueue((q) => [...q, { team: "away", key: celebrationKeySeq++, goalCount: goalsAway }]))
         }
       }
       // totalDiff === 0: kaçırılan bir şey yok. totalDiff >= 2: birden fazla
@@ -136,7 +136,7 @@ export function useGoalCelebrationQueue(
       }
     }
     if (additions.length > 0) {
-      setQueue((q) => [...q, ...additions])
+      queueMicrotask(() => setQueue((q) => [...q, ...additions]))
     }
     prevRef.current = { home: goalsHome, away: goalsAway }
 

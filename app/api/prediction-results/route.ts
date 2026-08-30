@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 
   // Her modelin bireysel doğruluğunu hesapla
   const modelResults = Array.isArray(modelVotes)
-    ? modelVotes.map((v: any) => ({
+    ? modelVotes.map((v) => ({
         model: v.model ?? "",
         label: v.label ?? v.model ?? "",
         winner: v.winner,

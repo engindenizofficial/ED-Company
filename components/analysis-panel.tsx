@@ -176,7 +176,7 @@ export function AnalysisPanel({
   // bu durum oluşmaz), güvenlik amacıyla ilk sekmeye geri dön.
   useEffect(() => {
     if (!tabs.some((tab) => tab.key === activeTab)) {
-      setActiveTab(tabs[0].key)
+      queueMicrotask(() => setActiveTab(tabs[0].key))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasStarted])
@@ -525,7 +525,7 @@ function useLazySection<T>(url: string, open: boolean, autoRefresh = false) {
   useEffect(() => {
     if (!open) return
     hasLoadedRef.current = false
-    fetchSection(false)
+    queueMicrotask(() => fetchSection(false))
     return () => controllerRef.current?.abort()
   }, [open, fetchSection])
 
@@ -1810,7 +1810,7 @@ function H2HList({
   // `g.result` API-football üzerinden zaten güncel maçın ev sahibi takımı
   // (bu bileşene `homeName` olarak geçirilen takım) perspektifinden geliyor:
   // "W" = o takım o geçmiş maçı kazandı, "L" = rakip kazandı — geçmiş maçta
-  // hangi takımın kendi sahasında oynadığından bağımsız. Bu yüzden burada
+  // hangi takımın kendi sahasında oynadığından ba��ımsız. Bu yüzden burada
   // `g.home` / `g.homeTeam` ile tekrar bir "ev sahibi mi" kontrolü yapmaya
   // gerek yok; yapılırsa deplasmanda oynanan maçlarda kazanan taraf ters
   // gösterilir.

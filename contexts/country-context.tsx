@@ -38,13 +38,13 @@ export function CountryProvider({ children }: { children: ReactNode }) {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
-        setCountryCodeState(stored)
+        queueMicrotask(() => setCountryCodeState(stored))
         return
       }
     } catch {
       // ignore
     }
-    setCountryCodeState(detectBrowserCountry())
+    queueMicrotask(() => setCountryCodeState(detectBrowserCountry()))
   }, [])
 
   const setCountryCode = useCallback((code: string | null) => {

@@ -44,7 +44,7 @@ export function ThemeColorProvider({
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY)
       if (isValidAccentColor(stored) && stored !== accentColor) {
-        setAccentColorState(stored)
+        queueMicrotask(() => setAccentColorState(stored))
         applyAccentColor(stored)
       }
     } catch {

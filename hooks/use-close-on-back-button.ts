@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useEffectEvent, useRef } from "react"
 
 /**
  * Tam ekran panel/modal'lar (oyuncu, takım, lig kartları, giriş uyarısı vb.)
@@ -169,14 +169,7 @@ function popPanel(id: number, closedByBack: boolean) {
  *   (örn. "/oyuncu/123"). Verilmezse adres çubuğu değişmez (eski davranış).
  */
 export function useCloseOnBackButton(isOpen: boolean, onClose: () => void, url?: string) {
-  const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
-
-  // url her render'da değişebileceği için (örn. panel state'i yeni veriyle
-  // güncellenince) ref'te tutup sadece isOpen false->true geçişinde okuyoruz.
-  const urlRef = useRef(url)
-  urlRef.current = url
-
+  const closeLatestPanel = useEffectEvent(onClose)
   const idRef = useRef<number | null>(null)
   const closedByBackRef = useRef(false)
 
@@ -191,8 +184,8 @@ export function useCloseOnBackButton(isOpen: boolean, onClose: () => void, url?:
       closedByBackRef.current = false
       idRef.current = pushPanel(() => {
         closedByBackRef.current = true
-        onCloseRef.current()
-      }, urlRef.current)
+        closeLatestPanel()
+      }, url)
     }
     return () => {
       if (idRef.current !== null) {
@@ -200,5 +193,5 @@ export function useCloseOnBackButton(isOpen: boolean, onClose: () => void, url?:
         idRef.current = null
       }
     }
-  }, [isOpen])
+  }, [isOpen, url])
 }

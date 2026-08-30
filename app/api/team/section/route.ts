@@ -34,6 +34,7 @@ const VALID_SECTIONS = [
   "transfers",
 ] as const
 type Section = (typeof VALID_SECTIONS)[number]
+type ApiData = ReturnType<JSON["parse"]>
 
 // ÖNEMLİ — bilerek safeApiFootballFetch kullanılıyor (apiFootballFetch DEĞİL).
 // apiFootballFetch tüm denemeler tükendiğinde hata fırlatır. Bu route içinde
@@ -107,7 +108,7 @@ async function fetchFinishedFixtures(teamId: number): Promise<RawFixture[]> {
 // döner). Bu yüzden önce takımın bu sezon oynadığı ligi standings üzerinden
 // buluyoruz (topScorers sekmesindeki mantıkla aynı).
 async function fetchCurrentLeagueId(teamId: number, season: number): Promise<number | null> {
-  const standingsRaw = await apiFetch<any>("/standings", { team: teamId, season })
+  const standingsRaw = await apiFetch<ApiData>("/standings", { team: teamId, season })
   return standingsRaw?.[0]?.league?.id ?? null
 }
 
@@ -144,7 +145,7 @@ export async function GET(request: Request) {
         if (!leagueId) return noStoreJson({ data: null })
         // NOT: /teams/statistics tek bir obje döner (dizi değil), bu yüzden
         // diğer endpoint'lerdeki gibi [0] ile indekslemiyoruz.
-        const s = (await apiFetchObject<any>("/teams/statistics", { team: teamId, season, league: leagueId })) as any
+        const s = (await apiFetchObject<ApiData>("/teams/statistics", { team: teamId, season, league: leagueId })) as ApiData
         if (!s?.fixtures) return noStoreJson({ data: null })
         const buildSplit = (side: "home" | "away") => {
           const played = num(s.fixtures?.played?.[side])
@@ -179,7 +180,7 @@ export async function GET(request: Request) {
         const leagueId = await fetchCurrentLeagueId(teamId, season)
         const [s, finished] = await Promise.all([
           leagueId
-            ? (apiFetchObject<any>("/teams/statistics", { team: teamId, season, league: leagueId }) as Promise<any>)
+            ? (apiFetchObject<ApiData>("/teams/statistics", { team: teamId, season, league: leagueId }) as Promise<ApiData>)
             : Promise.resolve(null),
           fetchFinishedFixtures(teamId),
         ])
@@ -219,15 +220,15 @@ export async function GET(request: Request) {
       }
 
       case "coach": {
-        const coachRaw = await apiFetch<any>("/coachs", { team: teamId })
+        const coachRaw = await apiFetch<ApiData>("/coachs", { team: teamId })
         // Sadece bu takımda end=null VE en geç start tarihine sahip olan seçilir.
         // Fallback yok: aktif kayıt yoksa null döner (yanlış antrenör gösterilmez).
-        const activeForTeam = (coachRaw ?? []).filter((c: any) =>
-          (c.career ?? []).some((j: any) => j.team?.id === teamId && !j.end)
+        const activeForTeam = (coachRaw ?? []).filter((c: ApiData) =>
+          (c.career ?? []).some((j: ApiData) => j.team?.id === teamId && !j.end)
         )
-        const currentCoachRaw = activeForTeam.sort((a: any, b: any) => {
-          const aStart = (a.career ?? []).find((j: any) => j.team?.id === teamId && !j.end)?.start ?? ""
-          const bStart = (b.career ?? []).find((j: any) => j.team?.id === teamId && !j.end)?.start ?? ""
+        const currentCoachRaw = activeForTeam.sort((a: ApiData, b: ApiData) => {
+          const aStart = (a.career ?? []).find((j: ApiData) => j.team?.id === teamId && !j.end)?.start ?? ""
+          const bStart = (b.career ?? []).find((j: ApiData) => j.team?.id === teamId && !j.end)?.start ?? ""
           return bStart.localeCompare(aStart)
         })[0] ?? null
 
@@ -238,7 +239,7 @@ export async function GET(request: Request) {
           photo: currentCoachRaw.photo ?? null,
           nationality: currentCoachRaw.nationality ?? null,
           age: calculateAge(currentCoachRaw.birth?.date, currentCoachRaw.age),
-          career: (currentCoachRaw.career ?? []).slice(-5).map((j: any) => ({
+          career: (currentCoachRaw.career ?? []).slice(-5).map((j: ApiData) => ({
             team: { id: j.team?.id, name: j.team?.name ?? "", logo: j.team?.logo ?? "" },
             start: j.start ?? null,
             end: j.end ?? null,
@@ -248,11 +249,11 @@ export async function GET(request: Request) {
       }
 
       case "squad": {
-        const squadRaw = await apiFetch<any>("/players/squads", { team: teamId })
-        const squadData = squadRaw?.[0] as any
+        const squadRaw = await apiFetch<ApiData>("/players/squads", { team: teamId })
+        const squadData = squadRaw?.[0] as ApiData
         const rawPlayers = squadData?.players ?? []
 
-        const players: SquadPlayer[] = rawPlayers.map((p: any) => ({
+        const players: SquadPlayer[] = rawPlayers.map((p: ApiData) => ({
           id: p.id, name: p.name, age: p.age ?? null,
           number: p.number ?? null, pos: p.position ?? null, photo: p.photo ?? null,
           marketValueEur: null,
@@ -262,12 +263,12 @@ export async function GET(request: Request) {
       }
 
       case "standings": {
-        const standingsRaw = await apiFetch<any>("/standings", { team: teamId, season })
+        const standingsRaw = await apiFetch<ApiData>("/standings", { team: teamId, season })
         const standings: StandingRow[] = []
         const seenStandingKeys = new Set<string>()
         for (const entry of standingsRaw ?? []) {
           const leagueName: string = entry?.league?.name ?? ""
-          const groups: any[][] = entry?.league?.standings ?? []
+          const groups: ApiData[][] = entry?.league?.standings ?? []
           for (const group of groups) {
             for (const row of group) {
               const sKey = `${row.team?.id ?? 0}-${leagueName}`
@@ -290,7 +291,7 @@ export async function GET(request: Request) {
       }
 
       case "transfers": {
-        const transfersRaw = await apiFetch<any>("/transfers", { team: teamId })
+        const transfersRaw = await apiFetch<ApiData>("/transfers", { team: teamId })
         const seenTransferKeys = new Set<string>()
         const allTransfers: TeamTransfer[] = []
         for (const entry of transfersRaw ?? []) {
@@ -332,11 +333,11 @@ export async function GET(request: Request) {
       case "topScorers": {
         // Gol krallığı için önce takımın oynadığı ligi bulmamız gerekiyor (standings çağrısı,
         // kısa süreli cache sayesinde "standings" sekmesiyle aynı isteği paylaşabilir).
-        const standingsRaw = await apiFetch<any>("/standings", { team: teamId, season })
+        const standingsRaw = await apiFetch<ApiData>("/standings", { team: teamId, season })
         const leagueId = standingsRaw?.[0]?.league?.id
         if (!leagueId) return noStoreJson({ data: null })
-        const leagueTopScorers = await apiFetch<any>("/players/topscorers", { league: leagueId, season })
-        const data: TeamTopScorer[] = (leagueTopScorers ?? []).slice(0, 10).map((entry: any) => ({
+        const leagueTopScorers = await apiFetch<ApiData>("/players/topscorers", { league: leagueId, season })
+        const data: TeamTopScorer[] = (leagueTopScorers ?? []).slice(0, 10).map((entry: ApiData) => ({
           player: { id: entry.player?.id ?? 0, name: entry.player?.name ?? "", photo: entry.player?.photo ?? null },
           goals: entry.statistics?.[0]?.goals?.total ?? 0,
           assists: entry.statistics?.[0]?.goals?.assists ?? 0,

@@ -25,6 +25,8 @@ import { toTurkishCountry } from "./tr-aliases"
 import { apiFootballFetch, safeApiFootballFetch } from "./api-football-client"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
 
+type ApiData = ReturnType<JSON["parse"]>
+
 // Sezon geçişi (Ağustos) TR takvimine göre kabul edilir — panel header
 // endpoint'leri (/api/player, /api/team, /api/league) VE bunların dinamik
 // route karşılıkları (/oyuncu, /takim, /lig — SEO/paylaşım için) aynı tanımı
@@ -196,7 +198,7 @@ export async function getFixturesByDate(date: string, forceRefresh = false): Pro
   //  1. Featured leagues first, in their defined list order.
   //  2. Non-featured leagues grouped together, ordered by the league's
   //     earliest kick-off time (earlier leagues come first).
-  //  3. Within any league, matches are ordered by kick-off time.
+  //  3. Within ApiData league, matches are ordered by kick-off time.
   fixtures.sort((a, b) => {
     const aRank = featuredRank(a.league.id)
     const bRank = featuredRank(b.league.id)
@@ -238,7 +240,7 @@ export async function getFixtureById(id: number): Promise<Fixture | null> {
 
 export async function getPlayerBasicProfile(playerId: number): Promise<PlayerProfile | null> {
   const season = currentSeason()
-  let playerRaw = await apiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
+  let playerRaw = await apiFootballFetch<ApiData>("/players", { id: playerId, season }, { cache: "no-store" })
   // ÖNEMLİ — API-Football'ın "/players" uç noktası SEZONA BAĞLI: oyuncu o
   // sezonda hiç maça çıkmamışsa (yeni sezon henüz başladı, sakatlık, transfer
   // sonrası ilk maçını oynamadı vb.) boş dizi döner — oyuncu var olsa bile.
@@ -246,10 +248,10 @@ export async function getPlayerBasicProfile(playerId: number): Promise<PlayerPro
   // göstermek yanlıştı; bir önceki sezona (gerekirse ondan öncesine) bakarak
   // en azından isim/foto/uyruk/boy/kilo gibi profil bilgilerini bulabiliriz.
   if (!playerRaw || playerRaw.length === 0) {
-    playerRaw = await apiFootballFetch<any>("/players", { id: playerId, season: season - 1 }, { cache: "no-store" })
+    playerRaw = await apiFootballFetch<ApiData>("/players", { id: playerId, season: season - 1 }, { cache: "no-store" })
   }
   if (!playerRaw || playerRaw.length === 0) {
-    playerRaw = await apiFootballFetch<any>("/players", { id: playerId, season: season - 2 }, { cache: "no-store" })
+    playerRaw = await apiFootballFetch<ApiData>("/players", { id: playerId, season: season - 2 }, { cache: "no-store" })
   }
   if (!playerRaw || playerRaw.length === 0) return null
 
@@ -300,7 +302,7 @@ async function getCountryFlagUrl(countryName: string | null): Promise<string | n
   if (!countryName) return null
   if (countryFlagCache.has(countryName)) return countryFlagCache.get(countryName) ?? null
   try {
-    const raw = await apiFootballFetch<any>("/countries", { name: countryName })
+    const raw = await apiFootballFetch<ApiData>("/countries", { name: countryName })
     const flag = raw?.[0]?.flag ?? null
     countryFlagCache.set(countryName, flag)
     return flag
@@ -311,7 +313,7 @@ async function getCountryFlagUrl(countryName: string | null): Promise<string | n
 }
 
 export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | null> {
-  const teamRaw = await apiFootballFetch<any>("/teams", { id: teamId }, { cache: "no-store" })
+  const teamRaw = await apiFootballFetch<ApiData>("/teams", { id: teamId }, { cache: "no-store" })
   if (!teamRaw || teamRaw.length === 0) return null
 
   const rawTeam = teamRaw[0]
@@ -338,13 +340,13 @@ export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | 
 
 export async function getLeagueBasicInfo(leagueId: number): Promise<LeagueBasicInfo | null> {
   const season = currentSeason()
-  let leagueRaw = await apiFootballFetch<any>("/leagues", { id: leagueId, season }, { cache: "no-store" })
+  let leagueRaw = await apiFootballFetch<ApiData>("/leagues", { id: leagueId, season }, { cache: "no-store" })
   // Bkz. getPlayerBasicProfile — "/leagues?season=" da sezona bağlı: yeni
   // sezon henüz API-Football tarafında oluşturulmamışsa (özellikle küçük
   // liglerde gecikebiliyor) boş dizi döner, lig var olsa bile. Önceki sezona
   // düşerek en azından isim/logo/bayrak bilgisini bulabiliriz.
   if (!leagueRaw || leagueRaw.length === 0) {
-    leagueRaw = await apiFootballFetch<any>("/leagues", { id: leagueId, season: season - 1 }, { cache: "no-store" })
+    leagueRaw = await apiFootballFetch<ApiData>("/leagues", { id: leagueId, season: season - 1 }, { cache: "no-store" })
   }
   if (!leagueRaw || leagueRaw.length === 0) return null
 
@@ -385,13 +387,13 @@ export async function getTeamSeasonStats(
   season: number,
 ): Promise<TeamSeasonStats | null> {
   const [statsArr, recentRaw] = await Promise.all([
-    safeFetch<any>("/teams/statistics", { team: team.id, league: leagueId, season }, 3600),
+    safeFetch<ApiData>("/teams/statistics", { team: team.id, league: leagueId, season }, 3600),
     safeFetch<RawFixture>("/fixtures", { team: team.id, last: 6 }, 600),
   ])
 
   const recent = buildRecentForm(team, recentRaw).slice(0, 6)
-  const s = Array.isArray(statsArr) ? (statsArr as any) : statsArr
-  const stat = (s && (s.fixtures ? s : s[0])) as any
+  const s = Array.isArray(statsArr) ? (statsArr as ApiData) : statsArr
+  const stat = (s && (s.fixtures ? s : s[0])) as ApiData
 
   if (!stat || !stat.fixtures) {
     // No season stats (e.g. cup game). Derive a minimal record from recent form,
@@ -511,17 +513,17 @@ export async function getHeadToHead(homeId: number, awayId: number): Promise<For
  * henüz görünmeyen bir takım (ve onun tüm kadrosu) hiç taranmaz.
  */
 export async function getLeagueTeams(leagueId: number, season: number): Promise<{ id: number; name: string }[]> {
-  const raw = await safeFetch<any>("/teams", { league: leagueId, season }, 3600)
+  const raw = await safeFetch<ApiData>("/teams", { league: leagueId, season }, 3600)
   return raw
     .map((r) => ({ id: r.team?.id ?? 0, name: r.team?.name ?? "" }))
     .filter((t) => t.id !== 0)
 }
 
 export async function getStandings(leagueId: number, season: number, teamIds: number[]): Promise<StandingRow[]> {
-  const raw = await safeFetch<any>("/standings", { league: leagueId, season }, 3600)
+  const raw = await safeFetch<ApiData>("/standings", { league: leagueId, season }, 3600)
   if (raw.length === 0) return []
   const league = raw[0]?.league
-  const groups: any[][] = league?.standings ?? []
+  const groups: ApiData[][] = league?.standings ?? []
   const rows: StandingRow[] = []
   for (const group of groups) {
     for (const row of group) {
@@ -551,7 +553,7 @@ export async function getStandings(leagueId: number, season: number, teamIds: nu
 export async function getOdds(
   fixtureId: number,
 ): Promise<{ home: number | null; draw: number | null; away: number | null; source: string | null }> {
-  const raw = await safeFetch<any>("/odds", { fixture: fixtureId }, 3600)
+  const raw = await safeFetch<ApiData>("/odds", { fixture: fixtureId }, 3600)
   if (!raw.length) return { home: null, draw: null, away: null, source: null }
 
   // İlk bookmaker'ın "Match Winner" (veya "1X2") bahsini bul; oranların
@@ -580,9 +582,9 @@ export async function getOdds(
 }
 
 export async function getSquad(teamId: number): Promise<SquadPlayer[]> {
-  const raw = await safeFetch<any>("/players/squads", { team: teamId }, 3600)
+  const raw = await safeFetch<ApiData>("/players/squads", { team: teamId }, 3600)
   if (!raw.length) return []
-  const players: any[] = raw[0]?.players ?? []
+  const players: ApiData[] = raw[0]?.players ?? []
   return players.map((p) => ({
     id: p.id ?? 0,
     name: p.name ?? "",
@@ -610,11 +612,11 @@ export async function getPlayerRoleAndPhoto(
   playerId: number,
 ): Promise<{ role: string | null; photo: string | null; age: number | null } | null> {
   const season = currentSeason()
-  let raw = await apiFootballFetch<any>("/players", { id: playerId, season }, { cache: "no-store" })
+  let raw = await apiFootballFetch<ApiData>("/players", { id: playerId, season }, { cache: "no-store" })
   // Bkz. getPlayerBasicProfile — sezona bağlı olduğu için önceki sezona
   // düşmeden dönmek, aktif oynamayan oyuncuları haksız yere kaybettirir.
   if (!raw || raw.length === 0) {
-    raw = await apiFootballFetch<any>("/players", { id: playerId, season: season - 1 }, { cache: "no-store" })
+    raw = await apiFootballFetch<ApiData>("/players", { id: playerId, season: season - 1 }, { cache: "no-store" })
   }
   if (!raw || raw.length === 0) return null
   const entry = raw[0]
@@ -632,7 +634,7 @@ export async function getPlayerRoleAndPhoto(
  * değeri takım adı karşılaştırması gereken yerlerde kullanılır.
  */
 export async function getTeamCountry(teamId: number): Promise<string | null> {
-  const raw = await safeFetch<any>("/teams", { id: teamId }, 3600)
+  const raw = await safeFetch<ApiData>("/teams", { id: teamId }, 3600)
   const country = raw[0]?.team?.country ?? null
   return country ? toTurkishCountry(country) : null
 }
@@ -642,13 +644,13 @@ export async function getTeamCountry(teamId: number): Promise<string | null> {
  * manuel gözden geçirme kuyruğu için kullanılır (bkz. getTeamCountry).
  */
 export async function getPlayerNationality(playerId: number, season: number): Promise<string | null> {
-  const raw = await safeFetch<any>("/players", { id: playerId, season }, 3600)
+  const raw = await safeFetch<ApiData>("/players", { id: playerId, season }, 3600)
   const nationality = raw[0]?.player?.nationality ?? null
   return nationality ? toTurkishCountry(nationality) : null
 }
 
 export async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
-  const raw = await safeFetch<any>("/injuries", { fixture: fixtureId }, 1800)
+  const raw = await safeFetch<ApiData>("/injuries", { fixture: fixtureId }, 1800)
   // ÖNEMLİ — API-Football'ın "/injuries" endpoint'i aynı oyuncu için aynı
   // takım/tip/gerekçe kombinasyonunu bazen birden fazla kez döndürüyor, bu da
   // maç analiz panelinde "K. Merah - Ankle Injury" gibi satırların iki kez
@@ -672,7 +674,7 @@ export async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {
   }
 
 export async function getEvents(fixtureId: number, forceRefresh = false): Promise<MatchEvent[]> {
-  const raw = await safeFetch<any>("/fixtures/events", { fixture: fixtureId }, 30, forceRefresh)
+  const raw = await safeFetch<ApiData>("/fixtures/events", { fixture: fixtureId }, 30, forceRefresh)
   return raw.map((r) => ({
     minute: r.time?.elapsed ?? 0,
     extra: r.time?.extra ?? null,
@@ -687,7 +689,7 @@ export async function getEvents(fixtureId: number, forceRefresh = false): Promis
 }
 
 export async function getStatistics(fixtureId: number): Promise<StatItem[]> {
-  const raw = await safeFetch<any>("/fixtures/statistics", { fixture: fixtureId }, 30)
+  const raw = await safeFetch<ApiData>("/fixtures/statistics", { fixture: fixtureId }, 30)
   if (raw.length < 2) return []
   const home = raw[0]?.statistics ?? []
   const away = raw[1]?.statistics ?? []
@@ -703,8 +705,8 @@ export async function getStatistics(fixtureId: number): Promise<StatItem[]> {
 }
 
 export async function getLineups(fixtureId: number): Promise<TeamLineup[]> {
-  const raw = await safeFetch<any>("/fixtures/lineups", { fixture: fixtureId }, 300)
-  const mapPlayers = (arr: any[]): LineupPlayer[] =>
+  const raw = await safeFetch<ApiData>("/fixtures/lineups", { fixture: fixtureId }, 300)
+  const mapPlayers = (arr: ApiData[]): LineupPlayer[] =>
     (arr ?? []).map((p) => ({
       id: p.player?.id ?? null,
       number: p.player?.number ?? null,
@@ -735,7 +737,7 @@ export async function getFixturePlayerStats(fixtureId: number): Promise<FixtureP
   // Football'ın kendi canlı oyuncu puanı/istatistik beslemesi de sağlayıcı
   // tarafında periyodik olarak güncellendiğinden (gerçek zamanlı değil),
   // dakika ile içerik arasında birkaç dakikalık fark tamamen kapanmayabilir.
-  const raw = await safeFetch<any>("/fixtures/players", { fixture: fixtureId }, 30)
+  const raw = await safeFetch<ApiData>("/fixtures/players", { fixture: fixtureId }, 30)
   const result: FixturePlayerStat[] = []
   for (const teamBlock of raw) {
     const teamName: string = teamBlock?.team?.name ?? ""

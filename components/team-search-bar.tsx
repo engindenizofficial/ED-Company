@@ -36,14 +36,16 @@ export function TeamSearchBar() {
   // Arama — en az 2 karakter, hem takım hem lig paralel çekilir
   useEffect(() => {
     if (debouncedQuery.length < 2) {
-      setTeamResults([])
-      setLeagueResults([])
-      setOpen(false)
+      queueMicrotask(() => {
+        setTeamResults([])
+        setLeagueResults([])
+        setOpen(false)
+      })
       return
     }
 
     let cancelled = false
-    setLoading(true)
+    queueMicrotask(() => setLoading(true))
 
     const q = encodeURIComponent(debouncedQuery)
 
@@ -214,7 +216,7 @@ export function TeamSearchBar() {
                     <span className="text-[10px] tabular-nums text-muted-foreground">{teamResults.length}</span>
                   </li>
                   {teamResults.map((r) => (
-                    <li key={`team-${r.id}`} role="option">
+                    <li key={`team-${r.id}`} role="option" aria-selected={false}>
                       <button
                         type="button"
                         onClick={() => handleSelectTeam(r)}
@@ -267,7 +269,7 @@ export function TeamSearchBar() {
                     <span className="text-[10px] tabular-nums text-muted-foreground">{leagueResults.length}</span>
                   </li>
                   {leagueResults.map((r) => (
-                    <li key={`league-${r.id}`} role="option">
+                    <li key={`league-${r.id}`} role="option" aria-selected={false}>
                       <button
                         type="button"
                         onClick={() => handleSelectLeague(r)}

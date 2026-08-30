@@ -43,7 +43,7 @@ export function MatchVoteBar({
 
   useEffect(() => {
     if (!hasVoted) {
-      setRevealed(false)
+      queueMicrotask(() => setRevealed(false))
       return
     }
     const id = requestAnimationFrame(() => setRevealed(true))

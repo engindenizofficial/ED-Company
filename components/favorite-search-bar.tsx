@@ -37,14 +37,16 @@ export function FavoriteSearchBar() {
 
   useEffect(() => {
     if (debouncedQuery.length < 2) {
-      setTeamResults([])
-      setLeagueResults([])
-      setOpen(false)
+      queueMicrotask(() => {
+        setTeamResults([])
+        setLeagueResults([])
+        setOpen(false)
+      })
       return
     }
 
     let cancelled = false
-    setLoading(true)
+    queueMicrotask(() => setLoading(true))
 
     const q = encodeURIComponent(debouncedQuery)
 
@@ -213,7 +215,7 @@ export function FavoriteSearchBar() {
                   {teamResults.map((r) => {
                     const already = isFavorite("team", r.id)
                     return (
-                      <li key={`fav-team-${r.id}`} role="option">
+                      <li key={`fav-team-${r.id}`} role="option" aria-selected={already}>
                         <button
                           type="button"
                           onClick={() => handleSelectTeam(r)}
@@ -271,7 +273,7 @@ export function FavoriteSearchBar() {
                   {leagueResults.map((r) => {
                     const already = isFavorite("league", r.id)
                     return (
-                      <li key={`fav-league-${r.id}`} role="option">
+                      <li key={`fav-league-${r.id}`} role="option" aria-selected={already}>
                         <button
                           type="button"
                           onClick={() => handleSelectLeague(r)}

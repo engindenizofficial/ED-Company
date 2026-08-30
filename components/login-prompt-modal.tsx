@@ -2,7 +2,7 @@
 
 import { KeyRound, UserPlus, X } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useCloseOnBackButton } from "@/hooks/use-close-on-back-button"
 import { useLanguage } from "@/contexts/language-context"
@@ -17,8 +17,12 @@ export function LoginPromptModal() {
   const { t } = useLanguage()
   const [visible, setVisible] = useState(false)
 
-  // Global fonksiyonu bağla
-  _openLoginModal = () => setVisible(true)
+  useEffect(() => {
+    _openLoginModal = () => setVisible(true)
+    return () => {
+      _openLoginModal = null
+    }
+  }, [])
 
   function handleDismiss() {
     setVisible(false)

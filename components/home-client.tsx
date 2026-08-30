@@ -181,7 +181,7 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
   // çalışır ama bu zararsızdır (aynı isteği `useAutoRefresh` da atar, ikisi de
   // cache'den okuduğu için ekstra maliyeti yoktur).
   useEffect(() => {
-    loadFixtures(false)
+    queueMicrotask(() => loadFixtures(false))
   }, [loadFixtures])
 
   // Tüm zamanlar tahmin sonuçlarını çek

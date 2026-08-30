@@ -16,8 +16,10 @@ function VerifyEmailContent() {
   useEffect(() => {
     const token = searchParams.get('token')
     if (!token) {
-      setStatus('error')
-      setErrorMessage(t('auth.invalidVerificationLink'))
+      queueMicrotask(() => {
+        setStatus('error')
+        setErrorMessage(t('auth.invalidVerificationLink'))
+      })
       return
     }
 

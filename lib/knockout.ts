@@ -269,7 +269,7 @@ export function resolveKnockoutTie(
   // ihlali giderilir.
   let penaltyHomeGoals = ensembleTie.penaltyHomeGoals
   let penaltyAwayGoals = ensembleTie.penaltyAwayGoals
-  let advancing: "home" | "away" = penaltyHomeGoals >= penaltyAwayGoals ? "home" : "away"
+  const advancing: "home" | "away" = penaltyHomeGoals >= penaltyAwayGoals ? "home" : "away"
   if (penaltyHomeGoals === penaltyAwayGoals) {
     if (advancing === "home") penaltyHomeGoals += 1
     else penaltyAwayGoals += 1

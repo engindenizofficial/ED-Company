@@ -82,7 +82,7 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
   const POLL_INTERVAL_MS = 3000
   const POLL_MAX_ATTEMPTS = 100 // ~5 dakika güvenlik sınırı
 
-  const pollPrediction = useCallback((fixtureId: number, requestId: number, attempt = 0) => {
+  const pollPrediction = useCallback(function poll(fixtureId: number, requestId: number, attempt = 0) {
     fetch(`/api/predict/cached?fixtureId=${fixtureId}`, { cache: "no-store" })
       .then(async (res) => {
         if (requestId !== requestIdRef.current) return
@@ -93,7 +93,7 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
             setStack((prev) => prev.map((entry) => (entry.fixture.id === fixtureId ? { ...entry, prediction: null, predictionLoading: false } : entry)))
             return
           }
-          setTimeout(() => pollPrediction(fixtureId, requestId, attempt + 1), POLL_INTERVAL_MS)
+          setTimeout(() => poll(fixtureId, requestId, attempt + 1), POLL_INTERVAL_MS)
           return
         }
 
@@ -143,7 +143,7 @@ export function MatchProvider({ children }: { children: React.ReactNode }) {
         loadPrediction(fixture.id, requestId)
       })
       .catch(() => {})
-  }, [loadPrediction])
+  }, [loadPrediction, nextSeq])
 
   const closeMatch = useCallback(() => {
     requestIdRef.current++

@@ -50,6 +50,29 @@ function currentSeason(): number {
   return now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
 }
 
+interface RawStandingRow {
+  rank?: number
+  team?: { id?: number; name?: string; logo?: string }
+  points?: number
+  all?: { played?: number; win?: number; draw?: number; lose?: number; goals?: { for?: number; against?: number } }
+  form?: string | null
+  group?: string
+}
+
+interface RawStandingEntry {
+  league?: { name?: string; standings?: RawStandingRow[][] }
+}
+
+interface RawPlayerRankingEntry {
+  player?: { id?: number; name?: string; photo?: string | null; nationality?: string | null }
+  statistics?: Array<{
+    team?: { id?: number; name?: string; logo?: string }
+    goals?: { total?: number; assists?: number }
+    games?: { appearences?: number; rating?: string | null; position?: string | null }
+    cards?: { yellow?: number; red?: number }
+  }>
+}
+
 interface RawFixture {
   fixture: {
     id: number; date: string; timestamp: number
@@ -80,14 +103,14 @@ function mapFixture(r: RawFixture): Fixture {
 }
 
 async function fetchStandings(leagueId: number, season: number): Promise<StandingRow[]> {
-  const standingsRaw = await apiFetch<any>("/standings", { league: leagueId, season })
+  const standingsRaw = await apiFetch<RawStandingEntry>("/standings", { league: leagueId, season })
   const standings: StandingRow[] = []
   for (const entry of standingsRaw ?? []) {
-    const groups: any[][] = entry?.league?.standings ?? []
+    const groups: RawStandingRow[][] = entry?.league?.standings ?? []
     for (const group of groups) {
       for (const row of group) {
         standings.push({
-          rank: row.rank, team: row.team?.name ?? "", teamId: row.team?.id ?? 0,
+          rank: row.rank ?? 0, team: row.team?.name ?? "", teamId: row.team?.id ?? 0,
           teamLogo: row.team?.logo ?? "",
           points: row.points ?? 0, played: row.all?.played ?? 0,
           win: row.all?.win ?? 0, draw: row.all?.draw ?? 0, lose: row.all?.lose ?? 0,
@@ -121,15 +144,15 @@ export async function GET(request: Request) {
       case "seasonStats": {
         const [standings, topYellowRaw, topRedRaw] = await Promise.all([
           fetchStandings(leagueId, season),
-          apiFetch<any>("/players/topyellowcards", { league: leagueId, season }),
-          apiFetch<any>("/players/topredcards", { league: leagueId, season }),
+          apiFetch<RawPlayerRankingEntry>("/players/topyellowcards", { league: leagueId, season }),
+          apiFetch<RawPlayerRankingEntry>("/players/topredcards", { league: leagueId, season }),
         ])
         if (standings.length === 0) return noStoreJson({ data: null })
         const totalMatches = Math.floor(standings.reduce((s, r) => s + r.played, 0) / 2)
         const totalGoals = standings.reduce((s, r) => s + r.goalsFor, 0)
         const avgGoalsPerMatch = totalMatches > 0 ? totalGoals / totalMatches : 0
-        const yellowCards = (topYellowRaw ?? []).reduce((s: number, e: any) => s + (e.statistics?.[0]?.cards?.yellow ?? 0), 0)
-        const redCards = (topRedRaw ?? []).reduce((s: number, e: any) => s + (e.statistics?.[0]?.cards?.red ?? 0), 0)
+        const yellowCards = (topYellowRaw ?? []).reduce((s: number, e: RawPlayerRankingEntry) => s + (e.statistics?.[0]?.cards?.yellow ?? 0), 0)
+        const redCards = (topRedRaw ?? []).reduce((s: number, e: RawPlayerRankingEntry) => s + (e.statistics?.[0]?.cards?.red ?? 0), 0)
         const knownValues = standings.map((r) => r.marketValueEur).filter((v): v is number => v !== null && v !== undefined)
         const totalMarketValueEur = knownValues.length > 0 ? knownValues.reduce((s, v) => s + v, 0) : null
         const data: LeagueSeasonStats = {
@@ -150,8 +173,8 @@ export async function GET(request: Request) {
       }
 
       case "topScorers": {
-        const raw = await apiFetch<any>("/players/topscorers", { league: leagueId, season })
-        const data: LeagueTopScorer[] = (raw ?? []).slice(0, 20).map((entry: any) => ({
+        const raw = await apiFetch<RawPlayerRankingEntry>("/players/topscorers", { league: leagueId, season })
+        const data: LeagueTopScorer[] = (raw ?? []).slice(0, 20).map((entry: RawPlayerRankingEntry) => ({
           player: {
             id: entry.player?.id ?? 0, name: entry.player?.name ?? "",
             photo: entry.player?.photo ?? null, nationality: entry.player?.nationality ?? null,
@@ -174,8 +197,8 @@ export async function GET(request: Request) {
       }
 
       case "topAssists": {
-        const raw = await apiFetch<any>("/players/topassists", { league: leagueId, season })
-        const data: LeagueTopAssist[] = (raw ?? []).slice(0, 20).map((entry: any) => ({
+        const raw = await apiFetch<RawPlayerRankingEntry>("/players/topassists", { league: leagueId, season })
+        const data: LeagueTopAssist[] = (raw ?? []).slice(0, 20).map((entry: RawPlayerRankingEntry) => ({
           player: {
             id: entry.player?.id ?? 0, name: entry.player?.name ?? "",
             photo: entry.player?.photo ?? null, nationality: entry.player?.nationality ?? null,
@@ -195,8 +218,8 @@ export async function GET(request: Request) {
       }
 
       case "topYellowCards": {
-        const raw = await apiFetch<any>("/players/topyellowcards", { league: leagueId, season })
-        const data: LeagueTopCard[] = (raw ?? []).slice(0, 20).map((entry: any) => ({
+        const raw = await apiFetch<RawPlayerRankingEntry>("/players/topyellowcards", { league: leagueId, season })
+        const data: LeagueTopCard[] = (raw ?? []).slice(0, 20).map((entry: RawPlayerRankingEntry) => ({
           player: {
             id: entry.player?.id ?? 0, name: entry.player?.name ?? "",
             photo: entry.player?.photo ?? null, nationality: entry.player?.nationality ?? null,
@@ -215,8 +238,8 @@ export async function GET(request: Request) {
       }
 
       case "topRedCards": {
-        const raw = await apiFetch<any>("/players/topredcards", { league: leagueId, season })
-        const data: LeagueTopCard[] = (raw ?? []).slice(0, 20).map((entry: any) => ({
+        const raw = await apiFetch<RawPlayerRankingEntry>("/players/topredcards", { league: leagueId, season })
+        const data: LeagueTopCard[] = (raw ?? []).slice(0, 20).map((entry: RawPlayerRankingEntry) => ({
           player: {
             id: entry.player?.id ?? 0, name: entry.player?.name ?? "",
             photo: entry.player?.photo ?? null, nationality: entry.player?.nationality ?? null,

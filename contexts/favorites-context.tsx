@@ -86,13 +86,15 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
 
     const userId = session?.user?.id ?? null
     if (!userId) {
-      setFavorites(readGuestFavorites())
-      setLoading(false)
+      queueMicrotask(() => {
+        setFavorites(readGuestFavorites())
+        setLoading(false)
+      })
       return
     }
 
     let cancelled = false
-    setLoading(true)
+    queueMicrotask(() => setLoading(true))
 
     async function loadAndMerge() {
       const guestItems = readGuestFavorites()

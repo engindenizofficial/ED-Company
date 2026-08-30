@@ -38,7 +38,7 @@ export function LanguageProvider({
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored === "tr" || stored === "en") {
-        setLocaleState(stored)
+        queueMicrotask(() => setLocaleState(stored))
         return
       }
     } catch {
@@ -47,7 +47,7 @@ export function LanguageProvider({
     // Kullanıcı daha önce manuel seçim yapmadıysa tarayıcı dilini kullan.
     // initialLocale zaten sunucuda aynı mantıkla hesaplandığı için burada
     // sadece istemci/sunucu farklılık ihtimaline karşı senkronize ediyoruz.
-    setLocaleState(detectBrowserLocale())
+    queueMicrotask(() => setLocaleState(detectBrowserLocale()))
   }, [])
 
   useEffect(() => {

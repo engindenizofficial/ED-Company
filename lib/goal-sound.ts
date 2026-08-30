@@ -11,9 +11,13 @@
 // çalar; bu davranış JS koduyla değiştirilemez.
 let audioContext: AudioContext | null = null
 
+type AudioWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext
+}
+
 function getAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null
-  const Ctor = window.AudioContext || (window as any).webkitAudioContext
+  const Ctor = window.AudioContext || (window as AudioWindow).webkitAudioContext
   if (!Ctor) return null
   if (!audioContext || audioContext.state === "closed") {
     audioContext = new Ctor()

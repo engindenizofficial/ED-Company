@@ -4,6 +4,7 @@ import { calculateAge } from "@/lib/api-football"
 export const dynamic = "force-dynamic"
 
 const BASE_URL = "https://v3.football.api-sports.io"
+type ApiData = ReturnType<JSON["parse"]>
 
 // En iyi 20 lig — takım aramasıyla birebir aynı liste
 const TOP_LEAGUE_IDS = [
@@ -71,7 +72,7 @@ async function searchPlayersInLeague(
     })
     if (!res.ok) return []
     const json = await res.json()
-    const entries: any[] = json.response ?? []
+    const entries: ApiData[] = json.response ?? []
 
     return entries.map((entry) => {
       const p = entry.player ?? {}
