@@ -49,7 +49,7 @@ function SourceCard({ source, run, summary, onStart, busy, serverNow }: { source
         : body.message || 'Sıfırlama başarısız.'
       throw new Error(message)
     }
-    setPhrase(''); toast.success(`${sourceLabels[source]} sıfırlandı ve yeni koşu başlatıldı.`)
+    setPhrase(''); toast.success(`${sourceLabels[source]} verileri sıfırlandı.`)
   }
   return <Card>
     <CardHeader>
@@ -77,7 +77,7 @@ function SourceCard({ source, run, summary, onStart, busy, serverNow }: { source
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>{sourceLabels[source]} verilerini sıfırla</AlertDialogTitle><AlertDialogDescription>Bu işlem yalnız seçilen kaynağın snapshot ve çalışma kayıtlarını siler. Onaylamak için <strong>{RESET_PHRASES[source]}</strong> yazın.</AlertDialogDescription></AlertDialogHeader>
           <Input value={phrase} onChange={(event) => setPhrase(event.target.value)} aria-label="Sıfırlama doğrulama ifadesi" placeholder={RESET_PHRASES[source]} />
-          <AlertDialogFooter><AlertDialogCancel>Vazgeç</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={phrase !== RESET_PHRASES[source]} onClick={() => void reset().catch((error) => toast.error(error instanceof Error ? error.message : 'Sıfırlama başarısız.'))}>İkinci onay: sil ve başlat</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter><AlertDialogCancel>Vazgeç</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={phrase !== RESET_PHRASES[source]} onClick={() => void reset().catch((error) => toast.error(error instanceof Error ? error.message : 'Sıfırlama başarısız.'))}>İkinci onay: verileri sil</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </CardFooter>
