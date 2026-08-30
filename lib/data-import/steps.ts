@@ -4,7 +4,7 @@ import {
   apiFootballLeagueSnapshot, apiFootballPlayerSnapshot, apiFootballTeamSnapshot,
   transfermarktLeague, transfermarktPlayer, transfermarktTeam,
 } from '@/lib/db/schema'
-import { TRANSFERMARKT_SEASON, type ImportLeague, type ImportSource } from './scope'
+import { type ImportLeague, type ImportSource } from './scope'
 import { completeCheckpoint, failCheckpoint, failRun, finishRun, getImportErrorCount, heartbeat, incrementProgress, isCheckpointComplete, recordImportError } from './repository'
 import { fetchTransfermarktHtml } from './transfermarkt-http'
 import { buildTeamSquadUrl, parseLeagueTeams, parsePlayerDetail, parseTeamSquad } from './transfermarkt-parser'
@@ -17,7 +17,8 @@ export async function prepareImportStep(runId: string, source: ImportSource) {
 
 export async function importTransfermarktLeagueStep(runId: string, league: ImportLeague) {
   'use step'
-  if (await isCheckpointComplete(runId, 'league', league.transfermarktId)) return true
+  const calendarYearRetry = ['NO1', 'MLS1', 'AR1N'].includes(league.transfermarktId)
+  if (!calendarYearRetry && await isCheckpointComplete(runId, 'league', league.transfermarktId)) return true
   await heartbeat(runId, { stage: 'league-teams', activeLeague: league.name, activeUrl: league.transfermarktUrl })
   try {
     const teams = parseLeagueTeams(await fetchTransfermarktHtml(league.transfermarktUrl))
@@ -32,8 +33,8 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
     let leagueComplete = true
     for (const team of teams) {
       if (await isCheckpointComplete(runId, 'team', team.sourceId)) continue
-      const squadUrl = buildTeamSquadUrl(team.url, TRANSFERMARKT_SEASON)
-      const previousFailures = await getImportErrorCount(runId, 'team', team.sourceId)
+      const squadUrl = buildTeamSquadUrl(team.url, league.transfermarktSeason)
+      const previousFailures = await getImportErrorCount(runId, 'team', team.sourceId, squadUrl)
       if (previousFailures >= 3) {
         await failCheckpoint({ runId, source: 'transfermarkt', kind: 'team', itemKey: team.sourceId, parentKey: league.transfermarktId, url: squadUrl, metadata: { reason: 'retry_limit', attempts: previousFailures } })
         continue

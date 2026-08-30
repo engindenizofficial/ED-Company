@@ -7,6 +7,8 @@ function getCurrentTransfermarktSeason(date = new Date()) {
 
 export const TRANSFERMARKT_SEASON = getCurrentTransfermarktSeason()
 
+const CALENDAR_YEAR_COMPETITIONS = new Set(['NO1', 'MLS1', 'AR1N'])
+
 const TRANSFERMARKT_COMPETITIONS: Record<number, string> = {
   39: 'GB1', 140: 'ES1', 135: 'IT1', 78: 'L1', 61: 'FR1', 94: 'PO1',
   203: 'TR1', 88: 'NL1', 235: 'RU1', 144: 'BE1', 197: 'GR1', 333: 'UKR1',
@@ -15,13 +17,18 @@ const TRANSFERMARKT_COMPETITIONS: Record<number, string> = {
 }
 
 export const IMPORT_LEAGUES = FEATURED_LEAGUES.filter((league) => league.country !== 'Avrupa').map(
-  (league) => ({
-    apiFootballId: league.id,
-    transfermarktId: TRANSFERMARKT_COMPETITIONS[league.id],
-    name: league.name,
-    country: league.country,
-    transfermarktUrl: `https://www.transfermarkt.com/wettbewerb/startseite/wettbewerb/${TRANSFERMARKT_COMPETITIONS[league.id]}/saison_id/${TRANSFERMARKT_SEASON}`,
-  }),
+  (league) => {
+    const transfermarktId = TRANSFERMARKT_COMPETITIONS[league.id]
+    const transfermarktSeason = CALENDAR_YEAR_COMPETITIONS.has(transfermarktId) ? TRANSFERMARKT_SEASON - 1 : TRANSFERMARKT_SEASON
+    return {
+      apiFootballId: league.id,
+      transfermarktId,
+      transfermarktSeason,
+      name: league.name,
+      country: league.country,
+      transfermarktUrl: `https://www.transfermarkt.com/wettbewerb/startseite/wettbewerb/${transfermarktId}/saison_id/${transfermarktSeason}`,
+    }
+  },
 )
 
 if (IMPORT_LEAGUES.length !== 23 || IMPORT_LEAGUES.some((league) => !league.transfermarktId)) {

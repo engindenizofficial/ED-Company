@@ -56,11 +56,12 @@ export async function isCheckpointComplete(runId: string, kind: string, itemKey:
   return checkpoint?.status === 'completed'
 }
 
-export async function getImportErrorCount(runId: string, kind: string, itemKey: string) {
+export async function getImportErrorCount(runId: string, kind: string, itemKey: string, url?: string) {
   const [result] = await db.select({ count: sql<number>`count(*)::int` }).from(dataImportError).where(and(
     eq(dataImportError.runId, runId),
     eq(dataImportError.kind, kind),
     eq(dataImportError.itemKey, itemKey),
+    url ? eq(dataImportError.url, url) : undefined,
   ))
   return result?.count ?? 0
 }
