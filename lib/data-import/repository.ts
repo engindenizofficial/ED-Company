@@ -111,6 +111,7 @@ export async function getImportDashboard() {
       pool.query<{
         runId: string
         completedLeagues: number
+        latestCompletedAt: Date | null
         discoveredTeams: number
         successfulTeams: number
         discoveredPlayers: number
@@ -126,6 +127,7 @@ export async function getImportDashboard() {
         ), checkpoint_counts AS (
           SELECT c."runId",
             COUNT(DISTINCT c."itemKey") FILTER (WHERE c.kind = 'league' AND c.status = 'completed')::int AS completed_leagues,
+            MAX(c."completedAt") FILTER (WHERE c.status = 'completed') AS latest_completed_at,
             COUNT(DISTINCT c."itemKey") FILTER (WHERE c.kind = 'team_discovered')::int AS discovered_teams,
             COUNT(DISTINCT c."itemKey") FILTER (WHERE c.kind = 'team' AND c.status = 'completed')::int AS successful_teams,
             COUNT(DISTINCT c."itemKey") FILTER (WHERE c.kind = 'player_discovered')::int AS discovered_players,
@@ -153,6 +155,7 @@ export async function getImportDashboard() {
         )
         SELECT r."runId" AS "runId",
           COALESCE(c.completed_leagues, 0)::int AS "completedLeagues",
+          c.latest_completed_at AS "latestCompletedAt",
           (CASE WHEN COALESCE(c.discovered_teams, 0) > 0 THEN c.discovered_teams
             ELSE COALESCE(c.successful_teams, 0) + COALESCE(d.teams, 0) END)::int AS "discoveredTeams",
           COALESCE(c.successful_teams, 0)::int AS "successfulTeams",

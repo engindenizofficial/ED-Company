@@ -19,10 +19,12 @@ const fetcher = (url: string) => fetch(url).then(async (response) => { if (!resp
 type Run = { id: string; source: ImportSource; status: string; stage: string; totalLeagues: number; processedLeagues: number; totalTeams: number; processedTeams: number; successfulTeams: number; failedTeams: number; totalPlayers: number; processedPlayers: number; successfulPlayers: number; failedPlayers: number; missingPlayers: number; activeLeague?: string | null; activeTeam?: string | null; activeUrl?: string | null; heartbeatAt: string; startedAt: string; finishedAt?: string | null; restartCount: number; errorType?: string | null; errorMessage?: string | null }
 type Checkpoint = { id: string; runId: string; kind: string; itemKey: string; parentKey?: string | null; status: string; updatedAt: string; metadata?: Record<string, unknown> }
 type ImportError = { id: string; runId: string; source: ImportSource; kind: string; itemKey?: string | null; errorType: string; message: string; retryable: boolean; occurrences: number; createdAt: string }
-type RunSummary = { runId: string; completedLeagues: number; discoveredTeams: number; successfulTeams: number; discoveredPlayers: number; successfulPlayers: number; failedTeams: number; failedPlayers: number; failedLeagues: number; uniqueErrors: number; repeatedErrors: number }
+type RunSummary = { runId: string; completedLeagues: number; latestCompletedAt?: string | null; discoveredTeams: number; successfulTeams: number; discoveredPlayers: number; successfulPlayers: number; failedTeams: number; failedPlayers: number; failedLeagues: number; uniqueErrors: number; repeatedErrors: number }
 type DashboardData = { available: boolean; message?: string; serverNow: string; runs: Partial<Record<ImportSource, Run>>; checkpoints: Checkpoint[]; errors: ImportError[]; summaries: Record<string, RunSummary> }
 
 const sourceLabels: Record<ImportSource, string> = { transfermarkt: 'Transfermarkt', api_football: 'API-Football' }
+const statusLabels: Record<string, string> = { queued: 'Sırada', running: 'Çalışıyor', completed: 'Tamamlandı', failed: 'Başarısız', stale: 'Yanıt vermiyor', stopped: 'Durduruldu' }
+const stageLabels: Record<string, string> = { queued: 'Başlatılıyor', leagues: 'Ligler hazırlanıyor', 'league-teams': 'Lig takımları', 'team-squad': 'Takım kadrosu', 'player-detail': 'Oyuncu ayrıntısı', completed: 'Tamamlandı', 'restart-queued': 'Yeniden başlatılıyor', 'watchdog-restart': 'Yeniden başlatma bekleniyor' }
 const statusVariant = (status?: string) => status === 'completed' ? 'default' : status === 'failed' || status === 'stale' ? 'destructive' : 'secondary'
 const date = (value?: string | null) => value ? new Intl.DateTimeFormat('tr-TR', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value)) : '—'
 
@@ -30,8 +32,13 @@ function SourceCard({ source, run, summary, onStart, busy, serverNow }: { source
   const [phrase, setPhrase] = useState('')
   const completedLeagues = summary?.completedLeagues ?? 0
   const progress = run ? Math.min(100, Math.round((completedLeagues / Math.max(1, run.totalLeagues)) * 100)) : 0
-  const uniqueFailures = (summary?.failedTeams ?? 0) + (summary?.failedPlayers ?? 0) + (summary?.failedLeagues ?? 0)
+  const unresolvedTeams = Math.max(0, (summary?.discoveredTeams ?? 0) - (summary?.successfulTeams ?? 0))
+  const unresolvedPlayers = Math.max(0, (summary?.discoveredPlayers ?? 0) - (summary?.successfulPlayers ?? 0))
+  const uniqueFailures = unresolvedTeams + unresolvedPlayers
+  const retries = Math.max(0, (summary?.repeatedErrors ?? 0) - (summary?.uniqueErrors ?? 0))
   const stale = Boolean(run?.status === 'running' && serverNow && new Date(serverNow).getTime() - new Date(run.heartbeatAt).getTime() > 180_000)
+  const displayStatus = stale ? 'stale' : run?.status
+  const statusText = displayStatus === 'completed' && uniqueFailures > 0 ? `Tamamlandı · ${uniqueFailures} hatalı` : statusLabels[displayStatus ?? ''] ?? 'Henüz yok'
   async function reset() {
     const response = await fetch('/api/admin/data-import/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source, phrase }) })
     if (!response.ok) throw new Error('Sıfırlama başarısız')
@@ -41,20 +48,20 @@ function SourceCard({ source, run, summary, onStart, busy, serverNow }: { source
     <CardHeader>
       <CardTitle className="flex items-center gap-2"><Database aria-hidden="true" />{sourceLabels[source]}</CardTitle>
       <CardDescription>{source === 'transfermarkt' ? 'Piyasa değeri ve ayrıntılı mevki snapshotı' : 'Bağımsız takım ve oyuncu snapshotı'}</CardDescription>
-      <CardAction><Badge variant={statusVariant(stale ? 'stale' : run?.status)}>{stale ? 'stale' : run?.status ?? 'boş'}</Badge></CardAction>
+      <CardAction><Badge variant={statusVariant(displayStatus)}>{statusText}</Badge></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2"><div className="flex items-center justify-between gap-3 text-sm"><span className="truncate">{run?.stage ?? 'Henüz başlatılmadı'}</span><strong className="shrink-0">{completedLeagues}/{run?.totalLeagues ?? 0} tamamlandı</strong></div><Progress value={progress} aria-label={`${sourceLabels[source]} lig ilerlemesi`} /></div>
+      <div className="flex flex-col gap-2"><div className="flex items-center justify-between gap-3 text-sm"><span className="truncate">{stageLabels[run?.stage ?? ''] ?? run?.stage ?? 'Henüz başlatılmadı'}</span><strong className="shrink-0">{completedLeagues}/{run?.totalLeagues ?? 0} tamamlandı</strong></div><Progress value={progress} aria-label={`${sourceLabels[source]} lig ilerlemesi`} /></div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[['Takımlar', `${summary?.successfulTeams ?? 0}/${summary?.discoveredTeams ?? 0}`], ['Oyuncular', `${summary?.successfulPlayers ?? 0}/${summary?.discoveredPlayers ?? 0}`], ['Hatalı öğe', String(uniqueFailures)], ['Tekrar', String(summary?.repeatedErrors ?? 0)]].map(([label, value]) => <div key={label} className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-lg font-semibold">{value}</p></div>)}
+        {[['Başarılı takımlar', `${summary?.successfulTeams ?? 0}/${summary?.discoveredTeams ?? 0}`], ['Aktarılan oyuncular', String(summary?.successfulPlayers ?? 0)], ['Benzersiz hatalı öğe', String(uniqueFailures)], ['Yeniden deneme', String(retries)]].map(([label, value]) => <div key={label} className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-lg font-semibold">{value}</p></div>)}
       </div>
-      <p className="text-xs leading-relaxed text-muted-foreground">Takım ve oyuncu sayaçları başarılı / keşfedilen benzersiz öğeleri gösterir. Tekrar denemeleri toplam öğe sayısına dahil edilmez.</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">Takımlar başarılı / keşfedilen benzersiz kayıtları, oyuncular başarıyla kaydedilen benzersiz profilleri gösterir.</p>
       <dl className="grid gap-2 text-sm">
-        <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Heartbeat</dt><dd>{date(run?.heartbeatAt)}</dd></div>
-        <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Aktif öğe</dt><dd className="max-w-52 truncate text-right">{run?.activeTeam ?? run?.activeLeague ?? '—'}</dd></div>
-        <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Son başarılı tamamlama</dt><dd>{run?.status === 'completed' ? date(run.finishedAt) : '—'}</dd></div>
+        <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Son sistem sinyali</dt><dd>{date(run?.heartbeatAt)}</dd></div>
+        <div className="flex justify-between gap-4"><dt className="text-muted-foreground">{stale || run?.status === 'completed' ? 'Son işlenen öğe' : 'İşlenen öğe'}</dt><dd className="max-w-52 truncate text-right">{run?.activeTeam ?? run?.activeLeague ?? '—'}</dd></div>
+        <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Son başarılı kayıt</dt><dd>{date(summary?.latestCompletedAt)}</dd></div>
       </dl>
-      {run?.errorMessage ? <div className="flex gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"><AlertTriangle aria-hidden="true" /><span>{run.errorMessage}</span></div> : null}
+      {run?.errorMessage ? <div className="flex gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"><AlertTriangle aria-hidden="true" /><span><strong>Son hata:</strong> {run.errorMessage}</span></div> : null}
     </CardContent>
     <CardFooter className="justify-between gap-2">
       <Button onClick={() => onStart(source)} disabled={busy || ['queued','running'].includes(run?.status ?? '')}><Play data-icon="inline-start" />{run ? 'Devam et' : 'Başlat'}</Button>
