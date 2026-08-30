@@ -36,3 +36,13 @@ export function nameSimilarity(left: string, right: string): number {
   if (normalizedLeft === normalizedRight && normalizedLeft.length > 0) return 1
   return Number((tokenOverlap(normalizedLeft, normalizedRight) * 0.6 + characterSimilarity(normalizedLeft, normalizedRight) * 0.4).toFixed(5))
 }
+
+export function uniqueBestNameMatch<T>(sourceName: string, candidates: T[], getName: (candidate: T) => string) {
+  const ranked = candidates
+    .map((candidate) => ({ candidate, score: nameSimilarity(sourceName, getName(candidate)) }))
+    .sort((left, right) => right.score - left.score)
+  const best = ranked[0]
+
+  if (!best || ranked[1]?.score === best.score) return null
+  return best
+}

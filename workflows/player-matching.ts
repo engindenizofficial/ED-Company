@@ -13,7 +13,8 @@ async function executePlayerMatching(runId: string) {
       await saveMatchBatch(runId, decisions.slice(index, index + BATCH_SIZE))
     }
     await completePlayerMatchRun(runId)
-    return { processed: decisions.length }
+    const matched = decisions.filter((decision) => decision.level === 'matched').length
+    return { processed: decisions.length, matched, unmatched: decisions.length - matched }
   } catch (error) {
     await failPlayerMatchRun(runId, error)
     throw error

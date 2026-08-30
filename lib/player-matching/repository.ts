@@ -42,10 +42,9 @@ export async function saveMatchBatch(runId: string, decisions: MatchDecision[]) 
     for (const decision of decisions) {
       await client.query(`INSERT INTO player_match_result (id,"matchRunId","transfermarktPlayerId","apiFootballPlayerId","matchedLevel","normalizedTransfermarktName","normalizedApiFootballName","normalizedTeamName","birthDate","nameScore",metadata,"updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,now()) ON CONFLICT ("matchRunId","transfermarktPlayerId") DO UPDATE SET "apiFootballPlayerId"=excluded."apiFootballPlayerId","matchedLevel"=excluded."matchedLevel","normalizedTransfermarktName"=excluded."normalizedTransfermarktName","normalizedApiFootballName"=excluded."normalizedApiFootballName","normalizedTeamName"=excluded."normalizedTeamName","birthDate"=excluded."birthDate","nameScore"=excluded."nameScore",metadata=excluded.metadata,"updatedAt"=now()`, [randomUUID(), runId, String(decision.transfermarktPlayer.id), decision.apiFootballPlayer ? Number(decision.apiFootballPlayer.id) : null, decision.level, decision.normalizedTransfermarktName, decision.normalizedApiFootballName, decision.normalizedTeamName, decision.birthDate, decision.score, JSON.stringify({ reason: decision.reason ?? null })])
     }
-    const exact = decisions.filter((item) => item.level === 'exact_biographic').length
-    const fuzzy = decisions.filter((item) => item.level === 'fuzzy_name_birthdate').length
-    const unmatched = decisions.length - exact - fuzzy
-    await client.query(`UPDATE player_match_run SET "processedPlayers"="processedPlayers"+$2,"exactMatches"="exactMatches"+$3,"fuzzyMatches"="fuzzyMatches"+$4,"unmatchedPlayers"="unmatchedPlayers"+$5,"activePlayer"=$6,"heartbeatAt"=now(),"updatedAt"=now() WHERE id=$1`, [runId, decisions.length, exact, fuzzy, unmatched, decisions.at(-1)?.transfermarktPlayer.name])
+    const matched = decisions.filter((item) => item.level === 'matched').length
+    const unmatched = decisions.length - matched
+    await client.query(`UPDATE player_match_run SET "processedPlayers"="processedPlayers"+$2,"exactMatches"="exactMatches"+$3,"fuzzyMatches"=0,"unmatchedPlayers"="unmatchedPlayers"+$4,"activePlayer"=$5,"heartbeatAt"=now(),"updatedAt"=now() WHERE id=$1`, [runId, decisions.length, matched, unmatched, decisions.at(-1)?.transfermarktPlayer.name])
     await client.query('COMMIT')
   } catch (error) {
     await client.query('ROLLBACK')

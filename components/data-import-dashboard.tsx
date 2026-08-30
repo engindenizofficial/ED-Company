@@ -84,13 +84,13 @@ function MatchingCard({ run, onStart, busy, sourcesReady }: { run?: MatchingRun 
   return <Card className="xl:col-span-2">
     <CardHeader>
       <CardTitle className="flex items-center gap-2"><Activity aria-hidden="true" />Oyuncu eşleştirme</CardTitle>
-      <CardDescription>Transfermarkt ve API-Football oyuncularını doğum tarihi, takım ve isim benzerliğiyle bağlar.</CardDescription>
+      <CardDescription>Her Transfermarkt oyuncusunu aynı doğum tarihindeki en benzer isimli API-Football oyuncusuyla eşleştirir.</CardDescription>
       <CardAction><Badge variant={statusVariant(run?.status)}>{statusLabels[run?.status ?? ''] ?? 'Henüz yok'}</Badge></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-5">
       <div className="flex flex-col gap-2"><div className="flex items-center justify-between gap-3 text-sm"><span>{run?.stage === 'matching' ? `Eşleştiriliyor${run.activePlayer ? `: ${run.activePlayer}` : ''}` : run?.stage === 'loading' ? 'Snapshotlar hazırlanıyor' : stageLabels[run?.stage ?? ''] ?? 'Başlatılmaya hazır'}</span><strong className="shrink-0">{run?.processedPlayers ?? 0}/{run?.totalPlayers ?? 0}</strong></div><Progress value={progress} aria-label="Oyuncu eşleştirme ilerlemesi" /></div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[['Seviye 1', run?.exactMatches ?? 0], ['Seviye 2', run?.fuzzyMatches ?? 0], ['Unmatched', run?.unmatchedPlayers ?? 0], ['İşlenen', run?.processedPlayers ?? 0]].map(([label, value]) => <div key={label} className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-lg font-semibold">{value}</p></div>)}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {[['Eşleşen', run?.exactMatches ?? 0], ['Unmatched', run?.unmatchedPlayers ?? 0], ['İşlenen', run?.processedPlayers ?? 0]].map(([label, value]) => <div key={label} className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-lg font-semibold">{value}</p></div>)}
       </div>
       {run?.errorMessage ? <div className="flex gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"><AlertTriangle aria-hidden="true" /><span>{run.errorMessage}</span></div> : null}
       {!sourcesReady ? <p className="text-sm text-muted-foreground">Başlatmak için Transfermarkt ve API-Football aktarımlarının tamamlanması gerekir.</p> : null}
