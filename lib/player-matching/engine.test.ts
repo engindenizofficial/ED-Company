@@ -25,7 +25,7 @@ describe('birth-date and best-name player matching', () => {
   it('matches similar name spellings on the same birth date', () => {
     const [result] = matchPlayers([tm('1', 'Mehmet Yılmaz', '2000-01-02')], [af(10, 'M. Yilmaz', '2000-01-02')])
 
-    expect(result.level).toBe('matched')
+    expect(result.level).toBe('fuzzy_name_birthdate')
     expect(result.apiFootballPlayer?.id).toBe(10)
   })
 
@@ -35,14 +35,14 @@ describe('birth-date and best-name player matching', () => {
       [af(10, 'Pedro Silva', '1998-05-10', 'New Club')],
     )
 
-    expect(result.level).toBe('matched')
+    expect(result.level).toBe('fuzzy_name_birthdate')
     expect(result.apiFootballPlayer?.id).toBe(10)
   })
 
   it('matches the only same-date candidate even with a low name score', () => {
     const [result] = matchPlayers([tm('1', 'Completely Different', '1998-05-10')], [af(10, 'Other Person', '1998-05-10')])
 
-    expect(result.level).toBe('matched')
+    expect(result.level).toBe('fuzzy_name_birthdate')
     expect(result.apiFootballPlayer?.id).toBe(10)
   })
 
@@ -54,6 +54,7 @@ describe('birth-date and best-name player matching', () => {
     ])
 
     expect(result.apiFootballPlayer?.id).toBe(11)
+    expect(result.level).toBe('exact_biographic')
     expect(result.score).toBe(1)
   })
 
@@ -91,6 +92,6 @@ describe('birth-date and best-name player matching', () => {
     )
 
     expect(results.filter((result) => result.apiFootballPlayer?.id === 10)).toHaveLength(1)
-    expect(results.map((result) => result.level)).toEqual(['matched', 'unmatched'])
+    expect(results.map((result) => result.level)).toEqual(['exact_biographic', 'unmatched'])
   })
 })

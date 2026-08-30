@@ -13,8 +13,10 @@ async function executePlayerMatching(runId: string) {
       await saveMatchBatch(runId, decisions.slice(index, index + BATCH_SIZE))
     }
     await completePlayerMatchRun(runId)
-    const matched = decisions.filter((decision) => decision.level === 'matched').length
-    return { processed: decisions.length, matched, unmatched: decisions.length - matched }
+    const exactMatches = decisions.filter((decision) => decision.level === 'exact_biographic').length
+    const fuzzyMatches = decisions.filter((decision) => decision.level === 'fuzzy_name_birthdate').length
+    const unmatched = decisions.filter((decision) => decision.level === 'unmatched').length
+    return { processed: decisions.length, matched: exactMatches + fuzzyMatches, exactMatches, fuzzyMatches, unmatched }
   } catch (error) {
     await failPlayerMatchRun(runId, error)
     throw error

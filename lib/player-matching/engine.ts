@@ -2,7 +2,7 @@ import { normalizeDate, normalizeText } from './normalize'
 import { uniqueBestNameMatch } from './similarity'
 
 export type MatchPlayer = { id: string | number; name: string; birthDate: Date | string | null; teamName: string }
-export type MatchLevel = 'matched' | 'unmatched'
+export type MatchLevel = 'exact_biographic' | 'fuzzy_name_birthdate' | 'unmatched'
 export type MatchDecision = {
   transfermarktPlayer: MatchPlayer
   apiFootballPlayer: MatchPlayer | null
@@ -73,7 +73,10 @@ export function matchPlayers(transfermarktPlayers: MatchPlayer[], apiFootballPla
     return {
       ...base,
       apiFootballPlayer: selection.candidate,
-      level: 'matched',
+      level:
+        player.normalizedName === selection.candidate.normalizedName
+          ? 'exact_biographic'
+          : 'fuzzy_name_birthdate',
       score: selection.score,
       normalizedApiFootballName: selection.candidate.normalizedName,
     }
