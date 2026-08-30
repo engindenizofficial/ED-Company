@@ -130,6 +130,26 @@ type ApiTeam = { team: { id: number; name: string } }
 type ApiSquad = { team: { id: number; name: string }; players: Array<{ id: number; name: string; age?: number; number?: number; position?: string; photo?: string }> }
 type ApiPlayer = { player: { id: number; name: string; birth?: { date?: string } }; statistics?: Array<{ team?: { id: number; name: string } }> }
 
+async function fetchApiPlayerWithBirthDate(playerId: number, season: number) {
+  const maxAttempts = 3
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const details = await apiFootballFetch<ApiPlayer>(
+      '/players',
+      { id: playerId, season },
+      { cache: 'no-store' },
+    )
+    const detail = details[0]
+
+    if (detail?.player?.birth?.date) return detail
+    if (attempt < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 500))
+    }
+  }
+
+  throw new Error(`Oyuncu detayı veya doğum tarihi alınamadı (playerId=${playerId})`)
+}
+
 export async function importApiFootballLeagueStep(runId: string, league: ImportLeague, season: number) {
   'use step'
   await assertImportRunActive(runId)
@@ -157,10 +177,10 @@ export async function importApiFootballLeagueStep(runId: string, league: ImportL
         for (const squadPlayer of validSquadPlayers) {
           await assertImportRunActive(runId)
           if (await isCheckpointComplete(runId, 'player', String(squadPlayer.id))) continue
-          const details = await apiFootballFetch<ApiPlayer>('/players', { id: squadPlayer.id, season }, { cache: 'no-store' })
-          const detail = details[0]
-          const currentTeamName = detail?.statistics?.find((stat) => stat.team?.id === team.id)?.team?.name ?? team.name
-          await db.insert(apiFootballPlayerSnapshot).values({ sourceId: squadPlayer.id, runId, teamSourceId: team.id, name: detail?.player.name ?? squadPlayer.name, birthDate: detail?.player.birth?.date ? new Date(`${detail.player.birth.date}T00:00:00.000Z`) : null, currentTeamName, seenAt: new Date() }).onConflictDoUpdate({ target: apiFootballPlayerSnapshot.sourceId, set: { runId, teamSourceId: team.id, name: detail?.player.name ?? squadPlayer.name, birthDate: detail?.player.birth?.date ? new Date(`${detail.player.birth.date}T00:00:00.000Z`) : null, currentTeamName, seenAt: new Date() } })
+          const detail = await fetchApiPlayerWithBirthDate(squadPlayer.id, season)
+          const currentTeamName = detail.statistics?.find((stat) => stat.team?.id === team.id)?.team?.name ?? team.name
+          const birthDate = new Date(`${detail.player.birth!.date}T00:00:00.000Z`)
+          await db.insert(apiFootballPlayerSnapshot).values({ sourceId: squadPlayer.id, runId, teamSourceId: team.id, name: detail.player.name ?? squadPlayer.name, birthDate, currentTeamName, seenAt: new Date() }).onConflictDoUpdate({ target: apiFootballPlayerSnapshot.sourceId, set: { runId, teamSourceId: team.id, name: detail.player.name ?? squadPlayer.name, birthDate, currentTeamName, seenAt: new Date() } })
           await completeCheckpoint({ runId, source: 'api_football', kind: 'player', itemKey: String(squadPlayer.id), parentKey: teamKey })
           await incrementProgress(runId, 'processedPlayers')
           await incrementProgress(runId, 'successfulPlayers')
