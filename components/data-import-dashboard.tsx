@@ -19,7 +19,7 @@ const fetcher = (url: string) => fetch(url).then(async (response) => { if (!resp
 type Run = { id: string; source: ImportSource; status: string; stage: string; totalLeagues: number; processedLeagues: number; totalTeams: number; processedTeams: number; successfulTeams: number; failedTeams: number; totalPlayers: number; processedPlayers: number; successfulPlayers: number; failedPlayers: number; missingPlayers: number; activeLeague?: string | null; activeTeam?: string | null; activeUrl?: string | null; heartbeatAt: string; startedAt: string; finishedAt?: string | null; restartCount: number; errorType?: string | null; errorMessage?: string | null }
 type Checkpoint = { id: string; runId: string; kind: string; itemKey: string; parentKey?: string | null; status: string; updatedAt: string; metadata?: Record<string, unknown> }
 type ImportError = { id: string; runId: string; source: ImportSource; kind: string; itemKey?: string | null; errorType: string; message: string; retryable: boolean; occurrences: number; createdAt: string }
-type RunSummary = { runId: string; discoveredTeams: number; successfulTeams: number; discoveredPlayers: number; successfulPlayers: number; failedTeams: number; failedPlayers: number; failedLeagues: number; uniqueErrors: number; repeatedErrors: number }
+type RunSummary = { runId: string; completedLeagues: number; discoveredTeams: number; successfulTeams: number; discoveredPlayers: number; successfulPlayers: number; failedTeams: number; failedPlayers: number; failedLeagues: number; uniqueErrors: number; repeatedErrors: number }
 type DashboardData = { available: boolean; message?: string; serverNow: string; runs: Partial<Record<ImportSource, Run>>; checkpoints: Checkpoint[]; errors: ImportError[]; summaries: Record<string, RunSummary> }
 
 const sourceLabels: Record<ImportSource, string> = { transfermarkt: 'Transfermarkt', api_football: 'API-Football' }
@@ -28,7 +28,8 @@ const date = (value?: string | null) => value ? new Intl.DateTimeFormat('tr-TR',
 
 function SourceCard({ source, run, summary, onStart, busy, serverNow }: { source: ImportSource; run?: Run; summary?: RunSummary; onStart: (source: ImportSource) => void; busy: boolean; serverNow?: string }) {
   const [phrase, setPhrase] = useState('')
-  const progress = run ? Math.min(100, Math.round((run.processedLeagues / Math.max(1, run.totalLeagues)) * 100)) : 0
+  const completedLeagues = summary?.completedLeagues ?? 0
+  const progress = run ? Math.min(100, Math.round((completedLeagues / Math.max(1, run.totalLeagues)) * 100)) : 0
   const uniqueFailures = (summary?.failedTeams ?? 0) + (summary?.failedPlayers ?? 0) + (summary?.failedLeagues ?? 0)
   const stale = Boolean(run?.status === 'running' && serverNow && new Date(serverNow).getTime() - new Date(run.heartbeatAt).getTime() > 180_000)
   async function reset() {
@@ -43,7 +44,7 @@ function SourceCard({ source, run, summary, onStart, busy, serverNow }: { source
       <CardAction><Badge variant={statusVariant(stale ? 'stale' : run?.status)}>{stale ? 'stale' : run?.status ?? 'boş'}</Badge></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2"><div className="flex items-center justify-between gap-3 text-sm"><span className="truncate">{run?.stage ?? 'Henüz başlatılmadı'}</span><strong className="shrink-0">{run?.processedLeagues ?? 0}/{run?.totalLeagues ?? 0} lig</strong></div><Progress value={progress} aria-label={`${sourceLabels[source]} lig ilerlemesi`} /></div>
+      <div className="flex flex-col gap-2"><div className="flex items-center justify-between gap-3 text-sm"><span className="truncate">{run?.stage ?? 'Henüz başlatılmadı'}</span><strong className="shrink-0">{completedLeagues}/{run?.totalLeagues ?? 0} tamamlandı</strong></div><Progress value={progress} aria-label={`${sourceLabels[source]} lig ilerlemesi`} /></div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[['Takımlar', `${summary?.successfulTeams ?? 0}/${summary?.discoveredTeams ?? 0}`], ['Oyuncular', `${summary?.successfulPlayers ?? 0}/${summary?.discoveredPlayers ?? 0}`], ['Hatalı öğe', String(uniqueFailures)], ['Tekrar', String(summary?.repeatedErrors ?? 0)]].map(([label, value]) => <div key={label} className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-mono text-lg font-semibold">{value}</p></div>)}
       </div>
