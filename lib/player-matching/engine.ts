@@ -1,5 +1,5 @@
 import { normalizeDate, normalizeText } from './normalize'
-import { uniqueBestNameMatch } from './similarity'
+import { analyzeNameEvidence } from './similarity'
 
 export type MatchPlayer = { id: string | number; name: string; birthDate: Date | string | null; teamName: string }
 export type MatchLevel = 'exact_biographic' | 'fuzzy_name_birthdate' | 'unmatched'
@@ -28,57 +28,92 @@ const prepare = (player: MatchPlayer): Prepared => ({
   normalizedBirthDate: normalizeDate(player.birthDate),
 })
 
-export function matchPlayers(transfermarktPlayers: MatchPlayer[], apiFootballPlayers: MatchPlayer[]): MatchDecision[] {
-  const byBirthDate = new Map<string, Prepared[]>()
+type CandidateEdge = {
+  transfermarktIndex: number
+  apiFootballIndex: number
+  rank: number
+  score: number
+}
 
-  for (const player of apiFootballPlayers.map(prepare)) {
-    if (!player.normalizedBirthDate) continue
-    const candidates = byBirthDate.get(player.normalizedBirthDate) ?? []
-    candidates.push(player)
-    byBirthDate.set(player.normalizedBirthDate, candidates)
+function compareEdges(left: CandidateEdge, right: CandidateEdge) {
+  return right.rank - left.rank || right.score - left.score
+}
+
+export function matchPlayers(transfermarktPlayers: MatchPlayer[], apiFootballPlayers: MatchPlayer[]): MatchDecision[] {
+  const preparedTransfermarkt = transfermarktPlayers.map(prepare)
+  const preparedApiFootball = apiFootballPlayers.map(prepare)
+  const apiByBirthDate = new Map<string, number[]>()
+
+  preparedApiFootball.forEach((player, index) => {
+    if (!player.normalizedBirthDate) return
+    const candidates = apiByBirthDate.get(player.normalizedBirthDate) ?? []
+    candidates.push(index)
+    apiByBirthDate.set(player.normalizedBirthDate, candidates)
+  })
+
+  const edges: CandidateEdge[] = []
+  preparedTransfermarkt.forEach((player, transfermarktIndex) => {
+    if (!player.normalizedBirthDate) return
+    for (const apiFootballIndex of apiByBirthDate.get(player.normalizedBirthDate) ?? []) {
+      const evidence = analyzeNameEvidence(player.normalizedName, preparedApiFootball[apiFootballIndex].normalizedName)
+      if (evidence.accepted) edges.push({ transfermarktIndex, apiFootballIndex, rank: evidence.rank, score: evidence.score })
+    }
+  })
+
+  const unambiguousEdges = edges.filter((edge) => {
+    const transfermarktAlternatives = edges.filter(
+      (candidate) => candidate.transfermarktIndex === edge.transfermarktIndex && candidate.apiFootballIndex !== edge.apiFootballIndex,
+    )
+    const apiFootballAlternatives = edges.filter(
+      (candidate) => candidate.apiFootballIndex === edge.apiFootballIndex && candidate.transfermarktIndex !== edge.transfermarktIndex,
+    )
+    const equallyStrong = (candidate: CandidateEdge) => candidate.rank === edge.rank && candidate.score === edge.score
+    return !transfermarktAlternatives.some(equallyStrong) && !apiFootballAlternatives.some(equallyStrong)
+  })
+
+  const selectedByTransfermarkt = new Map<number, CandidateEdge>()
+  const usedApiFootball = new Set<number>()
+  for (const edge of unambiguousEdges.sort(compareEdges)) {
+    if (selectedByTransfermarkt.has(edge.transfermarktIndex) || usedApiFootball.has(edge.apiFootballIndex)) continue
+    selectedByTransfermarkt.set(edge.transfermarktIndex, edge)
+    usedApiFootball.add(edge.apiFootballIndex)
   }
 
-  const usedApiIds = new Set<string>()
-
-  return transfermarktPlayers.map((rawPlayer): MatchDecision => {
-    const player = prepare(rawPlayer)
+  return transfermarktPlayers.map((rawPlayer, transfermarktIndex): MatchDecision => {
+    const player = preparedTransfermarkt[transfermarktIndex]
     const base = {
       transfermarktPlayer: rawPlayer,
       normalizedTransfermarktName: player.normalizedName,
       normalizedTeamName: player.normalizedTeam,
       birthDate: player.normalizedBirthDate,
     }
+    const selected = selectedByTransfermarkt.get(transfermarktIndex)
 
-    if (!player.normalizedBirthDate) {
-      return { ...base, apiFootballPlayer: null, level: 'unmatched', score: null, normalizedApiFootballName: null, reason: 'missing_birth_date' }
-    }
-
-    const available = (byBirthDate.get(player.normalizedBirthDate) ?? []).filter(
-      (candidate) => !usedApiIds.has(String(candidate.id)),
-    )
-    const selection = uniqueBestNameMatch(player.normalizedName, available, (candidate) => candidate.normalizedName)
-
-    if (!selection) {
+    if (!selected) {
+      const sameDateCandidates = player.normalizedBirthDate ? apiByBirthDate.get(player.normalizedBirthDate) ?? [] : []
       return {
         ...base,
         apiFootballPlayer: null,
         level: 'unmatched',
         score: null,
         normalizedApiFootballName: null,
-        reason: available.length ? 'tied_best_name_score' : 'no_birth_date_candidate',
+        reason: !player.normalizedBirthDate
+          ? 'missing_birth_date'
+          : sameDateCandidates.length
+            ? edges.some((edge) => edge.transfermarktIndex === transfermarktIndex)
+              ? 'ambiguous_name_match'
+              : 'insufficient_name_evidence'
+            : 'no_birth_date_candidate',
       }
     }
 
-    usedApiIds.add(String(selection.candidate.id))
+    const candidate = preparedApiFootball[selected.apiFootballIndex]
     return {
       ...base,
-      apiFootballPlayer: selection.candidate,
-      level:
-        player.normalizedName === selection.candidate.normalizedName
-          ? 'exact_biographic'
-          : 'fuzzy_name_birthdate',
-      score: selection.score,
-      normalizedApiFootballName: selection.candidate.normalizedName,
+      apiFootballPlayer: candidate,
+      level: player.normalizedName === candidate.normalizedName ? 'exact_biographic' : 'fuzzy_name_birthdate',
+      score: selected.score,
+      normalizedApiFootballName: candidate.normalizedName,
     }
   })
 }

@@ -39,11 +39,33 @@ describe('birth-date and best-name player matching', () => {
     expect(result.apiFootballPlayer?.id).toBe(10)
   })
 
-  it('matches the only same-date candidate even with a low name score', () => {
+  it('does not force the only same-date candidate when names provide no identity evidence', () => {
     const [result] = matchPlayers([tm('1', 'Completely Different', '1998-05-10')], [af(10, 'Other Person', '1998-05-10')])
+
+    expect(result.level).toBe('unmatched')
+    expect(result.apiFootballPlayer).toBeNull()
+    expect(result.reason).toBe('insufficient_name_evidence')
+  })
+
+  it.each([
+    ['Kepa Arrizabalaga', 'Kepa'],
+    ['Konstantinos Tsimikas', 'K. Tsimikas'],
+    ['Frank Anguissa', 'A. Zambo Anguissa'],
+    ['Mikel Gogorza', 'Mikel Johan Gogorza Krüger-Johnsen'],
+  ])('recognizes structured name variants: %s and %s', (transfermarktName, apiName) => {
+    const [result] = matchPlayers([tm('1', transfermarktName, '1998-05-10')], [af(10, apiName, '1998-05-10')])
 
     expect(result.level).toBe('fuzzy_name_birthdate')
     expect(result.apiFootballPlayer?.id).toBe(10)
+  })
+
+  it('does not use team names as matching evidence', () => {
+    const [result] = matchPlayers(
+      [tm('1', 'Completely Different', '1998-05-10', 'Shared Club')],
+      [af(10, 'Other Person', '1998-05-10', 'Shared Club')],
+    )
+
+    expect(result.level).toBe('unmatched')
   })
 
   it('selects the highest name score among same-date candidates', () => {
@@ -63,7 +85,7 @@ describe('birth-date and best-name player matching', () => {
       label: 'tied best score',
       transfermarkt: tm('1', 'Same Name', '2000-01-01'),
       candidates: [af(10, 'Same Name', '2000-01-01'), af(11, 'Same Name', '2000-01-01')],
-      reason: 'tied_best_name_score',
+      reason: 'ambiguous_name_match',
     },
     {
       label: 'missing birth date',
@@ -91,7 +113,17 @@ describe('birth-date and best-name player matching', () => {
       [af(10, 'Alex Smith', '2000-01-01')],
     )
 
-    expect(results.filter((result) => result.apiFootballPlayer?.id === 10)).toHaveLength(1)
-    expect(results.map((result) => result.level)).toEqual(['exact_biographic', 'unmatched'])
+    expect(results.filter((result) => result.apiFootballPlayer?.id === 10)).toHaveLength(0)
+    expect(results.map((result) => result.level)).toEqual(['unmatched', 'unmatched'])
+  })
+
+  it('selects same-date pairs globally instead of consuming candidates in input order', () => {
+    const results = matchPlayers(
+      [tm('1', 'Hugo Ekitike', '2002-06-20'), tm('2', 'Siraçhan Nas', '2002-06-20')],
+      [af(10, 'H. Ekitike', '2002-06-20'), af(11, 'Filip Lehky', '2002-06-20')],
+    )
+
+    expect(results[0].apiFootballPlayer?.id).toBe(10)
+    expect(results[1].apiFootballPlayer).toBeNull()
   })
 })
