@@ -6,6 +6,7 @@ import {
   parseDate,
   parseLeagueTeams,
   parseMarketValueEur,
+  parseOverviewMarketValue,
   parsePlayerDetail,
   parseTeamSquad,
   TransfermarktParseError,
@@ -21,6 +22,17 @@ describe('Transfermarkt fixture parser', () => {
     expect(parseMarketValueEur('€850k')).toBe(850_000)
     expect(parseMarketValueEur('€1.2bn')).toBe(1_200_000_000)
     expect(parseDate('29.12.1998')).toBe('1998-12-29')
+  })
+
+  it('extracts source-provided team and league totals without summing players', () => {
+    expect(parseOverviewMarketValue('<main><span>Total market value:</span><strong>€1.18bn</strong></main>')).toEqual({
+      marketValueRaw: '€1.18bn',
+      marketValueEur: 1_180_000_000,
+    })
+    expect(parseOverviewMarketValue('<main><div class="data-header__market-value-wrapper">€347.50m</div></main>')).toEqual({
+      marketValueRaw: '€347.50m',
+      marketValueEur: 347_500_000,
+    })
   })
 
   it('builds season-specific competition and full-squad URLs', () => {

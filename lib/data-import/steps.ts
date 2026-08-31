@@ -8,7 +8,7 @@ import { type ImportLeague, type ImportSource } from './scope'
 import { assertImportRunActive, completeCheckpoint, failCheckpoint, failRun, finishRun, getImportErrorCount, heartbeat, IMPORT_CANCELLED_ERROR, incrementProgress, isCheckpointComplete, recordImportError } from './repository'
 import { fetchTransfermarktHtml } from './transfermarkt-http'
 import { fetchApiPlayerProfile, parseApiBirthDate } from './api-football-player'
-import { buildTeamSquadUrl, parseLeagueTeams, parsePlayerDetail, parseTeamSquad } from './transfermarkt-parser'
+import { buildTeamSquadUrl, parseLeagueTeams, parseOverviewMarketValue, parsePlayerDetail, parseTeamSquad } from './transfermarkt-parser'
 
 export async function prepareImportStep(runId: string, source: ImportSource) {
   'use step'
@@ -23,7 +23,9 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
   if (!calendarYearRetry && await isCheckpointComplete(runId, 'league', league.transfermarktId)) return true
   await heartbeat(runId, { stage: 'league-teams', activeLeague: league.name, activeUrl: league.transfermarktUrl })
   try {
-    const teams = parseLeagueTeams(await fetchTransfermarktHtml(league.transfermarktUrl))
+    const leagueHtml = await fetchTransfermarktHtml(league.transfermarktUrl)
+    const teams = parseLeagueTeams(leagueHtml)
+    const leagueMarketValue = parseOverviewMarketValue(leagueHtml)
     await db.insert(transfermarktLeague).values({ sourceId: league.transfermarktId, runId, name: league.name, country: league.country, sourceUrl: league.transfermarktUrl, seenAt: new Date() }).onConflictDoUpdate({ target: transfermarktLeague.sourceId, set: { runId, name: league.name, country: league.country, sourceUrl: league.transfermarktUrl, seenAt: new Date() } })
     let discoveredTeams = 0
     for (const team of teams) {
@@ -44,7 +46,9 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
       }
       await heartbeat(runId, { stage: 'team-squad', activeTeam: team.name, activeUrl: squadUrl })
       try {
-        const squad = parseTeamSquad(await fetchTransfermarktHtml(squadUrl))
+        const squadHtml = await fetchTransfermarktHtml(squadUrl)
+        const squad = parseTeamSquad(squadHtml)
+        const teamMarketValue = parseOverviewMarketValue(squadHtml)
         await db.insert(transfermarktTeam).values({ sourceId: team.sourceId, runId, leagueSourceId: league.transfermarktId, name: team.name, sourceUrl: team.url, seenAt: new Date() }).onConflictDoUpdate({ target: transfermarktTeam.sourceId, set: { runId, leagueSourceId: league.transfermarktId, name: team.name, sourceUrl: team.url, seenAt: new Date() } })
         let discoveredPlayers = 0
         for (const player of squad) {
@@ -87,7 +91,7 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
         }
         await incrementProgress(runId, 'processedTeams')
         if (teamComplete) {
-          await completeCheckpoint({ runId, source: 'transfermarkt', kind: 'team', itemKey: team.sourceId, parentKey: league.transfermarktId, url: squadUrl, metadata: { players: squad.length, detailedPlayers: squad.length } })
+          await completeCheckpoint({ runId, source: 'transfermarkt', kind: 'team', itemKey: team.sourceId, parentKey: league.transfermarktId, url: squadUrl, metadata: { players: squad.length, detailedPlayers: squad.length, marketValueRaw: teamMarketValue.marketValueRaw, marketValueEur: teamMarketValue.marketValueEur } })
           await incrementProgress(runId, 'successfulTeams')
         } else {
           if (hasRetryablePlayerFailure) {
@@ -112,7 +116,7 @@ export async function importTransfermarktLeagueStep(runId: string, league: Impor
     }
     await incrementProgress(runId, 'processedLeagues')
     if (leagueComplete) {
-      await completeCheckpoint({ runId, source: 'transfermarkt', kind: 'league', itemKey: league.transfermarktId, url: league.transfermarktUrl, metadata: { teams: teams.length } })
+      await completeCheckpoint({ runId, source: 'transfermarkt', kind: 'league', itemKey: league.transfermarktId, url: league.transfermarktUrl, metadata: { teams: teams.length, marketValueRaw: leagueMarketValue.marketValueRaw, marketValueEur: leagueMarketValue.marketValueEur } })
       await incrementProgress(runId, 'successfulLeagues')
     } else {
       await incrementProgress(runId, 'failedLeagues')

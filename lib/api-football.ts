@@ -20,6 +20,7 @@ import type {
 import { toTurkishCountry } from "./tr-aliases"
 import { apiFootballFetch, safeApiFootballFetch } from "./api-football-client"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
+import { getPlayerMarketValue, getPlayerMarketValues, getTeamMarketValue } from "./transfermarkt-market-values"
 
 type ApiData = ReturnType<JSON["parse"]>
 
@@ -254,6 +255,7 @@ export async function getPlayerBasicProfile(playerId: number): Promise<PlayerPro
   const entry = playerRaw[0]
   const p = entry.player ?? {}
   const currentStats = entry.statistics?.[0] ?? {}
+  const marketValueEur = await getPlayerMarketValue(playerId)
 
   return {
     id: p.id ?? 0,
@@ -283,7 +285,7 @@ export async function getPlayerBasicProfile(playerId: number): Promise<PlayerPro
           season: currentStats.league.season,
         }
       : null,
-    marketValueEur: null,
+    marketValueEur,
   }
 }
 
@@ -313,12 +315,16 @@ export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | 
   if (!teamRaw || teamRaw.length === 0) return null
 
   const rawTeam = teamRaw[0]
+  const [flagUrl, marketValueEur] = await Promise.all([
+    getCountryFlagUrl(rawTeam.team.country ?? null),
+    getTeamMarketValue(teamId),
+  ])
   const team: TeamInfo = {
     id: rawTeam.team.id,
     name: rawTeam.team.name,
     logo: rawTeam.team.logo,
     country: toTurkishCountry(rawTeam.team.country ?? ""),
-    flagUrl: await getCountryFlagUrl(rawTeam.team.country ?? null),
+    flagUrl,
   }
 
   return {
@@ -330,7 +336,7 @@ export async function getTeamBasicInfo(teamId: number): Promise<TeamBasicInfo | 
       image: rawTeam.venue?.image ?? null,
     },
     currentSeason: currentSeason(),
-    marketValueEur: null,
+    marketValueEur,
   }
 }
 
@@ -581,6 +587,7 @@ export async function getSquad(teamId: number): Promise<SquadPlayer[]> {
   const raw = await safeFetch<ApiData>("/players/squads", { team: teamId }, 3600)
   if (!raw.length) return []
   const players: ApiData[] = raw[0]?.players ?? []
+  const marketValues = await getPlayerMarketValues(players.map((player) => player.id ?? 0))
   return players.map((p) => ({
     id: p.id ?? 0,
     name: p.name ?? "",
@@ -588,9 +595,7 @@ export async function getSquad(teamId: number): Promise<SquadPlayer[]> {
     number: p.number ?? null,
     pos: p.position ?? null,
     photo: p.photo ?? null,
-    // Bu fonksiyon maç analiz paneli (homeSquad/awaySquad) ve eşleştirme
-    // modülü tarafından kullanılıyor — piyasa değeri orada gösterilmiyor.
-    marketValueEur: null,
+    marketValueEur: marketValues.get(p.id ?? 0) ?? null,
   }))
 }
 
