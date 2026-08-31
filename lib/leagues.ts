@@ -243,3 +243,11 @@ export const FEATURED_LEAGUES: FeaturedLeague[] = [
 /** `FEATURED_LEAGUES`'ten türetilen sıralı id listesi — asla elle düzenlenmez. */
 export const FEATURED_LEAGUE_IDS: number[] = FEATURED_LEAGUES.map((l) => l.id)
 
+/** Piyasa Değeri Düellosu'nda seçilebilen ulusal ligler. */
+export const DUEL_SELECTABLE_LEAGUES: FeaturedLeague[] = FEATURED_LEAGUES.filter(
+  (league) => ![2, 3, 848, 531].includes(league.id),
+)
+
+/** `DUEL_SELECTABLE_LEAGUES`'ten türetilen id listesi. */
+export const DUEL_SELECTABLE_LEAGUE_IDS: number[] = DUEL_SELECTABLE_LEAGUES.map((league) => league.id)
+
