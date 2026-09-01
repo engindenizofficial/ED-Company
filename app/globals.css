@@ -407,20 +407,20 @@
 
 .arena-scope {
   color-scheme: dark;
-  color: var(--foreground);
   --background: oklch(0.1 0.014 250);
   --foreground: oklch(0.96 0.006 240);
   --card: oklch(0.15 0.02 250);
   --card-foreground: oklch(0.96 0.006 240);
-  --border: oklch(0.26 0.03 250);
-  --muted: oklch(0.19 0.02 250);
-  --muted-foreground: oklch(0.7 0.02 245);
-  --secondary: oklch(0.19 0.02 250);
-  --secondary-foreground: oklch(0.9 0.008 240);
+  --border: oklch(0.32 0.03 250);
+  --muted: oklch(0.21 0.02 250);
+  --muted-foreground: oklch(0.8 0.018 245);
+  --secondary: oklch(0.21 0.02 250);
+  --secondary-foreground: oklch(0.94 0.008 240);
   --primary: oklch(0.72 0.19 152);
   --primary-foreground: oklch(0.12 0.02 160);
   --destructive: oklch(0.64 0.22 25);
   --destructive-foreground: oklch(0.99 0.005 25);
+  color: var(--foreground);
 }
 
 .arena-bg {

@@ -53,7 +53,7 @@ export function DuelPlayerCard({
       whileHover={!disabled ? { y: -6, scale: 1.015 } : undefined}
       whileTap={!disabled ? { scale: 0.98 } : undefined}
       className={cn(
-        "group relative flex w-full min-w-0 flex-col items-center overflow-hidden rounded-2xl border bg-card px-2 pb-3 pt-4 text-center transition-all duration-300 sm:rounded-3xl sm:px-5 sm:pb-6 sm:pt-9",
+        "group relative flex w-full min-w-0 flex-col items-center overflow-hidden rounded-2xl border bg-card px-2 pb-3 pt-4 text-center text-card-foreground transition-all duration-300 sm:rounded-3xl sm:px-5 sm:pb-6 sm:pt-9",
         !revealed &&
           "border-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_20px_40px_-20px_rgba(0,0,0,0.6)] hover:border-primary/60 hover:shadow-[0_0_0_1px_color-mix(in_oklch,var(--primary)_50%,transparent),0_0_36px_-8px_var(--primary)]",
         revealed && isCorrect && "border-primary shadow-[0_0_0_1px_var(--primary),0_0_50px_-12px_var(--primary)]",

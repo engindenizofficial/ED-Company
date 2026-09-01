@@ -287,11 +287,11 @@ export function MarketValueDuelGame() {
   const dailyAttemptUnavailable = dailyAttemptUsed || (!session?.user && typeof window !== "undefined" && hasGuestDailyAttempt(window.localStorage, getIstanbulDayKey()))
 
   if (phase === "select-mode") return (
-    <div className="flex min-h-[440px] flex-col items-center justify-center gap-5 py-5">
+    <div className="flex min-h-[440px] flex-col items-center justify-center gap-5 py-5 text-foreground">
       <div className="flex flex-col items-center gap-2 text-center"><Swords className="size-9 text-primary" /><h2 className="text-2xl font-black uppercase italic">Market Value Duel</h2><p className="max-w-md text-sm leading-relaxed text-muted-foreground">{t("duel.chooseMode")}</p></div>
       <div className="grid w-full max-w-lg gap-3 sm:grid-cols-2">
-        <button type="button" onClick={() => { setMode('normal'); setPhase('select-difficulty') }} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left hover:border-primary"><Trophy className="size-6 text-primary" /><strong>{t("duel.normalGame")}</strong><span className="text-sm text-muted-foreground">{t("duel.chooseDifficultyDesc")}</span></button>
-        <button type="button" onClick={() => void startDailyGame()} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left hover:border-primary"><Clock3 className="size-6 text-primary" /><strong>{t("duel.dailyChallenge")}</strong><span className="text-sm font-semibold text-primary">{t("duel.dailyFixedSettings")}</span><span className="text-sm text-muted-foreground">{t(dailyAttemptUnavailable ? "duel.dailyAttemptUsed" : "duel.dailyAttemptAvailable")}</span></button>
+        <button type="button" onClick={() => { setMode('normal'); setPhase('select-difficulty') }} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left text-card-foreground hover:border-primary"><Trophy className="size-6 text-primary" /><strong>{t("duel.normalGame")}</strong><span className="text-sm text-muted-foreground">{t("duel.chooseDifficultyDesc")}</span></button>
+        <button type="button" onClick={() => void startDailyGame()} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left text-card-foreground hover:border-primary"><Clock3 className="size-6 text-primary" /><strong>{t("duel.dailyChallenge")}</strong><span className="text-sm font-semibold text-primary">{t("duel.dailyFixedSettings")}</span><span className="text-sm text-muted-foreground">{t(dailyAttemptUnavailable ? "duel.dailyAttemptUsed" : "duel.dailyAttemptAvailable")}</span></button>
       </div>
       {session?.user && dailyLeaderboard.length > 0 && <div className="flex w-full max-w-lg flex-col gap-2 rounded-2xl border bg-card p-4"><p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("duel.leaderboard")}</p><ol className="flex flex-col gap-2">{dailyLeaderboard.slice(0, 5).map((entry) => <li key={`${entry.rank}-${entry.name}`} className="flex items-center justify-between gap-3 text-sm"><span className="truncate font-bold">#{entry.rank} {entry.name}</span><span className="tabular-nums text-muted-foreground">{entry.score}</span></li>)}</ol></div>}
       {!session?.user && <p className="max-w-md text-center text-sm text-muted-foreground">{t("duel.guestLeaderboardNotice")}</p>}
@@ -299,7 +299,7 @@ export function MarketValueDuelGame() {
   )
 
   if (phase === "select-difficulty") return (
-    <div className="flex min-h-[440px] flex-col items-center justify-center gap-8 py-6">
+    <div className="flex min-h-[440px] flex-col items-center justify-center gap-8 py-6 text-foreground">
       <div className="flex flex-col items-center gap-2 text-center">
         <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/15 text-primary ring-1 ring-primary/30"><Swords className="size-6" /></div>
         <h2 className="text-xl font-black uppercase italic tracking-tight text-foreground">{t("duel.chooseDifficulty")}</h2>
@@ -319,7 +319,7 @@ export function MarketValueDuelGame() {
 
   if (phase === "select-leagues") {
     const allSelected = selectedLeagueIds.size === ALL_LEAGUE_IDS.length
-    return <div className="flex min-h-[440px] flex-col items-center gap-6 py-6">
+    return <div className="flex min-h-[440px] flex-col items-center gap-6 py-6 text-foreground">
       <div className="flex flex-col items-center gap-2 text-center"><Globe2 className="size-8 text-primary" /><h2 className="text-xl font-black uppercase italic">{t("duel.chooseLeagues")}</h2><p className="max-w-sm text-sm leading-relaxed text-muted-foreground">{t("duel.chooseLeaguesDesc")}</p></div>
       <div className="flex w-full max-w-2xl flex-wrap justify-center gap-2">
         <button type="button" onClick={() => setSelectedLeagueIds(allSelected ? new Set() : new Set(ALL_LEAGUE_IDS))} className={cn("rounded-full border px-4 py-2 text-xs font-bold", allSelected ? "border-primary bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground")}>{allSelected && <Check className="mr-1 inline size-3" />}{t("duel.allLeagues")}</button>
@@ -330,7 +330,7 @@ export function MarketValueDuelGame() {
     </div>
   }
 
-  if (phase === "finished") return <div className="flex min-h-[440px] flex-col items-center justify-center gap-6 rounded-3xl border border-primary/20 bg-card p-6 text-center">
+  if (phase === "finished") return <div className="flex min-h-[440px] flex-col items-center justify-center gap-6 rounded-3xl border border-primary/20 bg-card p-6 text-center text-card-foreground">
     <div className="flex size-16 items-center justify-center rounded-full bg-primary/15 text-primary"><Trophy className="size-8" /></div>
     <div className="flex flex-col gap-2"><p className="text-xs font-bold uppercase tracking-widest text-primary">{t("duel.gameComplete")}</p><h2 className="text-3xl font-black italic text-balance">{score} {t("duel.points")}</h2><p className="text-sm text-muted-foreground">{t("duel.resultSummary", { correct: correctCount, total: TOTAL_ROUNDS })}</p></div>
     <div className="grid w-full max-w-md grid-cols-2 gap-2 sm:grid-cols-4"><ResultStat label={t("duel.accuracy")} value={`${accuracy}%`} /><ResultStat label={t("duel.correctAnswers")} value={`${correctCount}/${roundNumber}`} /><ResultStat label={t("duel.bestStreak")} value={String(bestStreak)} /><ResultStat label={t("duel.lives")} value={`${lives}/3`} /></div>
@@ -341,7 +341,7 @@ export function MarketValueDuelGame() {
     <div className="flex flex-wrap justify-center gap-3">{mode === "normal" && <button type="button" onClick={startGame} className="rounded-full bg-primary px-6 py-2.5 text-sm font-black uppercase text-primary-foreground"><RotateCcw className="mr-2 inline size-4" />{t("duel.playAgain")}</button>}<button type="button" onClick={resetSelections} className="rounded-full border border-border px-6 py-2.5 text-sm font-bold">{mode === "daily" ? t("duel.backToModes") : t("duel.changeSettings")}</button></div>
   </div>
 
-  return <div className="flex flex-col gap-5">
+  return <div className="flex flex-col gap-5 text-foreground">
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-card px-4 py-3">
       <Hud icon={Trophy} label={t("duel.score")} value={String(score)} />
       <div className="flex flex-col items-center gap-1"><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("duel.roundOf", { current: roundNumber, total: TOTAL_ROUNDS })}</span><div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${roundNumber * 10}%` }} /></div></div>
@@ -378,5 +378,5 @@ function Hud({ icon: Icon, label, value }: { icon: typeof Trophy; label: string;
 }
 
 function ResultStat({ label, value }: { label: string; value: string }) {
-  return <div className="flex flex-col gap-1 rounded-xl bg-muted p-3"><span className="text-xl font-black tabular-nums">{value}</span><span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</span></div>
+  return <div className="flex flex-col gap-1 rounded-xl bg-muted p-3 text-foreground"><span className="text-xl font-black tabular-nums text-foreground">{value}</span><span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</span></div>
 }
