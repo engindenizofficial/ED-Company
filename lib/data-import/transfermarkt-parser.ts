@@ -55,20 +55,6 @@ export function parseDate(value: string | undefined): string | null {
   return match ? `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}` : null
 }
 
-export function parseOverviewMarketValue(html: string) {
-  const blocked = classifyTransfermarktPage(html)
-  if (blocked) throw new TransfermarktParseError(`Transfermarkt erişimi engellendi: ${blocked}`, 'blocked')
-  const $ = cheerio.load(html)
-  const bodyText = $('body').text().replace(/\s+/g, ' ').trim()
-  const labeledMatch = bodyText.match(/(?:Total market value|Squad value|Market value)\s*:?\s*(€\s*[0-9]+(?:[.,][0-9]+)?\s*(?:bn|b|m|k|th\.)?)/i)
-  const headerValue = $('.data-header__market-value-wrapper').first().text().replace(/\s+/g, ' ').match(/€\s*[0-9]+(?:[.,][0-9]+)?\s*(?:bn|b|m|k|th\.)?/i)?.[0]
-  const marketValueRaw = labeledMatch?.[1] ?? headerValue ?? null
-  return {
-    marketValueRaw,
-    marketValueEur: parseMarketValueEur(marketValueRaw),
-  }
-}
-
 export function parseLeagueTeams(html: string) {
   const blocked = classifyTransfermarktPage(html)
   if (blocked) throw new TransfermarktParseError(`Transfermarkt erişimi engellendi: ${blocked}`, 'blocked')
