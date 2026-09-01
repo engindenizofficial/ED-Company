@@ -407,6 +407,7 @@
 
 .arena-scope {
   color-scheme: dark;
+  color: var(--foreground);
   --background: oklch(0.1 0.014 250);
   --foreground: oklch(0.96 0.006 240);
   --card: oklch(0.15 0.02 250);
