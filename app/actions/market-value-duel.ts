@@ -18,6 +18,7 @@ interface SaveDuelResultInput {
   score: number
   correctCount: number
   bestStreak: number
+  answeredCount?: number
 }
 
 export interface DuelCareerStats {
@@ -60,7 +61,7 @@ export async function saveMarketValueDuelResult(input: SaveDuelResultInput): Pro
       leagueScope,
       gamesPlayed: 1,
       totalCorrect: input.correctCount,
-      totalAnswers: TOTAL_ROUNDS,
+      totalAnswers: input.answeredCount ?? TOTAL_ROUNDS,
       highScore: input.score,
       bestStreak: input.bestStreak,
       createdAt: now,
@@ -71,7 +72,7 @@ export async function saveMarketValueDuelResult(input: SaveDuelResultInput): Pro
       set: {
         gamesPlayed: sql`${marketValueDuelStats.gamesPlayed} + 1`,
         totalCorrect: sql`${marketValueDuelStats.totalCorrect} + ${input.correctCount}`,
-        totalAnswers: sql`${marketValueDuelStats.totalAnswers} + ${TOTAL_ROUNDS}`,
+        totalAnswers: sql`${marketValueDuelStats.totalAnswers} + ${input.answeredCount ?? TOTAL_ROUNDS}`,
         highScore: sql`greatest(${marketValueDuelStats.highScore}, ${input.score})`,
         bestStreak: sql`greatest(${marketValueDuelStats.bestStreak}, ${input.bestStreak})`,
         updatedAt: now,

@@ -11,6 +11,9 @@ import type { DuelDifficulty, DuelPlayer, DuelResult, DuelRound } from "@/lib/ga
 import { useSoundEffects } from "@/lib/games/use-sound-effects"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import { cn } from "@/lib/utils"
+import { useSession } from "@/lib/auth-client"
+import { getIstanbulDayKey, marketValueDifference, swipeSelection } from "@/lib/games/market-value-duel-rules"
+import { hasGuestDailyAttempt, markGuestDailyAttempt, mergeGuestDuelResult } from "@/lib/games/market-value-duel-storage"
 
 const ALL_LEAGUE_IDS = DUEL_SELECTABLE_LEAGUES.map((league) => league.id)
 const TOTAL_ROUNDS = 10
@@ -18,12 +21,17 @@ const ROUND_SECONDS = 10
 const BASE_POINTS = 100
 const SPEED_POINT_MULTIPLIER = 10
 
-type Phase = "select-difficulty" | "select-leagues" | "loading" | "playing" | "revealed" | "finished" | "error"
+type Phase = "select-mode" | "select-difficulty" | "select-leagues" | "loading" | "playing" | "revealed" | "finished" | "error"
 
 export function MarketValueDuelGame() {
   const { t, locale } = useLanguage()
   const { play, muted, toggleMuted } = useSoundEffects()
-  const [phase, setPhase] = useState<Phase>("select-difficulty")
+  const { data: session } = useSession()
+  const [mode, setMode] = useState<"normal" | "daily" | null>(null)
+  const [phase, setPhase] = useState<Phase>("select-mode")
+  const [dailyRounds, setDailyRounds] = useState<DuelRound[]>([])
+  const [dailyAnswers, setDailyAnswers] = useState<Array<{ token: string; pickedId: number | null; speedSeconds: number }>>([])
+  const [dailyRank, setDailyRank] = useState<number | null>(null)
   const [difficulty, setDifficulty] = useState<DuelDifficulty | null>(null)
   const [selectedLeagueIds, setSelectedLeagueIds] = useState<Set<number>>(() => new Set())
   const [round, setRound] = useState<DuelRound | null>(null)
@@ -35,6 +43,7 @@ export function MarketValueDuelGame() {
   const [correctCount, setCorrectCount] = useState(0)
   const [streak, setStreak] = useState(0)
   const [bestStreak, setBestStreak] = useState(0)
+  const [lives, setLives] = useState(3)
   const [lastSpeedBonus, setLastSpeedBonus] = useState(0)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [seenPlayerIds, setSeenPlayerIds] = useState<number[]>([])
@@ -45,6 +54,7 @@ export function MarketValueDuelGame() {
   const loadingRef = useRef(false)
   const resolvingRef = useRef(false)
   const hasPlayedRef = useRef(false)
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null)
 
   const difficulties = useMemo(() => [
     { id: "easy" as const, label: t("duel.easy"), desc: t("duel.easyDesc"), icon: Sparkles, accent: "text-primary ring-primary/30 bg-primary/10" },
@@ -92,8 +102,8 @@ export function MarketValueDuelGame() {
     setPickedId(player?.id ?? null)
     setPhase("revealed")
     try {
-      const response = await fetch("/api/games/market-value-duel", {
-        method: "POST",
+      const response = await fetch(mode === "daily" ? "/api/games/market-value-duel/daily" : "/api/games/market-value-duel", {
+        method: mode === "daily" ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: round.token }),
         cache: "no-store",
@@ -102,6 +112,7 @@ export function MarketValueDuelGame() {
       const data = await response.json() as DuelResult
       setResult(data)
       const correct = player !== null && data.correctId === player.id
+      if (mode === "daily") setDailyAnswers((current) => [...current, { token: round.token, pickedId: player?.id ?? null, speedSeconds: secondsLeft }])
       setFlash(correct ? "good" : "bad")
       if (correct) {
         const speedBonus = secondsLeft * SPEED_POINT_MULTIPLIER
@@ -120,6 +131,7 @@ export function MarketValueDuelGame() {
         })
         play("correct")
       } else {
+        setLives((value) => Math.max(0, value - 1))
         setStreak(0)
         play("wrong")
       }
@@ -127,7 +139,7 @@ export function MarketValueDuelGame() {
       setErrorMsg(t("duel.resultFailed"))
       setPhase("error")
     }
-  }, [phase, play, round, secondsLeft, t])
+  }, [mode, phase, play, round, secondsLeft, t])
 
   useEffect(() => {
     if (phase !== "playing") return
@@ -144,6 +156,24 @@ export function MarketValueDuelGame() {
     return () => window.clearInterval(timer)
   }, [phase, resolveRound])
 
+  const startDailyGame = useCallback(async () => {
+    const dayKey = getIstanbulDayKey()
+    if (!session?.user && hasGuestDailyAttempt(window.localStorage, dayKey)) {
+      setErrorMsg("Today's guest attempt has already been used.")
+      setPhase("error")
+      return
+    }
+    setMode("daily"); setDifficulty("normal"); setSelectedLeagueIds(new Set(ALL_LEAGUE_IDS)); setPhase("loading")
+    setRoundNumber(1); setScore(0); setCorrectCount(0); setStreak(0); setBestStreak(0); setLives(3); setDailyAnswers([]); setCareerStats(null)
+    try {
+      const response = await fetch('/api/games/market-value-duel/daily', { cache: 'no-store' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
+      if (data.alreadyPlayed) { setDailyRank(data.leaderboard?.find((entry: { name: string }, index: number) => index >= 0)?.rank ?? null); setErrorMsg("Today's ranked attempt has already been used."); setPhase('error'); return }
+      setDailyRounds(data.rounds); setRound(data.rounds[0]); setSecondsLeft(ROUND_SECONDS); setPhase('playing')
+    } catch { setErrorMsg(t('duel.loadFailed')); setPhase('error') }
+  }, [session?.user, t])
+
   const startGame = useCallback(() => {
     if (!difficulty || selectedLeagueIds.size === 0) return
     setRoundNumber(1)
@@ -151,6 +181,7 @@ export function MarketValueDuelGame() {
     setCorrectCount(0)
     setStreak(0)
     setBestStreak(0)
+    setLives(3)
     setCareerStats(null)
     setSeenPlayerIds([])
     hasPlayedRef.current = false
@@ -158,39 +189,60 @@ export function MarketValueDuelGame() {
   }, [difficulty, loadRound, selectedLeagueIds])
 
   const nextRound = useCallback(() => {
-    if (roundNumber >= TOTAL_ROUNDS) {
+    if (roundNumber >= TOTAL_ROUNDS || lives <= 0) {
       setPhase("finished")
-      if (difficulty) {
-        setIsSavingStats(true)
-        void saveMarketValueDuelResult({
-          difficulty,
-          leagueIds: Array.from(selectedLeagueIds),
-          score,
-          correctCount,
-          bestStreak,
-        })
-          .then(setCareerStats)
-          .catch(() => setCareerStats(null))
-          .finally(() => setIsSavingStats(false))
+      setIsSavingStats(true)
+      if (mode === "daily") {
+        if (session?.user) {
+          void fetch('/api/games/market-value-duel/daily', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answers: dailyAnswers }) })
+            .then((response) => response.json()).then((data) => setDailyRank(data.leaderboard?.find((entry: { name: string }) => entry.name === session.user.name)?.rank ?? null))
+            .finally(() => setIsSavingStats(false))
+        } else {
+          markGuestDailyAttempt(window.localStorage, getIstanbulDayKey())
+          setCareerStats(mergeGuestDuelResult(window.localStorage, { difficulty: 'normal', leagueIds: ALL_LEAGUE_IDS, score, correctCount, answeredCount: roundNumber, bestStreak }))
+          setIsSavingStats(false)
+        }
+      } else if (difficulty) {
+        if (session?.user) {
+          void saveMarketValueDuelResult({ difficulty, leagueIds: Array.from(selectedLeagueIds), score, correctCount, bestStreak, answeredCount: roundNumber }).then(setCareerStats).catch(() => setCareerStats(null)).finally(() => setIsSavingStats(false))
+        } else {
+          setCareerStats(mergeGuestDuelResult(window.localStorage, { difficulty, leagueIds: Array.from(selectedLeagueIds), score, correctCount, answeredCount: roundNumber, bestStreak }))
+          setIsSavingStats(false)
+        }
       }
       return
     }
-    setRoundNumber((value) => value + 1)
-    if (difficulty) void loadRound(difficulty, selectedLeagueIds, seenPlayerIds)
-  }, [bestStreak, correctCount, difficulty, loadRound, roundNumber, score, seenPlayerIds, selectedLeagueIds])
+    const nextNumber = roundNumber + 1
+    setRoundNumber(nextNumber)
+    if (mode === 'daily') {
+      setRound(dailyRounds[nextNumber - 1]); setResult(null); setPickedId(null); setSecondsLeft(ROUND_SECONDS); resolvingRef.current = false; setPhase('playing'); play('newRound')
+    } else if (difficulty) void loadRound(difficulty, selectedLeagueIds, seenPlayerIds)
+  }, [bestStreak, correctCount, dailyAnswers, dailyRounds, difficulty, lives, loadRound, mode, play, roundNumber, score, seenPlayerIds, selectedLeagueIds, session?.user])
 
   const resetSelections = useCallback(() => {
     setDifficulty(null)
     setRound(null)
     setResult(null)
     setSeenPlayerIds([])
-    setPhase("select-difficulty")
+    setMode(null)
+    setPhase("select-mode")
   }, [])
 
   const revealed = phase === "revealed" && result !== null
   const wrongPick = revealed && pickedId !== null && result.correctId !== pickedId
   const currentDifficulty = difficulties.find((item) => item.id === difficulty)
   const accuracy = Math.round((correctCount / TOTAL_ROUNDS) * 100)
+
+  if (phase === "select-mode") return (
+    <div className="flex min-h-[440px] flex-col items-center justify-center gap-6 py-6">
+      <div className="flex flex-col items-center gap-2 text-center"><Swords className="size-9 text-primary" /><h2 className="text-2xl font-black uppercase italic">Market Value Duel</h2><p className="max-w-md text-sm leading-relaxed text-muted-foreground">Choose a regular game or today&apos;s shared 10-round challenge.</p></div>
+      <div className="grid w-full max-w-lg gap-3 sm:grid-cols-2">
+        <button type="button" onClick={() => { setMode('normal'); setPhase('select-difficulty') }} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left hover:border-primary"><Trophy className="size-6 text-primary" /><strong>Normal Game</strong><span className="text-sm text-muted-foreground">Choose difficulty and leagues.</span></button>
+        <button type="button" onClick={() => void startDailyGame()} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left hover:border-primary"><Clock3 className="size-6 text-primary" /><strong>Daily Challenge</strong><span className="text-sm text-muted-foreground">Normal · All leagues · one ranked attempt</span></button>
+      </div>
+      {!session?.user && <p className="max-w-md text-center text-sm text-muted-foreground">Guest results stay on this browser and do not enter the global leaderboard. Sign in to compete globally.</p>}
+    </div>
+  )
 
   if (phase === "select-difficulty") return (
     <div className="flex min-h-[440px] flex-col items-center justify-center gap-8 py-6">
@@ -227,7 +279,8 @@ export function MarketValueDuelGame() {
   if (phase === "finished") return <div className="flex min-h-[440px] flex-col items-center justify-center gap-6 rounded-3xl border border-primary/20 bg-card p-6 text-center">
     <div className="flex size-16 items-center justify-center rounded-full bg-primary/15 text-primary"><Trophy className="size-8" /></div>
     <div className="flex flex-col gap-2"><p className="text-xs font-bold uppercase tracking-widest text-primary">{t("duel.gameComplete")}</p><h2 className="text-3xl font-black italic text-balance">{score} {t("duel.points")}</h2><p className="text-sm text-muted-foreground">{t("duel.resultSummary", { correct: correctCount, total: TOTAL_ROUNDS })}</p></div>
-    <div className="grid w-full max-w-md grid-cols-3 gap-2"><ResultStat label={t("duel.accuracy")} value={`${accuracy}%`} /><ResultStat label={t("duel.correctAnswers")} value={`${correctCount}/${TOTAL_ROUNDS}`} /><ResultStat label={t("duel.bestStreak")} value={String(bestStreak)} /></div>
+    <div className="grid w-full max-w-md grid-cols-2 gap-2 sm:grid-cols-4"><ResultStat label={t("duel.accuracy")} value={`${accuracy}%`} /><ResultStat label={t("duel.correctAnswers")} value={`${correctCount}/${roundNumber}`} /><ResultStat label={t("duel.bestStreak")} value={String(bestStreak)} /><ResultStat label="Lives" value={`${lives}/3`} /></div>
+    {mode === 'daily' && <div className="w-full max-w-md rounded-2xl border border-primary/30 bg-primary/10 p-5"><p className="text-xs font-bold uppercase tracking-widest text-primary">Daily Challenge · {getIstanbulDayKey()}</p><p className="mt-2 text-2xl font-black">{dailyRank ? `#${dailyRank}` : session?.user ? 'Ranking…' : 'Local result'}</p><p className="mt-1 text-sm text-muted-foreground">{session?.user ? 'Your verified result is included in the global leaderboard.' : 'Sign in to join the global leaderboard.'}</p></div>}
     {isSavingStats && <p className="text-sm text-muted-foreground" role="status">{t("duel.savingStats")}</p>}
     {careerStats && <div className="flex w-full max-w-md flex-col gap-3 rounded-2xl border border-border bg-muted/40 p-4"><p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("duel.careerStats")}</p><div className="grid grid-cols-3 gap-2"><ResultStat label={t("duel.gamesPlayed")} value={String(careerStats.gamesPlayed)} /><ResultStat label={t("duel.highScore")} value={String(careerStats.highScore)} /><ResultStat label={t("duel.accuracy")} value={`${careerStats.accuracy}%`} /></div></div>}
     <div className="flex flex-wrap justify-center gap-3"><button type="button" onClick={startGame} className="rounded-full bg-primary px-6 py-2.5 text-sm font-black uppercase text-primary-foreground"><RotateCcw className="mr-2 inline size-4" />{t("duel.playAgain")}</button><button type="button" onClick={resetSelections} className="rounded-full border border-border px-6 py-2.5 text-sm font-bold">{t("duel.changeSettings")}</button></div>
@@ -237,7 +290,7 @@ export function MarketValueDuelGame() {
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-card px-4 py-3">
       <Hud icon={Trophy} label={t("duel.score")} value={String(score)} />
       <div className="flex flex-col items-center gap-1"><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t("duel.roundOf", { current: roundNumber, total: TOTAL_ROUNDS })}</span><div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${roundNumber * 10}%` }} /></div></div>
-      <div className="flex items-center gap-2"><button type="button" onClick={toggleMuted} aria-label={muted ? t("duel.muteOn") : t("duel.muteOff")} className="text-muted-foreground">{muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}</button><Hud icon={Flame} label={t("duel.streak")} value={String(streak)} /></div>
+      <div className="flex items-center gap-3"><div className="flex items-center gap-1" aria-label={`${lives} lives`}>{[0, 1, 2].map((life) => <span key={life} aria-hidden="true" className={cn("text-base", life < lives ? "text-destructive" : "text-muted-foreground/30")}>♥</span>)}</div><button type="button" onClick={toggleMuted} aria-label={muted ? t("duel.muteOn") : t("duel.muteOff")} className="text-muted-foreground">{muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}</button><Hud icon={Flame} label={t("duel.streak")} value={String(streak)} /></div>
     </div>
 
     {phase === "playing" && <div className="flex items-center gap-3" aria-live="polite"><Clock3 className={cn("size-5", secondsLeft <= 3 ? "text-destructive" : "text-primary")} /><div className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><div className={cn("h-full transition-all duration-1000", secondsLeft <= 3 ? "bg-destructive" : "bg-primary")} style={{ width: `${secondsLeft * 10}%` }} /></div><span className="w-8 text-right font-mono text-lg font-black tabular-nums">{secondsLeft}</span></div>}
@@ -250,11 +303,12 @@ export function MarketValueDuelGame() {
         {phase === "error" && <motion.div key="error" className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-3xl border bg-card p-6 text-center"><p className="text-sm text-muted-foreground">{errorMsg}</p><button type="button" onClick={() => difficulty && void loadRound(difficulty, selectedLeagueIds, seenPlayerIds)} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">{t("duel.tryAgain")}</button></motion.div>}
         {(phase === "playing" || phase === "revealed") && round && <motion.div key={round.token} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-4">
           {!revealed && <p className="text-balance text-center text-sm font-bold uppercase tracking-wide text-muted-foreground">{t("duel.pickHigherValue")}</p>}
-          <div className="relative grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
+          <div className="relative grid touch-pan-y grid-cols-2 gap-2 sm:gap-3" onPointerDown={(event) => { if (phase === 'playing') swipeStartRef.current = { x: event.clientX, y: event.clientY } }} onPointerUp={(event) => { const start = swipeStartRef.current; swipeStartRef.current = null; if (!start || phase !== 'playing') return; const side = swipeSelection(event.clientX - start.x, event.clientY - start.y); if (side) void resolveRound(round.players[side === 'left' ? 0 : 1]) }}>
             {round.players.map((player, index) => <DuelPlayerCard key={player.id} player={player} side={index === 0 ? "left" : "right"} revealed={revealed} value={result?.values[player.id] ?? null} isCorrect={revealed ? result?.correctId === player.id : null} isPicked={pickedId === player.id} disabled={phase !== "playing"} onPick={() => void resolveRound(player)} />)}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><span className="flex size-11 items-center justify-center rounded-full border-2 border-background bg-secondary text-xs font-black">VS</span></div>
           </div>
-          {revealed && <div className="flex justify-center"><button type="button" onClick={nextRound} className="rounded-full bg-primary px-7 py-2.5 text-sm font-black uppercase text-primary-foreground">{roundNumber === TOTAL_ROUNDS ? t("duel.seeResults") : t("duel.nextOpponent")}</button></div>}
+          {revealed && (() => { const difference = marketValueDifference(result?.values[round.players[0].id] ?? null, result?.values[round.players[1].id] ?? null); return difference ? <p className="text-center text-sm text-muted-foreground">Value gap: {new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(difference.absolute)}{difference.percentage == null ? '' : ` · ${difference.percentage}%`}</p> : null })()}
+          {revealed && <div className="flex justify-center"><button type="button" onClick={nextRound} className="rounded-full bg-primary px-7 py-2.5 text-sm font-black uppercase text-primary-foreground">{roundNumber === TOTAL_ROUNDS || lives <= 0 ? t("duel.seeResults") : t("duel.nextOpponent")}</button></div>}
         </motion.div>}
       </AnimatePresence>
     </div>

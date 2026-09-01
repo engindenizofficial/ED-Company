@@ -53,7 +53,7 @@ export function DuelPlayerCard({
       whileHover={!disabled ? { y: -6, scale: 1.015 } : undefined}
       whileTap={!disabled ? { scale: 0.98 } : undefined}
       className={cn(
-        "group relative flex w-full flex-col items-center overflow-hidden rounded-3xl border bg-card px-5 pb-6 pt-9 text-center transition-all duration-300",
+        "group relative flex w-full min-w-0 flex-col items-center overflow-hidden rounded-2xl border bg-card px-2 pb-3 pt-4 text-center transition-all duration-300 sm:rounded-3xl sm:px-5 sm:pb-6 sm:pt-9",
         !revealed &&
           "border-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_20px_40px_-20px_rgba(0,0,0,0.6)] hover:border-primary/60 hover:shadow-[0_0_0_1px_color-mix(in_oklch,var(--primary)_50%,transparent),0_0_36px_-8px_var(--primary)]",
         revealed && isCorrect && "border-primary shadow-[0_0_0_1px_var(--primary),0_0_50px_-12px_var(--primary)]",
@@ -114,7 +114,7 @@ export function DuelPlayerCard({
       </AnimatePresence>
 
       {/* Fotoğraf */}
-      <div className="relative flex h-32 w-32 items-center justify-center">
+      <div className="relative flex size-20 items-center justify-center sm:size-32">
         <div
           className={cn(
             "absolute inset-0 rounded-full opacity-0 blur-md transition-opacity duration-500",
@@ -122,7 +122,7 @@ export function DuelPlayerCard({
             !revealed && "group-hover:opacity-40 bg-primary/40",
           )}
         />
-        <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-secondary ring-4 ring-background">
+        <div className="relative flex size-16 items-center justify-center overflow-hidden rounded-full bg-secondary ring-4 ring-background sm:size-28">
           {showPhoto ? (
             <img
               src={player.photo || "/placeholder.svg"}
@@ -141,7 +141,7 @@ export function DuelPlayerCard({
       </div>
 
       {/* İsim */}
-      <h3 className="mt-4 text-balance text-lg font-black uppercase italic leading-tight tracking-tight text-foreground">
+      <h3 className="mt-2 line-clamp-2 text-balance text-sm font-black uppercase italic leading-tight tracking-tight text-foreground sm:mt-4 sm:text-lg">
         {player.name}
       </h3>
 

@@ -442,6 +442,49 @@ export const marketValueDuelStats = pgTable(
   ],
 )
 
+export const marketValueDuelDailyRound = pgTable(
+  'market_value_duel_daily_round',
+  {
+    id: text('id').primaryKey(),
+    dayKey: text('dayKey').notNull(),
+    roundNumber: integer('roundNumber').notNull(),
+    leftPlayerId: integer('leftPlayerId').notNull(),
+    rightPlayerId: integer('rightPlayerId').notNull(),
+    players: jsonb('players').notNull(),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('market_value_duel_daily_round_day_round_uq').on(table.dayKey, table.roundNumber)],
+)
+
+export const marketValueDuelDailyResult = pgTable(
+  'market_value_duel_daily_result',
+  {
+    id: text('id').primaryKey(),
+    dayKey: text('dayKey').notNull(),
+    userId: text('userId').notNull(),
+    answers: jsonb('answers').notNull().default([]),
+    score: integer('score').notNull(),
+    correctCount: integer('correctCount').notNull(),
+    remainingLives: integer('remainingLives').notNull(),
+    bestStreak: integer('bestStreak').notNull(),
+    durationMs: integer('durationMs').notNull(),
+    startedAt: timestamp('startedAt').notNull(),
+    finishedAt: timestamp('finishedAt').notNull(),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('market_value_duel_daily_result_day_user_uq').on(table.dayKey, table.userId),
+    index('market_value_duel_daily_result_leaderboard_idx').on(
+      table.dayKey,
+      table.score,
+      table.correctCount,
+      table.remainingLives,
+      table.durationMs,
+      table.finishedAt,
+    ),
+  ],
+)
+
 export const playerMatchResult = pgTable(
   'player_match_result',
   {
