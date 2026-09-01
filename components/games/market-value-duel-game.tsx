@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { saveMarketValueDuelResult, type DuelCareerStats } from "@/app/actions/market-value-duel"
 import { Check, Clock3, Flame, Gauge, Globe2, RotateCcw, Skull, Sparkles, Swords, Trophy, Volume2, VolumeX, Zap } from "lucide-react"
 import { DuelPlayerCard } from "@/components/games/duel-player-card"
+import { DuelResultShare } from "@/components/games/duel-result-share"
+import { usePlayerPanel } from "@/contexts/player-context"
 import { useLanguage } from "@/contexts/language-context"
 import { DUEL_SELECTABLE_LEAGUES } from "@/lib/leagues"
 import type { DuelDifficulty, DuelPlayer, DuelResult, DuelRound } from "@/lib/games/market-value-duel"
@@ -27,11 +29,14 @@ export function MarketValueDuelGame() {
   const { t, locale } = useLanguage()
   const { play, muted, toggleMuted } = useSoundEffects()
   const { data: session } = useSession()
+  const { openPlayer } = usePlayerPanel()
   const [mode, setMode] = useState<"normal" | "daily" | null>(null)
   const [phase, setPhase] = useState<Phase>("select-mode")
   const [dailyRounds, setDailyRounds] = useState<DuelRound[]>([])
   const [dailyAnswers, setDailyAnswers] = useState<Array<{ token: string; pickedId: number | null; speedSeconds: number }>>([])
   const [dailyRank, setDailyRank] = useState<number | null>(null)
+  const [dailyLeaderboard, setDailyLeaderboard] = useState<Array<{ rank: number; name: string; score: number; correctCount: number; remainingLives: number }>>([])
+  const [prefetchedRound, setPrefetchedRound] = useState<DuelRound | null>(null)
   const [difficulty, setDifficulty] = useState<DuelDifficulty | null>(null)
   const [selectedLeagueIds, setSelectedLeagueIds] = useState<Set<number>>(() => new Set())
   const [round, setRound] = useState<DuelRound | null>(null)
@@ -156,6 +161,20 @@ export function MarketValueDuelGame() {
     return () => window.clearInterval(timer)
   }, [phase, resolveRound])
 
+  useEffect(() => {
+    if (phase !== "playing" || mode !== "normal" || !difficulty || roundNumber >= TOTAL_ROUNDS) return
+    const controller = new AbortController()
+    const params = new URLSearchParams({ difficulty })
+    if (selectedLeagueIds.size < ALL_LEAGUE_IDS.length) params.set("leagues", Array.from(selectedLeagueIds).join(","))
+    const excluded = Array.from(new Set([...seenPlayerIds, ...(round?.players.map((player) => player.id) ?? [])]))
+    if (excluded.length) params.set("exclude", excluded.join(","))
+    void fetch(`/api/games/market-value-duel?${params}`, { cache: "no-store", signal: controller.signal })
+      .then((response) => response.ok ? response.json() as Promise<DuelRound> : null)
+      .then((next) => { if (next) setPrefetchedRound(next) })
+      .catch(() => undefined)
+    return () => controller.abort()
+  }, [difficulty, mode, phase, round, roundNumber, seenPlayerIds, selectedLeagueIds])
+
   const startDailyGame = useCallback(async () => {
     const dayKey = getIstanbulDayKey()
     if (!session?.user && hasGuestDailyAttempt(window.localStorage, dayKey)) {
@@ -169,7 +188,8 @@ export function MarketValueDuelGame() {
       const response = await fetch('/api/games/market-value-duel/daily', { cache: 'no-store' })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error)
-      if (data.alreadyPlayed) { setDailyRank(data.leaderboard?.find((entry: { name: string }, index: number) => index >= 0)?.rank ?? null); setErrorMsg("Today's ranked attempt has already been used."); setPhase('error'); return }
+      setDailyLeaderboard(data.leaderboard ?? [])
+      if (data.alreadyPlayed) { setDailyRank(data.currentRank ?? null); setErrorMsg(t("duel.dailyAttemptUsed")); setPhase('error'); return }
       setDailyRounds(data.rounds); setRound(data.rounds[0]); setSecondsLeft(ROUND_SECONDS); setPhase('playing')
     } catch { setErrorMsg(t('duel.loadFailed')); setPhase('error') }
   }, [session?.user, t])
@@ -195,7 +215,7 @@ export function MarketValueDuelGame() {
       if (mode === "daily") {
         if (session?.user) {
           void fetch('/api/games/market-value-duel/daily', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answers: dailyAnswers }) })
-            .then((response) => response.json()).then((data) => setDailyRank(data.leaderboard?.find((entry: { name: string }) => entry.name === session.user.name)?.rank ?? null))
+            .then((response) => response.json()).then((data) => { setDailyLeaderboard(data.leaderboard ?? []); setDailyRank(data.currentRank ?? data.leaderboard?.find((entry: { name: string }) => entry.name === session.user.name)?.rank ?? null) })
             .finally(() => setIsSavingStats(false))
         } else {
           markGuestDailyAttempt(window.localStorage, getIstanbulDayKey())
@@ -216,8 +236,10 @@ export function MarketValueDuelGame() {
     setRoundNumber(nextNumber)
     if (mode === 'daily') {
       setRound(dailyRounds[nextNumber - 1]); setResult(null); setPickedId(null); setSecondsLeft(ROUND_SECONDS); resolvingRef.current = false; setPhase('playing'); play('newRound')
+    } else if (difficulty && prefetchedRound) {
+      setRound(prefetchedRound); setPrefetchedRound(null); setResult(null); setPickedId(null); setSecondsLeft(ROUND_SECONDS); resolvingRef.current = false; setPhase("playing"); setSeenPlayerIds((current) => Array.from(new Set([...current, ...prefetchedRound.players.map((player) => player.id)]))); play("newRound")
     } else if (difficulty) void loadRound(difficulty, selectedLeagueIds, seenPlayerIds)
-  }, [bestStreak, correctCount, dailyAnswers, dailyRounds, difficulty, lives, loadRound, mode, play, roundNumber, score, seenPlayerIds, selectedLeagueIds, session])
+  }, [bestStreak, correctCount, dailyAnswers, dailyRounds, difficulty, lives, loadRound, mode, play, prefetchedRound, roundNumber, score, seenPlayerIds, selectedLeagueIds, session])
 
   const resetSelections = useCallback(() => {
     setDifficulty(null)
@@ -235,12 +257,12 @@ export function MarketValueDuelGame() {
 
   if (phase === "select-mode") return (
     <div className="flex min-h-[440px] flex-col items-center justify-center gap-6 py-6">
-      <div className="flex flex-col items-center gap-2 text-center"><Swords className="size-9 text-primary" /><h2 className="text-2xl font-black uppercase italic">Market Value Duel</h2><p className="max-w-md text-sm leading-relaxed text-muted-foreground">Choose a regular game or today&apos;s shared 10-round challenge.</p></div>
+      <div className="flex flex-col items-center gap-2 text-center"><Swords className="size-9 text-primary" /><h2 className="text-2xl font-black uppercase italic">Market Value Duel</h2><p className="max-w-md text-sm leading-relaxed text-muted-foreground">{t("duel.chooseMode")}</p></div>
       <div className="grid w-full max-w-lg gap-3 sm:grid-cols-2">
-        <button type="button" onClick={() => { setMode('normal'); setPhase('select-difficulty') }} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left hover:border-primary"><Trophy className="size-6 text-primary" /><strong>Normal Game</strong><span className="text-sm text-muted-foreground">Choose difficulty and leagues.</span></button>
-        <button type="button" onClick={() => void startDailyGame()} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left hover:border-primary"><Clock3 className="size-6 text-primary" /><strong>Daily Challenge</strong><span className="text-sm text-muted-foreground">Normal · All leagues · one ranked attempt</span></button>
+        <button type="button" onClick={() => { setMode('normal'); setPhase('select-difficulty') }} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left hover:border-primary"><Trophy className="size-6 text-primary" /><strong>{t("duel.normalGame")}</strong><span className="text-sm text-muted-foreground">{t("duel.chooseDifficultyDesc")}</span></button>
+        <button type="button" onClick={() => void startDailyGame()} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left hover:border-primary"><Clock3 className="size-6 text-primary" /><strong>{t("duel.dailyChallenge")}</strong><span className="text-sm text-muted-foreground">{t("duel.dailyAttemptAvailable")}</span></button>
       </div>
-      {!session?.user && <p className="max-w-md text-center text-sm text-muted-foreground">Guest results stay on this browser and do not enter the global leaderboard. Sign in to compete globally.</p>}
+      {!session?.user && <p className="max-w-md text-center text-sm text-muted-foreground">{t("duel.guestLeaderboardNotice")}</p>}
     </div>
   )
 
@@ -279,8 +301,9 @@ export function MarketValueDuelGame() {
   if (phase === "finished") return <div className="flex min-h-[440px] flex-col items-center justify-center gap-6 rounded-3xl border border-primary/20 bg-card p-6 text-center">
     <div className="flex size-16 items-center justify-center rounded-full bg-primary/15 text-primary"><Trophy className="size-8" /></div>
     <div className="flex flex-col gap-2"><p className="text-xs font-bold uppercase tracking-widest text-primary">{t("duel.gameComplete")}</p><h2 className="text-3xl font-black italic text-balance">{score} {t("duel.points")}</h2><p className="text-sm text-muted-foreground">{t("duel.resultSummary", { correct: correctCount, total: TOTAL_ROUNDS })}</p></div>
-    <div className="grid w-full max-w-md grid-cols-2 gap-2 sm:grid-cols-4"><ResultStat label={t("duel.accuracy")} value={`${accuracy}%`} /><ResultStat label={t("duel.correctAnswers")} value={`${correctCount}/${roundNumber}`} /><ResultStat label={t("duel.bestStreak")} value={String(bestStreak)} /><ResultStat label="Lives" value={`${lives}/3`} /></div>
-    {mode === 'daily' && <div className="w-full max-w-md rounded-2xl border border-primary/30 bg-primary/10 p-5"><p className="text-xs font-bold uppercase tracking-widest text-primary">Daily Challenge · {getIstanbulDayKey()}</p><p className="mt-2 text-2xl font-black">{dailyRank ? `#${dailyRank}` : session?.user ? 'Ranking…' : 'Local result'}</p><p className="mt-1 text-sm text-muted-foreground">{session?.user ? 'Your verified result is included in the global leaderboard.' : 'Sign in to join the global leaderboard.'}</p></div>}
+    <div className="grid w-full max-w-md grid-cols-2 gap-2 sm:grid-cols-4"><ResultStat label={t("duel.accuracy")} value={`${accuracy}%`} /><ResultStat label={t("duel.correctAnswers")} value={`${correctCount}/${roundNumber}`} /><ResultStat label={t("duel.bestStreak")} value={String(bestStreak)} /><ResultStat label={t("duel.lives")} value={`${lives}/3`} /></div>
+    {mode === 'daily' && <div className="flex w-full max-w-md flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/10 p-5"><p className="text-xs font-bold uppercase tracking-widest text-primary">{t("duel.dailyChallenge")} · {getIstanbulDayKey()}</p><p className="text-2xl font-black">{dailyRank ? `#${dailyRank}` : session?.user ? t("duel.leaderboard") : t("duel.guestLeaderboardNotice")}</p>{dailyLeaderboard.length > 0 && <ol className="flex flex-col gap-2 text-left">{dailyLeaderboard.slice(0, 5).map((entry) => <li key={`${entry.rank}-${entry.name}`} className="flex items-center justify-between gap-3 rounded-xl bg-background/70 px-3 py-2 text-sm"><span className="truncate font-bold">#{entry.rank} {entry.name}</span><span className="tabular-nums text-muted-foreground">{entry.score}</span></li>)}</ol>}</div>}
+    <DuelResultShare result={{ mode: mode ?? "normal", dayKey: mode === "daily" ? getIstanbulDayKey() : undefined, rank: dailyRank, score, accuracy, correctCount, playedRounds: roundNumber, remainingLives: lives, bestStreak }} />
     {isSavingStats && <p className="text-sm text-muted-foreground" role="status">{t("duel.savingStats")}</p>}
     {careerStats && <div className="flex w-full max-w-md flex-col gap-3 rounded-2xl border border-border bg-muted/40 p-4"><p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("duel.careerStats")}</p><div className="grid grid-cols-3 gap-2"><ResultStat label={t("duel.gamesPlayed")} value={String(careerStats.gamesPlayed)} /><ResultStat label={t("duel.highScore")} value={String(careerStats.highScore)} /><ResultStat label={t("duel.accuracy")} value={`${careerStats.accuracy}%`} /></div></div>}
     <div className="flex flex-wrap justify-center gap-3"><button type="button" onClick={startGame} className="rounded-full bg-primary px-6 py-2.5 text-sm font-black uppercase text-primary-foreground"><RotateCcw className="mr-2 inline size-4" />{t("duel.playAgain")}</button><button type="button" onClick={resetSelections} className="rounded-full border border-border px-6 py-2.5 text-sm font-bold">{t("duel.changeSettings")}</button></div>
@@ -307,7 +330,8 @@ export function MarketValueDuelGame() {
             {round.players.map((player, index) => <DuelPlayerCard key={player.id} player={player} side={index === 0 ? "left" : "right"} revealed={revealed} value={result?.values[player.id] ?? null} isCorrect={revealed ? result?.correctId === player.id : null} isPicked={pickedId === player.id} disabled={phase !== "playing"} onPick={() => void resolveRound(player)} />)}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><span className="flex size-11 items-center justify-center rounded-full border-2 border-background bg-secondary text-xs font-black">VS</span></div>
           </div>
-          {revealed && (() => { const difference = marketValueDifference(result?.values[round.players[0].id] ?? null, result?.values[round.players[1].id] ?? null); return difference ? <p className="text-center text-sm text-muted-foreground">Value gap: {new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(difference.absolute)}{difference.percentage == null ? '' : ` · ${difference.percentage}%`}</p> : null })()}
+          {revealed && (() => { const difference = marketValueDifference(result?.values[round.players[0].id] ?? null, result?.values[round.players[1].id] ?? null); return difference ? <p className="text-center text-sm text-muted-foreground">{t("duel.valueDifference")}: {new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(difference.absolute)}{difference.percentage == null ? '' : ` · ${difference.percentage}%`}</p> : null })()}
+          {revealed && <div className="grid grid-cols-2 gap-2">{round.players.map((player) => <button key={player.id} type="button" onClick={() => openPlayer({ id: player.id, name: player.name, photo: player.photo })} className="truncate rounded-xl border px-3 py-2 text-xs font-bold text-muted-foreground hover:border-primary hover:text-primary">{t("duel.inspectPlayer")}: {player.name}</button>)}</div>}
           {revealed && <div className="flex justify-center"><button type="button" onClick={nextRound} className="rounded-full bg-primary px-7 py-2.5 text-sm font-black uppercase text-primary-foreground">{roundNumber === TOTAL_ROUNDS || lives <= 0 ? t("duel.seeResults") : t("duel.nextOpponent")}</button></div>}
         </motion.div>}
       </AnimatePresence>

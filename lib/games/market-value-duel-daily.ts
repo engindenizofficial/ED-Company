@@ -39,7 +39,7 @@ async function ensureRounds(dayKey: string) {
 export async function startDailyDuel(userId?: string) {
   const dayKey = getIstanbulDayKey()
   const previous = userId ? await db.select().from(marketValueDuelDailyResult).where(and(eq(marketValueDuelDailyResult.dayKey, dayKey), eq(marketValueDuelDailyResult.userId, userId))).limit(1) : []
-  if (previous[0]) return { dayKey, alreadyPlayed: true, result: previous[0], leaderboard: await getDailyLeaderboard(dayKey) }
+  if (previous[0]) return { dayKey, alreadyPlayed: true, result: previous[0], leaderboard: await getDailyLeaderboard(dayKey), currentRank: await getDailyRank(dayKey, userId!) }
   const startedAt = Date.now()
   const rows = await ensureRounds(dayKey)
   const rounds: DuelRound[] = rows.map((row) => ({ players: row.players as [DuelPlayer, DuelPlayer], token: sign({ dayKey, roundNumber: row.roundNumber, playerIds: [row.leftPlayerId, row.rightPlayerId], startedAt }) }))
@@ -59,7 +59,8 @@ export async function finishDailyDuel(userId: string, answers: DailyAnswer[]) {
   const prior = await db.select().from(marketValueDuelDailyResult).where(and(eq(marketValueDuelDailyResult.dayKey, dayKey), eq(marketValueDuelDailyResult.userId, userId))).limit(1)
   if (prior[0]) return { result: prior[0], leaderboard: await getDailyLeaderboard(dayKey), alreadyPlayed: true }
   const payloads = answers.map((answer) => verify(answer.token))
-  if (!answers.length || payloads.some((payload) => !payload || payload.dayKey !== dayKey)) throw new Error('invalidDailyAnswers')
+  const roundNumbers = payloads.map((payload) => payload?.roundNumber)
+  if (!answers.length || payloads.some((payload) => !payload || payload.dayKey !== dayKey) || new Set(roundNumbers).size !== roundNumbers.length || roundNumbers.some((roundNumber, index) => roundNumber !== index + 1)) throw new Error('invalidDailyAnswers')
   const rows = await db.select().from(marketValueDuelDailyRound).where(and(eq(marketValueDuelDailyRound.dayKey, dayKey), inArray(marketValueDuelDailyRound.roundNumber, payloads.map((payload) => payload!.roundNumber))))
   const verified = []
   for (let index = 0; index < answers.length; index++) {
