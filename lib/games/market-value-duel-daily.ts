@@ -36,6 +36,19 @@ async function ensureRounds(dayKey: string) {
   return rows
 }
 
+export async function getDailyDuelStatus(userId?: string) {
+  const dayKey = getIstanbulDayKey()
+  const previous = userId
+    ? await db.select({ id: marketValueDuelDailyResult.id }).from(marketValueDuelDailyResult).where(and(eq(marketValueDuelDailyResult.dayKey, dayKey), eq(marketValueDuelDailyResult.userId, userId))).limit(1)
+    : []
+  return {
+    dayKey,
+    alreadyPlayed: Boolean(previous[0]),
+    leaderboard: userId ? await getDailyLeaderboard(dayKey) : [],
+    currentRank: previous[0] && userId ? await getDailyRank(dayKey, userId) : null,
+  }
+}
+
 export async function startDailyDuel(userId?: string) {
   const dayKey = getIstanbulDayKey()
   const previous = userId ? await db.select().from(marketValueDuelDailyResult).where(and(eq(marketValueDuelDailyResult.dayKey, dayKey), eq(marketValueDuelDailyResult.userId, userId))).limit(1) : []
@@ -72,18 +85,39 @@ export async function finishDailyDuel(userId: string, answers: DailyAnswer[]) {
     verified.push({ pickedId: answers[index].pickedId, correctId: resolved.correctId, speedSeconds: answers[index].speedSeconds })
   }
   const score = scoreVerifiedAnswers(verified)
+  if (score.playedRounds !== DUEL_TOTAL_ROUNDS && score.remainingLives > 0) {
+    throw new Error('incompleteDailyAnswers')
+  }
   const startedAt = new Date(Math.min(...payloads.map((payload) => payload!.startedAt)))
   const finishedAt = new Date()
   const durationMs = Math.max(0, finishedAt.getTime() - startedAt.getTime())
   const [result] = await db.insert(marketValueDuelDailyResult).values({ id: randomUUID(), dayKey, userId, answers, score: score.score, correctCount: score.correctCount, remainingLives: score.remainingLives, bestStreak: score.bestStreak, durationMs, startedAt, finishedAt }).onConflictDoNothing().returning()
   const saved = result ?? (await db.select().from(marketValueDuelDailyResult).where(and(eq(marketValueDuelDailyResult.dayKey, dayKey), eq(marketValueDuelDailyResult.userId, userId))).limit(1))[0]
-  return { result: saved, leaderboard: await getDailyLeaderboard(dayKey), alreadyPlayed: !result }
+  return { result: saved, leaderboard: await getDailyLeaderboard(dayKey), currentRank: await getDailyRank(dayKey, userId), alreadyPlayed: !result }
 }
 
 // Recreates the existing normal token format without exposing daily metadata to its resolver.
 function signNormalToken(ids: [number, number]) { const body = Buffer.from(JSON.stringify(ids)).toString('base64url'); return `${body}.${crypto.createHmac('sha256', secret()).update(body).digest('base64url')}` }
 
+const leaderboardOrder = [
+  desc(marketValueDuelDailyResult.score),
+  desc(marketValueDuelDailyResult.correctCount),
+  desc(marketValueDuelDailyResult.remainingLives),
+  asc(marketValueDuelDailyResult.durationMs),
+  asc(marketValueDuelDailyResult.finishedAt),
+] as const
+
 export async function getDailyLeaderboard(dayKey = getIstanbulDayKey()): Promise<DailyLeaderboardEntry[]> {
-  const rows = await db.select({ name: user.name, score: marketValueDuelDailyResult.score, correctCount: marketValueDuelDailyResult.correctCount, remainingLives: marketValueDuelDailyResult.remainingLives, bestStreak: marketValueDuelDailyResult.bestStreak, durationMs: marketValueDuelDailyResult.durationMs }).from(marketValueDuelDailyResult).innerJoin(user, eq(user.id, marketValueDuelDailyResult.userId)).where(eq(marketValueDuelDailyResult.dayKey, dayKey)).orderBy(desc(marketValueDuelDailyResult.score), desc(marketValueDuelDailyResult.correctCount), desc(marketValueDuelDailyResult.remainingLives), asc(marketValueDuelDailyResult.durationMs), asc(marketValueDuelDailyResult.finishedAt)).limit(100)
+  const rows = await db.select({ name: user.name, score: marketValueDuelDailyResult.score, correctCount: marketValueDuelDailyResult.correctCount, remainingLives: marketValueDuelDailyResult.remainingLives, bestStreak: marketValueDuelDailyResult.bestStreak, durationMs: marketValueDuelDailyResult.durationMs }).from(marketValueDuelDailyResult).innerJoin(user, eq(user.id, marketValueDuelDailyResult.userId)).where(eq(marketValueDuelDailyResult.dayKey, dayKey)).orderBy(...leaderboardOrder).limit(100)
   return rows.map((row, index) => ({ rank: index + 1, ...row }))
+}
+
+async function getDailyRank(dayKey: string, userId: string): Promise<number | null> {
+  const rows = await db
+    .select({ userId: marketValueDuelDailyResult.userId })
+    .from(marketValueDuelDailyResult)
+    .where(eq(marketValueDuelDailyResult.dayKey, dayKey))
+    .orderBy(...leaderboardOrder)
+  const index = rows.findIndex((row) => row.userId === userId)
+  return index === -1 ? null : index + 1
 }

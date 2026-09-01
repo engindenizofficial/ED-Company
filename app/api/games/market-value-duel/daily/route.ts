@@ -1,7 +1,7 @@
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { finishDailyDuel, resolveDailyDuelRound, startDailyDuel, type DailyAnswer } from '@/lib/games/market-value-duel-daily'
+import { finishDailyDuel, getDailyDuelStatus, resolveDailyDuelRound, startDailyDuel, type DailyAnswer } from '@/lib/games/market-value-duel-daily'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,9 +10,14 @@ async function getUserId() {
   return session?.user?.id
 }
 
-export async function GET() {
-  try { return NextResponse.json(await startDailyDuel(await getUserId())) }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'dailyUnavailable' }, { status: 503 }) }
+export async function GET(request: Request) {
+  try {
+    const userId = await getUserId()
+    const { searchParams } = new URL(request.url)
+    return NextResponse.json(searchParams.get('view') === 'status' ? await getDailyDuelStatus(userId) : await startDailyDuel(userId))
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'dailyUnavailable' }, { status: 503 })
+  }
 }
 
 export async function PUT(request: Request) {

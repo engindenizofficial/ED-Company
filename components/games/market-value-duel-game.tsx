@@ -36,6 +36,7 @@ export function MarketValueDuelGame() {
   const [dailyAnswers, setDailyAnswers] = useState<Array<{ token: string; pickedId: number | null; speedSeconds: number }>>([])
   const [dailyRank, setDailyRank] = useState<number | null>(null)
   const [dailyLeaderboard, setDailyLeaderboard] = useState<Array<{ rank: number; name: string; score: number; correctCount: number; remainingLives: number }>>([])
+  const [dailyAttemptUsed, setDailyAttemptUsed] = useState(false)
   const [prefetchedRound, setPrefetchedRound] = useState<DuelRound | null>(null)
   const [difficulty, setDifficulty] = useState<DuelDifficulty | null>(null)
   const [selectedLeagueIds, setSelectedLeagueIds] = useState<Set<number>>(() => new Set())
@@ -147,6 +148,22 @@ export function MarketValueDuelGame() {
   }, [mode, phase, play, round, secondsLeft, t])
 
   useEffect(() => {
+    if (phase !== "select-mode") return
+    if (!session?.user) return
+    const controller = new AbortController()
+    void fetch("/api/games/market-value-duel/daily?view=status", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) return
+        const data = await response.json()
+        setDailyAttemptUsed(Boolean(data.alreadyPlayed))
+        setDailyLeaderboard(data.leaderboard ?? [])
+        setDailyRank(data.currentRank ?? null)
+      })
+      .catch(() => undefined)
+    return () => controller.abort()
+  }, [phase, session?.user])
+
+  useEffect(() => {
     if (phase !== "playing") return
     const timer = window.setInterval(() => {
       setSecondsLeft((value) => {
@@ -253,15 +270,17 @@ export function MarketValueDuelGame() {
   const revealed = phase === "revealed" && result !== null
   const wrongPick = revealed && pickedId !== null && result.correctId !== pickedId
   const currentDifficulty = difficulties.find((item) => item.id === difficulty)
-  const accuracy = Math.round((correctCount / TOTAL_ROUNDS) * 100)
+  const accuracy = Math.round((correctCount / Math.max(1, roundNumber)) * 100)
+  const dailyAttemptUnavailable = dailyAttemptUsed || (!session?.user && typeof window !== "undefined" && hasGuestDailyAttempt(window.localStorage, getIstanbulDayKey()))
 
   if (phase === "select-mode") return (
-    <div className="flex min-h-[440px] flex-col items-center justify-center gap-6 py-6">
+    <div className="flex min-h-[440px] flex-col items-center justify-center gap-5 py-5">
       <div className="flex flex-col items-center gap-2 text-center"><Swords className="size-9 text-primary" /><h2 className="text-2xl font-black uppercase italic">Market Value Duel</h2><p className="max-w-md text-sm leading-relaxed text-muted-foreground">{t("duel.chooseMode")}</p></div>
       <div className="grid w-full max-w-lg gap-3 sm:grid-cols-2">
         <button type="button" onClick={() => { setMode('normal'); setPhase('select-difficulty') }} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left hover:border-primary"><Trophy className="size-6 text-primary" /><strong>{t("duel.normalGame")}</strong><span className="text-sm text-muted-foreground">{t("duel.chooseDifficultyDesc")}</span></button>
-        <button type="button" onClick={() => void startDailyGame()} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left hover:border-primary"><Clock3 className="size-6 text-primary" /><strong>{t("duel.dailyChallenge")}</strong><span className="text-sm text-muted-foreground">{t("duel.dailyAttemptAvailable")}</span></button>
+        <button type="button" onClick={() => void startDailyGame()} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 text-left hover:border-primary"><Clock3 className="size-6 text-primary" /><strong>{t("duel.dailyChallenge")}</strong><span className="text-sm font-semibold text-primary">{t("duel.dailyFixedSettings")}</span><span className="text-sm text-muted-foreground">{t(dailyAttemptUnavailable ? "duel.dailyAttemptUsed" : "duel.dailyAttemptAvailable")}</span></button>
       </div>
+      {session?.user && dailyLeaderboard.length > 0 && <div className="flex w-full max-w-lg flex-col gap-2 rounded-2xl border bg-card p-4"><p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("duel.leaderboard")}</p><ol className="flex flex-col gap-2">{dailyLeaderboard.slice(0, 5).map((entry) => <li key={`${entry.rank}-${entry.name}`} className="flex items-center justify-between gap-3 text-sm"><span className="truncate font-bold">#{entry.rank} {entry.name}</span><span className="tabular-nums text-muted-foreground">{entry.score}</span></li>)}</ol></div>}
       {!session?.user && <p className="max-w-md text-center text-sm text-muted-foreground">{t("duel.guestLeaderboardNotice")}</p>}
     </div>
   )
