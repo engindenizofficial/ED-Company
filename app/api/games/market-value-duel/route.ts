@@ -26,13 +26,24 @@ function parseLeagueIds(value: string | null): number[] | undefined {
   return ids.length > 0 ? ids : undefined
 }
 
+/** Bir oyun en fazla 10 tur / 20 oyuncu içerir; daha büyük girdiler reddedilir. */
+function parseExcludedIds(value: string | null): number[] {
+  if (!value) return []
+  const parts = value.split(",")
+  if (parts.length > 20) return []
+  return Array.from(
+    new Set(parts.map((part) => Number.parseInt(part.trim(), 10)).filter((id) => Number.isInteger(id) && id > 0)),
+  )
+}
+
 /** Yeni bir düello turu: 2 rastgele oyuncu (piyasa değeri GİZLİ) + imzalı jeton. */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const difficulty = parseDifficulty(searchParams.get("difficulty"))
   const leagueIds = parseLeagueIds(searchParams.get("leagues"))
+  const excludedIds = parseExcludedIds(searchParams.get("exclude"))
 
-  const round = await createDuelRound(difficulty, leagueIds)
+  const round = await createDuelRound(difficulty, leagueIds, excludedIds)
   if (!round) {
     return NextResponse.json(
       { error: "notEnoughPlayers" },

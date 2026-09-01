@@ -5,6 +5,7 @@ import { calculateAge } from "@/lib/api-football"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import { DUEL_SELECTABLE_LEAGUE_IDS } from "@/lib/leagues"
 import { getMatchedPlayerCandidates, getPlayerMarketValueMapByIds } from "@/lib/search/market-index"
+import { selectDuelPair } from "@/lib/games/duel-pairing"
 
 // ---------------------------------------------------------------------------
 // "Piyasa Değeri Düellosu" oyunu — sunucu tarafı yardımcıları.
@@ -58,24 +59,6 @@ export type DuelDifficulty = "easy" | "normal" | "hard"
 // oranlı şekilde 3'e böler — böylece havuz küçük de olsa büyük de olsa her
 // zaman kabul edilebilir büyüklükte, çeşitliliği olan bir alt küme kalır.
 // ---------------------------------------------------------------------------
-
-interface PercentileRange {
-  /** percent_rank() > min (değer büyükten küçüğe sıralı; 0 = en değerli). */
-  min: number
-  /** percent_rank() <= max */
-  max: number
-}
-
-function difficultyPercentileRange(difficulty: DuelDifficulty): PercentileRange {
-  switch (difficulty) {
-    case "easy":
-      return { min: -1, max: 0.2 }
-    case "normal":
-      return { min: 0.2, max: 0.7 }
-    case "hard":
-      return { min: 0.7, max: 2 }
-  }
-}
 
 /**
  * Kullanıcının gönderdiği lig id listesini doğrular: sadece seçilebilir
@@ -155,17 +138,15 @@ async function pickRandomMatchedPlayers(
   // tamamlanmış koşunun iki doğru snapshot run'ıyla eşleşmiş pozitif değerleridir.
   const excluded = new Set(excludeIds)
   const allowedLeagues = leagueFilter === null ? null : new Set(leagueFilter)
-  const candidates = (await getMatchedPlayerCandidates())
-    .filter((player) => !excluded.has(player.playerId) && (!allowedLeagues || allowedLeagues.has(player.leagueId)))
-    .sort((a, b) => b.valueEur - a.valueEur)
-  const { min, max } = difficultyPercentileRange(difficulty)
-  const denominator = Math.max(candidates.length - 1, 1)
-  const percentilePool = candidates.filter((_, index) => {
-    const rank = index / denominator
-    return rank > min && rank <= max
-  })
+  const candidates = (await getMatchedPlayerCandidates()).filter(
+    (player) => !excluded.has(player.playerId) && (!allowedLeagues || allowedLeagues.has(player.leagueId)),
+  )
 
-  return [...percentilePool]
+  // Zorluk artık tek oyuncunun değer diliminden değil, seçilecek çiftin değer
+  // yakınlığından hesaplanıyor. Bu nedenle farklı değer seviyelerinden geniş
+  // bir örneklem alıyoruz; `difficulty` çift seçilirken uygulanıyor.
+  void difficulty
+  return [...candidates]
     .sort(() => Math.random() - 0.5)
     .slice(0, count)
     .map((player) => ({
@@ -335,10 +316,11 @@ function hasDistinctValues(pool: { valueEur: number }[]): boolean {
 export async function createDuelRound(
   difficulty: DuelDifficulty = "normal",
   leagueIds?: number[],
+  excludeIds: number[] = [],
 ): Promise<DuelRound | null> {
   const leagueFilter = normalizeLeagueFilter(leagueIds)
-  const valid: { player: DuelPlayer; valueEur: number }[] = []
-  const triedIds: number[] = []
+  const valid: { player: DuelPlayer; valueEur: number; playerId: number }[] = []
+  const triedIds: number[] = [...excludeIds]
 
   // Bilgisi eksik (fotoğraf/takım/ülke yok) oyuncuları eleyip, aynı zamanda
   // en az 2 FARKLI piyasa değeri bulana kadar havuzu kademeli olarak büyütür.
@@ -355,23 +337,20 @@ export async function createDuelRound(
     enriched.forEach((player, idx) => {
       // valueEur, Drizzle'da numeric kolon olduğu için string olarak gelir
       // (WHERE koşulu zaten null/0 olanları elediği için Number() güvenli).
-      if (player) valid.push({ player, valueEur: Number(candidates[idx].valueEur) })
+      if (player) {
+        valid.push({ player, valueEur: Number(candidates[idx].valueEur), playerId: player.id })
+      }
     })
   }
 
   if (valid.length < 2 || !hasDistinctValues(valid)) return null
 
-  // İlk oyuncuyu rastgele seç, ardından SADECE ondan farklı değere sahip
-  // oyuncular arasından ikinciyi seç — bu, berabere (adil olmayan) bir turun
-  // hiçbir zaman istemciye gönderilmediğini garanti eder.
-  const i = Math.floor(Math.random() * valid.length)
-  const differentIndices = valid
-    .map((_, idx) => idx)
-    .filter((idx) => valid[idx].valueEur !== valid[i].valueEur)
-  const j = differentIndices[Math.floor(Math.random() * differentIndices.length)]
+  const pair = selectDuelPair(valid, difficulty)
+  if (!pair) return null
 
-  const playerA = valid[i].player
-  const playerB = valid[j].player
+  const [first, second] = Math.random() < 0.5 ? pair : [pair[1], pair[0]]
+  const playerA = first.player
+  const playerB = second.player
 
   const token = signRoundToken([playerA.id, playerB.id])
   return { token, players: [playerA, playerB] }
