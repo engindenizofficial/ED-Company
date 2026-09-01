@@ -905,7 +905,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
         resetDescription: "Tüm oyuncuların gücünü (piyasa değeri, sezon rating birikimi dahil) 0'a çeker. Satırları silmez, sadece üstüne 0 yazar.",
         confirmTitle: "Tüm oyuncu güçleri 0'a çekilsin mi?",
         confirmDescription:
-          "Bu işlem tüm oyuncuların marketPower/basePower/currentPower ve biriken sezon rating verisini 0'a çeker. Piyasa değeri eşleşmelerine (player_market_value) dokunmaz. \"Yeniden Hesapla\" ile tekrar hesaplanabilir.",
+          "Bu işlem tüm oyuncuların marketPower/basePower/currentPower ve biriken sezon rating verisini 0'a çeker. Son tamamlanmış koşudaki eşleşmiş API-Football ve Transfermarkt snapshot verilerine dokunmaz. \"Yeniden Hesapla\" ile tekrar hesaplanabilir.",
         cancel: "Vazgeç",
         confirmReset: "Evet, sıfırla",
         resetTriggered: "{{count}} oyuncunun gücü sıfırlandı.",
@@ -1896,7 +1896,7 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
           "Sets every player's power (including accumulated season rating) to 0. Rows are not deleted, only overwritten with 0.",
         confirmTitle: "Reset all player power to 0?",
         confirmDescription:
-          'This sets every player\'s marketPower/basePower/currentPower and accumulated season rating data to 0. It does not touch market value matches (player_market_value). You can recompute afterward with "Recompute".',
+          'This sets every player\'s marketPower/basePower/currentPower and accumulated season rating data to 0. It does not touch the matched API-Football and Transfermarkt snapshots from the latest completed run. You can recompute afterward with "Recompute".',
         cancel: "Cancel",
         confirmReset: "Yes, reset",
         resetTriggered: "{{count}} players' power was reset.",

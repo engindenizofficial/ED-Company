@@ -1,10 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- API-Football responses are untyped external payloads. */
 import crypto from "crypto"
-import { sql } from "drizzle-orm"
-import { db } from "@/lib/db"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { calculateAge } from "@/lib/api-football"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import { DUEL_SELECTABLE_LEAGUE_IDS } from "@/lib/leagues"
+import { getMatchedPlayerCandidates, getPlayerMarketValueMapByIds } from "@/lib/search/market-index"
 
 // ---------------------------------------------------------------------------
 // "Piyasa Değeri Düellosu" oyunu — sunucu tarafı yardımcıları.
@@ -136,12 +136,12 @@ export function verifyRoundToken(token: string): [number, number] | null {
 /**
  * Piyasa değeri eşleşmiş satırlardan, seçilen zorluk seviyesine uyan rastgele
  * `count` adet farklı oyuncu seçer. Zorluk filtresi oyuncunun o anki takımının
- * ligine (team_market_value.leagueId) ve piyasa değerine bakar.
+ * ligine ve aynı eşleştirilmiş snapshot kaydındaki piyasa değerine bakar.
  */
 interface PickedPlayerRow {
   playerId: number
   playerName: string
-  valueEur: string
+  valueEur: number
   teamId: number
 }
 
@@ -151,53 +151,29 @@ async function pickRandomMatchedPlayers(
   leagueFilter: number[] | null,
   excludeIds: number[] = [],
 ) {
-  const exclude =
-    excludeIds.length > 0 ? sql`and "playerId" not in (${sql.join(excludeIds, sql`, `)})` : sql``
-  // Kullanıcı belirli ligler seçtiyse, oyuncunun o anki takımının ligine
-  // (teamMarketValue.leagueId) göre filtrele. Bu, percentile hesaplanmadan
-  // ÖNCE havuza uygulanır — böylece "easy/normal/hard" dilimleri her zaman
-  // kullanıcının seçtiği lig havuzunun KENDİ içindeki oranlara göre belirlenir.
-  const leagueCondition =
-    leagueFilter !== null ? sql`and aft."leagueSourceId" in (${sql.join(leagueFilter, sql`, `)})` : sql``
+  // Lig filtresi yüzdelik hesaplanmadan önce uygulanır; kaynak yalnızca son
+  // tamamlanmış koşunun iki doğru snapshot run'ıyla eşleşmiş pozitif değerleridir.
+  const excluded = new Set(excludeIds)
+  const allowedLeagues = leagueFilter === null ? null : new Set(leagueFilter)
+  const candidates = (await getMatchedPlayerCandidates())
+    .filter((player) => !excluded.has(player.playerId) && (!allowedLeagues || allowedLeagues.has(player.leagueId)))
+    .sort((a, b) => b.valueEur - a.valueEur)
   const { min, max } = difficultyPercentileRange(difficulty)
+  const denominator = Math.max(candidates.length - 1, 1)
+  const percentilePool = candidates.filter((_, index) => {
+    const rank = index / denominator
+    return rank > min && rank <= max
+  })
 
-  // Eşleştirme çalışmasının Transfermarkt değerlerini API-Football oyuncu ve
-  // takım snapshot'larıyla birleştir. Böylece eski oyunun kullandığı kimlik,
-  // lig ve zenginleştirme akışı yeni snapshot şemasında aynen korunur.
-  const result = await db.execute(sql`
-    with latest_match_run as (
-      select id
-      from player_match_run
-      where status = 'completed'
-      order by "finishedAt" desc nulls last, "createdAt" desc
-      limit 1
-    ), pool as (
-      select
-        pmr."apiFootballPlayerId" as "playerId",
-        tmp.name as "playerName",
-        tmp."marketValueEur" as "valueEur",
-        afp."teamSourceId" as "teamId",
-        percent_rank() over (order by tmp."marketValueEur" desc) as "pctRank"
-      from player_match_result pmr
-      inner join latest_match_run lmr on lmr.id = pmr."matchRunId"
-      inner join transfermarkt_player_snapshot tmp on tmp."sourceId" = pmr."transfermarktPlayerId"
-      inner join api_football_player_snapshot afp on afp."sourceId" = pmr."apiFootballPlayerId"
-      inner join api_football_team_snapshot aft on aft."sourceId" = afp."teamSourceId"
-      where pmr."apiFootballPlayerId" is not null
-        and pmr."matchedLevel" in ('exact_biographic', 'fuzzy_name_birthdate')
-        and tmp."marketValueEur" is not null
-        and tmp."marketValueEur" > 0
-        ${leagueCondition}
-    )
-    select "playerId", "playerName", "valueEur", "teamId"
-    from pool
-    where "pctRank" > ${min} and "pctRank" <= ${max}
-      ${exclude}
-    order by random()
-    limit ${count}
-  `)
-
-  return result.rows as unknown as PickedPlayerRow[]
+  return [...percentilePool]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, count)
+    .map((player) => ({
+      playerId: player.playerId,
+      playerName: player.fullName ?? player.playerName,
+      valueEur: player.valueEur,
+      teamId: player.teamId,
+    })) as PickedPlayerRow[]
 }
 
 function mostMinutes(blocks: any[]): any | null {
@@ -406,30 +382,15 @@ export async function resolveDuelRound(token: string): Promise<DuelResult | null
   const ids = verifyRoundToken(token)
   if (!ids) return null
 
-  const rows = await db.execute(sql`
-    with latest_match_run as (
-      select id
-      from player_match_run
-      where status = 'completed'
-      order by "finishedAt" desc nulls last, "createdAt" desc
-      limit 1
-    )
-    select
-      pmr."apiFootballPlayerId" as "playerId",
-      tmp."marketValueEur" as "valueEur"
-    from player_match_result pmr
-    inner join latest_match_run lmr on lmr.id = pmr."matchRunId"
-    inner join transfermarkt_player_snapshot tmp on tmp."sourceId" = pmr."transfermarktPlayerId"
-    where pmr."apiFootballPlayerId" in (${sql.join(ids, sql`, `)})
-  `)
-  const values: Record<number, number | null> = { [ids[0]]: null, [ids[1]]: null }
-  for (const row of rows.rows as unknown as { playerId: number; valueEur: string | number | null }[]) {
-    values[row.playerId] = row.valueEur === null ? null : Number(row.valueEur)
+  const valueMap = await getPlayerMarketValueMapByIds(ids)
+  const values: Record<number, number | null> = {
+    [ids[0]]: valueMap.get(ids[0]) ?? null,
+    [ids[1]]: valueMap.get(ids[1]) ?? null,
   }
-
   const [idA, idB] = ids
-  const valueA = values[idA] ?? 0
-  const valueB = values[idB] ?? 0
+  const valueA = values[idA]
+  const valueB = values[idB]
+  if (valueA == null || valueB == null) return null
   const correctId = valueA >= valueB ? idA : idB
 
   return { correctId, values }

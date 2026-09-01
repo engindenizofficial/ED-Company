@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
-import { getLeagueMarketValue, getTeamMarketValues } from "@/lib/search/market-index"
+import { getLeagueMarketValueByTeamIds, getTeamMarketValues } from "@/lib/search/market-index"
 import type {
   Fixture,
   LeagueSeasonStats,
@@ -64,6 +64,10 @@ interface RawStandingEntry {
   league?: { name?: string; standings?: RawStandingRow[][] }
 }
 
+interface RawTeamEntry {
+  team?: { id?: number }
+}
+
 interface RawPlayerRankingEntry {
   player?: { id?: number; name?: string; photo?: string | null; nationality?: string | null }
   statistics?: Array<{
@@ -101,6 +105,14 @@ function mapFixture(r: RawFixture): Fixture {
     referee: null,
     refereeCountry: null,
   }
+}
+
+async function fetchLeagueTeamIds(leagueId: number, season: number): Promise<number[]> {
+  const teams = await apiFetch<RawTeamEntry>("/teams", { league: leagueId, season })
+  return [...new Set(teams.flatMap((entry) => {
+    const teamId = entry.team?.id
+    return Number.isInteger(teamId) && (teamId ?? 0) > 0 ? [teamId as number] : []
+  }))]
 }
 
 async function fetchStandings(leagueId: number, season: number): Promise<StandingRow[]> {
@@ -147,13 +159,17 @@ export async function GET(request: Request) {
   try {
     switch (section) {
       case "seasonStats": {
-        const [standings, topYellowRaw, topRedRaw, totalMarketValueEur] = await Promise.all([
+        const [standings, topYellowRaw, topRedRaw, participantTeamIds] = await Promise.all([
           fetchStandings(leagueId, season),
           apiFetch<RawPlayerRankingEntry>("/players/topyellowcards", { league: leagueId, season }),
           apiFetch<RawPlayerRankingEntry>("/players/topredcards", { league: leagueId, season }),
-          getLeagueMarketValue(leagueId),
+          fetchLeagueTeamIds(leagueId, season),
         ])
         if (standings.length === 0) return noStoreJson({ data: null })
+        const teamIds = participantTeamIds.length > 0
+          ? participantTeamIds
+          : standings.map((row) => row.teamId)
+        const totalMarketValueEur = await getLeagueMarketValueByTeamIds(teamIds)
         const totalMatches = Math.floor(standings.reduce((s, r) => s + r.played, 0) / 2)
         const totalGoals = standings.reduce((s, r) => s + r.goalsFor, 0)
         const avgGoalsPerMatch = totalMatches > 0 ? totalGoals / totalMatches : 0
