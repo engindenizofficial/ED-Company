@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import { calculateAge } from "@/lib/api-football"
-import { getPlayerMarketValues } from "@/lib/transfermarkt-market-values"
+import { getPlayerMarketValues } from "@/lib/search/market-index"
 import type {
   Fixture,
   FormGame,

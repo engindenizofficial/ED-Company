@@ -20,7 +20,7 @@ import type {
 import { toTurkishCountry } from "./tr-aliases"
 import { apiFootballFetch, safeApiFootballFetch } from "./api-football-client"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
-import { getPlayerMarketValue, getPlayerMarketValues, getTeamMarketValue } from "./transfermarkt-market-values"
+import { getPlayerMarketValue, getPlayerMarketValues, getTeamMarketValue } from "./search/market-index"
 
 type ApiData = ReturnType<JSON["parse"]>
 

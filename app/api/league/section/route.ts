@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
-import { getLeagueMarketValue, getTeamMarketValues } from "@/lib/transfermarkt-market-values"
+import { getLeagueMarketValue, getTeamMarketValues } from "@/lib/search/market-index"
 import type {
   Fixture,
   LeagueSeasonStats,

@@ -137,9 +137,69 @@ export async function getPlayerMarketValueMapByIds(playerIds: number[]): Promise
       SELECT ap."sourceId" AS "playerId", tp."marketValueEur" AS "valueEur"
       ${MATCHED_PLAYERS_FROM}
       WHERE ap."sourceId" = ANY($1::int[])
+        AND tp."marketValueEur" IS NOT NULL
     `, [ids])
     return new Map(result.rows.map((row) => [row.playerId, numberOrZero(row.valueEur)]))
   }, new Map<number, number>())
+}
+
+/** Eski çağrı sözleşmelerinin merkezi snapshot karşılıkları. */
+export const getPlayerMarketValues = getPlayerMarketValueMapByIds
+export const getTeamMarketValues = getTeamMarketValueMapByTeamIds
+
+export async function getPlayerMarketValue(playerId: number): Promise<number | null> {
+  return (await getPlayerMarketValueMapByIds([playerId])).get(playerId) ?? null
+}
+
+export async function getTeamMarketValue(teamId: number): Promise<number | null> {
+  return (await getTeamMarketValueMapByTeamIds([teamId])).get(teamId) ?? null
+}
+
+export async function getLeagueMarketValue(leagueId: number): Promise<number | null> {
+  const values = await getLeagueMarketValueMapByLeagueIds([leagueId])
+  return values.get(leagueId) ?? null
+}
+
+export async function getLeagueMarketValueMapByLeagueIds(leagueIds: number[]): Promise<Map<number, number>> {
+  const ids = uniqueIds(leagueIds)
+  if (!ids.length) return new Map()
+  return withFallback(async () => {
+    const result = await pool.query<{ leagueId: number; total: string | null }>(`
+      WITH latest AS (${LATEST_COMPLETED_MATCH_RUN})
+      SELECT at."leagueSourceId" AS "leagueId", COALESCE(SUM(tp."marketValueEur"), 0) AS total
+      ${MATCHED_PLAYERS_FROM}
+      WHERE at."leagueSourceId" = ANY($1::int[])
+      GROUP BY at."leagueSourceId"
+    `, [ids])
+    return new Map(result.rows.map((row) => [row.leagueId, numberOrZero(row.total)]))
+  }, new Map<number, number>())
+}
+
+export interface MatchedPlayerSnapshotEntry extends FeaturedPlayerMarketValueEntry {
+  leagueId: number
+  detailedPosition: string | null
+}
+
+/** Oyunlar için değer, takım, lig ve mevkiyi aynı eşleşmiş snapshot satırından döndürür. */
+export async function getMatchedPlayerSnapshotsByIds(playerIds: number[]): Promise<MatchedPlayerSnapshotEntry[]> {
+  const ids = uniqueIds(playerIds)
+  if (!ids.length) return []
+  return withFallback(async () => {
+    const result = await pool.query<PlayerValueRow & { leagueId: number; detailedPosition: string | null }>(`
+      WITH latest AS (${LATEST_COMPLETED_MATCH_RUN})
+      SELECT ap."sourceId" AS "playerId", ap.name AS "playerName",
+             tp.name AS "fullName", ap."teamSourceId" AS "teamId",
+             at.name AS "teamName", at."leagueSourceId" AS "leagueId",
+             tp."marketValueEur" AS "valueEur", tp."detailedPosition"
+      ${MATCHED_PLAYERS_FROM}
+      WHERE ap."sourceId" = ANY($1::int[])
+    `, [ids])
+    return result.rows.map((row) => ({
+      ...toPlayerEntries([row])[0],
+      leagueId: row.leagueId,
+      detailedPosition: row.detailedPosition,
+    }))
+  }, [])
 }
 
 async function getTeamValues(where: string, values: number[]): Promise<Map<number, number>> {
