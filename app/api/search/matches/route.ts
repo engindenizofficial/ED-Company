@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getFixturesResponse } from "@/lib/fixtures-server"
+import { getTeamMarketValueMapByTeamIds } from "@/lib/search/market-index"
 import { normalizeTR } from "@/lib/search/text-normalize"
 import { countryMatchesQuery } from "@/lib/tr-aliases"
 import type { Fixture } from "@/lib/types"
@@ -34,8 +35,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ results: [] })
   }
 
+  const teamIds = matched.flatMap((fixture) => [fixture.home.id, fixture.away.id])
+  const marketValues = await getTeamMarketValueMapByTeamIds(teamIds)
+  const totalMarketValue = (fixture: Fixture) =>
+    (marketValues.get(fixture.home.id) ?? 0) + (marketValues.get(fixture.away.id) ?? 0)
+
   const results: Fixture[] = matched
-    .sort((a, b) => a.timestamp - b.timestamp)
+    .sort((a, b) => {
+      const valueDifference = totalMarketValue(b) - totalMarketValue(a)
+      return valueDifference || a.timestamp - b.timestamp
+    })
     .slice(0, 20)
 
   return NextResponse.json({ results })
