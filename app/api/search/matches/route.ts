@@ -35,17 +35,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ results: [] })
   }
 
-  const teamIds = matched.flatMap((fixture) => [fixture.home.id, fixture.away.id])
-  const marketValues = await getTeamMarketValueMapByTeamIds(teamIds)
-  const totalMarketValue = (fixture: Fixture) =>
-    (marketValues.get(fixture.home.id) ?? 0) + (marketValues.get(fixture.away.id) ?? 0)
+  const teamIds = new Set<number>()
+  for (const f of matched) {
+    teamIds.add(f.home.id)
+    teamIds.add(f.away.id)
+  }
 
-  const results: Fixture[] = matched
-    .sort((a, b) => {
-      const valueDifference = totalMarketValue(b) - totalMarketValue(a)
-      return valueDifference || a.timestamp - b.timestamp
-    })
-    .slice(0, 20)
+  const valueMap = await getTeamMarketValueMapByTeamIds([...teamIds])
+
+  const scored = matched.map((f) => {
+    const homeValue = valueMap.get(f.home.id) ?? 0
+    const awayValue = valueMap.get(f.away.id) ?? 0
+    return { fixture: f, score: homeValue + awayValue }
+  })
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    return a.fixture.timestamp - b.fixture.timestamp
+  })
+
+  const results: Fixture[] = scored.slice(0, 20).map((s) => s.fixture)
 
   return NextResponse.json({ results })
 }

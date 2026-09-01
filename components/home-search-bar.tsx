@@ -35,7 +35,7 @@ function kickoff(iso: string, locale: Locale): string {
 
 const LIVE_STATUSES = new Set(["1H", "2H", "ET", "BT", "P", "LIVE", "INT", "SUSP", "HT"])
 
-function Logo({ src, fallback }: { src: string | null; alt: string; fallback: string }) {
+function Logo({ src, alt, fallback }: { src: string | null; alt: string; fallback: string }) {
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -91,26 +91,24 @@ export function HomeSearchBar({ date }: { date: string }) {
   // sekmesiyle başlar (istenen davranış).
   useEffect(() => {
     if (query.length === 0) {
-      queueMicrotask(() => setTab("matches"))
+      setTab("matches")
     }
-  }, [query])
+  }, [query.length === 0])
 
   // Aktif sekme veya sorgu değiştiğinde SADECE o sekmenin verisini çek.
   useEffect(() => {
     if (debouncedQuery.length < 2) {
-      queueMicrotask(() => {
-        setMatchResults([])
-        setPlayerResults([])
-        setTeamResults([])
-        setLeagueResults([])
-        setOpen(false)
-        setLoading(false)
-      })
+      setMatchResults([])
+      setPlayerResults([])
+      setTeamResults([])
+      setLeagueResults([])
+      setOpen(false)
+      setLoading(false)
       return
     }
 
     let cancelled = false
-    queueMicrotask(() => setLoading(true))
+    setLoading(true)
 
     const q = encodeURIComponent(debouncedQuery)
     const url =
@@ -342,7 +340,7 @@ export function HomeSearchBar({ date }: { date: string }) {
                   const live = LIVE_STATUSES.has(f.statusShort)
                   const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
                   return (
-                    <li key={`match-${f.id}`} role="option" aria-selected={false}>
+                    <li key={`match-${f.id}`} role="option">
                       <button
                         type="button"
                         onClick={() => handleSelectMatch(f)}
@@ -377,7 +375,7 @@ export function HomeSearchBar({ date }: { date: string }) {
 
               {tab === "players" &&
                 playerResults.map((p) => (
-                  <li key={`player-${p.id}`} role="option" aria-selected={false}>
+                  <li key={`player-${p.id}`} role="option">
                     <button
                       type="button"
                       onClick={() => handleSelectPlayer(p)}
@@ -408,7 +406,7 @@ export function HomeSearchBar({ date }: { date: string }) {
 
               {tab === "teams" &&
                 teamResults.map((r) => (
-                  <li key={`team-${r.id}`} role="option" aria-selected={false}>
+                  <li key={`team-${r.id}`} role="option">
                     <button
                       type="button"
                       onClick={() => handleSelectTeam(r)}
@@ -439,7 +437,7 @@ export function HomeSearchBar({ date }: { date: string }) {
 
               {tab === "leagues" &&
                 leagueResults.map((r) => (
-                  <li key={`league-${r.id}`} role="option" aria-selected={false}>
+                  <li key={`league-${r.id}`} role="option">
                     <button
                       type="button"
                       onClick={() => handleSelectLeague(r)}

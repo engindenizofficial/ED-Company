@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPlayerNationality, getSquad } from "@/lib/api-football"
-import { getPlayerMarketValuesByTeamIds } from "@/lib/search/market-index"
-import { getFeaturedTeamsDirectory } from "@/lib/search/team-directory"
+import { getSquad } from "@/lib/api-football"
+import { getFeaturedPlayerMarketValues } from "@/lib/search/market-index"
 import { normalizeTR } from "@/lib/search/text-normalize"
 
 export const dynamic = "force-dynamic"
+
+// Ana sayfadaki oyuncu araması yerel piyasa değeri tablosunu kullanır.
+// Böylece API-Football'ın en az 4 karakter isteyen arama sınırına takılmaz ve
+// yeni veri sağlayıcısının doldurduğu adlarla 2 karakterden itibaren çalışır.
 
 export interface HomeSearchPlayerResult {
   id: number
@@ -18,21 +21,53 @@ export interface HomeSearchPlayerResult {
   marketValueEur: number
 }
 
+interface CandidateRow {
+  playerId: number
+  playerName: string
+  fullName: string | null
+  teamId: number
+  teamName: string | null
+  valueEur: number
+}
+
+let candidateCache: { rows: CandidateRow[]; fetchedAt: number } | null = null
+const CANDIDATE_CACHE_TTL_MS = 2 * 60 * 1000
+
+async function getCandidateRows(): Promise<CandidateRow[]> {
+  if (candidateCache && Date.now() - candidateCache.fetchedAt < CANDIDATE_CACHE_TTL_MS) {
+    return candidateCache.rows
+  }
+
+  const rows = await getFeaturedPlayerMarketValues()
+
+  const parsed: CandidateRow[] = rows.map((r) => ({
+    playerId: r.playerId,
+    playerName: r.playerName,
+    fullName: r.fullName,
+    teamId: r.teamId,
+    teamName: r.teamName,
+    valueEur: r.valueEur,
+  }))
+
+  candidateCache = { rows: parsed, fetchedAt: Date.now() }
+  return parsed
+}
+
+/** API-Football takım logosu — sabit URL şablonu, ekstra istek gerektirmez. */
 function teamLogoUrl(teamId: number): string {
   return `https://media.api-sports.io/football/teams/${teamId}.png`
 }
 
+/** Aynı anda en fazla `size` kadar öğeyi işler — API-Football'a ani istek yığını göndermemek için. */
 async function mapWithConcurrency<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length)
   let next = 0
-
   async function worker() {
     while (next < items.length) {
-      const index = next++
-      results[index] = await fn(items[index])
+      const i = next++
+      results[i] = await fn(items[i])
     }
   }
-
   await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker))
   return results
 }
@@ -43,65 +78,51 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ results: [] })
   }
 
-  const directory = await getFeaturedTeamsDirectory()
-  const teamById = new Map(directory.map((team) => [team.id, team]))
-  const candidates = await getPlayerMarketValuesByTeamIds([...teamById.keys()])
   const qNorm = normalizeTR(q)
+  const allCandidates = await getCandidateRows()
 
-  const matches = candidates
-    .filter((candidate) => normalizeTR(candidate.playerName).includes(qNorm))
-    .sort((a, b) => {
-      if (b.valueEur !== a.valueEur) return b.valueEur - a.valueEur
-      return a.playerName.localeCompare(b.playerName, "tr")
-    })
+  // Kısa ad ("O. Dembélé") VE tam ad ("Ousmane Dembélé") birleştirilip aranır.
+  const searchableOf = (c: CandidateRow) => normalizeTR(`${c.fullName ?? ""} ${c.playerName}`)
+
+  const matches = allCandidates
+    .filter((c) => searchableOf(c).includes(qNorm))
+    .sort((a, b) => b.valueEur - a.valueEur)
     .slice(0, 20)
 
-  if (!matches.length) {
+  if (matches.length === 0) {
     return NextResponse.json({ results: [] })
   }
 
-  const squadEntries = await mapWithConcurrency(
-    [...new Set(matches.map((match) => match.teamId))],
-    4,
-    async (teamId) => {
-      try {
-        return [teamId, await getSquad(teamId)] as const
-      } catch {
-        return [teamId, []] as const
-      }
-    },
-  )
-
-  const squadInfoByPlayerId = new Map<number, { photo: string | null; age: number | null }>()
-  for (const [, squad] of squadEntries) {
-    for (const player of squad) {
-      squadInfoByPlayerId.set(player.id, { photo: player.photo, age: player.age })
-    }
-  }
-
-  const season = new Date().getFullYear()
-  const nationalities = await mapWithConcurrency(matches, 4, async (match) => {
+  // Fotoğraf/yaş/uyruk DB'de yok — eşleşen adayların takımlarına, takım
+  // başına BİR KEZ /players/squads isteği atılır (1 saat cache'li).
+  const uniqueTeamIds = Array.from(new Set(matches.map((m) => m.teamId)))
+  const squadEntries = await mapWithConcurrency(uniqueTeamIds, 4, async (teamId) => {
     try {
-      return await getPlayerNationality(match.playerId, season)
+      return [teamId, await getSquad(teamId)] as const
     } catch {
-      return null
+      return [teamId, []] as const
     }
   })
 
-  const results: HomeSearchPlayerResult[] = matches.map((match, index) => {
-    const team = teamById.get(match.teamId)
-    const squadInfo = squadInfoByPlayerId.get(match.playerId)
+  const infoByPlayerId = new Map<number, { photo: string | null; age: number | null }>()
+  for (const [, squad] of squadEntries) {
+    for (const sp of squad) {
+      infoByPlayerId.set(sp.id, { photo: sp.photo, age: sp.age })
+    }
+  }
 
+  const results: HomeSearchPlayerResult[] = matches.map((c) => {
+    const info = infoByPlayerId.get(c.playerId)
     return {
-      id: match.playerId,
-      name: match.playerName,
-      photo: squadInfo?.photo ?? null,
-      nationality: nationalities[index],
-      age: squadInfo?.age ?? null,
-      teamId: match.teamId,
-      teamName: team?.name ?? null,
-      teamLogo: team?.logo ?? teamLogoUrl(match.teamId),
-      marketValueEur: match.valueEur,
+      id: c.playerId,
+      name: c.playerName,
+      photo: info?.photo ?? null,
+      nationality: null,
+      age: info?.age ?? null,
+      teamId: c.teamId,
+      teamName: c.teamName,
+      teamLogo: teamLogoUrl(c.teamId),
+      marketValueEur: c.valueEur,
     }
   })
 

@@ -35,7 +35,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ results: [] })
   }
 
-  const marketValues = await getFeaturedLeagueMarketValueMap()
+  const valueMap = await getFeaturedLeagueMarketValueMap()
+
   const results: HomeSearchLeagueResult[] = matched
     .map((l) => ({
       id: l.id,
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
       logo: l.logo,
       country: toTurkishCountry(l.country),
       flagUrl: l.flagUrl,
-      marketValueEur: marketValues.get(l.id) ?? 0,
+      marketValueEur: valueMap.get(l.id) ?? 0,
     }))
     .sort((a, b) => {
       if (b.marketValueEur !== a.marketValueEur) return b.marketValueEur - a.marketValueEur
