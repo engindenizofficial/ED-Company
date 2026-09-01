@@ -87,6 +87,8 @@ export function PlayerSearchDialog({
 
   useEffect(() => {
     if (!open) {
+      // Reset transient dialog state when its external open state closes.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("")
       setResults([])
     }
@@ -94,6 +96,8 @@ export function PlayerSearchDialog({
 
   useEffect(() => {
     if (debouncedQuery.trim().length < 2) {
+      // Clear stale remote results when the debounced query becomes invalid.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setResults([])
       return
     }

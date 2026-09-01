@@ -195,7 +195,8 @@ export function MarketValueDuelGame() {
   const startDailyGame = useCallback(async () => {
     const dayKey = getIstanbulDayKey()
     if (!session?.user && hasGuestDailyAttempt(window.localStorage, dayKey)) {
-      setErrorMsg("Today's guest attempt has already been used.")
+      setMode("daily")
+      setErrorMsg(t("duel.guestDailyAttemptUsed"))
       setPhase("error")
       return
     }
@@ -232,7 +233,19 @@ export function MarketValueDuelGame() {
       if (mode === "daily") {
         if (session?.user) {
           void fetch('/api/games/market-value-duel/daily', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answers: dailyAnswers }) })
-            .then((response) => response.json()).then((data) => { setDailyLeaderboard(data.leaderboard ?? []); setDailyRank(data.currentRank ?? data.leaderboard?.find((entry: { name: string }) => entry.name === session.user.name)?.rank ?? null) })
+            .then(async (response) => {
+              const data = await response.json()
+              if (!response.ok) throw new Error(data.error)
+              setDailyLeaderboard(data.leaderboard ?? [])
+              setDailyRank(data.currentRank ?? null)
+              if (data.result) {
+                setScore(data.result.score)
+                setCorrectCount(data.result.correctCount)
+                setLives(data.result.remainingLives)
+                setBestStreak(data.result.bestStreak)
+              }
+            })
+            .catch(() => setErrorMsg(t("duel.resultFailed")))
             .finally(() => setIsSavingStats(false))
         } else {
           markGuestDailyAttempt(window.localStorage, getIstanbulDayKey())
@@ -325,7 +338,7 @@ export function MarketValueDuelGame() {
     <DuelResultShare result={{ mode: mode ?? "normal", dayKey: mode === "daily" ? getIstanbulDayKey() : undefined, rank: dailyRank, score, accuracy, correctCount, playedRounds: roundNumber, remainingLives: lives, bestStreak }} />
     {isSavingStats && <p className="text-sm text-muted-foreground" role="status">{t("duel.savingStats")}</p>}
     {careerStats && <div className="flex w-full max-w-md flex-col gap-3 rounded-2xl border border-border bg-muted/40 p-4"><p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("duel.careerStats")}</p><div className="grid grid-cols-3 gap-2"><ResultStat label={t("duel.gamesPlayed")} value={String(careerStats.gamesPlayed)} /><ResultStat label={t("duel.highScore")} value={String(careerStats.highScore)} /><ResultStat label={t("duel.accuracy")} value={`${careerStats.accuracy}%`} /></div></div>}
-    <div className="flex flex-wrap justify-center gap-3"><button type="button" onClick={startGame} className="rounded-full bg-primary px-6 py-2.5 text-sm font-black uppercase text-primary-foreground"><RotateCcw className="mr-2 inline size-4" />{t("duel.playAgain")}</button><button type="button" onClick={resetSelections} className="rounded-full border border-border px-6 py-2.5 text-sm font-bold">{t("duel.changeSettings")}</button></div>
+    <div className="flex flex-wrap justify-center gap-3">{mode === "normal" && <button type="button" onClick={startGame} className="rounded-full bg-primary px-6 py-2.5 text-sm font-black uppercase text-primary-foreground"><RotateCcw className="mr-2 inline size-4" />{t("duel.playAgain")}</button>}<button type="button" onClick={resetSelections} className="rounded-full border border-border px-6 py-2.5 text-sm font-bold">{mode === "daily" ? t("duel.backToModes") : t("duel.changeSettings")}</button></div>
   </div>
 
   return <div className="flex flex-col gap-5">
@@ -342,7 +355,7 @@ export function MarketValueDuelGame() {
     <div className={cn("relative min-h-[440px]", wrongPick && "animate-shake-bad")}>
       <AnimatePresence mode="wait">
         {phase === "loading" && <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-3xl border bg-card"><Swords className="size-8 animate-pulse text-primary" /><span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("duel.opponentsEntering")}</span></motion.div>}
-        {phase === "error" && <motion.div key="error" className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-3xl border bg-card p-6 text-center"><p className="text-sm text-muted-foreground">{errorMsg}</p><button type="button" onClick={() => difficulty && void loadRound(difficulty, selectedLeagueIds, seenPlayerIds)} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">{t("duel.tryAgain")}</button></motion.div>}
+        {phase === "error" && <motion.div key="error" className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-3xl border bg-card p-6 text-center"><p className="text-sm text-muted-foreground">{errorMsg}</p><button type="button" onClick={() => mode === "daily" ? void startDailyGame() : difficulty && void loadRound(difficulty, selectedLeagueIds, seenPlayerIds)} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">{t("duel.tryAgain")}</button><button type="button" onClick={resetSelections} className="text-sm font-bold text-muted-foreground">{t("duel.backToModes")}</button></motion.div>}
         {(phase === "playing" || phase === "revealed") && round && <motion.div key={round.token} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-4">
           {!revealed && <p className="text-balance text-center text-sm font-bold uppercase tracking-wide text-muted-foreground">{t("duel.pickHigherValue")}</p>}
           <div className="relative grid touch-pan-y grid-cols-2 gap-2 sm:gap-3" onPointerDown={(event) => { if (phase === 'playing') swipeStartRef.current = { x: event.clientX, y: event.clientY } }} onPointerUp={(event) => { const start = swipeStartRef.current; swipeStartRef.current = null; if (!start || phase !== 'playing') return; const side = swipeSelection(event.clientX - start.x, event.clientY - start.y); if (side) void resolveRound(round.players[side === 'left' ? 0 : 1]) }}>

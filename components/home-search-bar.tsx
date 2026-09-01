@@ -91,6 +91,8 @@ export function HomeSearchBar({ date }: { date: string }) {
   // sekmesiyle başlar (istenen davranış).
   useEffect(() => {
     if (query.length === 0) {
+      // Reset the externally visible search session when the query is cleared.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTab("matches")
     }
   }, [query.length === 0])
@@ -98,6 +100,8 @@ export function HomeSearchBar({ date }: { date: string }) {
   // Aktif sekme veya sorgu değiştiğinde SADECE o sekmenin verisini çek.
   useEffect(() => {
     if (debouncedQuery.length < 2) {
+      // Clear stale remote results when the debounced query becomes invalid.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMatchResults([])
       setPlayerResults([])
       setTeamResults([])

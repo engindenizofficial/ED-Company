@@ -70,6 +70,8 @@ export function ManagerCareerWizard() {
   useEffect(() => {
     if (sessionPending) return
     if (!session?.user) {
+      // This branch synchronizes the async session source with the loading UI.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCheckingExisting(false)
       return
     }

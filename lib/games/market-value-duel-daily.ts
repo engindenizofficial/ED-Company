@@ -82,7 +82,9 @@ export async function finishDailyDuel(userId: string, answers: DailyAnswer[]) {
     if (!row || row.leftPlayerId !== payload.playerIds[0] || row.rightPlayerId !== payload.playerIds[1]) throw new Error('invalidDailyAnswers')
     const resolved = await resolveDuelRound(signNormalToken(payload.playerIds))
     if (!resolved) throw new Error('invalidDailyAnswers')
-    verified.push({ pickedId: answers[index].pickedId, correctId: resolved.correctId, speedSeconds: answers[index].speedSeconds })
+    // The client controls neither score nor speed bonuses. Daily ranked scoring is
+    // recomputed exclusively from signed rounds and authoritative market values.
+    verified.push({ pickedId: answers[index].pickedId, correctId: resolved.correctId, speedSeconds: 0 })
   }
   const score = scoreVerifiedAnswers(verified)
   if (score.playedRounds !== DUEL_TOTAL_ROUNDS && score.remainingLives > 0) {
