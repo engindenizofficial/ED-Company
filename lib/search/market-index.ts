@@ -156,17 +156,16 @@ export async function getPlayerMarketValue(playerId: number): Promise<number | n
   return (await getPlayerMarketValueMapByIds([playerId])).get(playerId) ?? null
 }
 
-async function getGroupedValues(column: "team" | "league", ids: number[]): Promise<Map<number, number>> {
-  const validIds = uniqueIds(ids)
-  if (!validIds.length) return new Map()
-  const source = column === "team" ? 'ap."teamSourceId"' : 'at."leagueSourceId"'
+export function getTeamMarketValueMapByTeamIds(teamIds: number[]): Promise<Map<number, number>> {
+  const validIds = uniqueIds(teamIds)
+  if (!validIds.length) return Promise.resolve(new Map())
   return withFallback(async () => {
     const result = await pool.query<{ id: number; total: string | number }>(`
       WITH latest AS (${LATEST_COMPLETED_MATCH_RUN})
-      SELECT ${source} AS id, SUM(tp."marketValueEur") AS total
+      SELECT ap."teamSourceId" AS id, SUM(tp."marketValueEur") AS total
       ${MATCHED_PLAYERS_FROM}
-      WHERE ${source} = ANY($1::int[]) AND tp."marketValueEur" > 0
-      GROUP BY ${source}
+      WHERE ap."teamSourceId" = ANY($1::int[]) AND tp."marketValueEur" > 0
+      GROUP BY ap."teamSourceId"
     `, [validIds])
     return new Map(result.rows.flatMap((row) => {
       const total = positiveNumber(row.total)
@@ -175,30 +174,42 @@ async function getGroupedValues(column: "team" | "league", ids: number[]): Promi
   }, new Map<number, number>())
 }
 
-export function getTeamMarketValueMapByTeamIds(teamIds: number[]): Promise<Map<number, number>> {
-  return getGroupedValues("team", teamIds)
-}
-
 export const getTeamMarketValues = getTeamMarketValueMapByTeamIds
 
 export async function getTeamMarketValue(teamId: number): Promise<number | null> {
   return (await getTeamMarketValueMapByTeamIds([teamId])).get(teamId) ?? null
 }
 
-export function getLeagueMarketValueMapByLeagueIds(leagueIds: number[]): Promise<Map<number, number>> {
-  return getGroupedValues("league", leagueIds)
+/**
+ * Bir lig veya turnuvanın toplamını, o sezon katılan takımların güncel
+ * eşleşmiş kadro toplamlarından üretir. Oyuncunun yerel lig etiketi burada
+ * kullanılmaz; böylece Avrupa kupaları gibi çok ligli turnuvalar da kapsanır.
+ */
+export async function getLeagueMarketValueByTeamIds(teamIds: number[]): Promise<number | null> {
+  const values = await getTeamMarketValueMapByTeamIds(teamIds)
+  if (!values.size) return null
+  return [...values.values()].reduce((total, value) => total + value, 0)
 }
 
-export async function getLeagueMarketValue(leagueId: number): Promise<number | null> {
-  return (await getLeagueMarketValueMapByLeagueIds([leagueId])).get(leagueId) ?? null
+export async function getLeagueMarketValueMapByTeamMemberships(
+  memberships: ReadonlyMap<number, readonly number[]>,
+): Promise<Map<number, number>> {
+  const allTeamIds = uniqueIds([...memberships.values()].flatMap((teamIds) => [...teamIds]))
+  const teamValues = await getTeamMarketValueMapByTeamIds(allTeamIds)
+  const result = new Map<number, number>()
+
+  for (const [leagueId, teamIds] of memberships) {
+    const values = uniqueIds([...teamIds]).flatMap((teamId) => {
+      const value = teamValues.get(teamId)
+      return value == null ? [] : [value]
+    })
+    if (values.length) result.set(leagueId, values.reduce((total, value) => total + value, 0))
+  }
+  return result
 }
 
 export async function getFeaturedTeamMarketValueMap(): Promise<Map<number, number>> {
   const players = await getFeaturedPlayerMarketValues()
   const teamIds = [...new Set(players.map((player) => player.teamId))]
   return getTeamMarketValueMapByTeamIds(teamIds)
-}
-
-export function getFeaturedLeagueMarketValueMap(): Promise<Map<number, number>> {
-  return getLeagueMarketValueMapByLeagueIds(FEATURED_LEAGUE_IDS)
 }

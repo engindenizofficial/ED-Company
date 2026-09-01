@@ -18,9 +18,12 @@ export interface FeaturedTeamEntry {
   name: string
   logo: string
   country: string
+  /** Arama etiketi için öncelikli yerel lig. */
   leagueId: number
   leagueName: string
   leagueLogo: string
+  /** Takımın aynı sezonda katıldığı tüm öne çıkan lig ve turnuvalar. */
+  leagueIds: number[]
 }
 
 interface RawTeam {
@@ -87,7 +90,7 @@ async function fetchFeaturedTeams(season: number): Promise<FeaturedTeamEntry[]> 
   }
 
   const leagueMeta = new Map(FEATURED_LEAGUES.map((l) => [l.id, l]))
-  const seen = new Set<number>()
+  const entryByTeamId = new Map<number, FeaturedTeamEntry>()
   const all: FeaturedTeamEntry[] = []
 
   // Etiketleme sırasında ulusal ligler Avrupa kupalarından önce işlenmeli.
@@ -107,9 +110,12 @@ async function fetchFeaturedTeams(season: number): Promise<FeaturedTeamEntry[]> 
     for (const entry of teams) {
       const t = entry.team
       if (t.national) continue
-      if (seen.has(t.id)) continue
-      seen.add(t.id)
-      all.push({
+      const existing = entryByTeamId.get(t.id)
+      if (existing) {
+        if (!existing.leagueIds.includes(leagueId)) existing.leagueIds.push(leagueId)
+        continue
+      }
+      const teamEntry: FeaturedTeamEntry = {
         id: t.id,
         name: t.name,
         logo: t.logo,
@@ -117,13 +123,16 @@ async function fetchFeaturedTeams(season: number): Promise<FeaturedTeamEntry[]> 
         leagueId,
         leagueName: meta?.name ?? `Lig ${leagueId}`,
         leagueLogo: meta?.logo ?? "",
-      })
+        leagueIds: [leagueId],
+      }
+      entryByTeamId.set(t.id, teamEntry)
+      all.push(teamEntry)
     }
   }
   return all
 }
 
-const CACHE_KEY_PREFIX = "ed:featuredteams"
+const CACHE_KEY_PREFIX = "ed:featuredteams:v2"
 
 /** 24 öne çıkan ligin takım dizinini döner — sezon bazlı Redis cache'i, TR gece yarısında TTL biter. */
 export async function getFeaturedTeamsDirectory(): Promise<FeaturedTeamEntry[]> {

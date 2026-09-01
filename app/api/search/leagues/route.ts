@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { FEATURED_LEAGUES } from "@/lib/leagues"
-import { getFeaturedLeagueMarketValueMap } from "@/lib/search/market-index"
+import { getLeagueMarketValueMapByTeamMemberships } from "@/lib/search/market-index"
+import { getFeaturedTeamsDirectory } from "@/lib/search/team-directory"
 import { normalizeTR } from "@/lib/search/text-normalize"
 import { countryMatchesQuery, toTurkishCountry } from "@/lib/tr-aliases"
 
@@ -35,7 +36,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ results: [] })
   }
 
-  const valueMap = await getFeaturedLeagueMarketValueMap()
+  const teams = await getFeaturedTeamsDirectory()
+  const memberships = new Map<number, number[]>()
+  for (const team of teams) {
+    for (const leagueId of team.leagueIds ?? [team.leagueId]) {
+      const teamIds = memberships.get(leagueId) ?? []
+      teamIds.push(team.id)
+      memberships.set(leagueId, teamIds)
+    }
+  }
+  const valueMap = await getLeagueMarketValueMapByTeamMemberships(memberships)
 
   const results: HomeSearchLeagueResult[] = matched
     .map((l) => ({
