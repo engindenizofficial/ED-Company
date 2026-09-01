@@ -217,7 +217,7 @@ export function MarketValueDuelGame() {
     if (mode === 'daily') {
       setRound(dailyRounds[nextNumber - 1]); setResult(null); setPickedId(null); setSecondsLeft(ROUND_SECONDS); resolvingRef.current = false; setPhase('playing'); play('newRound')
     } else if (difficulty) void loadRound(difficulty, selectedLeagueIds, seenPlayerIds)
-  }, [bestStreak, correctCount, dailyAnswers, dailyRounds, difficulty, lives, loadRound, mode, play, roundNumber, score, seenPlayerIds, selectedLeagueIds, session?.user])
+  }, [bestStreak, correctCount, dailyAnswers, dailyRounds, difficulty, lives, loadRound, mode, play, roundNumber, score, seenPlayerIds, selectedLeagueIds, session])
 
   const resetSelections = useCallback(() => {
     setDifficulty(null)
