@@ -422,6 +422,26 @@ export const playerMatchRun = pgTable(
   ],
 )
 
+export const marketValueDuelStats = pgTable(
+  'market_value_duel_stats',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull(),
+    difficulty: text('difficulty').notNull(),
+    leagueScope: text('leagueScope').notNull(),
+    gamesPlayed: integer('gamesPlayed').notNull().default(0),
+    totalCorrect: integer('totalCorrect').notNull().default(0),
+    totalAnswers: integer('totalAnswers').notNull().default(0),
+    highScore: integer('highScore').notNull().default(0),
+    bestStreak: integer('bestStreak').notNull().default(0),
+    createdAt: timestamp('createdAt').notNull().defaultNow(),
+    updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('market_value_duel_stats_scope_uq').on(table.userId, table.difficulty, table.leagueScope),
+  ],
+)
+
 export const playerMatchResult = pgTable(
   'player_match_result',
   {

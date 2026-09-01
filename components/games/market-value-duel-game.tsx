@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { saveMarketValueDuelResult, type DuelCareerStats } from "@/app/actions/market-value-duel"
 import { Check, Clock3, Flame, Gauge, Globe2, RotateCcw, Skull, Sparkles, Swords, Trophy, Volume2, VolumeX, Zap } from "lucide-react"
 import { DuelPlayerCard } from "@/components/games/duel-player-card"
 import { useLanguage } from "@/contexts/language-context"
@@ -39,6 +40,8 @@ export function MarketValueDuelGame() {
   const [seenPlayerIds, setSeenPlayerIds] = useState<number[]>([])
   const [flash, setFlash] = useState<"good" | "bad" | null>(null)
   const [comboPop, setComboPop] = useState<number | null>(null)
+  const [careerStats, setCareerStats] = useState<DuelCareerStats | null>(null)
+  const [isSavingStats, setIsSavingStats] = useState(false)
   const loadingRef = useRef(false)
   const resolvingRef = useRef(false)
   const hasPlayedRef = useRef(false)
@@ -148,6 +151,7 @@ export function MarketValueDuelGame() {
     setCorrectCount(0)
     setStreak(0)
     setBestStreak(0)
+    setCareerStats(null)
     setSeenPlayerIds([])
     hasPlayedRef.current = false
     void loadRound(difficulty, selectedLeagueIds, [])
@@ -156,11 +160,24 @@ export function MarketValueDuelGame() {
   const nextRound = useCallback(() => {
     if (roundNumber >= TOTAL_ROUNDS) {
       setPhase("finished")
+      if (difficulty) {
+        setIsSavingStats(true)
+        void saveMarketValueDuelResult({
+          difficulty,
+          leagueIds: Array.from(selectedLeagueIds),
+          score,
+          correctCount,
+          bestStreak,
+        })
+          .then(setCareerStats)
+          .catch(() => setCareerStats(null))
+          .finally(() => setIsSavingStats(false))
+      }
       return
     }
     setRoundNumber((value) => value + 1)
     if (difficulty) void loadRound(difficulty, selectedLeagueIds, seenPlayerIds)
-  }, [difficulty, loadRound, roundNumber, seenPlayerIds, selectedLeagueIds])
+  }, [bestStreak, correctCount, difficulty, loadRound, roundNumber, score, seenPlayerIds, selectedLeagueIds])
 
   const resetSelections = useCallback(() => {
     setDifficulty(null)
@@ -211,6 +228,8 @@ export function MarketValueDuelGame() {
     <div className="flex size-16 items-center justify-center rounded-full bg-primary/15 text-primary"><Trophy className="size-8" /></div>
     <div className="flex flex-col gap-2"><p className="text-xs font-bold uppercase tracking-widest text-primary">{t("duel.gameComplete")}</p><h2 className="text-3xl font-black italic text-balance">{score} {t("duel.points")}</h2><p className="text-sm text-muted-foreground">{t("duel.resultSummary", { correct: correctCount, total: TOTAL_ROUNDS })}</p></div>
     <div className="grid w-full max-w-md grid-cols-3 gap-2"><ResultStat label={t("duel.accuracy")} value={`${accuracy}%`} /><ResultStat label={t("duel.correctAnswers")} value={`${correctCount}/${TOTAL_ROUNDS}`} /><ResultStat label={t("duel.bestStreak")} value={String(bestStreak)} /></div>
+    {isSavingStats && <p className="text-sm text-muted-foreground" role="status">{t("duel.savingStats")}</p>}
+    {careerStats && <div className="flex w-full max-w-md flex-col gap-3 rounded-2xl border border-border bg-muted/40 p-4"><p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{t("duel.careerStats")}</p><div className="grid grid-cols-3 gap-2"><ResultStat label={t("duel.gamesPlayed")} value={String(careerStats.gamesPlayed)} /><ResultStat label={t("duel.highScore")} value={String(careerStats.highScore)} /><ResultStat label={t("duel.accuracy")} value={`${careerStats.accuracy}%`} /></div></div>}
     <div className="flex flex-wrap justify-center gap-3"><button type="button" onClick={startGame} className="rounded-full bg-primary px-6 py-2.5 text-sm font-black uppercase text-primary-foreground"><RotateCcw className="mr-2 inline size-4" />{t("duel.playAgain")}</button><button type="button" onClick={resetSelections} className="rounded-full border border-border px-6 py-2.5 text-sm font-bold">{t("duel.changeSettings")}</button></div>
   </div>
 
