@@ -1,6 +1,5 @@
 import { getSquad } from "@/lib/api-football"
-import { db } from "@/lib/db"
-import { sql } from "drizzle-orm"
+import { getMatchedPlayerSnapshotsByIds } from "@/lib/search/market-index"
 import { computeLivePowerFromMarketValue } from "@/lib/player-power"
 import { isPlayerPosition, type PlayerPosition } from "@/lib/player-positions"
 
@@ -36,31 +35,9 @@ export async function getTeamRoster(teamId: number): Promise<RosterPlayer[]> {
   if (squad.length === 0) return []
   const ids = squad.map((player) => player.id)
 
-  const dataResult = await db.execute(sql`
-    with latest_match_run as (
-      select id
-      from player_match_run
-      where status = 'completed'
-      order by "finishedAt" desc nulls last, "createdAt" desc
-      limit 1
-    )
-    select
-      pmr."apiFootballPlayerId" as "playerId",
-      tmp."marketValueEur" as "valueEur",
-      tmp."detailedPosition" as "primary"
-    from player_match_result pmr
-    inner join latest_match_run lmr on lmr.id = pmr."matchRunId"
-    inner join transfermarkt_player_snapshot tmp on tmp."sourceId" = pmr."transfermarktPlayerId"
-    where pmr."apiFootballPlayerId" in (${sql.join(ids, sql`, `)})
-  `)
-  const dataRows = dataResult.rows as unknown as Array<{
-    playerId: number
-    valueEur: string | number | null
-    primary: string
-  }>
-
-  const values = new Map(dataRows.map((row) => [Number(row.playerId), row.valueEur === null ? null : Number(row.valueEur)]))
-  const positions = new Map(dataRows.map((row) => [Number(row.playerId), row.primary]))
+  const dataRows = await getMatchedPlayerSnapshotsByIds(ids)
+  const values = new Map(dataRows.map((row) => [row.playerId, row.valueEur]))
+  const positions = new Map(dataRows.map((row) => [row.playerId, row.detailedPosition]))
 
   return squad.flatMap((player) => {
     const position = positions.get(player.id)

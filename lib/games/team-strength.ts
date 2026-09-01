@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import { managerTeamStrength, managerSquadPlayer } from "@/lib/db/schema"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
+import { getMatchedPlayerSnapshotsByIds } from "@/lib/search/market-index"
 import { getTeamRoster, groupStrengthFromRoster, type RosterPlayer, type TeamStrength } from "@/lib/games/opponent-roster"
 import { getFormationSlots } from "@/lib/games/manager-career"
 import { computeLivePowerFromMarketValue } from "@/lib/player-power"
@@ -79,28 +80,9 @@ export async function getUserSquadRoster(careerId: string, formationId: string):
   if (starters.length === 0) return []
 
   const playerIds = starters.map((s) => s.playerId)
-  const positionResult = await db.execute(sql`
-    with latest_match_run as (
-      select id
-      from player_match_run
-      where status = 'completed'
-      order by "finishedAt" desc nulls last, "createdAt" desc
-      limit 1
-    )
-    select
-      pmr."apiFootballPlayerId" as "playerId",
-      tmp."detailedPosition" as "mainPosition"
-    from player_match_result pmr
-    inner join latest_match_run lmr on lmr.id = pmr."matchRunId"
-    inner join transfermarkt_player_snapshot tmp on tmp."sourceId" = pmr."transfermarktPlayerId"
-    where pmr."apiFootballPlayerId" in (${sql.join(playerIds, sql`, `)})
-  `)
-
+  const snapshots = await getMatchedPlayerSnapshotsByIds(playerIds)
   const positionByPlayerId = new Map(
-    (positionResult.rows as unknown as Array<{ playerId: number; mainPosition: string }>).map((r) => [
-      Number(r.playerId),
-      profile(r.mainPosition),
-    ]),
+    snapshots.map((player) => [player.playerId, profile(player.detailedPosition)]),
   )
   const slotsByKey = new Map(getFormationSlots(formationId).map((s) => [s.key, s]))
 

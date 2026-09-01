@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSquad, getPlayerRoleAndPhoto } from "@/lib/api-football"
-import { db } from "@/lib/db"
-import { sql } from "drizzle-orm"
+import { getMatchedPlayerCandidates } from "@/lib/search/market-index"
 import { computeLivePowerFromMarketValue } from "@/lib/player-power"
 import { profile, type PositionProfile } from "@/lib/player-positions"
 
@@ -45,6 +44,7 @@ interface CandidateRow {
   teamId: number
   teamName: string | null
   valueEur: number
+  detailedPosition: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -54,8 +54,8 @@ interface CandidateRow {
 // "Too many requests" ile boş dönmesine (ve dolayısıyla "oyuncuların çoğu
 // yokmuş gibi" görünmesine) sebep oluyordu.
 //
-// Yeni yaklaşım: piyasa değeri DB'sindeki (zaten scrape+eşleştirme ile
-// doldurulmuş, ~7-8 bin oyuncu kapsayan) satırlar TEK kaynak olarak
+// Yeni yaklaşım: son tamamlanmış eşleştirme koşusundaki API-Football ve
+// Transfermarkt snapshot kesişimi TEK kaynak olarak
 // kullanılır — isim eşleştirmesi tamamen bizim tarafımızda, API çağrısı
 // gerektirmeden yapılır. Mevki (role) ve fotoğraf bilgisi için SADECE
 // eşleşen adayların takımlarına, takım başına BİR KEZ (ve 1 saat cache'li)
@@ -72,46 +72,14 @@ async function getCandidateRows(): Promise<CandidateRow[]> {
     return candidateCache.rows
   }
 
-  const result = await db.execute(sql`
-    with latest_match_run as (
-      select id
-      from player_match_run
-      where status = 'completed'
-      order by "finishedAt" desc nulls last, "createdAt" desc
-      limit 1
-    )
-    select
-      pmr."apiFootballPlayerId" as "playerId",
-      afp.name as "playerName",
-      tmp.name as "fullName",
-      afp."teamSourceId" as "teamId",
-      aft.name as "teamName",
-      tmp."marketValueEur" as "valueEur"
-    from player_match_result pmr
-    inner join latest_match_run lmr on lmr.id = pmr."matchRunId"
-    inner join transfermarkt_player_snapshot tmp on tmp."sourceId" = pmr."transfermarktPlayerId"
-    inner join api_football_player_snapshot afp on afp."sourceId" = pmr."apiFootballPlayerId"
-    inner join api_football_team_snapshot aft on aft."sourceId" = afp."teamSourceId"
-    where pmr."apiFootballPlayerId" is not null
-      and pmr."matchedLevel" in ('exact_biographic', 'fuzzy_name_birthdate')
-      and tmp."marketValueEur" is not null
-      and tmp."marketValueEur" > 0
-  `)
-
-  const parsed: CandidateRow[] = (result.rows as unknown as Array<{
-    playerId: number
-    playerName: string
-    fullName: string | null
-    teamId: number
-    teamName: string | null
-    valueEur: string | number
-  }>).map((r) => ({
-    playerId: Number(r.playerId),
-    playerName: r.playerName,
-    fullName: r.fullName,
-    teamId: Number(r.teamId),
-    teamName: r.teamName,
-    valueEur: Number(r.valueEur),
+  const parsed: CandidateRow[] = (await getMatchedPlayerCandidates()).map((player) => ({
+    playerId: player.playerId,
+    playerName: player.playerName,
+    fullName: player.fullName,
+    teamId: player.teamId,
+    teamName: player.teamName,
+    valueEur: player.valueEur,
+    detailedPosition: player.detailedPosition,
   }))
 
   candidateCache = { rows: parsed, fetchedAt: Date.now() }
@@ -235,29 +203,13 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Oyuncu mevkii Transfermarkt snapshot'ından gelir; güç piyasa değerinden
-  // aynı eski formülle anlık hesaplanır.
-  const positionResult = await db.execute(sql`
-    with latest_match_run as (
-      select id
-      from player_match_run
-      where status = 'completed'
-      order by "finishedAt" desc nulls last, "createdAt" desc
-      limit 1
-    )
-    select
-      pmr."apiFootballPlayerId" as "playerId",
-      tmp."detailedPosition" as "mainPosition"
-    from player_match_result pmr
-    inner join latest_match_run lmr on lmr.id = pmr."matchRunId"
-    inner join transfermarkt_player_snapshot tmp on tmp."sourceId" = pmr."transfermarktPlayerId"
-    where pmr."apiFootballPlayerId" in (${sql.join(matches.map((m) => m.playerId), sql`, `)})
-  `)
+  // Mevki ve piyasa değeri aynı tamamlanmış eşleştirme koşusunun ortak
+  // snapshot kaydından gelir; güç mevcut formülle anlık hesaplanır.
   const positionByPlayerId = new Map(
-    (positionResult.rows as unknown as Array<{ playerId: number; mainPosition: string }>).map((r) => [
-      Number(r.playerId),
-      profile(r.mainPosition),
-    ]),
+    matches.flatMap((player) => {
+      if (!player.detailedPosition) return []
+      return [[player.playerId, profile(player.detailedPosition)] as const]
+    }),
   )
 
   const results: ManagerPlayerSearchResult[] = matches

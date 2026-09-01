@@ -4,7 +4,8 @@ import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { db } from "@/lib/db"
 import { managerCareer, managerSquadPlayer } from "@/lib/db/schema"
-import { eq, sql } from "drizzle-orm"
+import { eq } from "drizzle-orm"
+import { getPlayerMarketValueMapByIds } from "@/lib/search/market-index"
 import { headers } from "next/headers"
 import { revalidatePath } from "next/cache"
 import {
@@ -144,29 +145,7 @@ export async function createManagerCareer(
 
   // --- Sunucu tarafı fiyat/bütçe doğrulaması -----------------------------
   const playerIds = input.squad.map((s) => s.playerId)
-  const priceResult = await db.execute(sql`
-    with latest_match_run as (
-      select id
-      from player_match_run
-      where status = 'completed'
-      order by "finishedAt" desc nulls last, "createdAt" desc
-      limit 1
-    )
-    select
-      pmr."apiFootballPlayerId" as "playerId",
-      tmp."marketValueEur" as "valueEur"
-    from player_match_result pmr
-    inner join latest_match_run lmr on lmr.id = pmr."matchRunId"
-    inner join transfermarkt_player_snapshot tmp on tmp."sourceId" = pmr."transfermarktPlayerId"
-    where pmr."apiFootballPlayerId" in (${sql.join(playerIds, sql`, `)})
-      and tmp."marketValueEur" is not null
-      and tmp."marketValueEur" > 0
-  `)
-
-  const realPrice = new Map<number, number>()
-  for (const row of priceResult.rows as unknown as Array<{ playerId: number; valueEur: string | number }>) {
-    realPrice.set(Number(row.playerId), Number(row.valueEur))
-  }
+  const realPrice = await getPlayerMarketValueMapByIds(playerIds)
 
   let totalSpent = 0
   for (const s of input.squad) {
