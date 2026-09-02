@@ -206,7 +206,7 @@ export function AccountSettingsPanel() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 [&>[data-slot=card]]:shrink-0">
       <Card size="sm">
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -214,13 +214,13 @@ export function AccountSettingsPanel() {
               {user.image ? <AvatarImage src={user.image} alt={user.name} /> : null}
               <AvatarFallback>{initials || <User aria-hidden="true" />}</AvatarFallback>
             </Avatar>
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <CardTitle className="truncate">{user.name}</CardTitle>
-              <CardDescription className="truncate">{user.email}</CardDescription>
+            <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+              <CardTitle className="max-w-full truncate">{user.name}</CardTitle>
+              <CardDescription className="max-w-full truncate">{user.email}</CardDescription>
+              <Badge variant={user.emailVerified ? "default" : "secondary"}>
+                {user.emailVerified ? t("menu.verified") : t("menu.unverified")}
+              </Badge>
             </div>
-            <Badge variant={user.emailVerified ? "default" : "secondary"}>
-              {user.emailVerified ? t("menu.verified") : t("menu.unverified")}
-            </Badge>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

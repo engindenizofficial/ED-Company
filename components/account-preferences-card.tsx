@@ -57,7 +57,7 @@ export function AccountPreferencesCard() {
         {error ? <p className="text-xs text-destructive" role="alert">{t("menu.preferencesLoadError")}</p> : null}
 
         <FieldGroup>
-          <Field orientation="horizontal">
+          <Field orientation="horizontal" className="flex-col items-stretch sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <MonitorCog aria-hidden="true" className="shrink-0 text-primary" />
               <div className="flex min-w-0 flex-col gap-0.5">
@@ -66,7 +66,7 @@ export function AccountPreferencesCard() {
               </div>
             </div>
             <Select value={theme} onValueChange={setThemeMode}>
-              <SelectTrigger id="account-theme-mode" className="w-32" aria-label={t("menu.themeMode")}>
+              <SelectTrigger id="account-theme-mode" className="w-full sm:w-32" aria-label={t("menu.themeMode")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
@@ -79,13 +79,13 @@ export function AccountPreferencesCard() {
             </Select>
           </Field>
 
-          <Field orientation="horizontal">
+          <Field orientation="horizontal" className="flex-col items-stretch sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Palette aria-hidden="true" className="shrink-0 text-primary" />
               <FieldLabel htmlFor="account-accent-color">{t("menu.themeColor")}</FieldLabel>
             </div>
             <Select value={accentColor} onValueChange={(value) => value && setAccentColor(value)}>
-              <SelectTrigger id="account-accent-color" className="w-32" aria-label={t("menu.themeColor")}>
+              <SelectTrigger id="account-accent-color" className="w-full sm:w-32" aria-label={t("menu.themeColor")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
@@ -101,13 +101,13 @@ export function AccountPreferencesCard() {
             </Select>
           </Field>
 
-          <Field orientation="horizontal">
+          <Field orientation="horizontal" className="flex-col items-stretch sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Languages aria-hidden="true" className="shrink-0 text-primary" />
               <FieldLabel htmlFor="account-language">{t("menu.language")}</FieldLabel>
             </div>
             <Select value={locale} onValueChange={(value) => value && setLocale(value as Locale)}>
-              <SelectTrigger id="account-language" className="w-32" aria-label={t("menu.language")}>
+              <SelectTrigger id="account-language" className="w-full sm:w-32" aria-label={t("menu.language")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
@@ -120,7 +120,7 @@ export function AccountPreferencesCard() {
           </Field>
         </FieldGroup>
 
-        <div className="flex items-center gap-3 rounded-lg bg-secondary px-3 py-3">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg bg-secondary px-3 py-3">
           {notifications.status === "enabled" ? (
             <Bell aria-hidden="true" className="shrink-0 text-primary" />
           ) : (
