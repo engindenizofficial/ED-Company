@@ -34,6 +34,7 @@ import { PlayerPhoto } from "@/components/player-photo"
 import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import { formatMarketValueEur } from "@/lib/market-value-format"
+import { formatCalendarDate, formatCalendarMonth } from "@/lib/fixture-datetime"
 import { useLanguage } from "@/contexts/language-context"
 import { translateApiError } from "@/lib/i18n/api-error"
 import type {
@@ -625,7 +626,7 @@ function TrophiesSection({ playerId, playerName, active }: { playerId: number; p
 // ---------------------------------------------------------------------------
 
 function TransfersSection({ playerId, playerName, active }: { playerId: number; playerName: string; active: boolean }) {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const { status, data: transfers, error, retry } = usePlayerSection<Transfer[]>(playerId, "transfers", active)
 
   return (
@@ -663,7 +664,7 @@ function TransfersSection({ playerId, playerName, active }: { playerId: number; 
                       </span>
                     )}
                     {t.date && (
-                      <span className="text-[10px] text-muted-foreground">{t.date.slice(0, 7)}</span>
+                      <span className="text-[10px] text-muted-foreground">{formatCalendarMonth(t.date, locale)}</span>
                     )}
                   </div>
                 </div>
@@ -682,7 +683,7 @@ function TransfersSection({ playerId, playerName, active }: { playerId: number; 
 
 function formatSidelinedDate(d: string | null, locale: string): string {
   if (!d) return "?"
-  return new Date(d).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", { day: "2-digit", month: "short", year: "numeric" })
+  return formatCalendarDate(d, locale, { day: "2-digit", month: "short", year: "numeric" })
 }
 
 function sidelinedDurationDays(start: string | null, end: string | null): number | null {
@@ -813,7 +814,7 @@ function PlayerPanelInner({
                       {profile.age} {t("playerPanel.ageSuffix")}
                       {profile.birthDate && (
                         <span className="text-muted-foreground">
-                          ({new Date(profile.birthDate).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", { day: "2-digit", month: "short", year: "numeric" })})
+                          ({formatCalendarDate(profile.birthDate, locale, { day: "2-digit", month: "short", year: "numeric" })})
                         </span>
                       )}
                     </span>

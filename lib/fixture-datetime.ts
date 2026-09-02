@@ -47,15 +47,63 @@ export function getRelativeDateKey(
   return shiftDateKey(getDateKey(date, timeZone), offsetDays)
 }
 
+export function getDateTimeLocale(locale: string): string {
+  return locale === "en" || locale.toLowerCase().startsWith("en-") ? "en-US" : "tr-TR"
+}
+
+function toValidDate(value: string | number | Date): Date | null {
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+export function formatDateTime(
+  value: string | number | Date,
+  locale: string,
+  timeZone = FALLBACK_TIME_ZONE,
+  options: Intl.DateTimeFormatOptions = { dateStyle: "short", timeStyle: "medium" },
+): string {
+  const date = toValidDate(value)
+  if (!date) return "—"
+  return new Intl.DateTimeFormat(getDateTimeLocale(locale), {
+    ...options,
+    timeZone: normalizeTimeZone(timeZone),
+  }).format(date)
+}
+
+export function formatCalendarDate(
+  value: string,
+  locale: string,
+  options: Intl.DateTimeFormatOptions = { day: "2-digit", month: "2-digit", year: "numeric" },
+): string {
+  const dateKey = value.match(/^\d{4}-\d{2}-\d{2}/)?.[0]
+  if (!dateKey) return value || "—"
+  const date = new Date(`${dateKey}T12:00:00Z`)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(getDateTimeLocale(locale), {
+    ...options,
+    timeZone: "UTC",
+  }).format(date)
+}
+
+export function formatCalendarMonth(
+  value: string,
+  locale: string,
+  options: Intl.DateTimeFormatOptions = { month: "long", year: "numeric" },
+): string {
+  const monthKey = value.match(/^\d{4}-\d{2}/)?.[0]
+  if (!monthKey) return value || "—"
+  return formatCalendarDate(`${monthKey}-15`, locale, options)
+}
+
 export function formatFixtureTime(
   iso: string | number | Date,
   locale: string,
   timeZone = FALLBACK_TIME_ZONE,
 ): string {
-  return new Date(iso).toLocaleTimeString(locale === "en" ? "en-GB" : "tr-TR", {
+  return formatDateTime(iso, locale, timeZone, {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: normalizeTimeZone(timeZone),
+    hourCycle: "h23",
   })
 }
 
@@ -65,8 +113,5 @@ export function formatFixtureDate(
   timeZone = FALLBACK_TIME_ZONE,
   options: Intl.DateTimeFormatOptions = { day: "2-digit", month: "2-digit", year: "2-digit" },
 ): string {
-  return new Date(iso).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
-    ...options,
-    timeZone: normalizeTimeZone(timeZone),
-  })
+  return formatDateTime(iso, locale, timeZone, options)
 }

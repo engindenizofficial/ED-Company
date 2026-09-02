@@ -1,6 +1,8 @@
+import { headers } from "next/headers"
 import { HomeClient } from "@/components/home-client"
-import { getFixturesResponse, todayTR } from "@/lib/fixtures-server"
+import { getFixturesResponse } from "@/lib/fixtures-server"
 import { getAllTimePredictionResults } from "@/lib/redis"
+import { getRelativeDateKey, normalizeTimeZone, SERVER_TIME_ZONE } from "@/lib/fixture-datetime"
 
 export const dynamic = "force-dynamic"
 
@@ -17,8 +19,10 @@ export const dynamic = "force-dynamic"
 // Bunu da burada sunucuda önceden çekip HomeClient'e initialPredictionResults
 // olarak veriyoruz.
 export default async function Page() {
+  const requestHeaders = await headers()
+  const timeZone = normalizeTimeZone(requestHeaders.get("x-vercel-ip-timezone"), SERVER_TIME_ZONE)
   const [initialFixturesData, initialPredictionResults] = await Promise.all([
-    getFixturesResponse(todayTR()),
+    getFixturesResponse(getRelativeDateKey(0, timeZone), false, timeZone),
     getAllTimePredictionResults(),
   ])
   return (

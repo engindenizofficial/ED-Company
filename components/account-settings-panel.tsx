@@ -17,7 +17,9 @@ import { type FormEvent, useMemo, useState } from "react"
 import useSWR from "swr"
 import { requestAccountDeletion } from "@/app/actions/account"
 import { useLanguage } from "@/contexts/language-context"
+import { useTimeZone } from "@/contexts/time-zone-context"
 import { authClient, useSession } from "@/lib/auth-client"
+import { formatDateTime } from "@/lib/fixture-datetime"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +64,7 @@ type AccountMethod = {
 
 export function AccountSettingsPanel() {
   const { t, locale } = useLanguage()
+  const timeZone = useTimeZone()
   const { data: session, refetch } = useSession()
   const router = useRouter()
   const user = session?.user
@@ -117,11 +120,11 @@ export function AccountSettingsPanel() {
     .map((part) => part[0])
     .join("")
     .toUpperCase()
-  const joinedAt = new Intl.DateTimeFormat(locale, {
+  const joinedAt = formatDateTime(user.createdAt, locale, timeZone, {
     day: "numeric",
     month: "long",
     year: "numeric",
-  }).format(new Date(user.createdAt))
+  })
 
   async function handleNameSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

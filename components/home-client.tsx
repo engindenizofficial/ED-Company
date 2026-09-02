@@ -15,11 +15,11 @@ import { useMatchPanel } from "@/contexts/match-context"
 import { useTimeZone } from "@/contexts/time-zone-context"
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { cn } from "@/lib/utils"
-import { getRelativeDateKey, SERVER_TIME_ZONE } from "@/lib/fixture-datetime"
+import { formatCalendarDate, getRelativeDateKey, SERVER_TIME_ZONE } from "@/lib/fixture-datetime"
 import type { Fixture, FixturesResponse, PredictionResult } from "@/lib/types"
 
 function formatDateLabel(iso: string, locale: string): string {
-  return new Date(iso + "T12:00:00").toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
+  return formatCalendarDate(iso, locale, {
     weekday: "long",
     day: "numeric",
     month: "long",

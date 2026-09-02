@@ -1,12 +1,14 @@
 import type { Metadata } from "next"
+import { headers } from "next/headers"
 import { cache } from "react"
 import { getFixtureById } from "@/lib/api-football"
 import { getServerLocale } from "@/lib/i18n/server-locale"
 import { translate } from "@/lib/i18n/dictionaries"
 import { HomeClient } from "@/components/home-client"
 import { MatchUrlOpener } from "@/components/match-url-opener"
-import { getFixturesResponse, todayTR } from "@/lib/fixtures-server"
+import { getFixturesResponse } from "@/lib/fixtures-server"
 import { getAllTimePredictionResults } from "@/lib/redis"
+import { formatFixtureDate, getRelativeDateKey, normalizeTimeZone, SERVER_TIME_ZONE } from "@/lib/fixture-datetime"
 
 export const dynamic = "force-dynamic"
 
@@ -67,16 +69,19 @@ export default async function MatchPage({ params }: MatchPageProps) {
   // HomeClient'e initialFixturesData olarak geçilir — bu maç detay sayfası
   // arkada ana listeyi de render ettiği için o liste de "Maçlar yükleniyor"
   // animasyonu göstermeden, dolu haliyle mount olur.
+  const locale = await getServerLocale()
+  const requestHeaders = await headers()
+  const timeZone = normalizeTimeZone(requestHeaders.get("x-vercel-ip-timezone"), SERVER_TIME_ZONE)
   const [fixture, initialFixturesData, initialPredictionResults] = await Promise.all([
     getCachedFixture(Number(id)),
-    getFixturesResponse(todayTR()),
+    getFixturesResponse(getRelativeDateKey(0, timeZone), false, timeZone),
     getAllTimePredictionResults(),
   ])
   const home = fixture?.home.name || "Ev Sahibi"
   const away = fixture?.away.name || "Konuk"
   const hasScore = fixture && (fixture.goalsHome !== null || fixture.goalsAway !== null)
   const dateLabel = fixture
-    ? new Date(fixture.date).toLocaleDateString("tr-TR", {
+    ? formatFixtureDate(fixture.date, locale, timeZone, {
         weekday: "long",
         day: "numeric",
         month: "long",

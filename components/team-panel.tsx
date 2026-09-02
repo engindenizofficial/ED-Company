@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils"
 import { formatMarketValueEur } from "@/lib/market-value-format"
 import { useLanguage } from "@/contexts/language-context"
 import { useTimeZone } from "@/contexts/time-zone-context"
-import { formatFixtureDate, formatFixtureTime } from "@/lib/fixture-datetime"
+import { formatCalendarMonth, formatFixtureDate, formatFixtureTime } from "@/lib/fixture-datetime"
 import { translateApiError } from "@/lib/i18n/api-error"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import type {
@@ -804,6 +804,7 @@ function TransfersSection({ teamId, teamName, active }: { teamId: number; teamNa
 }
 
 function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direction: "in" | "out" }) {
+  const { locale } = useLanguage()
   const fromTeam = t.teamFrom
   const toTeam = t.teamTo
   const isIn = direction === "in"
@@ -876,7 +877,7 @@ function TransferRow({ transfer: t, direction }: { transfer: TeamTransfer; direc
           </span>
         )}
         {t.date && (
-          <span className="text-[10px] tabular-nums text-muted-foreground">{t.date.slice(0, 7)}</span>
+          <span className="text-[10px] tabular-nums text-muted-foreground">{formatCalendarMonth(t.date, locale)}</span>
         )}
       </div>
     </div>

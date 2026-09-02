@@ -2,6 +2,8 @@
 
 import Link from "next/link"
 import { useLanguage } from "@/contexts/language-context"
+import { useTimeZone } from "@/contexts/time-zone-context"
+import { getDateKey } from "@/lib/fixture-datetime"
 
 /**
  * Google AdSense onay süreci, sitede kalıcı ve her sayfadan erişilebilir
@@ -11,7 +13,8 @@ import { useLanguage } from "@/contexts/language-context"
  */
 export function SiteFooter() {
   const { t } = useLanguage()
-  const year = new Date().getFullYear()
+  const timeZone = useTimeZone()
+  const year = getDateKey(new Date(), timeZone).slice(0, 4)
 
   const links = [
     { href: "/gizlilik-politikasi", label: t("footer.privacyPolicy") },

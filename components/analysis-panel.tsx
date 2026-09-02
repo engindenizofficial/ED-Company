@@ -72,6 +72,8 @@ import { MatchVoteBar } from "@/components/match-vote-bar"
 import { MatchShareActions } from "@/components/match-share-actions"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/contexts/language-context"
+import { useTimeZone } from "@/contexts/time-zone-context"
+import { formatFixtureDate } from "@/lib/fixture-datetime"
 import { translateApiError } from "@/lib/i18n/api-error"
 
 // ---------------------------------------------------------------------------
@@ -1689,7 +1691,8 @@ function TeamStatsSection({
 }
 
 function TeamStatsCard({ stats, label }: { stats: TeamSeasonStats; label: string }) {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
+  const timeZone = useTimeZone()
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-secondary/20 p-4">
       <div className="flex items-center justify-between gap-2">
@@ -1723,7 +1726,7 @@ function TeamStatsCard({ stats, label }: { stats: TeamSeasonStats; label: string
           <ul className="flex flex-col gap-1">
             {stats.recent.map((g, i) => (
               <li key={i} className="flex items-center justify-between gap-2 rounded-lg border border-border/40 bg-card px-2.5 py-1.5 text-xs">
-                <span className="shrink-0 tabular-nums text-muted-foreground text-[10px]">{g.date.slice(0, 10)}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground text-[10px]">{formatFixtureDate(g.date, locale, timeZone)}</span>
                 <span className="min-w-0 flex-1 truncate text-center text-foreground">{t("analysis.vsPrefix")} {g.opponent}</span>
                 <span className="shrink-0 tabular-nums font-bold text-foreground">{g.scored}-{g.conceded}</span>
                 <ResultBadge result={g.result} />
@@ -1815,7 +1818,8 @@ function H2HList({
   // `g.home` / `g.homeTeam` ile tekrar bir "ev sahibi mi" kontrolü yapmaya
   // gerek yok; yapılırsa deplasmanda oynanan maçlarda kazanan taraf ters
   // gösterilir.
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
+  const timeZone = useTimeZone()
   const homeWins = h2h.filter((g) => g.result === "W").length
   const draws = h2h.filter((g) => g.result === "D").length
   const awayWins = h2h.filter((g) => g.result === "L").length
@@ -1871,7 +1875,7 @@ function H2HList({
           // takım kimliğine göre atanmalı (özet çubuğuyla aynı: homeName = primary,
           // awayName = accent). `g.home` burada "homeName bu geçmiş maçta evinde
           // oynadı mı" anlamına geliyor, dolayısıyla sol/sağ pozisyonun hangi takıma
-          // ait olduğunu belirler.
+          // ait oldu��unu belirler.
           const leftIsHomeName = g.home
           const leftWinColor = leftIsHomeName ? "text-primary" : "text-accent"
           const rightWinColor = leftIsHomeName ? "text-accent" : "text-primary"
@@ -1879,7 +1883,7 @@ function H2HList({
             <>
               <span className={cn("truncate text-xs", homeWon ? "font-bold text-foreground" : "text-muted-foreground")}>{displayHome}</span>
               <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[10px] tabular-nums text-muted-foreground">{g.date.slice(0, 10)}</span>
+                <span className="text-[10px] tabular-nums text-muted-foreground">{formatFixtureDate(g.date, locale, timeZone)}</span>
                 <span className={cn("text-xs font-black tabular-nums", homeWon ? leftWinColor : "text-foreground")}>{homeGoals}</span>
                 <span className="text-muted-foreground text-xs">-</span>
                 <span className={cn("text-xs font-black tabular-nums", awayWon ? rightWinColor : "text-foreground")}>{awayGoals}</span>

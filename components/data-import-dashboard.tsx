@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import useSWR from 'swr'
 import { Activity, AlertTriangle, Database, Play, RefreshCw, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
@@ -13,6 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { RESET_PHRASES, type ImportSource } from '@/lib/data-import/scope'
+import { useLanguage } from '@/contexts/language-context'
+import { useTimeZone } from '@/contexts/time-zone-context'
+import { formatDateTime } from '@/lib/fixture-datetime'
 
 const fetcher = (url: string) => fetch(url).then(async (response) => { if (!response.ok) throw new Error('Durum alınamadı'); return response.json() })
 
@@ -27,9 +30,9 @@ const sourceLabels: Record<ImportSource, string> = { transfermarkt: 'Transfermar
 const statusLabels: Record<string, string> = { queued: 'Sırada', running: 'Çalışıyor', completed: 'Tamamlandı', failed: 'Başarısız', stale: 'Yanıt vermiyor', stopped: 'Durduruldu' }
 const stageLabels: Record<string, string> = { queued: 'Başlatılıyor', leagues: 'Ligler hazırlanıyor', 'league-teams': 'Lig takımları', 'team-squad': 'Takım kadrosu', 'player-detail': 'Oyuncu ayrıntısı', completed: 'Tamamlandı', 'restart-queued': 'Yeniden başlatılıyor', 'watchdog-restart': 'Yeniden başlatma bekleniyor' }
 const statusVariant = (status?: string) => status === 'completed' ? 'default' : status === 'failed' || status === 'stale' ? 'destructive' : 'secondary'
-const date = (value?: string | null) => value ? new Intl.DateTimeFormat('tr-TR', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(value)) : '—'
+type DateFormatter = (value?: string | null) => string
 
-function SourceCard({ source, run, summary, onStart, busy, serverNow }: { source: ImportSource; run?: Run; summary?: RunSummary; onStart: (source: ImportSource) => void; busy: boolean; serverNow?: string }) {
+function SourceCard({ source, run, summary, onStart, busy, serverNow, formatDate }: { source: ImportSource; run?: Run; summary?: RunSummary; onStart: (source: ImportSource) => void; busy: boolean; serverNow?: string; formatDate: DateFormatter }) {
   const [phrase, setPhrase] = useState('')
   const completedLeagues = summary?.completedLeagues ?? 0
   const progress = run ? Math.min(100, Math.round((completedLeagues / Math.max(1, run.totalLeagues)) * 100)) : 0
@@ -64,9 +67,9 @@ function SourceCard({ source, run, summary, onStart, busy, serverNow }: { source
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">Takımlar başarılı / keşfedilen benzersiz kayıtları, oyuncular başarıyla kaydedilen benzersiz profilleri gösterir.</p>
       <dl className="grid gap-2 text-sm">
-        <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Son sistem sinyali</dt><dd>{date(run?.heartbeatAt)}</dd></div>
+        <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Son sistem sinyali</dt><dd>{formatDate(run?.heartbeatAt)}</dd></div>
         <div className="flex justify-between gap-4"><dt className="text-muted-foreground">{stale || run?.status === 'completed' ? 'Son işlenen öğe' : 'İşlenen öğe'}</dt><dd className="max-w-52 truncate text-right">{run?.activeTeam ?? run?.activeLeague ?? '—'}</dd></div>
-        <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Son başarılı kayıt</dt><dd>{date(summary?.latestCompletedAt)}</dd></div>
+        <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Son başarılı kayıt</dt><dd>{formatDate(summary?.latestCompletedAt)}</dd></div>
       </dl>
       {run?.errorMessage ? <div className="flex gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"><AlertTriangle aria-hidden="true" /><span><strong>Son hata:</strong> {run.errorMessage}</span></div> : null}
     </CardContent>
@@ -106,6 +109,12 @@ function MatchingCard({ run, onStart, busy, sourcesReady }: { run?: MatchingRun 
 }
 
 export function DataImportDashboard() {
+  const { locale } = useLanguage()
+  const timeZone = useTimeZone()
+  const formatDate = useCallback<DateFormatter>(
+    (value) => value ? formatDateTime(value, locale, timeZone) : '—',
+    [locale, timeZone],
+  )
   const { data, error, isLoading, mutate } = useSWR<DashboardData>('/api/admin/data-import/status', fetcher, { refreshInterval: 5000, refreshWhenHidden: false })
   const [busy, setBusy] = useState(false)
   async function start(source: ImportSource) {
@@ -129,10 +138,10 @@ export function DataImportDashboard() {
   return <div className="flex flex-col gap-6">
     <div className="flex items-start justify-between gap-4"><div><p className="flex items-center gap-2 text-sm font-medium text-primary"><Activity aria-hidden="true" />Canlı operasyon görünümü</p><h1 className="mt-2 text-balance text-3xl font-bold tracking-tight">Veri aktarımı</h1><p className="mt-2 max-w-2xl text-pretty text-muted-foreground">23 ulusal ligin iki bağımsız kaynaktaki snapshotlarını, checkpointlerini ve hatalarını yönetin.</p></div><Button variant="outline" size="sm" onClick={() => void mutate()} disabled={isLoading}><RefreshCw data-icon="inline-start" />Yenile</Button></div>
     {!data?.available ? <div className="rounded-xl bg-muted p-5 text-sm text-muted-foreground">{data?.message ?? 'Migration bekleniyor. Panel şema uygulanınca canlı veriyi gösterecek.'}</div> : null}
-    <div className="grid gap-4 xl:grid-cols-2"><SourceCard source="transfermarkt" run={data?.runs.transfermarkt} summary={data?.runs.transfermarkt ? data.summaries[data.runs.transfermarkt.id] : undefined} onStart={start} busy={busy} serverNow={data?.serverNow} /><SourceCard source="api_football" run={data?.runs.api_football} summary={data?.runs.api_football ? data.summaries[data.runs.api_football.id] : undefined} onStart={start} busy={busy} serverNow={data?.serverNow} /><MatchingCard run={data?.matching} onStart={() => void startMatching()} busy={busy} sourcesReady={Boolean(sourcesReady)} /></div>
+    <div className="grid gap-4 xl:grid-cols-2"><SourceCard source="transfermarkt" run={data?.runs.transfermarkt} summary={data?.runs.transfermarkt ? data.summaries[data.runs.transfermarkt.id] : undefined} onStart={start} busy={busy} serverNow={data?.serverNow} formatDate={formatDate} /><SourceCard source="api_football" run={data?.runs.api_football} summary={data?.runs.api_football ? data.summaries[data.runs.api_football.id] : undefined} onStart={start} busy={busy} serverNow={data?.serverNow} formatDate={formatDate} /><MatchingCard run={data?.matching} onStart={() => void startMatching()} busy={busy} sourcesReady={Boolean(sourcesReady)} /></div>
     <Tabs defaultValue="progress"><TabsList><TabsTrigger value="progress">Lig ve takım ilerlemesi</TabsTrigger><TabsTrigger value="errors">Hata günlüğü</TabsTrigger></TabsList>
-      <TabsContent value="progress"><Card><CardHeader><CardTitle>Checkpoint ayrıntıları</CardTitle><CardDescription>Tamamlanan sayfa ve öğeler tekrar başlatmada atlanır.</CardDescription></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>Kaynak</TableHead><TableHead>Tür</TableHead><TableHead>Öğe</TableHead><TableHead>Durum</TableHead><TableHead>Güncelleme</TableHead></TableRow></TableHeader><TableBody>{(data?.checkpoints ?? []).map((item) => <TableRow key={item.id}><TableCell>{item.runId === data?.runs.transfermarkt?.id ? 'Transfermarkt' : 'API-Football'}</TableCell><TableCell>{item.kind}</TableCell><TableCell className="max-w-52 truncate">{item.itemKey}</TableCell><TableCell><Badge variant="secondary">{item.status}</Badge></TableCell><TableCell>{date(item.updatedAt)}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card></TabsContent>
-      <TabsContent value="errors"><Card><CardHeader><CardTitle>Hata günlüğü</CardTitle><CardDescription>Aynı öğenin tekrar eden hataları tek satırda gruplanır.</CardDescription></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>Kaynak</TableHead><TableHead>Öğe</TableHead><TableHead>Tür</TableHead><TableHead>Son hata</TableHead><TableHead className="text-right">Tekrar</TableHead><TableHead>Son görülme</TableHead></TableRow></TableHeader><TableBody>{(data?.errors ?? []).map((item) => <TableRow key={item.id}><TableCell>{sourceLabels[item.source]}</TableCell><TableCell><div className="flex flex-col gap-1"><span>{item.kind}</span><span className="max-w-40 truncate font-mono text-xs text-muted-foreground">{item.itemKey ?? '—'}</span></div></TableCell><TableCell><Badge variant="destructive">{item.errorType}</Badge></TableCell><TableCell className="min-w-64 max-w-md whitespace-normal">{item.message}</TableCell><TableCell className="text-right font-mono">{item.occurrences}</TableCell><TableCell className="whitespace-nowrap">{date(item.createdAt)}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card></TabsContent>
+      <TabsContent value="progress"><Card><CardHeader><CardTitle>Checkpoint ayrıntıları</CardTitle><CardDescription>Tamamlanan sayfa ve öğeler tekrar başlatmada atlanır.</CardDescription></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>Kaynak</TableHead><TableHead>Tür</TableHead><TableHead>Öğe</TableHead><TableHead>Durum</TableHead><TableHead>Güncelleme</TableHead></TableRow></TableHeader><TableBody>{(data?.checkpoints ?? []).map((item) => <TableRow key={item.id}><TableCell>{item.runId === data?.runs.transfermarkt?.id ? 'Transfermarkt' : 'API-Football'}</TableCell><TableCell>{item.kind}</TableCell><TableCell className="max-w-52 truncate">{item.itemKey}</TableCell><TableCell><Badge variant="secondary">{item.status}</Badge></TableCell><TableCell>{formatDate(item.updatedAt)}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card></TabsContent>
+      <TabsContent value="errors"><Card><CardHeader><CardTitle>Hata günlüğü</CardTitle><CardDescription>Aynı öğenin tekrar eden hataları tek satırda gruplanır.</CardDescription></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>Kaynak</TableHead><TableHead>Öğe</TableHead><TableHead>Tür</TableHead><TableHead>Son hata</TableHead><TableHead className="text-right">Tekrar</TableHead><TableHead>Son görülme</TableHead></TableRow></TableHeader><TableBody>{(data?.errors ?? []).map((item) => <TableRow key={item.id}><TableCell>{sourceLabels[item.source]}</TableCell><TableCell><div className="flex flex-col gap-1"><span>{item.kind}</span><span className="max-w-40 truncate font-mono text-xs text-muted-foreground">{item.itemKey ?? '—'}</span></div></TableCell><TableCell><Badge variant="destructive">{item.errorType}</Badge></TableCell><TableCell className="min-w-64 max-w-md whitespace-normal">{item.message}</TableCell><TableCell className="text-right font-mono">{item.occurrences}</TableCell><TableCell className="whitespace-nowrap">{formatDate(item.createdAt)}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card></TabsContent>
     </Tabs>
   </div>
 }
