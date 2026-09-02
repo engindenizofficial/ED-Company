@@ -43,7 +43,16 @@ export function sanitize(value: string | undefined | null): string | undefined {
  * olduğu doğrulanmış haldedir — geçersiz bir aday varsa bir sonraki adaya
  * düşülür, hepsi başarısız olursa localhost'a düşülür.
  */
+export const PRODUCTION_SITE_URL = 'https://edcompanyofficial.com'
+
 export function getSiteUrl(): string {
+  // Vercel'in production deployment URL'i çoğunlukla *.vercel.app olur. Auth
+  // callback ve cookie'lerinin kullanıcıların açtığı özel domainde kalması için
+  // production ortamında tek kanonik origin kullanılır.
+  if (process.env.VERCEL_ENV === 'production') {
+    return PRODUCTION_SITE_URL
+  }
+
   const candidates = [
     sanitize(process.env.BETTER_AUTH_URL),
     sanitize(process.env.VERCEL_PROJECT_PRODUCTION_URL) &&

@@ -10,6 +10,25 @@ interface AuthFormProps {
   mode: 'sign-in' | 'sign-up'
 }
 
+const credentialErrorCodes = new Set([
+  'INVALID_EMAIL_OR_PASSWORD',
+  'INVALID_PASSWORD',
+  'USER_NOT_FOUND',
+])
+
+function isCredentialError(code: string | undefined) {
+  return credentialErrorCodes.has(code ?? '')
+}
+
+async function waitForSession() {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const result = await authClient.getSession()
+    if (result.data?.session) return true
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+  }
+  return false
+}
+
 export function AuthForm({ mode }: AuthFormProps) {
   const { t } = useLanguage()
   const router = useRouter()
@@ -45,7 +64,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         setGoogleLoading(false)
       }
     } catch {
-      setError(t('common.unexpectedError'))
+      setError(t('auth.networkError'))
       setGoogleLoading(false)
     }
   }
@@ -85,14 +104,26 @@ export function AuthForm({ mode }: AuthFormProps) {
       if (res.error) {
         const unverified = res.error.code === 'EMAIL_NOT_VERIFIED'
         setShowVerificationAction(unverified)
-        setError(unverified ? t('auth.emailNotVerified') : t('auth.wrongCredentials'))
+        setError(
+          unverified
+            ? t('auth.emailNotVerified')
+            : isCredentialError(res.error.code)
+              ? t('auth.wrongCredentials')
+              : t('auth.signInError'),
+        )
         return
       }
 
-      router.push('/')
+      const sessionReady = await waitForSession()
+      if (!sessionReady) {
+        setError(t('auth.sessionNotDetected'))
+        return
+      }
+
+      router.replace('/')
       router.refresh()
     } catch {
-      setError(t('common.unexpectedError'))
+      setError(t('auth.networkError'))
     } finally {
       setLoading(false)
     }

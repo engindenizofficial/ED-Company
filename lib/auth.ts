@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { pool } from '@/lib/db'
 import { Resend } from 'resend'
-import { getSiteUrl, sanitize } from '@/lib/site-url'
+import { getSiteUrl, PRODUCTION_SITE_URL, sanitize } from '@/lib/site-url'
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY)
@@ -31,6 +31,8 @@ const trustedOrigins = [
         ...(sanitize(process.env.V0_SANDBOX_URL) ? [sanitize(process.env.V0_SANDBOX_URL) as string] : []),
       ]
     : [
+        PRODUCTION_SITE_URL,
+        'https://www.edcompanyofficial.com',
         ...(sanitize(process.env.VERCEL_URL) ? [`https://${sanitize(process.env.VERCEL_URL)}`] : []),
         ...(sanitize(process.env.VERCEL_PROJECT_PRODUCTION_URL)
           ? [`https://${sanitize(process.env.VERCEL_PROJECT_PRODUCTION_URL)}`]
@@ -98,7 +100,11 @@ export const auth = betterAuth({
           </div>
         `,
       }, { idempotencyKey: emailIdempotencyKey('password-reset', deliveryUrl) })
-      if (error) throw new Error(`Password reset email failed: ${error.message}`)
+      if (error) {
+        console.error('[auth] Password reset email delivery failed', {
+          errorName: error.name,
+        })
+      }
     },
   },
   socialProviders: {
@@ -134,7 +140,11 @@ export const auth = betterAuth({
           </div>
         `,
       }, { idempotencyKey: emailIdempotencyKey('email-verification', deliveryUrl) })
-      if (error) throw new Error(`Verification email failed: ${error.message}`)
+      if (error) {
+        console.error('[auth] Verification email delivery failed', {
+          errorName: error.name,
+        })
+      }
     },
   },
   trustedOrigins,
