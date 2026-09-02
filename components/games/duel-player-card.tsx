@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { Calendar, Check, MapPin, Shield, Shirt, X } from "lucide-react"
@@ -124,14 +125,14 @@ export function DuelPlayerCard({
         />
         <div className="relative flex size-16 items-center justify-center overflow-hidden rounded-full bg-secondary ring-4 ring-background sm:size-28">
           {showPhoto ? (
-            <img
+            <Image
               src={player.photo || "/placeholder.svg"}
               alt={player.name}
               crossOrigin="anonymous"
               className="h-full w-full object-cover"
               width={112}
               height={112}
-              decoding="async"
+              unoptimized
               onError={() => setPhotoFailed(true)}
             />
           ) : (
@@ -149,15 +150,14 @@ export function DuelPlayerCard({
       {player.team && (
         <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
           {player.team.logo && (
-            <img
+            <Image
               src={player.team.logo || "/placeholder.svg"}
               alt=""
               crossOrigin="anonymous"
-              className="h-4 w-4 object-contain rounded-full bg-white/95 p-0.5 ring-1 ring-black/5"
+              className="h-4 w-4 rounded-full bg-white/95 object-contain p-0.5 ring-1 ring-black/5"
               width={16}
               height={16}
-              loading="lazy"
-              decoding="async"
+              unoptimized
             />
           )}
           <span>{player.team.name}</span>

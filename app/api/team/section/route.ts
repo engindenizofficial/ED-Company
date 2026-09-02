@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
 import { calculateAge } from "@/lib/api-football"
-import { getPlayerMarketValues } from "@/lib/search/market-index"
+import { getPlayerMarketValueMapByIds } from "@/lib/search/market-index"
 import type {
   Fixture,
   FormGame,
@@ -253,7 +253,7 @@ export async function GET(request: Request) {
         const squadRaw = await apiFetch<ApiData>("/players/squads", { team: teamId })
         const squadData = squadRaw?.[0] as ApiData
         const rawPlayers = squadData?.players ?? []
-        const marketValues = await getPlayerMarketValues(rawPlayers.map((player: ApiData) => player.id ?? 0))
+        const marketValues = await getPlayerMarketValueMapByIds(rawPlayers.map((player: ApiData) => player.id ?? 0))
 
         const players: SquadPlayer[] = rawPlayers.map((p: ApiData) => ({
           id: p.id, name: p.name, age: p.age ?? null,

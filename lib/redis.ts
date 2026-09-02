@@ -65,16 +65,6 @@ export async function acquireChainLock(name: string, ttlSeconds: number): Promis
   }
 }
 
-/** Kilidin süresini tazeler (zincir hâlâ ilerliyor demektir). */
-async function refreshChainLock(name: string, ttlSeconds: number): Promise<void> {
-  if (!redis) return
-  try {
-    await redis.expire(K.chainLock(name), ttlSeconds)
-  } catch (err) {
-    console.log("[v0] redis refreshChainLock failed:", err instanceof Error ? err.message : err)
-  }
-}
-
 /** Kilidi serbest bırakır (zincir tamamen durduğunda). */
 export async function releaseChainLock(name: string): Promise<void> {
   if (!redis) return

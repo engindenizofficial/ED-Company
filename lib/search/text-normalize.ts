@@ -20,8 +20,3 @@ export function normalizeTR(s: string): string {
     .replace(/İ/g, "i")
     .trim()
 }
-
-/** `haystack` içinde `needle` normalize edilmiş halde geçiyor mu? */
-function normalizedIncludes(haystack: string, needleNorm: string): boolean {
-  return normalizeTR(haystack).includes(needleNorm)
-}

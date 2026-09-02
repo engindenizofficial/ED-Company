@@ -288,10 +288,3 @@ export function resolveKnockoutTie(
   }
 }
 
-/** Bahis oranlarından ev sahibinin mi deplasmanın mı favori olduğunu çıkarır (düşük oran = favori). */
-function oddsFavoredSide(odds: { home: number | null; away: number | null }): boolean | null {
-  if (odds.home == null || odds.away == null) return null
-  if (odds.home < odds.away) return true
-  if (odds.away < odds.home) return false
-  return null
-}

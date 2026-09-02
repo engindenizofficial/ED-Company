@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import {
   DndContext,
   DragOverlay,
@@ -41,7 +41,6 @@ import {
   FORMATIONS,
   getFormationSlots,
   type FormationSlot,
-  type PlayerRole,
 } from "@/lib/games/manager-career"
 import { PlayerSearchDialog } from "@/components/games/manager-career/player-search-dialog"
 import { PowerBadge } from "@/components/games/manager-career/power-badge"
@@ -74,20 +73,6 @@ interface SquadBuilderProps {
   onBack: () => void
   onComplete: (payload: SquadCompletionPayload) => void
   submitting: boolean
-}
-
-const ROLE_LABEL_KEY: Record<PlayerRole, string> = {
-  Goalkeeper: "goalkeeper",
-  Defender: "defender",
-  Midfielder: "midfielder",
-  Attacker: "attacker",
-}
-
-const ROLE_ABBR: Record<PlayerRole, string> = {
-  Goalkeeper: "GK",
-  Defender: "DEF",
-  Midfielder: "MID",
-  Attacker: "FWD",
 }
 
 type SearchTarget = { kind: "starting"; slot: FormationSlot } | { kind: "bench"; index: number }

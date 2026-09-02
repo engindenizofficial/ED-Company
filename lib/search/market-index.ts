@@ -117,20 +117,6 @@ export async function getFeaturedPlayerMarketValues(): Promise<FeaturedPlayerMar
   }, [])
 }
 
-async function getPlayerMarketValuesByTeamIds(teamIds: number[]): Promise<MatchedPlayerSnapshotEntry[]> {
-  const ids = uniqueIds(teamIds)
-  if (!ids.length) return []
-  return withFallback(async () => {
-    const result = await pool.query<PlayerRow>(`
-      WITH latest AS (${LATEST_COMPLETED_MATCH_RUN})
-      ${PLAYER_SELECT}
-      ${MATCHED_PLAYERS_FROM}
-      WHERE ap."teamSourceId" = ANY($1::int[]) AND tp."marketValueEur" > 0
-    `, [ids])
-    return toEntries(result.rows)
-  }, [])
-}
-
 export async function getMatchedPlayerSnapshotsByIds(playerIds: number[]): Promise<MatchedPlayerSnapshotEntry[]> {
   const ids = uniqueIds(playerIds)
   if (!ids.length) return []
@@ -149,8 +135,6 @@ export async function getPlayerMarketValueMapByIds(playerIds: number[]): Promise
   const rows = await getMatchedPlayerSnapshotsByIds(playerIds)
   return new Map(rows.map((row) => [row.playerId, row.valueEur]))
 }
-
-export const getPlayerMarketValues = getPlayerMarketValueMapByIds
 
 export async function getPlayerMarketValue(playerId: number): Promise<number | null> {
   return (await getPlayerMarketValueMapByIds([playerId])).get(playerId) ?? null
@@ -173,8 +157,6 @@ export function getTeamMarketValueMapByTeamIds(teamIds: number[]): Promise<Map<n
     }))
   }, new Map<number, number>())
 }
-
-export const getTeamMarketValues = getTeamMarketValueMapByTeamIds
 
 export async function getTeamMarketValue(teamId: number): Promise<number | null> {
   return (await getTeamMarketValueMapByTeamIds([teamId])).get(teamId) ?? null
@@ -208,8 +190,3 @@ export async function getLeagueMarketValueMapByTeamMemberships(
   return result
 }
 
-async function getFeaturedTeamMarketValueMap(): Promise<Map<number, number>> {
-  const players = await getFeaturedPlayerMarketValues()
-  const teamIds = [...new Set(players.map((player) => player.teamId))]
-  return getTeamMarketValueMapByTeamIds(teamIds)
-}

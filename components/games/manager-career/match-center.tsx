@@ -33,7 +33,7 @@ function TeamHeader({ name, logo, align }: { name: string; logo: string | null; 
   )
 }
 
-function EventRow({ event, t }: { event: PlayedMatchResult["events"][number]; t: (key: string) => string }) {
+function EventRow({ event }: { event: PlayedMatchResult["events"][number] }) {
   const isGoal = event.type === "goal"
   return (
     <li
@@ -183,7 +183,7 @@ export function MatchCenter({ nextFixture, lastPlayedMatch, seasonComplete, onRe
                 visibleEvents
                   .slice()
                   .sort((a, b) => b.minute - a.minute)
-                  .map((event, i) => <EventRow key={`${event.minute}-${i}`} event={event} t={t} />)
+                  .map((event, i) => <EventRow key={`${event.minute}-${i}`} event={event} />)
               )}
             </ul>
           </div>

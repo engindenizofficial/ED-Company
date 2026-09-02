@@ -21,8 +21,6 @@ export interface MatchResult {
 const LEAGUE_AVG_GOALS = 1.35
 /** Ev sahibi avantajı çarpanı. */
 const HOME_ADVANTAGE = 1.12
-/** Güç ölçeği (1-99) merkezi — xG oranını bu değere göre normalize eder. */
-const POWER_MIDPOINT = 55
 
 /**
  * Poisson(lambda) dağılımından tek bir örnek üretir (Knuth algoritması).

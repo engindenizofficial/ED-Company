@@ -269,7 +269,7 @@ export function MarketValueDuelGame() {
     } else if (difficulty && prefetchedRound) {
       setRound(prefetchedRound); setPrefetchedRound(null); setResult(null); setPickedId(null); setSecondsLeft(ROUND_SECONDS); resolvingRef.current = false; setPhase("playing"); setSeenPlayerIds((current) => Array.from(new Set([...current, ...prefetchedRound.players.map((player) => player.id)]))); play("newRound")
     } else if (difficulty) void loadRound(difficulty, selectedLeagueIds, seenPlayerIds)
-  }, [bestStreak, correctCount, dailyAnswers, dailyRounds, difficulty, lives, loadRound, mode, play, prefetchedRound, roundNumber, score, seenPlayerIds, selectedLeagueIds, session])
+  }, [bestStreak, correctCount, dailyAnswers, dailyRounds, difficulty, lives, loadRound, mode, play, prefetchedRound, roundNumber, score, seenPlayerIds, selectedLeagueIds, session, t])
 
   const resetSelections = useCallback(() => {
     setDifficulty(null)

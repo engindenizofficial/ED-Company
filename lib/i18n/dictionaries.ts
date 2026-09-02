@@ -1,6 +1,5 @@
 export type Locale = "tr" | "en"
 
-const LOCALES: Locale[] = ["tr", "en"]
 export const DEFAULT_LOCALE: Locale = "tr"
 
 // Basit, iç içe (nested) sözlük yapısı. Anahtarlar nokta notasyonuyla
@@ -339,7 +338,7 @@ const dictionaries: Record<Locale, Record<string, unknown>> = {
       addPlayerAria: "{{name}} adlı oyuncuyu ekle",
       squadIncomplete: "Kadro tamamlanmadı: {{count}} slot boş.",
       completeSquad: "Kadroyu Tamamla ve Kariyeri Başlat",
-      creatingCareer: "Kulüp kuruluyor...",
+      creatingCareer: "Kul��p kuruluyor...",
       createFailedGeneric: "Kulüp kurulamadı. Lütfen tekrar dene.",
       createFailedBudget: "Toplam kadro bedeli bütçeni aşıyor.",
       createFailedPrice: "Bazı oyuncuların piyasa değeri artık mevcut değil. Lütfen onları kadrodan çıkarıp tekrar dene.",

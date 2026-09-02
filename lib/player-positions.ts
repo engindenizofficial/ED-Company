@@ -66,8 +66,3 @@ export function isPlayerPosition(value: string): value is PlayerPosition {
   return (PLAYER_POSITIONS as readonly string[]).includes(value)
 }
 
-function positionSummary(player: PositionProfile | null | undefined): string {
-  return player?.primary ?? "Mevki doğrulanmadı"
-}
-
-const POSITION_GROUPS = { defense: ["LB", "CB", "RB"], midfield: ["DM", "CM", "AM", "LM", "RM"], attack: ["LW", "RW", "CF", "ST"] } as const

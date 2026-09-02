@@ -23,11 +23,6 @@ async function getUserId() {
   return session.user.id
 }
 
-interface PushSubscriptionInput {
-  endpoint: string
-  keys: { p256dh: string; auth: string }
-}
-
 export async function savePushSubscription(input: unknown): Promise<void> {
   const userId = await getUserId()
   const parsed = pushSubscriptionSchema.parse(input)

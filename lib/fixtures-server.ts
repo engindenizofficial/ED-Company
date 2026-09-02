@@ -1,7 +1,6 @@
 import { getFixturesByDate } from "@/lib/api-football"
 import { getCachedFixtures, setCachedFixtures } from "@/lib/redis"
 import {
-  getRelativeDateKey,
   normalizeTimeZone,
   SERVER_TIME_ZONE,
 } from "@/lib/fixture-datetime"
@@ -44,16 +43,4 @@ export async function getFixturesResponse(
 
     return { date, fixtures: [], cachedAt: Date.now(), stale: true }
   }
-}
-
-function todayTR(): string {
-  return getRelativeDateKey(0, SERVER_TIME_ZONE)
-}
-
-function yesterdayTR(): string {
-  return getRelativeDateKey(-1, SERVER_TIME_ZONE)
-}
-
-function tomorrowTR(): string {
-  return getRelativeDateKey(1, SERVER_TIME_ZONE)
 }

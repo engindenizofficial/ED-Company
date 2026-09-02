@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { safeApiFootballFetch } from "@/lib/api-football-client"
 import { toTurkishCountry } from "@/lib/tr-aliases"
-import { getLeagueMarketValueByTeamIds, getTeamMarketValues } from "@/lib/search/market-index"
+import { getLeagueMarketValueByTeamIds, getTeamMarketValueMapByTeamIds } from "@/lib/search/market-index"
 import type {
   Fixture,
   LeagueSeasonStats,
@@ -135,7 +135,7 @@ async function fetchStandings(leagueId: number, season: number): Promise<Standin
     }
   }
 
-  const marketValues = await getTeamMarketValues(standings.map((row) => row.teamId))
+  const marketValues = await getTeamMarketValueMapByTeamIds(standings.map((row) => row.teamId))
   return standings.map((row) => ({
     ...row,
     marketValueEur: marketValues.get(row.teamId) ?? null,

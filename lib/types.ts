@@ -41,9 +41,6 @@ export interface Fixture {
   refereeCountry: string | null
 }
 
-/** A fixture as sent to the client list. */
-type FixtureWithPrediction = Fixture
-
 // ---------------------------------------------------------------------------
 // Live / raw API-Football data (refreshable)
 // ---------------------------------------------------------------------------
@@ -270,17 +267,6 @@ export interface Trophy {
   place: string
 }
 
-interface TopScorer {
-  player: { id: number; name: string; photo: string | null; nationality: string | null }
-  team: TeamInfo
-  goals: number | null
-  assists: number | null
-  yellowCards: number | null
-  redCards: number | null
-  appearances: number | null
-  rating: string | null
-}
-
 export interface FixturePlayerStat {
   team: string
   teamId: number
@@ -479,14 +465,6 @@ export interface VoteState {
   myVote: VoteChoice | null
 }
 
-interface AnalysisResponse {
-  live: LiveMatchData
-  playerStats: FixturePlayerStat[]
-  liveCachedAt: number
-  stale?: boolean
-  prediction?: MatchPrediction | null
-}
-
 export interface LeagueSeasonStats {
   /** Toplam maç sayısı */
   totalMatches: number
@@ -558,13 +536,6 @@ export interface TeamTransfer {
   player: { id: number; name: string; photo: string | null }
 }
 
-interface TeamTrophy {
-  league: string
-  country: string
-  season: string
-  place: string
-}
-
 export interface TeamCoach {
   id: number
   name: string
@@ -583,21 +554,6 @@ export interface TeamTopScorer {
   yellowCards: number
   redCards: number
   pos: string | null
-}
-
-interface TeamPageData {
-  team: TeamInfo
-  venue: { name: string | null; city: string | null; capacity: number | null; image: string | null }
-  currentSeason: number
-  stats: TeamSeasonStats | null
-  squad: SquadPlayer[]
-  recentFixtures: Fixture[]
-  standings: StandingRow[]
-  transfers: TeamTransfer[]
-  trophies: TeamTrophy[]
-  coach: TeamCoach | null
-  topScorers: TeamTopScorer[]
-  fetchedAt: number
 }
 
 /** Takım panelinin header'ı için hafif, tek istekle gelen özet bilgi. */

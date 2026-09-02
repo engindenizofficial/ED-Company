@@ -20,7 +20,7 @@ import type {
 import { toTurkishCountry } from "./tr-aliases"
 import { apiFootballFetch, safeApiFootballFetch } from "./api-football-client"
 import { FEATURED_LEAGUE_IDS } from "./leagues"
-import { getPlayerMarketValue, getPlayerMarketValues, getTeamMarketValue } from "./search/market-index"
+import { getPlayerMarketValue, getPlayerMarketValueMapByIds, getTeamMarketValue } from "./search/market-index"
 
 type ApiData = ReturnType<JSON["parse"]>
 
@@ -507,24 +507,6 @@ export async function getHeadToHead(homeId: number, awayId: number): Promise<For
   return games
 }
 
-/**
- * Bir ligin BÜTÜN katılımcı takım listesini döndürür (/teams uç noktası).
- *
- * ÖNEMLİ — bilerek /standings DEĞİL /teams kullanılıyor: /standings, bir
- * takımın o sezon henüz resmi lig maçı oynanmamış/kayda geçmemiş olması
- * durumunda o takımı listeden tamamen ATLAR (örn. sezon başında fikstürü
- * ertelenen veya yeni terfi eden bir takım). /teams ise sezona katılan TÜM
- * takımları, hiç maç oynanmamış olsa bile eksiksiz döndürür. Piyasa değeri
- * eşleştirme zinciri takım listesini buradan almalı; aksi halde standings'te
- * henüz görünmeyen bir takım (ve onun tüm kadrosu) hiç taranmaz.
- */
-async function getLeagueTeams(leagueId: number, season: number): Promise<{ id: number; name: string }[]> {
-  const raw = await safeFetch<ApiData>("/teams", { league: leagueId, season }, 3600)
-  return raw
-    .map((r) => ({ id: r.team?.id ?? 0, name: r.team?.name ?? "" }))
-    .filter((t) => t.id !== 0)
-}
-
 export async function getStandings(leagueId: number, season: number, teamIds: number[]): Promise<StandingRow[]> {
   const raw = await safeFetch<ApiData>("/standings", { league: leagueId, season }, 3600)
   if (raw.length === 0) return []
@@ -591,7 +573,7 @@ export async function getSquad(teamId: number): Promise<SquadPlayer[]> {
   const raw = await safeFetch<ApiData>("/players/squads", { team: teamId }, 3600)
   if (!raw.length) return []
   const players: ApiData[] = raw[0]?.players ?? []
-  const marketValues = await getPlayerMarketValues(players.map((player) => player.id ?? 0))
+  const marketValues = await getPlayerMarketValueMapByIds(players.map((player) => player.id ?? 0))
   return players.map((p) => ({
     id: p.id ?? 0,
     name: p.name ?? "",
@@ -632,26 +614,6 @@ export async function getPlayerRoleAndPhoto(
     photo: p.photo ?? null,
     age: calculateAge(p.birth?.date, p.age),
   }
-}
-
-/**
- * Bir takımın API-Football'daki menşei ülkesini döndürür. SADECE piyasa
- * değeri takım adı karşılaştırması gereken yerlerde kullanılır.
- */
-async function getTeamCountry(teamId: number): Promise<string | null> {
-  const raw = await safeFetch<ApiData>("/teams", { id: teamId }, 3600)
-  const country = raw[0]?.team?.country ?? null
-  return country ? toTurkishCountry(country) : null
-}
-
-/**
- * Bir oyuncunun API-Football'daki uyruğunu döndürür. SADECE piyasa değeri
- * manuel gözden geçirme kuyruğu için kullanılır (bkz. getTeamCountry).
- */
-async function getPlayerNationality(playerId: number, season: number): Promise<string | null> {
-  const raw = await safeFetch<ApiData>("/players", { id: playerId, season }, 3600)
-  const nationality = raw[0]?.player?.nationality ?? null
-  return nationality ? toTurkishCountry(nationality) : null
 }
 
 export async function getInjuries(fixtureId: number): Promise<InjuryItem[]> {

@@ -119,7 +119,7 @@ export function PlayerSearchDialog({
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery, role])
+  }, [debouncedQuery, role, targetPosition])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

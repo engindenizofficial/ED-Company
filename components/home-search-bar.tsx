@@ -34,7 +34,7 @@ function Logo({ src, alt, fallback }: { src: string | null; alt: string; fallbac
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
-        alt=""
+        alt={alt}
         className="h-8 w-8 shrink-0 rounded-full bg-white/95 object-contain p-0.5 ring-1 ring-black/5"
         width={32}
         height={32}
@@ -89,7 +89,7 @@ export function HomeSearchBar({ date }: { date: string }) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTab("matches")
     }
-  }, [query.length === 0])
+  }, [query.length])
 
   // Aktif sekme veya sorgu değiştiğinde SADECE o sekmenin verisini çek.
   useEffect(() => {
@@ -338,7 +338,7 @@ export function HomeSearchBar({ date }: { date: string }) {
                   const live = LIVE_STATUSES.has(f.statusShort)
                   const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
                   return (
-                    <li key={`match-${f.id}`} role="option">
+                    <li key={`match-${f.id}`} role="option" aria-selected={false}>
                       <button
                         type="button"
                         onClick={() => handleSelectMatch(f)}
@@ -373,7 +373,7 @@ export function HomeSearchBar({ date }: { date: string }) {
 
               {tab === "players" &&
                 playerResults.map((p) => (
-                  <li key={`player-${p.id}`} role="option">
+                  <li key={`player-${p.id}`} role="option" aria-selected={false}>
                     <button
                       type="button"
                       onClick={() => handleSelectPlayer(p)}
@@ -404,7 +404,7 @@ export function HomeSearchBar({ date }: { date: string }) {
 
               {tab === "teams" &&
                 teamResults.map((r) => (
-                  <li key={`team-${r.id}`} role="option">
+                  <li key={`team-${r.id}`} role="option" aria-selected={false}>
                     <button
                       type="button"
                       onClick={() => handleSelectTeam(r)}
@@ -435,7 +435,7 @@ export function HomeSearchBar({ date }: { date: string }) {
 
               {tab === "leagues" &&
                 leagueResults.map((r) => (
-                  <li key={`league-${r.id}`} role="option">
+                  <li key={`league-${r.id}`} role="option" aria-selected={false}>
                     <button
                       type="button"
                       onClick={() => handleSelectLeague(r)}

@@ -56,13 +56,6 @@ export function scoreVerifiedAnswers(
   return { score, correctCount, remainingLives: lives, bestStreak, playedRounds }
 }
 
-function compareLeaderboardEntries(
-  a: Pick<VerifiedDuelScore, 'score' | 'correctCount' | 'remainingLives'> & { durationMs: number; finishedAt?: Date },
-  b: Pick<VerifiedDuelScore, 'score' | 'correctCount' | 'remainingLives'> & { durationMs: number; finishedAt?: Date },
-) {
-  return b.score - a.score || b.correctCount - a.correctCount || b.remainingLives - a.remainingLives || a.durationMs - b.durationMs || (a.finishedAt?.getTime() ?? 0) - (b.finishedAt?.getTime() ?? 0)
-}
-
 export function swipeSelection(deltaX: number, deltaY: number, threshold = 48): 'left' | 'right' | null {
   if (Math.abs(deltaX) < threshold || Math.abs(deltaX) <= Math.abs(deltaY)) return null
   return deltaX < 0 ? 'left' : 'right'
