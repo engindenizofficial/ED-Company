@@ -67,7 +67,7 @@ export type DuelDifficulty = "easy" | "normal" | "hard"
  * "filtre yok / tüm ligler" anlamına gelir, hatalı bir isteği tur oluşmadan
  * elemek yerine güvenli bir şekilde tüm liglere geri düşürür.
  */
-export function normalizeLeagueFilter(leagueIds: number[] | undefined): number[] | null {
+function normalizeLeagueFilter(leagueIds: number[] | undefined): number[] | null {
   if (!leagueIds || leagueIds.length === 0) return null
   const valid = Array.from(new Set(leagueIds)).filter((id) => DUEL_SELECTABLE_LEAGUE_IDS.includes(id))
   // Kullanıcı fiilen TÜM seçilebilir ligleri seçtiyse, filtre uygulamanın
@@ -94,7 +94,7 @@ function signRoundToken(playerIds: [number, number]): string {
 }
 
 /** Jetonu doğrular ve içindeki iki oyuncu id'sini döner. Geçersizse null. */
-export function verifyRoundToken(token: string): [number, number] | null {
+function verifyRoundToken(token: string): [number, number] | null {
   const [payloadB64, signature] = token.split(".")
   if (!payloadB64 || !signature) return null
 

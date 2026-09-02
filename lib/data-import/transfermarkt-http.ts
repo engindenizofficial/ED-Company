@@ -9,7 +9,7 @@ const MAX_RETRIES = 5
 const MIN_INTERVAL_MS = 1800
 let lastRequestAt = 0
 
-export class TransfermarktHttpError extends Error {
+class TransfermarktHttpError extends Error {
   constructor(message: string, public readonly kind: string, public readonly retryable: boolean, public readonly status?: number) { super(message) }
 }
 

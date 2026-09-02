@@ -69,7 +69,7 @@ function sleep(ms: number): Promise<void> {
  */
 const FETCH_TIMEOUT_MS = 20_000
 
-export class ApiFootballError extends Error {
+class ApiFootballError extends Error {
   status: number
   constructor(message: string, status: number) {
     super(message)

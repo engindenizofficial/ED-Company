@@ -39,7 +39,7 @@ export function currentSeason(): number {
 // hep aynı listeden türesin.
 // Yeni bir lig eklemek/çıkarmak için lib/leagues.ts'i güncelle.
 // ---------------------------------------------------------------------------
-export { FEATURED_LEAGUE_IDS }
+
 
 /** Returns the priority rank for a league: 0 = highest (first in list), Infinity = not featured. */
 function featuredRank(leagueId: number): number {
@@ -518,7 +518,7 @@ export async function getHeadToHead(homeId: number, awayId: number): Promise<For
  * eşleştirme zinciri takım listesini buradan almalı; aksi halde standings'te
  * henüz görünmeyen bir takım (ve onun tüm kadrosu) hiç taranmaz.
  */
-export async function getLeagueTeams(leagueId: number, season: number): Promise<{ id: number; name: string }[]> {
+async function getLeagueTeams(leagueId: number, season: number): Promise<{ id: number; name: string }[]> {
   const raw = await safeFetch<ApiData>("/teams", { league: leagueId, season }, 3600)
   return raw
     .map((r) => ({ id: r.team?.id ?? 0, name: r.team?.name ?? "" }))
@@ -638,7 +638,7 @@ export async function getPlayerRoleAndPhoto(
  * Bir takımın API-Football'daki menşei ülkesini döndürür. SADECE piyasa
  * değeri takım adı karşılaştırması gereken yerlerde kullanılır.
  */
-export async function getTeamCountry(teamId: number): Promise<string | null> {
+async function getTeamCountry(teamId: number): Promise<string | null> {
   const raw = await safeFetch<ApiData>("/teams", { id: teamId }, 3600)
   const country = raw[0]?.team?.country ?? null
   return country ? toTurkishCountry(country) : null
@@ -648,7 +648,7 @@ export async function getTeamCountry(teamId: number): Promise<string | null> {
  * Bir oyuncunun API-Football'daki uyruğunu döndürür. SADECE piyasa değeri
  * manuel gözden geçirme kuyruğu için kullanılır (bkz. getTeamCountry).
  */
-export async function getPlayerNationality(playerId: number, season: number): Promise<string | null> {
+async function getPlayerNationality(playerId: number, season: number): Promise<string | null> {
   const raw = await safeFetch<ApiData>("/players", { id: playerId, season }, 3600)
   const nationality = raw[0]?.player?.nationality ?? null
   return nationality ? toTurkishCountry(nationality) : null

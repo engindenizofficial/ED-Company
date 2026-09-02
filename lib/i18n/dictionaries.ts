@@ -1,12 +1,12 @@
 export type Locale = "tr" | "en"
 
-export const LOCALES: Locale[] = ["tr", "en"]
+const LOCALES: Locale[] = ["tr", "en"]
 export const DEFAULT_LOCALE: Locale = "tr"
 
 // Basit, iç içe (nested) sözlük yapısı. Anahtarlar nokta notasyonuyla
 // çözülür (örn. "nav.matches"). Değerler içinde {{degisken}} kalıpları
 // interpolate edilir.
-export const dictionaries: Record<Locale, Record<string, unknown>> = {
+const dictionaries: Record<Locale, Record<string, unknown>> = {
   tr: {
     common: {
       close: "Kapat",

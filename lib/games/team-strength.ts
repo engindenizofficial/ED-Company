@@ -101,7 +101,7 @@ export async function getUserSquadRoster(careerId: string, formationId: string):
 }
 
 /** Kullanıcının kariyerdeki başlangıç 11'inin genel gücünü hesaplar (cache'lenmez — kadro değişebilir). */
-export async function getUserSquadStrength(careerId: string, formationId: string): Promise<TeamStrength> {
+async function getUserSquadStrength(careerId: string, formationId: string): Promise<TeamStrength> {
   const roster = await getUserSquadRoster(careerId, formationId)
   return groupStrengthFromRoster(roster)
 }

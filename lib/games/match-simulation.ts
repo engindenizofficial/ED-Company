@@ -1,7 +1,7 @@
 import type { RosterPlayer, TeamStrength } from "@/lib/games/opponent-roster"
 
-export type MatchEventType = "goal" | "yellow" | "red"
-export type MatchSide = "home" | "away"
+type MatchEventType = "goal" | "yellow" | "red"
+type MatchSide = "home" | "away"
 
 export interface MatchEvent {
   minute: number

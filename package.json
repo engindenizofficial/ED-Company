@@ -12,7 +12,6 @@
     "workflow:validate": "workflow validate"
   },
   "dependencies": {
-    "@ai-sdk/gateway": "^4.0.72",
     "@ai-sdk/google": "^4.0.62",
     "@ai-sdk/openai": "^4.0.56",
     "@ai-sdk/xai": "^4.0.53",
@@ -54,14 +53,11 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@types/web-push": "^3.6.4",
-    "@typescript/native": "npm:typescript@^7.0.2",
-    "@workflow/vitest": "^4.0.21",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.4",
     "postcss": "^8.5.26",
     "sharp": "^0.35.4",
     "tailwindcss": "^4.3.3",
-    "tsx": "^4.23.13",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vitest": "^4.1.11"
   },
@@ -71,5 +67,14 @@
     "firefox >= 88",
     "safari >= 14",
     "ios_saf >= 14"
-  ]
+  ],
+  "knip": {
+    "entry": [
+      "scripts/*.mjs",
+      "public/sw-push.js"
+    ],
+    "ignore": [
+      "app/.well-known/workflow/**"
+    ]
+  }
 }

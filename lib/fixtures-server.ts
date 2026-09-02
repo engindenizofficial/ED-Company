@@ -46,14 +46,14 @@ export async function getFixturesResponse(
   }
 }
 
-export function todayTR(): string {
+function todayTR(): string {
   return getRelativeDateKey(0, SERVER_TIME_ZONE)
 }
 
-export function yesterdayTR(): string {
+function yesterdayTR(): string {
   return getRelativeDateKey(-1, SERVER_TIME_ZONE)
 }
 
-export function tomorrowTR(): string {
+function tomorrowTR(): string {
   return getRelativeDateKey(1, SERVER_TIME_ZONE)
 }

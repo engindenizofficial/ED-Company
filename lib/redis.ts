@@ -66,7 +66,7 @@ export async function acquireChainLock(name: string, ttlSeconds: number): Promis
 }
 
 /** Kilidin süresini tazeler (zincir hâlâ ilerliyor demektir). */
-export async function refreshChainLock(name: string, ttlSeconds: number): Promise<void> {
+async function refreshChainLock(name: string, ttlSeconds: number): Promise<void> {
   if (!redis) return
   try {
     await redis.expire(K.chainLock(name), ttlSeconds)

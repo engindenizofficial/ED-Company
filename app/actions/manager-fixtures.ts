@@ -123,7 +123,7 @@ function toPlayedMatchResult(row: typeof managerFixture.$inferSelect): PlayedMat
  * kullanıcının kulübü, çift devreli round-robin ile TEK bir takvimde
  * birleştirilir.
  */
-export async function generateSeasonFixtures(careerId: string): Promise<void> {
+async function generateSeasonFixtures(careerId: string): Promise<void> {
   const existing = await db.select({ id: managerFixture.id }).from(managerFixture).where(eq(managerFixture.careerId, careerId)).limit(1)
   if (existing.length > 0) return
 

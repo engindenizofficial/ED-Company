@@ -23,7 +23,7 @@ async function getUserId() {
   return session.user.id
 }
 
-export interface PushSubscriptionInput {
+interface PushSubscriptionInput {
   endpoint: string
   keys: { p256dh: string; auth: string }
 }

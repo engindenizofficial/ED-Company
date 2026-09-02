@@ -2,7 +2,7 @@ import { normalizeDate, normalizeText } from './normalize'
 import { analyzeNameEvidence } from './similarity'
 
 export type MatchPlayer = { id: string | number; name: string; birthDate: Date | string | null; teamName: string }
-export type MatchLevel = 'exact_biographic' | 'fuzzy_name_birthdate' | 'unmatched'
+type MatchLevel = 'exact_biographic' | 'fuzzy_name_birthdate' | 'unmatched'
 export type MatchDecision = {
   transfermarktPlayer: MatchPlayer
   apiFootballPlayer: MatchPlayer | null

@@ -1,4 +1,4 @@
-export const PLAYER_POSITIONS = ["GK", "LB", "CB", "RB", "DM", "CM", "AM", "LM", "RM", "LW", "RW", "CF", "ST"] as const
+const PLAYER_POSITIONS = ["GK", "LB", "CB", "RB", "DM", "CM", "AM", "LM", "RM", "LW", "RW", "CF", "ST"] as const
 export type PlayerPosition = (typeof PLAYER_POSITIONS)[number]
 export type PositionProfile = { primary: PlayerPosition | null }
 
@@ -18,7 +18,7 @@ const ALIASES: Record<string, PlayerPosition> = {
   ST: "ST", Striker: "ST", Attacker: "ST", "Centre-Forward": "ST", "Center-Forward": "ST", "Centre Forward": "ST",
 }
 
-export function normalizePosition(value: string | null | undefined): PlayerPosition | null {
+function normalizePosition(value: string | null | undefined): PlayerPosition | null {
   return value ? ALIASES[value.trim()] ?? null : null
 }
 
@@ -66,8 +66,8 @@ export function isPlayerPosition(value: string): value is PlayerPosition {
   return (PLAYER_POSITIONS as readonly string[]).includes(value)
 }
 
-export function positionSummary(player: PositionProfile | null | undefined): string {
+function positionSummary(player: PositionProfile | null | undefined): string {
   return player?.primary ?? "Mevki doğrulanmadı"
 }
 
-export const POSITION_GROUPS = { defense: ["LB", "CB", "RB"], midfield: ["DM", "CM", "AM", "LM", "RM"], attack: ["LW", "RW", "CF", "ST"] } as const
+const POSITION_GROUPS = { defense: ["LB", "CB", "RB"], midfield: ["DM", "CM", "AM", "LM", "RM"], attack: ["LW", "RW", "CF", "ST"] } as const

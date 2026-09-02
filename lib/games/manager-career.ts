@@ -29,7 +29,7 @@ export const MANAGER_DIFFICULTIES: ManagerDifficulty[] = ["easy", "normal", "har
 /** API-Football'ın ham mevki kategorileri — kadro kurma ekranında slot/oyuncu eşleşmesi bunlara göre yapılır. */
 export type PlayerRole = "Goalkeeper" | "Defender" | "Midfielder" | "Attacker"
 
-export const PLAYER_ROLES: PlayerRole[] = ["Goalkeeper", "Defender", "Midfielder", "Attacker"]
+const PLAYER_ROLES: PlayerRole[] = ["Goalkeeper", "Defender", "Midfielder", "Attacker"]
 
 /** public/images/manager-logos/ altındaki dosya adları — kulüp logosu seçim ekranı. */
 export const CLUB_LOGO_FILES: string[] = Array.from(
@@ -39,7 +39,7 @@ export const CLUB_LOGO_FILES: string[] = Array.from(
 
 export const STARTING_XI_SIZE = 11
 export const BENCH_SIZE = 7
-export const SQUAD_SIZE = STARTING_XI_SIZE + BENCH_SIZE
+const SQUAD_SIZE = STARTING_XI_SIZE + BENCH_SIZE
 
 // ---------------------------------------------------------------------------
 // Diziliş (formasyon) tanımları.
@@ -53,7 +53,7 @@ export const SQUAD_SIZE = STARTING_XI_SIZE + BENCH_SIZE
 // (üst kenar) — y=100 kale çizgisi (alt kenar).
 // ---------------------------------------------------------------------------
 
-export interface FormationLine {
+interface FormationLine {
   role: PlayerRole
   count: number
   /** Yarı saha üzerindeki dikey konum, 0 (orta hat) - 100 (kale çizgisi). */
@@ -182,7 +182,7 @@ export function getFormationSlots(formationId: string): FormationSlot[] {
 }
 
 /** Bir dizilişin, her rol için gereken saha oyuncusu sayısı. */
-export function getFormationRoleCounts(formationId: string): Record<PlayerRole, number> {
+function getFormationRoleCounts(formationId: string): Record<PlayerRole, number> {
   const formation = FORMATIONS.find((f) => f.id === formationId) ?? FORMATIONS[0]
   const counts: Record<PlayerRole, number> = { Goalkeeper: 0, Defender: 0, Midfielder: 0, Attacker: 0 }
   formation.lines.forEach((line) => {

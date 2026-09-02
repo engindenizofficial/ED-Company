@@ -15,8 +15,8 @@ import {
 } from '@/lib/db/schema'
 import type { ImportSource } from './scope'
 
-export const ACTIVE_STATUSES = ['queued', 'running', 'stale'] as const
-export const STALE_AFTER_MS = 3 * 60 * 1000
+const ACTIVE_STATUSES = ['queued', 'running', 'stale'] as const
+const STALE_AFTER_MS = 3 * 60 * 1000
 export const IMPORT_CANCELLED_ERROR = 'IMPORT_RUN_CANCELLED'
 
 export async function assertImportRunActive(runId: string) {

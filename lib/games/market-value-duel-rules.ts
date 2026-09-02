@@ -1,5 +1,5 @@
 export const DUEL_TOTAL_ROUNDS = 10
-export const DUEL_MAX_LIVES = 3
+const DUEL_MAX_LIVES = 3
 
 export interface VerifiedDuelScore {
   score: number
@@ -56,7 +56,7 @@ export function scoreVerifiedAnswers(
   return { score, correctCount, remainingLives: lives, bestStreak, playedRounds }
 }
 
-export function compareLeaderboardEntries(
+function compareLeaderboardEntries(
   a: Pick<VerifiedDuelScore, 'score' | 'correctCount' | 'remainingLives'> & { durationMs: number; finishedAt?: Date },
   b: Pick<VerifiedDuelScore, 'score' | 'correctCount' | 'remainingLives'> & { durationMs: number; finishedAt?: Date },
 ) {

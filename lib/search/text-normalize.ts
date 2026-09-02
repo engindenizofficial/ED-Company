@@ -22,6 +22,6 @@ export function normalizeTR(s: string): string {
 }
 
 /** `haystack` içinde `needle` normalize edilmiş halde geçiyor mu? */
-export function normalizedIncludes(haystack: string, needleNorm: string): boolean {
+function normalizedIncludes(haystack: string, needleNorm: string): boolean {
   return normalizeTR(haystack).includes(needleNorm)
 }

@@ -10,7 +10,7 @@ export interface TeamInfo {
   flagUrl?: string | null
 }
 
-export interface LeagueInfo {
+interface LeagueInfo {
   id: number
   name: string
   country: string
@@ -42,7 +42,7 @@ export interface Fixture {
 }
 
 /** A fixture as sent to the client list. */
-export type FixtureWithPrediction = Fixture
+type FixtureWithPrediction = Fixture
 
 // ---------------------------------------------------------------------------
 // Live / raw API-Football data (refreshable)
@@ -270,7 +270,7 @@ export interface Trophy {
   place: string
 }
 
-export interface TopScorer {
+interface TopScorer {
   player: { id: number; name: string; photo: string | null; nationality: string | null }
   team: TeamInfo
   goals: number | null
@@ -479,7 +479,7 @@ export interface VoteState {
   myVote: VoteChoice | null
 }
 
-export interface AnalysisResponse {
+interface AnalysisResponse {
   live: LiveMatchData
   playerStats: FixturePlayerStat[]
   liveCachedAt: number
@@ -558,7 +558,7 @@ export interface TeamTransfer {
   player: { id: number; name: string; photo: string | null }
 }
 
-export interface TeamTrophy {
+interface TeamTrophy {
   league: string
   country: string
   season: string
@@ -585,7 +585,7 @@ export interface TeamTopScorer {
   pos: string | null
 }
 
-export interface TeamPageData {
+interface TeamPageData {
   team: TeamInfo
   venue: { name: string | null; city: string | null; capacity: number | null; image: string | null }
   currentSeason: number

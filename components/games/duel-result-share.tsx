@@ -16,7 +16,7 @@ export interface DuelShareResult {
   bestStreak: number
 }
 
-export const DuelResultPoster = forwardRef<HTMLDivElement, { result: DuelShareResult }>(function DuelResultPoster({ result }, ref) {
+const DuelResultPoster = forwardRef<HTMLDivElement, { result: DuelShareResult }>(function DuelResultPoster({ result }, ref) {
   const { t } = useLanguage()
   return <div ref={ref} className="flex h-[630px] w-[1080px] flex-col justify-between bg-background p-20 text-foreground">
     <div className="flex items-center justify-between"><div className="flex items-center gap-4"><span className="flex size-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><Swords /></span><div><p className="text-3xl font-black">ED Analytics</p><p className="text-xl text-muted-foreground">Market Value Duel</p></div></div><p className="text-2xl font-bold text-primary">{result.mode === "daily" ? `${t("duel.posterDaily")} · ${result.dayKey}` : t("duel.normalGame")}</p></div>

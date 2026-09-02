@@ -80,7 +80,7 @@ export interface FirstLegResult {
  * bu turnuvanın ilk ayağı sanılabilir. H2H verisinde leagueId eksikse (eski
  * cache/tip garantisi olmayan veri) güvenlik amacıyla eşleşme aranmaz.
  */
-export function findFirstLegResult(h2h: FormGame[], fixture: Fixture): FirstLegResult | null {
+function findFirstLegResult(h2h: FormGame[], fixture: Fixture): FirstLegResult | null {
   const currentDate = new Date(fixture.date).getTime()
 
   const candidates = h2h
@@ -289,7 +289,7 @@ export function resolveKnockoutTie(
 }
 
 /** Bahis oranlarından ev sahibinin mi deplasmanın mı favori olduğunu çıkarır (düşük oran = favori). */
-export function oddsFavoredSide(odds: { home: number | null; away: number | null }): boolean | null {
+function oddsFavoredSide(odds: { home: number | null; away: number | null }): boolean | null {
   if (odds.home == null || odds.away == null) return null
   if (odds.home < odds.away) return true
   if (odds.away < odds.home) return false

@@ -5,7 +5,7 @@ function getCurrentTransfermarktSeason(date = new Date()) {
   return date.getUTCMonth() >= 6 ? year : year - 1
 }
 
-export const TRANSFERMARKT_SEASON = getCurrentTransfermarktSeason()
+const TRANSFERMARKT_SEASON = getCurrentTransfermarktSeason()
 
 const CALENDAR_YEAR_COMPETITIONS = new Set(['NO1', 'MLS1', 'AR1N'])
 

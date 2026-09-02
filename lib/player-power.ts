@@ -1,6 +1,6 @@
 /** Oyuncu güç motorunun saf hesaplama fonksiyonları. */
-export const MIN_POWER = 1
-export const MAX_POWER = 99
+const MIN_POWER = 1
+const MAX_POWER = 99
 
 const MAX_RATING_WEIGHT = 0.35
 const RATING_WEIGHT_FULL_AT_COUNT = 10
@@ -14,15 +14,15 @@ const RATING_FLOOR = 3
 const RATING_CEIL = 10
 
 /** Bir fixture'dan güç hesabına taşınan tek oyuncu verisi. */
-export interface PlayerMatchRating {
+interface PlayerMatchRating {
   rating: number | null
 }
 
-export function clampPower(value: number): number {
+function clampPower(value: number): number {
   return Math.max(MIN_POWER, Math.min(MAX_POWER, Math.round(value)))
 }
 
-export function marketPowerFromValue(valueEur: number | null | undefined): number | null {
+function marketPowerFromValue(valueEur: number | null | undefined): number | null {
   if (valueEur === null || valueEur === undefined || !Number.isFinite(valueEur) || valueEur <= 0) return null
   const clampedValue = Math.max(MARKET_VALUE_FLOOR_EUR, Math.min(MARKET_VALUE_CEIL_EUR, valueEur))
   const logValue = Math.log10(clampedValue)
@@ -38,19 +38,19 @@ export function marketPowerFromValue(valueEur: number | null | undefined): numbe
   return clampPower(MARKET_POWER_AT_PIVOT + (MARKET_POWER_AT_CEIL - MARKET_POWER_AT_PIVOT) * ratio)
 }
 
-export function ratingPowerFromAverage(avgRating: number | null | undefined): number | null {
+function ratingPowerFromAverage(avgRating: number | null | undefined): number | null {
   if (avgRating === null || avgRating === undefined || !Number.isFinite(avgRating)) return null
   const ratio = (Math.max(RATING_FLOOR, Math.min(RATING_CEIL, avgRating)) - RATING_FLOOR) /
     (RATING_CEIL - RATING_FLOOR)
   return clampPower(MIN_POWER + (MAX_POWER - MIN_POWER) * ratio)
 }
 
-export function seasonRatingAverage(sum: number, count: number): number | null {
+function seasonRatingAverage(sum: number, count: number): number | null {
   return count > 0 ? sum / count : null
 }
 
 /** Piyasa değeri ve sezon rating'i karışımından doğrudan nihai gücü üretir. */
-export function computeBasePower(params: {
+function computeBasePower(params: {
   valueEur: number | null | undefined
   seasonRatingSum: number
   seasonRatingCount: number

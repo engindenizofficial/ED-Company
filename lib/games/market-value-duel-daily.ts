@@ -109,7 +109,7 @@ const leaderboardOrder = [
   asc(marketValueDuelDailyResult.finishedAt),
 ] as const
 
-export async function getDailyLeaderboard(dayKey = getIstanbulDayKey()): Promise<DailyLeaderboardEntry[]> {
+async function getDailyLeaderboard(dayKey = getIstanbulDayKey()): Promise<DailyLeaderboardEntry[]> {
   const rows = await db.select({ name: user.name, score: marketValueDuelDailyResult.score, correctCount: marketValueDuelDailyResult.correctCount, remainingLives: marketValueDuelDailyResult.remainingLives, bestStreak: marketValueDuelDailyResult.bestStreak, durationMs: marketValueDuelDailyResult.durationMs }).from(marketValueDuelDailyResult).innerJoin(user, eq(user.id, marketValueDuelDailyResult.userId)).where(eq(marketValueDuelDailyResult.dayKey, dayKey)).orderBy(...leaderboardOrder).limit(100)
   return rows.map((row, index) => ({ rank: index + 1, ...row }))
 }

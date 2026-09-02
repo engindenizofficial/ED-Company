@@ -117,7 +117,7 @@ export async function getFeaturedPlayerMarketValues(): Promise<FeaturedPlayerMar
   }, [])
 }
 
-export async function getPlayerMarketValuesByTeamIds(teamIds: number[]): Promise<MatchedPlayerSnapshotEntry[]> {
+async function getPlayerMarketValuesByTeamIds(teamIds: number[]): Promise<MatchedPlayerSnapshotEntry[]> {
   const ids = uniqueIds(teamIds)
   if (!ids.length) return []
   return withFallback(async () => {
@@ -208,7 +208,7 @@ export async function getLeagueMarketValueMapByTeamMemberships(
   return result
 }
 
-export async function getFeaturedTeamMarketValueMap(): Promise<Map<number, number>> {
+async function getFeaturedTeamMarketValueMap(): Promise<Map<number, number>> {
   const players = await getFeaturedPlayerMarketValues()
   const teamIds = [...new Set(players.map((player) => player.teamId))]
   return getTeamMarketValueMapByTeamIds(teamIds)

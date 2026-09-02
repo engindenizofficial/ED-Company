@@ -1,7 +1,7 @@
 export const SERVER_TIME_ZONE = "Europe/Istanbul"
 export const FALLBACK_TIME_ZONE = "UTC"
 
-export function isValidTimeZone(value: string | null | undefined): value is string {
+function isValidTimeZone(value: string | null | undefined): value is string {
   if (!value) return false
   try {
     new Intl.DateTimeFormat("en", { timeZone: value }).format()
@@ -47,7 +47,7 @@ export function getRelativeDateKey(
   return shiftDateKey(getDateKey(date, timeZone), offsetDays)
 }
 
-export function getDateTimeLocale(locale: string): string {
+function getDateTimeLocale(locale: string): string {
   return locale === "en" || locale.toLowerCase().startsWith("en-") ? "en-US" : "tr-TR"
 }
 

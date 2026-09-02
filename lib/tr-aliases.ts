@@ -301,7 +301,7 @@ const LEAGUE_ALIASES: Array<{ match: string; tr: string }> = [
 
 // Build a normalized, searchable haystack for a fixture that also contains the
 // Turkish aliases of its country and league.
-export function buildSearchIndex(f: Fixture): string {
+function buildSearchIndex(f: Fixture): string {
   const parts = [f.home.name, f.away.name, f.league.name, f.league.country]
   const base = parts.join(" ").toLocaleLowerCase("tr-TR")
 
