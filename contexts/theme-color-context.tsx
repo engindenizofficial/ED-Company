@@ -62,7 +62,7 @@ export function ThemeColorProvider({
     if (!isSignedIn || isLoading || !preferences?.exists) return
 
     if (isValidAccentColor(preferences.themeColor) && preferences.themeColor !== accentColor) {
-      setAccentColorState(preferences.themeColor)
+      queueMicrotask(() => setAccentColorState(preferences.themeColor))
       applyAccentColor(preferences.themeColor)
       setPreferenceCookie(ACCENT_COOKIE, preferences.themeColor)
       try {

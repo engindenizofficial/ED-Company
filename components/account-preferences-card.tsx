@@ -1,10 +1,11 @@
 "use client"
 
-import { Bell, BellOff, Languages, Palette, SlidersHorizontal } from "lucide-react"
+import { Bell, BellOff, Languages, MonitorCog, Palette, SlidersHorizontal } from "lucide-react"
+import { useTheme } from "next-themes"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import {
   Select,
   SelectContent,
@@ -19,13 +20,23 @@ import { useThemeColor } from "@/contexts/theme-color-context"
 import { useAccountPreferences } from "@/hooks/use-account-preferences"
 import { usePushNotifications } from "@/hooks/use-push-notifications"
 import { ACCENT_COLORS } from "@/lib/accent-colors"
+import type { ThemeMode } from "@/app/actions/account"
 import type { Locale } from "@/lib/i18n/dictionaries"
+import { setPreferenceCookie, THEME_COOKIE } from "@/lib/theme-cookies"
 
 export function AccountPreferencesCard() {
   const { t, locale, setLocale } = useLanguage()
+  const { theme = "system", setTheme } = useTheme()
   const { accentColor, setAccentColor } = useThemeColor()
-  const { isLoading, error } = useAccountPreferences()
+  const { isLoading, error, update } = useAccountPreferences()
   const notifications = usePushNotifications(true)
+
+  function setThemeMode(value: string | null) {
+    if (value !== "system" && value !== "light" && value !== "dark") return
+    setTheme(value)
+    setPreferenceCookie(THEME_COOKIE, value)
+    void update({ themeMode: value as ThemeMode })
+  }
 
   return (
     <Card size="sm">
@@ -46,6 +57,28 @@ export function AccountPreferencesCard() {
         {error ? <p className="text-xs text-destructive" role="alert">{t("menu.preferencesLoadError")}</p> : null}
 
         <FieldGroup>
+          <Field orientation="horizontal">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <MonitorCog aria-hidden="true" className="shrink-0 text-primary" />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <FieldLabel htmlFor="account-theme-mode">{t("menu.themeMode")}</FieldLabel>
+                <FieldDescription>{t("menu.themeModeDescription")}</FieldDescription>
+              </div>
+            </div>
+            <Select value={theme} onValueChange={setThemeMode}>
+              <SelectTrigger id="account-theme-mode" className="w-32" aria-label={t("menu.themeMode")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  <SelectItem value="system">{t("menu.themeSystem")}</SelectItem>
+                  <SelectItem value="light">{t("theme.light")}</SelectItem>
+                  <SelectItem value="dark">{t("theme.dark")}</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+
           <Field orientation="horizontal">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Palette aria-hidden="true" className="shrink-0 text-primary" />

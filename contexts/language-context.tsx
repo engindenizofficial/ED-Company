@@ -56,7 +56,7 @@ export function LanguageProvider({
 
   useEffect(() => {
     if (!isSignedIn || isLoading || !preferences?.exists || preferences.locale === locale) return
-    setLocaleState(preferences.locale)
+    queueMicrotask(() => setLocaleState(preferences.locale))
     setPreferenceCookie(LOCALE_COOKIE, preferences.locale)
     try {
       localStorage.setItem(STORAGE_KEY, preferences.locale)

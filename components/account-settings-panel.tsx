@@ -18,6 +18,18 @@ import useSWR from "swr"
 import { requestAccountDeletion } from "@/app/actions/account"
 import { useLanguage } from "@/contexts/language-context"
 import { authClient, useSession } from "@/lib/auth-client"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -396,10 +408,36 @@ export function AccountSettingsPanel() {
               </p>
             </div>
           ) : (
-            <Button type="button" variant="destructive" onClick={handleRequestAccountDeletion} disabled={sendingDelete}>
-              {sendingDelete ? <Spinner data-icon="inline-start" /> : <TriangleAlert data-icon="inline-start" />}
-              {sendingDelete ? t("menu.deleteAccountSending") : t("menu.deleteAccount")}
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger
+                render={
+                  <Button type="button" variant="destructive" disabled={sendingDelete}>
+                    {sendingDelete ? <Spinner data-icon="inline-start" /> : <TriangleAlert data-icon="inline-start" />}
+                    {sendingDelete ? t("menu.deleteAccountSending") : t("menu.deleteAccount")}
+                  </Button>
+                }
+              />
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogMedia>
+                    <TriangleAlert aria-hidden="true" />
+                  </AlertDialogMedia>
+                  <AlertDialogTitle>{t("menu.confirmDeleteTitle")}</AlertDialogTitle>
+                  <AlertDialogDescription>{t("menu.confirmDeleteDescription")}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={handleRequestAccountDeletion}
+                    disabled={sendingDelete}
+                  >
+                    {sendingDelete ? <Spinner data-icon="inline-start" /> : null}
+                    {t("menu.sendDeleteLink")}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
           {deleteError ? <p className="text-xs font-medium text-destructive" role="alert">{deleteError}</p> : null}
         </CardContent>

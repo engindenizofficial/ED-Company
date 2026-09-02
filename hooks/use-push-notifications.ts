@@ -167,7 +167,7 @@ export function usePushNotifications(isSignedIn: boolean) {
 
   useEffect(() => {
     if (preferences?.exists && !preferences.notificationsEnabled && status === "enabled" && !busy) {
-      void disable()
+      queueMicrotask(() => void disable())
     }
   }, [busy, disable, preferences, status])
 

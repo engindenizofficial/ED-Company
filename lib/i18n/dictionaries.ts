@@ -128,6 +128,9 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       preferencesDescription: "Tema, dil ve bildirim tercihleriniz hesabınıza kaydedilir.",
       loadingPreferences: "Tercihler yükleniyor...",
       preferencesLoadError: "Hesap tercihleri yüklenemedi.",
+      themeMode: "Tema modu",
+      themeModeDescription: "Cihaz görünümünü seçin.",
+      themeSystem: "Sistem",
       language: "Dil",
       enableOnThisDevice: "Hesabınızda açık. Bu cihazda bildirim izni verin.",
       notificationSyncDescription: "Tercihiniz tüm cihazlarda; izin ve abonelik bu cihazda yönetilir.",
@@ -146,6 +149,9 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       signIn: "Giriş Yap",
       signUp: "Kayıt Ol",
       deleteAccount: "Hesabımı Sil",
+      confirmDeleteTitle: "Silme bağlantısı gönderilsin mi?",
+      confirmDeleteDescription: "Hesabınız hemen silinmez. Kalıcı silme işlemini tamamlamak için e-postanıza gönderilen tek kullanımlık bağlantıyı açmanız gerekir.",
+      sendDeleteLink: "Bağlantıyı Gönder",
       deleteAccountDesc1:
         "Hesabınızı sildiğinizde profil bilgileriniz, favori takım/liglerinizi ve tüm tahmin geçmişiniz kalıcı olarak silinir.",
       deleteAccountDesc2:
@@ -1250,6 +1256,9 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       preferencesDescription: "Your theme, language, and notification choices are saved to your account.",
       loadingPreferences: "Loading preferences...",
       preferencesLoadError: "Account preferences could not be loaded.",
+      themeMode: "Theme mode",
+      themeModeDescription: "Choose your device appearance.",
+      themeSystem: "System",
       language: "Language",
       enableOnThisDevice: "Enabled for your account. Allow notifications on this device.",
       notificationSyncDescription: "Your choice syncs across devices; permission and subscription stay device-specific.",
@@ -1268,6 +1277,9 @@ export const dictionaries: Record<Locale, Record<string, unknown>> = {
       signIn: "Sign In",
       signUp: "Sign Up",
       deleteAccount: "Delete My Account",
+      confirmDeleteTitle: "Send the deletion link?",
+      confirmDeleteDescription: "Your account will not be deleted yet. To complete permanent deletion, you must open the one-time link sent to your email.",
+      sendDeleteLink: "Send Link",
       deleteAccountDesc1:
         "Deleting your account permanently removes your profile info, favorite teams/leagues, and your entire prediction history.",
       deleteAccountDesc2:

@@ -24,6 +24,7 @@ import { PwaUpdateWatcher } from '@/components/pwa-update-watcher'
 import { PushSoundListener } from '@/components/push-sound-listener'
 import { FavoritesProvider } from '@/contexts/favorites-context'
 import { CountryProvider } from '@/contexts/country-context'
+import { ThemeModeProvider } from '@/components/theme-mode-provider'
 import { ThemeColorProvider } from '@/contexts/theme-color-context'
 import { LanguageProvider } from '@/contexts/language-context'
 import { getServerLocale } from '@/lib/i18n/server-locale'
@@ -105,7 +106,9 @@ export default async function RootLayout({
   // temizlense veya gecikmeli okunsa bile ilk render doğru temayla gelir —
   // istemci scripti sadece localStorage->çerez göçünü tamamlar.
   const cookieStore = await cookies()
-  const isDark = cookieStore.get(THEME_COOKIE)?.value === 'dark'
+  const themeCookieValue = cookieStore.get(THEME_COOKIE)?.value
+  const themeMode = themeCookieValue === 'dark' || themeCookieValue === 'light' ? themeCookieValue : 'system'
+  const isDark = themeMode === 'dark'
   const accentCookieValue = cookieStore.get(ACCENT_COOKIE)?.value
   const accentColor = isValidAccentColor(accentCookieValue) ? accentCookieValue : DEFAULT_ACCENT_COLOR
 
@@ -156,8 +159,9 @@ export default async function RootLayout({
         />
         <PwaUpdateWatcher />
         <PushSoundListener />
-        <LanguageProvider initialLocale={locale}>
-          <ThemeColorProvider initialAccentColor={accentColor}>
+        <ThemeModeProvider initialTheme={themeMode}>
+          <LanguageProvider initialLocale={locale}>
+            <ThemeColorProvider initialAccentColor={accentColor}>
             <CountryProvider>
               <PanelStackProvider>
                 <LeagueProvider>
@@ -179,8 +183,9 @@ export default async function RootLayout({
                 </LeagueProvider>
               </PanelStackProvider>
             </CountryProvider>
-          </ThemeColorProvider>
-        </LanguageProvider>
+            </ThemeColorProvider>
+          </LanguageProvider>
+        </ThemeModeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

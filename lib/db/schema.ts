@@ -90,6 +90,7 @@ export const favorite = pgTable('favorite', {
 /** Kullanıcının cihazlar arasında senkronlanan hesap tercihleri. */
 export const userPreferences = pgTable('user_preferences', {
   userId: text('userId').primaryKey(),
+  themeMode: text('themeMode').notNull().default('system'),
   themeColor: text('themeColor').notNull().default('green'),
   locale: text('locale').notNull().default('tr'),
   notificationsEnabled: boolean('notificationsEnabled').notNull().default(false),

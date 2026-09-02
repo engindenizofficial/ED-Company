@@ -1,5 +1,13 @@
 import { db } from "@/lib/db"
-import { favorite, user, verification } from "@/lib/db/schema"
+import {
+  favorite,
+  marketValueDuelDailyResult,
+  marketValueDuelStats,
+  pushSubscription,
+  user,
+  userPreferences,
+  verification,
+} from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { NextRequest, NextResponse } from "next/server"
 
@@ -17,24 +25,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/delete-account?status=invalid`)
   }
 
-  const rows = await db.select().from(verification).where(eq(verification.value, token))
+  // DELETE ... RETURNING aynı tokenın eşzamanlı iki istekte kullanılmasını engeller.
+  const rows = await db.delete(verification).where(eq(verification.value, token)).returning()
   const row = rows[0]
 
-  if (!row || !row.identifier.startsWith("delete-account:")) {
-    return NextResponse.redirect(`${origin}/delete-account?status=invalid`)
-  }
-
-  // Tek kullanımlık: bulunduğu anda tüket, süresi dolmuş olsa da geçersizleştir.
-  await db.delete(verification).where(eq(verification.id, row.id))
-
-  if (row.expiresAt < new Date()) {
+  if (!row || !row.identifier.startsWith("delete-account:") || row.expiresAt < new Date()) {
     return NextResponse.redirect(`${origin}/delete-account?status=invalid`)
   }
 
   const userId = row.identifier.slice("delete-account:".length)
 
-  await db.delete(favorite).where(eq(favorite.userId, userId))
-  await db.delete(user).where(eq(user.id, userId))
+  await db.transaction(async (tx) => {
+    await tx.delete(pushSubscription).where(eq(pushSubscription.userId, userId))
+    await tx.delete(userPreferences).where(eq(userPreferences.userId, userId))
+    await tx.delete(marketValueDuelDailyResult).where(eq(marketValueDuelDailyResult.userId, userId))
+    await tx.delete(marketValueDuelStats).where(eq(marketValueDuelStats.userId, userId))
+    await tx.delete(favorite).where(eq(favorite.userId, userId))
+    // manager_career ile Better Auth session/account kayıtları foreign key
+    // cascade üzerinden bu kullanıcıyla birlikte temizlenir.
+    await tx.delete(user).where(eq(user.id, userId))
+  })
 
   return NextResponse.redirect(`${origin}/delete-account?status=success`)
 }

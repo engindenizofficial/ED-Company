@@ -32,6 +32,7 @@ export async function GET() {
       .where(eq(account.userId, userId)),
     db
       .select({
+        themeMode: userPreferences.themeMode,
         themeColor: userPreferences.themeColor,
         locale: userPreferences.locale,
         notificationsEnabled: userPreferences.notificationsEnabled,
@@ -99,7 +100,7 @@ export async function GET() {
 
   const exportedAt = new Date()
   const payload = {
-    exportVersion: 1,
+    exportVersion: 2,
     exportedAt: exportedAt.toISOString(),
     profile: {
       id: session.user.id,

@@ -10,7 +10,7 @@ import {
 import { useSession } from "@/lib/auth-client"
 
 export type AccountPreferencesPatch = Partial<
-  Pick<AccountPreferences, "themeColor" | "locale" | "notificationsEnabled">
+  Pick<AccountPreferences, "themeMode" | "themeColor" | "locale" | "notificationsEnabled">
 >
 
 export function useAccountPreferences() {
@@ -27,6 +27,7 @@ export function useAccountPreferences() {
         async (current) => {
           await updateAccountPreferences(patch)
           return {
+            themeMode: current?.themeMode ?? "system",
             themeColor: current?.themeColor ?? "green",
             locale: current?.locale ?? "tr",
             notificationsEnabled: current?.notificationsEnabled ?? false,
@@ -36,6 +37,7 @@ export function useAccountPreferences() {
         },
         {
           optimisticData: (current) => ({
+            themeMode: current?.themeMode ?? "system",
             themeColor: current?.themeColor ?? "green",
             locale: current?.locale ?? "tr",
             notificationsEnabled: current?.notificationsEnabled ?? false,

@@ -16,7 +16,7 @@ import { cookies, headers } from "next/headers"
 import { Resend } from "resend"
 import { z } from "zod"
 import { isValidAccentColor, DEFAULT_ACCENT_COLOR } from "@/lib/accent-colors"
-import { ACCENT_COOKIE, LOCALE_COOKIE } from "@/lib/theme-cookies"
+import { ACCENT_COOKIE, LOCALE_COOKIE, THEME_COOKIE } from "@/lib/theme-cookies"
 import type { Locale } from "@/lib/i18n/dictionaries"
 import { getAccountDeletionEmail } from "@/lib/i18n/email-templates"
 
@@ -25,6 +25,7 @@ const DELETE_TOKEN_TTL_MS = 1000 * 60 * 60
 
 const preferencesSchema = z
   .object({
+    themeMode: z.enum(["system", "light", "dark"]).optional(),
     themeColor: z.string().refine(isValidAccentColor).optional(),
     locale: z.enum(["tr", "en"]).optional(),
     notificationsEnabled: z.boolean().optional(),
@@ -32,7 +33,10 @@ const preferencesSchema = z
   .strict()
   .refine((value) => Object.keys(value).length > 0, "At least one preference is required")
 
+export type ThemeMode = "system" | "light" | "dark"
+
 export type AccountPreferences = {
+  themeMode: ThemeMode
   themeColor: string
   locale: Locale
   notificationsEnabled: boolean
@@ -60,6 +64,7 @@ export async function getAccountPreferences(): Promise<AccountPreferences> {
   const userId = (await getSessionUser()).id
   const rows = await db
     .select({
+      themeMode: userPreferences.themeMode,
       themeColor: userPreferences.themeColor,
       locale: userPreferences.locale,
       notificationsEnabled: userPreferences.notificationsEnabled,
@@ -71,12 +76,14 @@ export async function getAccountPreferences(): Promise<AccountPreferences> {
   const preference = rows[0]
   return preference
     ? {
+        themeMode: preference.themeMode === "dark" || preference.themeMode === "light" ? preference.themeMode : "system",
         themeColor: isValidAccentColor(preference.themeColor) ? preference.themeColor : DEFAULT_ACCENT_COLOR,
         locale: preference.locale === "en" ? "en" : "tr",
         notificationsEnabled: preference.notificationsEnabled,
         exists: true,
       }
     : {
+        themeMode: "system",
         themeColor: DEFAULT_ACCENT_COLOR,
         locale: "tr",
         notificationsEnabled: false,
@@ -89,6 +96,7 @@ export async function updateAccountPreferences(input: unknown): Promise<void> {
   const values = preferencesSchema.parse(input)
   const now = new Date()
   const cookieStore = await cookies()
+  const cookieTheme = cookieStore.get(THEME_COOKIE)?.value
   const cookieAccent = cookieStore.get(ACCENT_COOKIE)?.value
   const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value
 
@@ -96,6 +104,7 @@ export async function updateAccountPreferences(input: unknown): Promise<void> {
     .insert(userPreferences)
     .values({
       userId,
+      themeMode: values.themeMode ?? (cookieTheme === "dark" || cookieTheme === "light" ? cookieTheme : "system"),
       themeColor: values.themeColor ?? (isValidAccentColor(cookieAccent) ? cookieAccent : DEFAULT_ACCENT_COLOR),
       locale: values.locale ?? (cookieLocale === "en" ? "en" : "tr"),
       notificationsEnabled: values.notificationsEnabled ?? false,
