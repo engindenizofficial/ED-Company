@@ -592,7 +592,7 @@ function RecentFixturesSection({ leagueId, leagueName, active }: { leagueId: num
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="text-[10px] text-muted-foreground">
-                      {f.league.round} · {kickoff(f.date, locale)}
+                      {f.league.round} · {formatFixtureDate(f.date, locale, timeZone)}
                     </span>
                     <div className="flex items-center gap-1.5 truncate">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -622,6 +622,7 @@ function RecentFixturesSection({ leagueId, leagueName, active }: { leagueId: num
 
 function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
   const { t, locale } = useLanguage()
+  const timeZone = useTimeZone()
   const { status, data, error, retry } = useLeagueSection<Fixture[]>(leagueId, "upcomingFixtures", active)
   return (
     <section className="flex flex-col gap-1">
@@ -651,8 +652,14 @@ function UpcomingFixturesSection({ leagueId, leagueName, active }: { leagueId: n
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-0.5">
-                    <span className="font-black tabular-nums text-foreground">{matchTime(f.date, locale)}</span>
-                    <span className="text-[10px] text-muted-foreground">{kickoffFull(f.date, locale)}</span>
+                    <span className="font-black tabular-nums text-foreground">{formatFixtureTime(f.date, locale, timeZone)}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatFixtureDate(f.date, locale, timeZone, {
+                        day: "2-digit",
+                        month: "short",
+                        weekday: "short",
+                      })}
+                    </span>
                   </div>
                 </MatchButton>
               ))}

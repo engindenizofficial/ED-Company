@@ -4,6 +4,8 @@ import { forwardRef } from "react"
 import { Sparkles } from "lucide-react"
 import type { Fixture, MatchPrediction } from "@/lib/types"
 import { useLanguage } from "@/contexts/language-context"
+import { useTimeZone } from "@/contexts/time-zone-context"
+import { formatFixtureDate, formatFixtureTime } from "@/lib/fixture-datetime"
 
 // ---------------------------------------------------------------------------
 // MatchSharePoster — sosyal medyada paylaşılabilir, afiş kalitesinde PNG
@@ -53,32 +55,25 @@ export const MatchSharePoster = forwardRef<
   { fixture: Fixture; prediction: MatchPrediction }
 >(function MatchSharePoster({ fixture, prediction }, ref) {
   const { locale, t } = useLanguage()
-  const dateLocale = locale === "tr" ? "tr-TR" : "en-US"
+  const timeZone = useTimeZone()
   const { home, away, league } = fixture
   const winner = winnerLabel(prediction, home.name, away.name, t)
   // İngilizce kullanıcılar için çeviri varsa onu göster, yoksa Türkçe'ye geri dön
   // (bkz. app/api/predict/route.ts — özet/faktörler için tek ek çeviri çağrısı)
   const displaySummary = locale === "en" && prediction.summaryEn ? prediction.summaryEn : prediction.summary
   const factors = (locale === "en" && prediction.keyFactorsEn?.length ? prediction.keyFactorsEn : prediction.keyFactors).slice(0, 2)
-  const generatedAt = new Date(prediction.cachedAt || fixture.date)
-  const generatedDate = generatedAt.toLocaleDateString(dateLocale, {
+  const generatedAt = prediction.cachedAt || fixture.date
+  const generatedDate = formatFixtureDate(generatedAt, locale, timeZone, {
     day: "2-digit",
     month: "long",
     year: "numeric",
   })
-  const generatedTime = generatedAt.toLocaleTimeString(dateLocale, {
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-  const kickoffAt = new Date(fixture.date)
-  const kickoffDate = kickoffAt.toLocaleDateString(dateLocale, {
+  const generatedTime = formatFixtureTime(generatedAt, locale, timeZone)
+  const kickoffDate = formatFixtureDate(fixture.date, locale, timeZone, {
     day: "2-digit",
     month: "long",
   })
-  const kickoffTime = kickoffAt.toLocaleTimeString(dateLocale, {
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+  const kickoffTime = formatFixtureTime(fixture.date, locale, timeZone)
 
   return (
     <div

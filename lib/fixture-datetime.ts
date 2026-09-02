@@ -48,7 +48,7 @@ export function getRelativeDateKey(
 }
 
 export function formatFixtureTime(
-  iso: string,
+  iso: string | number | Date,
   locale: string,
   timeZone = FALLBACK_TIME_ZONE,
 ): string {
@@ -60,7 +60,7 @@ export function formatFixtureTime(
 }
 
 export function formatFixtureDate(
-  iso: string,
+  iso: string | number | Date,
   locale: string,
   timeZone = FALLBACK_TIME_ZONE,
   options: Intl.DateTimeFormatOptions = { day: "2-digit", month: "2-digit", year: "2-digit" },
