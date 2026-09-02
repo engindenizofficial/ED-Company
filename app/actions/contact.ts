@@ -1,5 +1,6 @@
 "use server"
 
+import { createHash } from "node:crypto"
 import { Resend } from "resend"
 import { z } from "zod"
 
@@ -45,24 +46,29 @@ export async function sendContactMessage(input: {
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;")
 
+  const digest = createHash("sha256")
+    .update(`${email}\0${name}\0${message}`)
+    .digest("hex")
   try {
-    await resend.emails.send({
-      from: "ED Company İletişim Formu <no-reply@edcompanyofficial.com>",
-      to: CONTACT_RECIPIENT,
-      replyTo: email,
-      subject: `İletişim formu: ${name}`,
-      html: `
-        <div style="font-family: sans-serif; font-size: 14px; color: #111;">
-          <p><strong>Ad Soyad:</strong> ${escapeHtml(name)}</p>
-          <p><strong>E-posta:</strong> ${escapeHtml(email)}</p>
-          <p><strong>Mesaj:</strong></p>
-          <p style="white-space: pre-wrap;">${escapeHtml(message)}</p>
-        </div>
-      `,
-    })
-    return { success: true }
-  } catch (err) {
-    console.log("[v0] sendContactMessage failed:", err instanceof Error ? err.message : err)
+    const { error } = await resend.emails.send(
+      {
+        from: "ED Company İletişim Formu <no-reply@edcompanyofficial.com>",
+        to: CONTACT_RECIPIENT,
+        replyTo: email,
+        subject: `İletişim formu: ${name}`,
+        html: `
+          <div style="font-family: sans-serif; font-size: 14px; color: #111;">
+            <p><strong>Ad Soyad:</strong> ${escapeHtml(name)}</p>
+            <p><strong>E-posta:</strong> ${escapeHtml(email)}</p>
+            <p><strong>Mesaj:</strong></p>
+            <p style="white-space: pre-wrap;">${escapeHtml(message)}</p>
+          </div>
+        `,
+      },
+      { idempotencyKey: `contact-form/${digest}` },
+    )
+    return { success: !error }
+  } catch {
     return { success: false }
   }
 }

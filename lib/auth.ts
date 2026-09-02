@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { emailOTP } from 'better-auth/plugins'
 import { pool } from '@/lib/db'
@@ -5,6 +6,11 @@ import { Resend } from 'resend'
 import { getSiteUrl, sanitize } from '@/lib/site-url'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+function emailIdempotencyKey(prefix: string, value: string) {
+  const digest = createHash('sha256').update(value).digest('hex')
+  return `${prefix}/${digest}`
+}
 
 // getSiteUrl() zaten BETTER_AUTH_URL -> VERCEL_PROJECT_PRODUCTION_URL ->
 // VERCEL_URL -> V0_RUNTIME_URL sırasını deniyor, sonucu new URL() ile
@@ -22,7 +28,7 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     resetPasswordTokenExpiresIn: 3600, // 1 saat
     sendResetPassword: async ({ user, url }: { user: { email: string; name?: string }, url: string }) => {
-      await resend.emails.send({
+      const { error } = await resend.emails.send({
         from: 'ED Analytics <no-reply@edcompanyofficial.com>',
         to: user.email,
         subject: 'Şifrenizi sıfırlayın',
@@ -36,7 +42,8 @@ export const auth = betterAuth({
             <p style="color:#475569;font-size:12px;margin-top:24px;">Bu talebi siz oluşturmadıysanız bu e-postayı dikkate almayın; şifreniz değişmeyecektir.</p>
           </div>
         `,
-      })
+      }, { idempotencyKey: emailIdempotencyKey('password-reset', url) })
+      if (error) throw new Error(`Password reset email failed: ${error.message}`)
     },
   },
   socialProviders: {
@@ -49,7 +56,7 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }: { user: { email: string; name?: string }, url: string }) => {
-      await resend.emails.send({
+      const { error } = await resend.emails.send({
         from: 'ED Analytics <no-reply@edcompanyofficial.com>',
         to: user.email,
         subject: 'E-posta adresinizi doğrulayın',
@@ -63,7 +70,8 @@ export const auth = betterAuth({
             <p style="color:#475569;font-size:12px;margin-top:24px;">Bu e-postayı siz talep etmediyseniz dikkate almayın.</p>
           </div>
         `,
-      })
+      }, { idempotencyKey: emailIdempotencyKey('email-verification', url) })
+      if (error) throw new Error(`Verification email failed: ${error.message}`)
     },
   },
   plugins: [
@@ -71,7 +79,7 @@ export const auth = betterAuth({
       otpLength: 6,
       expiresIn: 300, // 5 dakika
       sendVerificationOTP: async ({ email, otp }: { email: string; otp: string }) => {
-        await resend.emails.send({
+        const { error } = await resend.emails.send({
           from: 'ED Analytics <no-reply@edcompanyofficial.com>',
           to: email,
           subject: 'Giriş doğrulama kodunuz',
@@ -87,25 +95,27 @@ export const auth = betterAuth({
               <p style="color:#475569;font-size:12px;">Bu işlemi siz başlatmadıysanız dikkate almayın.</p>
             </div>
           `,
-        })
+        }, { idempotencyKey: emailIdempotencyKey('login-otp', `${email}:${otp}`) })
+        if (error) throw new Error(`Login OTP email failed: ${error.message}`)
       },
     }),
   ],
   trustedOrigins: [
-    ...(sanitize(process.env.V0_RUNTIME_URL) ? [sanitize(process.env.V0_RUNTIME_URL) as string] : []),
-    ...(sanitize(process.env.VERCEL_URL) ? [`https://${sanitize(process.env.VERCEL_URL)}`] : []),
-    ...(sanitize(process.env.VERCEL_PROJECT_PRODUCTION_URL)
-      ? [`https://${sanitize(process.env.VERCEL_PROJECT_PRODUCTION_URL)}`]
-      : []),
     ...(process.env.NODE_ENV === 'development'
       ? [
           'http://localhost:3000',
           'http://127.0.0.1:3000',
-          // v0's sandbox dev-preview tunnel uses a random subdomain per session
-          // (e.g. https://sb-xxxx.vercel.run), so it must be trusted via wildcard.
-          'https://*.vercel.run',
+          ...(sanitize(process.env.V0_RUNTIME_URL) ? [sanitize(process.env.V0_RUNTIME_URL) as string] : []),
+          ...(sanitize(process.env.V0_DEV_APP_URL) ? [sanitize(process.env.V0_DEV_APP_URL) as string] : []),
+          ...(sanitize(process.env.V0_BUILD_URL) ? [sanitize(process.env.V0_BUILD_URL) as string] : []),
+          ...(sanitize(process.env.V0_SANDBOX_URL) ? [sanitize(process.env.V0_SANDBOX_URL) as string] : []),
         ]
-      : []),
+      : [
+          ...(sanitize(process.env.VERCEL_URL) ? [`https://${sanitize(process.env.VERCEL_URL)}`] : []),
+          ...(sanitize(process.env.VERCEL_PROJECT_PRODUCTION_URL)
+            ? [`https://${sanitize(process.env.VERCEL_PROJECT_PRODUCTION_URL)}`]
+            : []),
+        ]),
   ],
   session: {
     expiresIn: 60 * 60 * 24 * 7,

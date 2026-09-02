@@ -180,12 +180,16 @@ export async function requestAccountDeletion(locale: Locale = "tr"): Promise<{ e
   const url = `${baseURL}/api/account/delete?token=${token}`
   const { subject, html } = getAccountDeletionEmail(locale, user.name ?? user.email, url)
 
-  await resend.emails.send({
-    from: "ED Analytics <no-reply@edcompanyofficial.com>",
-    to: user.email,
-    subject,
-    html: html.replace("{{LOGO_URL}}", `${baseURL}/icon-512.png`),
-  })
+  const { error } = await resend.emails.send(
+    {
+      from: "ED Analytics <no-reply@edcompanyofficial.com>",
+      to: user.email,
+      subject,
+      html: html.replace("{{LOGO_URL}}", `${baseURL}/icon-512.png`),
+    },
+    { idempotencyKey: `delete-account/${user.id}/${token}` },
+  )
+  if (error) throw new Error(`Account deletion email failed: ${error.message}`)
 
   return { email: user.email }
 }
