@@ -23,7 +23,7 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={toggle}
-      className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+      className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-all hover:border-primary/50 hover:text-primary [&_svg]:size-3.5"
       aria-label={dark ? t("theme.toLight") : t("theme.toDark")}
       title={dark ? t("theme.light") : t("theme.dark")}
     >
