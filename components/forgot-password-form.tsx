@@ -18,11 +18,11 @@ export function ForgotPasswordForm() {
     setLoading(true)
     try {
       const res = await authClient.requestPasswordReset({
-        email,
-        redirectTo: '/reset-password',
+        email: email.trim().toLowerCase(),
+        redirectTo: `${window.location.origin}/reset-password`,
       })
       if (res.error) {
-        setError(res.error.message ?? t('common.unexpectedError'))
+        setError(t('auth.resetEmailFailed'))
         return
       }
       // Better Auth, e-posta kayıtlı olmasa da her zaman başarı döner

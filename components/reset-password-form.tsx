@@ -11,7 +11,8 @@ export function ResetPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
-  const invalidLink = !token || searchParams.get('error') === 'INVALID_TOKEN'
+  const [tokenRejected, setTokenRejected] = useState(false)
+  const invalidLink = !token || searchParams.get('error') === 'INVALID_TOKEN' || tokenRejected
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -35,11 +36,13 @@ export function ResetPasswordForm() {
     try {
       const res = await authClient.resetPassword({ newPassword: password, token })
       if (res.error) {
-        setError(res.error.message ?? t('auth.resetPasswordFailed'))
+        setTokenRejected(true)
+        setError(t('auth.resetPasswordFailed'))
         return
       }
+      await authClient.signOut()
       setDone(true)
-      setTimeout(() => router.push('/sign-in'), 2500)
+      setTimeout(() => router.replace('/sign-in'), 2500)
     } catch {
       setError(t('common.unexpectedError'))
     } finally {

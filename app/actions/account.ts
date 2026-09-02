@@ -63,6 +63,25 @@ async function getSessionUser() {
   return session.user
 }
 
+const accountPasswordSchema = z.string().min(8).max(128)
+
+export async function setAccountPassword(newPassword: string): Promise<void> {
+  accountPasswordSchema.parse(newPassword)
+  const requestHeaders = await headers()
+  const session = await auth.api.getSession({ headers: requestHeaders })
+  if (!session?.user) throw new Error("Unauthorized")
+
+  const accounts = await auth.api.listUserAccounts({ headers: requestHeaders })
+  if (accounts.some((account) => account.providerId === "credential")) {
+    throw new Error("Credential account already exists")
+  }
+
+  await auth.api.setPassword({
+    body: { newPassword },
+    headers: requestHeaders,
+  })
+}
+
 export async function getAccountPreferences(): Promise<AccountPreferences> {
   const userId = (await getSessionUser()).id
   const rows = await db

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { authClient, signIn, signUp } from '@/lib/auth-client'
@@ -19,10 +19,9 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [verificationSent, setVerificationSent] = useState(false)
-  // OTP akışı
-  const [otpStep, setOtpStep] = useState(false)
-  const [otp, setOtp] = useState(['', '', '', '', '', ''])
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([])
+  const [showVerificationAction, setShowVerificationAction] = useState(false)
+  const [existingAccount, setExistingAccount] = useState(false)
+  const [resendingVerification, setResendingVerification] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
 
   const isSignUp = mode === 'sign-up'
@@ -95,55 +94,42 @@ export function AuthForm({ mode }: AuthFormProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setShowVerificationAction(false)
+    setExistingAccount(false)
     setLoading(true)
 
     try {
       if (isSignUp) {
-        const res = await signUp.email({ name, email, password })
+        const res = await signUp.email({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          callbackURL: '/',
+        })
         if (res.error) {
-          setError(res.error.message ?? t('auth.signUpError'))
+          const code = res.error.code ?? ''
+          const accountExists = code === 'USER_ALREADY_EXISTS' || code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL'
+          setExistingAccount(accountExists)
+          setError(accountExists ? t('auth.accountAlreadyExists') : t('auth.signUpError'))
           return
         }
         setVerificationSent(true)
         return
-      } else {
-        // Şifre doğru mu önce kontrol et, ardından OTP gönder
-        const res = await signIn.email({ email, password, rememberMe: false })
-        if (res.error) {
-          setError(res.error.message ?? t('auth.wrongCredentials'))
-          return
-        }
-        // Şifre doğru — OTP gönder ve oturumu kapat (OTP onaylanınca tekrar açılacak)
-        await authClient.signOut()
-        const otpRes = await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' })
-        if (otpRes.error) {
-          setError(t('auth.otpSendFailed'))
-          return
-        }
-        setOtpStep(true)
       }
-    } catch {
-      setError(t('common.unexpectedError'))
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  async function handleOtpSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const code = otp.join('')
-    if (code.length < 6) {
-      setError(t('auth.otpIncomplete'))
-      return
-    }
-    setError('')
-    setLoading(true)
-    try {
-      const res = await authClient.signIn.emailOtp({ email, otp: code })
+      const res = await signIn.email({
+        email: email.trim().toLowerCase(),
+        password,
+        rememberMe: true,
+        callbackURL: '/',
+      })
       if (res.error) {
-        setError(t('auth.otpInvalid'))
+        const unverified = res.error.code === 'EMAIL_NOT_VERIFIED'
+        setShowVerificationAction(unverified)
+        setError(unverified ? t('auth.emailNotVerified') : t('auth.wrongCredentials'))
         return
       }
+
       router.push('/')
       router.refresh()
     } catch {
@@ -153,91 +139,21 @@ export function AuthForm({ mode }: AuthFormProps) {
     }
   }
 
-  function handleOtpChange(index: number, value: string) {
-    const val = value.replace(/\D/g, '').slice(-1)
-    const next = [...otp]
-    next[index] = val
-    setOtp(next)
-    if (val && index < 5) {
-      otpRefs.current[index + 1]?.focus()
+  async function resendVerificationEmail() {
+    if (!email || resendingVerification) return
+    setResendingVerification(true)
+    setError('')
+    const result = await authClient.sendVerificationEmail({
+      email: email.trim().toLowerCase(),
+      callbackURL: `${window.location.origin}/`,
+    })
+    setResendingVerification(false)
+
+    if (result.error) {
+      setError(t('auth.verificationSendFailed'))
+      return
     }
-  }
-
-  function handleOtpKeyDown(index: number, e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus()
-    }
-  }
-
-  if (otpStep) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background px-4">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">ED Analytics</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t('auth.enterOtpTitle')}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <p className="text-sm text-muted-foreground text-center mb-6">
-              <span className="font-semibold text-foreground">{email}</span> {t('auth.otpSentTo')}
-            </p>
-            <form onSubmit={handleOtpSubmit} className="flex flex-col gap-5">
-              <div className="flex justify-center gap-2">
-                {otp.map((digit, i) => (
-                  <input
-                    key={i}
-                    ref={(el) => { otpRefs.current[i] = el }}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleOtpChange(i, e.target.value)}
-                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    className="h-12 w-10 rounded-lg border border-input bg-background text-center text-lg font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition"
-                  />
-                ))}
-              </div>
-
-              {error && (
-                <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive font-medium text-center">
-                  {error}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="h-10 w-full rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 active:opacity-80 transition disabled:opacity-50"
-              >
-                {loading ? t('auth.verifying') : t('auth.verifyAndSignIn')}
-              </button>
-            </form>
-          </div>
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            {t('auth.didntGetCode')}{' '}
-            <button
-              type="button"
-              className="font-semibold text-primary hover:underline"
-              onClick={async () => {
-                setError('')
-                await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' })
-              }}
-            >
-              {t('auth.resend')}
-            </button>
-          </p>
-          <p className="mt-2 text-center text-sm text-muted-foreground">
-            <button
-              type="button"
-              className="hover:underline"
-              onClick={() => { setOtpStep(false); setOtp(['', '', '', '', '', '']); setError('') }}
-            >
-              {t('auth.goBack')}
-            </button>
-          </p>
-        </div>
-      </div>
-    )
+    setVerificationSent(true)
   }
 
   if (verificationSent) {
@@ -362,9 +278,29 @@ export function AuthForm({ mode }: AuthFormProps) {
             </div>
 
             {error && (
-              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive font-medium">
-                {error}
-              </p>
+              <div className="flex flex-col gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive font-medium" role="alert">
+                <p>{error}</p>
+                {showVerificationAction ? (
+                  <button
+                    type="button"
+                    onClick={resendVerificationEmail}
+                    disabled={resendingVerification}
+                    className="self-start font-semibold text-primary hover:underline disabled:opacity-50"
+                  >
+                    {resendingVerification ? t('auth.sendingVerification') : t('auth.resendVerification')}
+                  </button>
+                ) : null}
+                {existingAccount ? (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    <Link href="/sign-in" className="font-semibold text-primary hover:underline">
+                      {t('auth.signIn')}
+                    </Link>
+                    <Link href="/forgot-password" className="font-semibold text-primary hover:underline">
+                      {t('auth.forgotPassword')}
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
             )}
 
             <button

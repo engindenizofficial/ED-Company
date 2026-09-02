@@ -15,7 +15,7 @@ import {
 import { useRouter } from "next/navigation"
 import { type FormEvent, useMemo, useState } from "react"
 import useSWR from "swr"
-import { requestAccountDeletion } from "@/app/actions/account"
+import { requestAccountDeletion, setAccountPassword } from "@/app/actions/account"
 import { useLanguage } from "@/contexts/language-context"
 import { useTimeZone } from "@/contexts/time-zone-context"
 import { authClient, useSession } from "@/lib/auth-client"
@@ -92,6 +92,7 @@ export function AccountSettingsPanel() {
     data: accounts,
     error: accountsError,
     isLoading: accountsLoading,
+    mutate: refreshAccounts,
   } = useSWR<AccountMethod[]>(
     user ? `account-methods:${user.id}` : null,
     async () => {
@@ -183,6 +184,34 @@ export function AccountSettingsPanel() {
     setNewPassword("")
     setConfirmPassword("")
     setPasswordSuccess(true)
+  }
+
+  async function handleSetPasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setPasswordSuccess(false)
+
+    if (newPassword.length < 8) {
+      setPasswordError(t("menu.passwordLength"))
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError(t("menu.passwordMismatch"))
+      return
+    }
+
+    setChangingPassword(true)
+    setPasswordError(null)
+    try {
+      await setAccountPassword(newPassword)
+      setNewPassword("")
+      setConfirmPassword("")
+      setPasswordSuccess(true)
+      await refreshAccounts()
+    } catch {
+      setPasswordError(t("menu.passwordCreateError"))
+    } finally {
+      setChangingPassword(false)
+    }
   }
 
   async function handleRevokeOtherSessions() {
@@ -363,7 +392,48 @@ export function AccountSettingsPanel() {
               </FieldGroup>
             </form>
           ) : accountsError ? null : (
-            <p className="text-xs leading-relaxed text-muted-foreground">{t("menu.socialPasswordManaged")}</p>
+            <form onSubmit={handleSetPasswordSubmit} noValidate>
+              <FieldGroup>
+                <FieldDescription>{t("menu.createPasswordDescription")}</FieldDescription>
+                <Field data-invalid={Boolean(passwordError)}>
+                  <FieldLabel htmlFor="create-password">{t("menu.newPassword")}</FieldLabel>
+                  <Input
+                    id="create-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    aria-invalid={Boolean(passwordError)}
+                  />
+                </Field>
+                <Field data-invalid={Boolean(passwordError)}>
+                  <FieldLabel htmlFor="confirm-created-password">{t("menu.confirmPassword")}</FieldLabel>
+                  <Input
+                    id="confirm-created-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    aria-invalid={Boolean(passwordError)}
+                  />
+                  <FieldError>{passwordError}</FieldError>
+                </Field>
+                <Button type="submit" disabled={changingPassword || !newPassword || !confirmPassword}>
+                  {changingPassword ? <Spinner data-icon="inline-start" /> : <KeyRound data-icon="inline-start" />}
+                  {changingPassword ? t("menu.creatingPassword") : t("menu.createPassword")}
+                </Button>
+                {passwordSuccess ? (
+                  <p className="flex items-center gap-2 text-xs font-medium text-primary" role="status">
+                    <CheckCircle2 aria-hidden="true" />
+                    {t("menu.passwordCreated")}
+                  </p>
+                ) : null}
+              </FieldGroup>
+            </form>
           )}
 
           <Separator />

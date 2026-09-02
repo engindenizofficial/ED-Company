@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import { betterAuth } from 'better-auth'
-import { emailOTP } from 'better-auth/plugins'
 import { pool } from '@/lib/db'
 import { Resend } from 'resend'
 import { getSiteUrl, sanitize } from '@/lib/site-url'
@@ -54,6 +53,13 @@ export const auth = betterAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
     },
   },
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ['google'],
+      allowDifferentEmails: false,
+    },
+  },
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
@@ -76,32 +82,6 @@ export const auth = betterAuth({
       if (error) throw new Error(`Verification email failed: ${error.message}`)
     },
   },
-  plugins: [
-    emailOTP({
-      otpLength: 6,
-      expiresIn: 300, // 5 dakika
-      sendVerificationOTP: async ({ email, otp }: { email: string; otp: string }) => {
-        const { error } = await getResend().emails.send({
-          from: 'ED Analytics <no-reply@edcompanyofficial.com>',
-          to: email,
-          subject: 'Giriş doğrulama kodunuz',
-          html: `
-            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0f172a;border-radius:12px;">
-              <img src="${baseURL}/icon-512.png" alt="ED Analytics" width="40" height="40" style="border-radius:8px;margin-bottom:16px;display:block;" />
-              <h2 style="color:#f8fafc;font-size:20px;margin-bottom:8px;">ED Analytics</h2>
-              <p style="color:#94a3b8;font-size:14px;margin-bottom:24px;">Giriş doğrulama kodunuz:</p>
-              <div style="background:#1e293b;border-radius:8px;padding:20px;text-align:center;margin-bottom:24px;">
-                <span style="color:#f8fafc;font-size:36px;font-weight:700;letter-spacing:12px;">${otp}</span>
-              </div>
-              <p style="color:#cbd5e1;font-size:13px;margin-bottom:8px;">Bu kod <strong>5 dakika</strong> geçerlidir.</p>
-              <p style="color:#475569;font-size:12px;">Bu işlemi siz başlatmadıysanız dikkate almayın.</p>
-            </div>
-          `,
-        }, { idempotencyKey: emailIdempotencyKey('login-otp', `${email}:${otp}`) })
-        if (error) throw new Error(`Login OTP email failed: ${error.message}`)
-      },
-    }),
-  ],
   trustedOrigins: [
     ...(process.env.NODE_ENV === 'development'
       ? [
