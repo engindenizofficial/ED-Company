@@ -7,13 +7,13 @@ import { setPreferenceCookie, THEME_COOKIE } from "@/lib/theme-cookies"
 
 function AccountThemeSync() {
   const { preferences, isLoading, isSignedIn } = useAccountPreferences()
-  const { theme, setTheme } = useTheme()
+  const { setTheme } = useTheme()
 
   useEffect(() => {
-    if (!isSignedIn || isLoading || !preferences?.exists || preferences.themeMode === theme) return
+    if (!isSignedIn || isLoading || !preferences?.exists) return
     setTheme(preferences.themeMode)
     setPreferenceCookie(THEME_COOKIE, preferences.themeMode)
-  }, [isLoading, isSignedIn, preferences, setTheme, theme])
+  }, [isLoading, isSignedIn, preferences?.exists, preferences?.themeMode, setTheme])
 
   return null
 }

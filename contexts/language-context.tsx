@@ -55,15 +55,16 @@ export function LanguageProvider({
   }, [])
 
   useEffect(() => {
-    if (!isSignedIn || isLoading || !preferences?.exists || preferences.locale === locale) return
-    queueMicrotask(() => setLocaleState(preferences.locale))
-    setPreferenceCookie(LOCALE_COOKIE, preferences.locale)
+    if (!isSignedIn || isLoading || !preferences?.exists) return
+    const accountLocale = preferences.locale
+    queueMicrotask(() => setLocaleState(accountLocale))
+    setPreferenceCookie(LOCALE_COOKIE, accountLocale)
     try {
-      localStorage.setItem(STORAGE_KEY, preferences.locale)
+      localStorage.setItem(STORAGE_KEY, accountLocale)
     } catch {
       // ignore
     }
-  }, [isLoading, isSignedIn, locale, preferences])
+  }, [isLoading, isSignedIn, preferences?.exists, preferences?.locale])
 
   useEffect(() => {
     document.documentElement.lang = locale

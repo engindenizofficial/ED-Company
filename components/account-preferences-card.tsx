@@ -67,7 +67,13 @@ export function AccountPreferencesCard() {
             </div>
             <Select value={theme} onValueChange={setThemeMode}>
               <SelectTrigger id="account-theme-mode" className="w-full sm:w-32" aria-label={t("menu.themeMode")}>
-                <SelectValue />
+                <SelectValue>
+                  {(value) => {
+                    if (value === "system") return t("menu.themeSystem")
+                    if (value === "dark") return t("theme.dark")
+                    return t("theme.light")
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
                 <SelectGroup>
@@ -86,7 +92,9 @@ export function AccountPreferencesCard() {
             </div>
             <Select value={accentColor} onValueChange={(value) => value && setAccentColor(value)}>
               <SelectTrigger id="account-accent-color" className="w-full sm:w-32" aria-label={t("menu.themeColor")}>
-                <SelectValue />
+                <SelectValue>
+                  {(value) => t(`themeColorPicker.colors.${String(value)}`)}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
                 <SelectGroup>
@@ -108,7 +116,9 @@ export function AccountPreferencesCard() {
             </div>
             <Select value={locale} onValueChange={(value) => value && setLocale(value as Locale)}>
               <SelectTrigger id="account-language" className="w-full sm:w-32" aria-label={t("menu.language")}>
-                <SelectValue />
+                <SelectValue>
+                  {(value) => value === "en" ? t("language.english") : t("language.turkish")}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
                 <SelectGroup>

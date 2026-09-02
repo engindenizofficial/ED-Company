@@ -59,19 +59,18 @@ export function ThemeColorProvider({
   }, [])
 
   useEffect(() => {
-    if (!isSignedIn || isLoading || !preferences?.exists) return
+    if (!isSignedIn || isLoading || !preferences?.exists || !isValidAccentColor(preferences.themeColor)) return
 
-    if (isValidAccentColor(preferences.themeColor) && preferences.themeColor !== accentColor) {
-      queueMicrotask(() => setAccentColorState(preferences.themeColor))
-      applyAccentColor(preferences.themeColor)
-      setPreferenceCookie(ACCENT_COOKIE, preferences.themeColor)
-      try {
-        window.localStorage.setItem(STORAGE_KEY, preferences.themeColor)
-      } catch {
-        // sessizce geç
-      }
+    const accountAccentColor = preferences.themeColor
+    queueMicrotask(() => setAccentColorState(accountAccentColor))
+    applyAccentColor(accountAccentColor)
+    setPreferenceCookie(ACCENT_COOKIE, accountAccentColor)
+    try {
+      window.localStorage.setItem(STORAGE_KEY, accountAccentColor)
+    } catch {
+      // sessizce geç
     }
-  }, [accentColor, isLoading, isSignedIn, preferences, update])
+  }, [isLoading, isSignedIn, preferences?.exists, preferences?.themeColor])
 
   const setAccentColor = useCallback((id: string) => {
     if (!isValidAccentColor(id)) return
