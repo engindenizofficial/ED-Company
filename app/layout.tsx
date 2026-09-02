@@ -1,7 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { NavTabs } from '@/components/nav-tabs'
 import { SiteFooter } from '@/components/site-footer'
@@ -33,6 +33,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { getSiteUrl } from '@/lib/site-url'
 import { DEFAULT_ACCENT_COLOR, isValidAccentColor } from '@/lib/accent-colors'
 import { THEME_COOKIE, ACCENT_COOKIE } from '@/lib/theme-cookies'
+import { detectServerCountry } from '@/lib/country-detection'
 import './globals.css'
 
 // Standart "latin" alt kümesi Türkçe'ye özgü karakterleri (ş, ğ, ı, İ, ç, ö, ü)
@@ -100,6 +101,8 @@ export default async function RootLayout({
   children: React.ReactNode
 }>) {
   const locale = await getServerLocale()
+  const requestHeaders = await headers()
+  const countryDetection = detectServerCountry(requestHeaders)
 
   // Tema/renk tercihini localStorage yerine (veya ona ek olarak) çerezden
   // okuyup <html> etiketine sunucuda uygularız. Böylece PWA'da localStorage
@@ -162,7 +165,10 @@ export default async function RootLayout({
         <ThemeModeProvider initialTheme={themeMode}>
           <LanguageProvider initialLocale={locale}>
             <ThemeColorProvider initialAccentColor={accentColor}>
-            <CountryProvider>
+            <CountryProvider
+              initialCountryCode={countryDetection.countryCode}
+              initialCountrySource={countryDetection.source}
+            >
               <PanelStackProvider>
                 <LeagueProvider>
                   <TeamProvider>

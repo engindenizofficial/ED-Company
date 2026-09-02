@@ -1,6 +1,12 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
+import {
+  detectCountryFromLanguages,
+  detectCountryFromTimeZone,
+  normalizeCountryCode,
+  type CountryDetectionSource,
+} from "@/lib/country-detection"
 
 const STORAGE_KEY = "ed-country"
 
@@ -13,44 +19,58 @@ type CountryContextValue = {
 const CountryContext = createContext<CountryContextValue | null>(null)
 
 /**
- * Tarayıcının dil tercihlerinden (örn. "tr-TR", "id-ID", "en-US") bölge
- * alt etiketini çıkararak kullanıcının ülkesini tahmin eder. Uygulamanın
- * arayüz dilinden (sadece tr/en) BAĞIMSIZDIR — burada amaç kullanıcının
- * hangi ülkeden olduğunu tahmin etmek, hangi dili kullandığını değil.
+ * Sunucudaki Vercel IP ülkesi ilk render'ı doğru sırayla başlatır. IP başlığı
+ * olmayan yerel/v0 önizlemelerinde IANA saat dilimi ve geliştirilmiş BCP 47
+ * dil çözümlemesi cihazdan bağımsız yedekler olarak devreye girer.
  */
-function detectBrowserCountry(): string | null {
-  if (typeof navigator === "undefined") return null
-  const languages = navigator.languages && navigator.languages.length > 0 ? navigator.languages : [navigator.language]
-  for (const lang of languages) {
-    if (!lang) continue
-    const region = lang.split("-")[1]
-    if (region && region.length === 2 && /^[A-Za-z]{2}$/.test(region)) {
-      return region.toUpperCase()
-    }
-  }
-  return null
-}
-
-export function CountryProvider({ children }: { children: ReactNode }) {
-  const [countryCode, setCountryCodeState] = useState<string | null>(null)
+export function CountryProvider({
+  children,
+  initialCountryCode,
+  initialCountrySource,
+}: {
+  children: ReactNode
+  initialCountryCode?: string | null
+  initialCountrySource?: CountryDetectionSource | null
+}) {
+  const normalizedInitialCountry = normalizeCountryCode(initialCountryCode)
+  const [countryCode, setCountryCodeState] = useState<string | null>(normalizedInitialCountry)
 
   useEffect(() => {
+    const languages = navigator.languages?.length ? navigator.languages : [navigator.language]
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const ipCountry = initialCountrySource === "ip" ? normalizedInitialCountry : null
+    const timeZoneCountry = detectCountryFromTimeZone(timeZone)
+    const languageCountry = detectCountryFromLanguages(languages)
+
+    let storedCountry: string | null = null
     try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored) {
-        queueMicrotask(() => setCountryCodeState(stored))
-        return
-      }
+      storedCountry = normalizeCountryCode(localStorage.getItem(STORAGE_KEY))
+    } catch {
+      // Depolama kapalı olsa da algılama diğer kaynaklarla çalışmaya devam eder.
+    }
+
+    // IP coğrafyası en güvenilir kaynaktır. Vercel başlığı bulunmadığında saat
+    // dilimi, eski cihazlarda kayıtlı geçerli değer ve son olarak dil kullanılır.
+    const detectedCountry = ipCountry
+      ?? timeZoneCountry
+      ?? storedCountry
+      ?? normalizedInitialCountry
+      ?? languageCountry
+
+    queueMicrotask(() => setCountryCodeState(detectedCountry))
+    try {
+      if (detectedCountry) localStorage.setItem(STORAGE_KEY, detectedCountry)
+      else localStorage.removeItem(STORAGE_KEY)
     } catch {
       // ignore
     }
-    queueMicrotask(() => setCountryCodeState(detectBrowserCountry()))
-  }, [])
+  }, [initialCountrySource, normalizedInitialCountry])
 
   const setCountryCode = useCallback((code: string | null) => {
-    setCountryCodeState(code)
+    const normalizedCode = normalizeCountryCode(code)
+    setCountryCodeState(normalizedCode)
     try {
-      if (code) localStorage.setItem(STORAGE_KEY, code)
+      if (normalizedCode) localStorage.setItem(STORAGE_KEY, normalizedCode)
       else localStorage.removeItem(STORAGE_KEY)
     } catch {
       // ignore
