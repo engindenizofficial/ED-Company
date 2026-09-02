@@ -30,99 +30,21 @@ export function AuthForm({ mode }: AuthFormProps) {
     setError('')
     setGoogleLoading(true)
 
-    // Popup'ı tıklama anında senkron olarak aç (about:blank). Bu, tarayıcının
-    // popup engelleyicisinin "kullanıcı eylemi" saymas için gereklidir — aradaki
-    // await'ten sonra window.open çağrılırsa bazı tarayıcılar bunu engelleyip
-    // (veya farklı davranıp) her ortamda tutarsız bir sonuca yol açar.
-    const popup = window.open('', 'google-oauth', 'width=480,height=640')
-    if (!popup) {
-      setError(t('auth.popupBlocked'))
-      setGoogleLoading(false)
-      return
-    }
-
     try {
+      // Mobil Chrome, `window.open` ile başlatılan OAuth akışını ayrı bir özel
+      // sekmede açıyor ve güvenlik nedeniyle bu sekmenin güvenilir biçimde
+      // kapanmasına izin vermiyor. Better Auth'ın standart aynı-sekme akışı
+      // kullanıcıyı Google'dan doğrudan ana sayfaya geri getirir.
       const res = await authClient.signIn.social({
         provider: 'google',
-        // Popup, OAuth tamamlandığında ana siteyi değil bu küçük sayfayı
-        // yükler; o sayfa kendini kapatır. Böylece popup içinde tüm site
-        // açılmaz — kullanıcı hesabı seçtikten sonra popup kapanır ve
-        // aşağıdaki `checkClosed` mantığı ana sekmeyi yönlendirir.
-        callbackURL: '/auth/popup-callback',
-        disableRedirect: true,
+        callbackURL: '/',
       })
-      const authUrl = res.data?.url
-      if (res.error || !authUrl) {
-        popup.close()
-        setError(res.error?.message ?? t('auth.googleConnectFailed'))
+
+      if (res.error) {
+        setError(res.error.message ?? t('auth.googleConnectFailed'))
         setGoogleLoading(false)
-        return
       }
-
-      const channel = typeof BroadcastChannel !== 'undefined'
-        ? new BroadcastChannel('ed-google-auth')
-        : null
-      let completed = false
-      let checking = false
-      let timeoutId: number | undefined
-
-      const cleanup = () => {
-        completed = true
-        if (timeoutId) window.clearTimeout(timeoutId)
-        window.removeEventListener('message', handleMessage)
-        channel?.removeEventListener('message', handleChannelMessage)
-        channel?.close()
-      }
-
-      const completeSignIn = async () => {
-        if (completed || checking) return
-        checking = true
-        const session = await authClient.getSession()
-        checking = false
-
-        if (!session.data) return
-
-        cleanup()
-        if (!popup.closed) popup.close()
-        router.push('/')
-        router.refresh()
-      }
-
-      const handleMessage = (event: MessageEvent) => {
-        if (event.origin === window.location.origin && event.data?.type === 'google-oauth-complete') {
-          void completeSignIn()
-        }
-      }
-      const handleChannelMessage = (event: MessageEvent) => {
-        if (event.data?.type === 'google-oauth-complete') {
-          void completeSignIn()
-        }
-      }
-
-      window.addEventListener('message', handleMessage)
-      channel?.addEventListener('message', handleChannelMessage)
-      popup.location.href = authUrl
-
-      // COOP, popup referansını OAuth sırasında koparabileceği için yalnızca
-      // `popup.closed` değerine güvenmiyoruz. Oturum görünene kadar ana sekmede
-      // güvenli biçimde kontrol ediyor, callback mesajını da hızlı yol olarak
-      // kullanıyoruz.
-      const pollSession = async () => {
-        if (completed) return
-        await completeSignIn()
-        if (!completed) timeoutId = window.setTimeout(pollSession, 750)
-      }
-      timeoutId = window.setTimeout(pollSession, 750)
-
-      window.setTimeout(() => {
-        if (completed) return
-        cleanup()
-        if (!popup.closed) popup.close()
-        setGoogleLoading(false)
-        setError(t('auth.sessionNotDetected'))
-      }, 120_000)
     } catch {
-      popup.close()
       setError(t('common.unexpectedError'))
       setGoogleLoading(false)
     }
