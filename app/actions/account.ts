@@ -20,7 +20,10 @@ import { ACCENT_COOKIE, LOCALE_COOKIE, THEME_COOKIE } from "@/lib/theme-cookies"
 import type { Locale } from "@/lib/i18n/dictionaries"
 import { getAccountDeletionEmail } from "@/lib/i18n/email-templates"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
+
 const DELETE_TOKEN_TTL_MS = 1000 * 60 * 60
 
 const preferencesSchema = z
@@ -180,7 +183,7 @@ export async function requestAccountDeletion(locale: Locale = "tr"): Promise<{ e
   const url = `${baseURL}/api/account/delete?token=${token}`
   const { subject, html } = getAccountDeletionEmail(locale, user.name ?? user.email, url)
 
-  const { error } = await resend.emails.send(
+  const { error } = await getResend().emails.send(
     {
       from: "ED Analytics <no-reply@edcompanyofficial.com>",
       to: user.email,

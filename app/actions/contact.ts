@@ -4,7 +4,9 @@ import { createHash } from "node:crypto"
 import { Resend } from "resend"
 import { z } from "zod"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
 
 const CONTACT_RECIPIENT = "support@edcompanyofficial.com"
 
@@ -50,7 +52,7 @@ export async function sendContactMessage(input: {
     .update(`${email}\0${name}\0${message}`)
     .digest("hex")
   try {
-    const { error } = await resend.emails.send(
+    const { error } = await getResend().emails.send(
       {
         from: "ED Company İletişim Formu <no-reply@edcompanyofficial.com>",
         to: CONTACT_RECIPIENT,

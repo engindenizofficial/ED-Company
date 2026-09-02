@@ -5,7 +5,9 @@ import { pool } from '@/lib/db'
 import { Resend } from 'resend'
 import { getSiteUrl, sanitize } from '@/lib/site-url'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
 
 function emailIdempotencyKey(prefix: string, value: string) {
   const digest = createHash('sha256').update(value).digest('hex')
@@ -28,7 +30,7 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     resetPasswordTokenExpiresIn: 3600, // 1 saat
     sendResetPassword: async ({ user, url }: { user: { email: string; name?: string }, url: string }) => {
-      const { error } = await resend.emails.send({
+      const { error } = await getResend().emails.send({
         from: 'ED Analytics <no-reply@edcompanyofficial.com>',
         to: user.email,
         subject: 'Şifrenizi sıfırlayın',
@@ -56,7 +58,7 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }: { user: { email: string; name?: string }, url: string }) => {
-      const { error } = await resend.emails.send({
+      const { error } = await getResend().emails.send({
         from: 'ED Analytics <no-reply@edcompanyofficial.com>',
         to: user.email,
         subject: 'E-posta adresinizi doğrulayın',
@@ -79,7 +81,7 @@ export const auth = betterAuth({
       otpLength: 6,
       expiresIn: 300, // 5 dakika
       sendVerificationOTP: async ({ email, otp }: { email: string; otp: string }) => {
-        const { error } = await resend.emails.send({
+        const { error } = await getResend().emails.send({
           from: 'ED Analytics <no-reply@edcompanyofficial.com>',
           to: email,
           subject: 'Giriş doğrulama kodunuz',
