@@ -87,6 +87,16 @@ export const favorite = pgTable('favorite', {
 // bildirim durumu (tekrar göndermemek için son bilinen skor/durum).
 // ---------------------------------------------------------------------------
 
+/** Kullanıcının cihazlar arasında senkronlanan hesap tercihleri. */
+export const userPreferences = pgTable('user_preferences', {
+  userId: text('userId').primaryKey(),
+  themeColor: text('themeColor').notNull().default('green'),
+  locale: text('locale').notNull().default('tr'),
+  notificationsEnabled: boolean('notificationsEnabled').notNull().default(false),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+})
+
 /** Bir tarayıcı/cihazın Web Push aboneliği. Kullanıcı başına birden çok cihaz olabilir. */
 export const pushSubscription = pgTable('push_subscription', {
   id: text('id').primaryKey(),

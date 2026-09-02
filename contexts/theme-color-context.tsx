@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { DEFAULT_ACCENT_COLOR, isValidAccentColor } from "@/lib/accent-colors"
 import { ACCENT_COOKIE, setPreferenceCookie } from "@/lib/theme-cookies"
+import { useAccountPreferences } from "@/hooks/use-account-preferences"
 
 interface ThemeColorContextValue {
   accentColor: string
@@ -37,21 +38,40 @@ export function ThemeColorProvider({
   const [accentColor, setAccentColorState] = useState(
     isValidAccentColor(initialAccentColor) ? initialAccentColor : DEFAULT_ACCENT_COLOR,
   )
+  const { preferences, isLoading, isSignedIn, update } = useAccountPreferences()
 
   // localStorage'daki eski tercihi de kontrol edip senkron kalmasını
   // sağlarız (çerezler kapalıyken hâlâ bir yedek olarak çalışsın diye).
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY)
-      if (isValidAccentColor(stored) && stored !== accentColor) {
-        queueMicrotask(() => setAccentColorState(stored))
-        applyAccentColor(stored)
+      if (isValidAccentColor(stored)) {
+        setPreferenceCookie(ACCENT_COOKIE, stored)
+        if (stored !== accentColor) {
+          queueMicrotask(() => setAccentColorState(stored))
+          applyAccentColor(stored)
+        }
       }
     } catch {
       // sessizce geç (örn. localStorage kapalı)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!isSignedIn || isLoading || !preferences?.exists) return
+
+    if (isValidAccentColor(preferences.themeColor) && preferences.themeColor !== accentColor) {
+      setAccentColorState(preferences.themeColor)
+      applyAccentColor(preferences.themeColor)
+      setPreferenceCookie(ACCENT_COOKIE, preferences.themeColor)
+      try {
+        window.localStorage.setItem(STORAGE_KEY, preferences.themeColor)
+      } catch {
+        // sessizce geç
+      }
+    }
+  }, [accentColor, isLoading, isSignedIn, preferences, update])
 
   const setAccentColor = useCallback((id: string) => {
     if (!isValidAccentColor(id)) return
@@ -62,10 +82,9 @@ export function ThemeColorProvider({
     } catch {
       // sessizce geç
     }
-    // Çereze de yazarız — sunucu render'ı ve PWA yeniden başlatmaları için
-    // localStorage'dan daha dayanıklı kalıcı depolama.
     setPreferenceCookie(ACCENT_COOKIE, id)
-  }, [])
+    if (isSignedIn) void update({ themeColor: id })
+  }, [isSignedIn, update])
 
   return (
     <ThemeColorContext.Provider value={{ accentColor, setAccentColor }}>{children}</ThemeColorContext.Provider>

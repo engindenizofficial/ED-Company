@@ -11,6 +11,7 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 yıl
 
 export const THEME_COOKIE = "theme"
 export const ACCENT_COOKIE = "ed-accent-color"
+export const LOCALE_COOKIE = "ed-locale"
 
 export function setPreferenceCookie(name: string, value: string) {
   if (typeof document === "undefined") return

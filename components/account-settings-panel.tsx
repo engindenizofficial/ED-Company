@@ -38,6 +38,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
+import { AccountOverviewCard } from "@/components/account-overview-card"
+import { AccountPreferencesCard } from "@/components/account-preferences-card"
+import { AccountDataExportCard } from "@/components/account-data-export-card"
 
 type AccountMethod = {
   id: string
@@ -244,6 +247,9 @@ export function AccountSettingsPanel() {
         </CardContent>
       </Card>
 
+      <AccountOverviewCard />
+      <AccountPreferencesCard />
+
       <Card size="sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -365,15 +371,21 @@ export function AccountSettingsPanel() {
         </CardContent>
       </Card>
 
+      <AccountDataExportCard />
+
       <Card size="sm" className="ring-destructive/30">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TriangleAlert className="text-destructive" aria-hidden="true" />
-            {t("menu.deleteAccount")}
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <TriangleAlert aria-hidden="true" />
+            {t("menu.dangerousZone")}
           </CardTitle>
-          <CardDescription>{t("menu.deleteAccountDesc1")}</CardDescription>
+          <CardDescription>{t("menu.dangerousZoneDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <h3 className="text-sm font-semibold text-foreground">{t("menu.deleteAccount")}</h3>
+            <p className="text-xs leading-relaxed text-muted-foreground">{t("menu.deleteAccountDesc1")}</p>
+          </div>
           <p className="text-xs leading-relaxed text-muted-foreground">{t("menu.deleteAccountDesc2")}</p>
           <p className="text-xs leading-relaxed text-muted-foreground">{t("menu.deleteAccountDesc3")}</p>
           {deleteSentTo ? (

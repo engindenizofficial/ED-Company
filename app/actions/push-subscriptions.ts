@@ -65,12 +65,13 @@ export async function deletePushSubscription(endpoint: unknown): Promise<void> {
     .where(and(eq(pushSubscription.endpoint, parsedEndpoint), eq(pushSubscription.userId, userId)))
 }
 
-export async function hasActivePushSubscription(): Promise<boolean> {
+export async function hasActivePushSubscription(endpoint: unknown): Promise<boolean> {
   const userId = await getUserId()
+  const parsedEndpoint = endpointSchema.parse(endpoint)
   const rows = await db
     .select({ id: pushSubscription.id })
     .from(pushSubscription)
-    .where(eq(pushSubscription.userId, userId))
+    .where(and(eq(pushSubscription.userId, userId), eq(pushSubscription.endpoint, parsedEndpoint)))
     .limit(1)
   return rows.length > 0
 }

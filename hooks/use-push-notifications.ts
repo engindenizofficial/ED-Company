@@ -7,6 +7,7 @@ import {
   savePushSubscription,
   sendTestPushNotification,
 } from "@/app/actions/push-subscriptions"
+import { useAccountPreferences } from "@/hooks/use-account-preferences"
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
@@ -30,6 +31,7 @@ export function usePushNotifications(isSignedIn: boolean) {
   const [status, setStatus] = useState<PushNotificationStatus>("loading")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { preferences, update: updatePreferences } = useAccountPreferences()
 
   useEffect(() => {
     let cancelled = false
@@ -44,7 +46,13 @@ export function usePushNotifications(isSignedIn: boolean) {
         return
       }
       try {
-        const active = await hasActivePushSubscription()
+        const registration = await navigator.serviceWorker.getRegistration("/sw-push.js")
+        const subscription = await registration?.pushManager.getSubscription()
+        if (!subscription) {
+          if (!cancelled) setStatus("disabled")
+          return
+        }
+        const active = await hasActivePushSubscription(subscription.endpoint)
         if (!cancelled) setStatus(active ? "enabled" : "disabled")
       } catch {
         if (!cancelled) setStatus("disabled")
@@ -125,6 +133,7 @@ export function usePushNotifications(isSignedIn: boolean) {
         endpoint: json.endpoint,
         keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
       })
+      await updatePreferences({ notificationsEnabled: true })
 
       setStatus("enabled")
     } catch {
@@ -132,7 +141,7 @@ export function usePushNotifications(isSignedIn: boolean) {
     } finally {
       setBusy(false)
     }
-  }, [busy, isSignedIn])
+  }, [busy, isSignedIn, updatePreferences])
 
   const disable = useCallback(async () => {
     if (busy) return
@@ -147,13 +156,20 @@ export function usePushNotifications(isSignedIn: boolean) {
           await subscription.unsubscribe()
         }
       }
+      if (isSignedIn) await updatePreferences({ notificationsEnabled: false })
       setStatus("disabled")
     } catch {
       setError("genericError")
     } finally {
       setBusy(false)
     }
-  }, [busy])
+  }, [busy, isSignedIn, updatePreferences])
+
+  useEffect(() => {
+    if (preferences?.exists && !preferences.notificationsEnabled && status === "enabled" && !busy) {
+      void disable()
+    }
+  }, [busy, disable, preferences, status])
 
   const sendTest = useCallback(async () => {
     if (busy) return
@@ -168,5 +184,13 @@ export function usePushNotifications(isSignedIn: boolean) {
     }
   }, [busy])
 
-  return { status, busy, error, enable, disable, sendTest }
+  return {
+    status,
+    busy,
+    error,
+    enable,
+    disable,
+    sendTest,
+    accountEnabled: preferences?.notificationsEnabled ?? status === "enabled",
+  }
 }

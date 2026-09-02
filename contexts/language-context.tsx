@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import { DEFAULT_LOCALE, type Locale, translate } from "@/lib/i18n/dictionaries"
+import { useAccountPreferences } from "@/hooks/use-account-preferences"
+import { LOCALE_COOKIE, setPreferenceCookie } from "@/lib/theme-cookies"
 
 const STORAGE_KEY = "ed-lang"
 
@@ -33,11 +35,13 @@ export function LanguageProvider({
   initialLocale?: Locale
 }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale ?? DEFAULT_LOCALE)
+  const { preferences, isLoading, isSignedIn, update } = useAccountPreferences()
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored === "tr" || stored === "en") {
+        setPreferenceCookie(LOCALE_COOKIE, stored)
         queueMicrotask(() => setLocaleState(stored))
         return
       }
@@ -51,17 +55,30 @@ export function LanguageProvider({
   }, [])
 
   useEffect(() => {
+    if (!isSignedIn || isLoading || !preferences?.exists || preferences.locale === locale) return
+    setLocaleState(preferences.locale)
+    setPreferenceCookie(LOCALE_COOKIE, preferences.locale)
+    try {
+      localStorage.setItem(STORAGE_KEY, preferences.locale)
+    } catch {
+      // ignore
+    }
+  }, [isLoading, isSignedIn, locale, preferences])
+
+  useEffect(() => {
     document.documentElement.lang = locale
   }, [locale])
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next)
+    setPreferenceCookie(LOCALE_COOKIE, next)
     try {
       localStorage.setItem(STORAGE_KEY, next)
     } catch {
       // ignore
     }
-  }, [])
+    if (isSignedIn) void update({ locale: next })
+  }, [isSignedIn, update])
 
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>) => translate(locale, key, vars),

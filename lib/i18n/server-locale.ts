@@ -1,5 +1,6 @@
-import { headers } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { DEFAULT_LOCALE, type Locale } from "./dictionaries"
+import { LOCALE_COOKIE } from "@/lib/theme-cookies"
 
 /**
  * İstek anındaki `Accept-Language` başlığından tarayıcı dilini çıkarır.
@@ -9,6 +10,9 @@ import { DEFAULT_LOCALE, type Locale } from "./dictionaries"
  * geçerli olur — sayfa içeriği zaten istemci tarafında anlık güncellenir.
  */
 export async function getServerLocale(): Promise<Locale> {
+  const cookieLocale = (await cookies()).get(LOCALE_COOKIE)?.value
+  if (cookieLocale === "tr" || cookieLocale === "en") return cookieLocale
+
   const headerList = await headers()
   const acceptLanguage = headerList.get("accept-language") ?? ""
   const languages = acceptLanguage
