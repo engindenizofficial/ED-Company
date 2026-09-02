@@ -1,3 +1,9 @@
+peerDependencyRules:
+  allowedVersions:
+    'eslint-plugin-import>eslint': '10'
+    'eslint-plugin-jsx-a11y>eslint': '10'
+    'eslint-plugin-react>eslint': '10'
+
 overrides:
   '@hono/node-server': 2.1.1
   body-parser: 2.3.0
