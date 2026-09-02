@@ -23,12 +23,10 @@ import {
   GripVertical,
   KeyRound,
   LogOut,
-  Mail,
   Palette,
   Send,
   Star,
   Trash2,
-  TriangleAlert,
   User,
   X,
 } from "lucide-react"
@@ -44,7 +42,7 @@ import { useThemeColor } from "@/contexts/theme-color-context"
 import { ACCENT_COLORS } from "@/lib/accent-colors"
 import { FavoriteSearchBar } from "@/components/favorite-search-bar"
 import { ThemeColorPicker } from "@/components/theme-color-picker"
-import { requestAccountDeletion } from "@/app/actions/account"
+import { AccountSettingsPanel } from "@/components/account-settings-panel"
 import { isAdminEmail } from "@/lib/admin"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/contexts/language-context"
@@ -61,7 +59,7 @@ type PanelView = "menu" | "favorites" | "theme" | "account" | "notifications"
 // uyarılarına önemli bir katkısını ortadan kaldırır. Görünüm/davranış hiç
 // değişmez, sadece kod ayrı bir chunk'ta ve sadece gerektiğinde yüklenir.
 export function FavoritesMenuPanel({ onRequestClose }: { onRequestClose: () => void }) {
-  const { t, locale } = useLanguage()
+  const { t } = useLanguage()
   const { data: session } = useSession()
   const router = useRouter()
   const { openTeam } = useTeamPanel()
@@ -74,10 +72,7 @@ export function FavoritesMenuPanel({ onRequestClose }: { onRequestClose: () => v
 
   const [view, setView] = useState<PanelView>("menu")
   const [signingOut, setSigningOut] = useState(false)
-  const [sendingDelete, setSendingDelete] = useState(false)
-  const [deleteSentTo, setDeleteSentTo] = useState<string | null>(null)
   const [testSent, setTestSent] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -85,24 +80,8 @@ export function FavoritesMenuPanel({ onRequestClose }: { onRequestClose: () => v
 
   const close = useCallback(() => {
     setView("menu")
-    setDeleteSentTo(null)
-    setDeleteError(null)
     onRequestClose()
   }, [onRequestClose])
-
-  const handleRequestAccountDeletion = useCallback(async () => {
-    if (sendingDelete) return
-    setSendingDelete(true)
-    setDeleteError(null)
-    try {
-      const { email } = await requestAccountDeletion(locale)
-      setDeleteSentTo(email)
-    } catch {
-      setDeleteError(t("common.error"))
-    } finally {
-      setSendingDelete(false)
-    }
-  }, [sendingDelete, locale, t])
 
   const handleSignOut = useCallback(async () => {
     if (signingOut) return
@@ -403,45 +382,7 @@ export function FavoritesMenuPanel({ onRequestClose }: { onRequestClose: () => v
             </div>
           </div>
         ) : view === "account" ? (
-          <div className="flex flex-1 flex-col overflow-y-auto p-4">
-            <div className="flex flex-col gap-4 rounded-2xl border border-destructive/30 bg-card p-5">
-              <div className="flex flex-col gap-2.5">
-                <div className="flex items-center gap-2">
-                  <TriangleAlert className="h-4 w-4 shrink-0 text-destructive" />
-                  <span className="text-sm font-bold text-foreground">{t("menu.deleteAccount")}</span>
-                </div>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  {t("menu.deleteAccountDesc1")}
-                </p>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  {t("menu.deleteAccountDesc2")}
-                </p>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  {t("menu.deleteAccountDesc3")}
-                </p>
-              </div>
-
-              {deleteSentTo ? (
-                <div className="flex items-center gap-2.5 rounded-xl bg-secondary px-3 py-2.5">
-                  <Mail className="h-4 w-4 shrink-0 text-primary" />
-                  <p className="text-xs leading-relaxed text-foreground">
-                    <span className="font-semibold">{deleteSentTo}</span> {t("menu.deleteAccountSentTo")}
-                  </p>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleRequestAccountDeletion}
-                  disabled={sendingDelete}
-                  className="flex items-center justify-center rounded-xl bg-destructive px-4 py-2.5 text-sm font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50"
-                >
-                  {sendingDelete ? t("menu.deleteAccountSending") : t("menu.deleteAccount")}
-                </button>
-              )}
-
-              {deleteError ? <p className="text-xs font-medium text-destructive">{deleteError}</p> : null}
-            </div>
-          </div>
+          <AccountSettingsPanel />
         ) : (
           <div className="flex flex-1 flex-col overflow-y-auto p-4">
             <FavoriteSearchBar />
