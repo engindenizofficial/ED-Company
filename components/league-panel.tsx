@@ -30,6 +30,8 @@ import { cn } from "@/lib/utils"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import { formatMarketValueEur } from "@/lib/market-value-format"
 import { useLanguage } from "@/contexts/language-context"
+import { useTimeZone } from "@/contexts/time-zone-context"
+import { formatFixtureDate, formatFixtureTime } from "@/lib/fixture-datetime"
 import { translateApiError } from "@/lib/i18n/api-error"
 import type {
   Fixture,
@@ -43,32 +45,6 @@ import type {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function kickoff(iso: string, locale: string): string {
-  return new Date(iso).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-    timeZone: "Europe/Istanbul",
-  })
-}
-
-function kickoffFull(iso: string, locale: string): string {
-  return new Date(iso).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
-    day: "2-digit",
-    month: "short",
-    weekday: "short",
-    timeZone: "Europe/Istanbul",
-  })
-}
-
-function matchTime(iso: string, locale: string): string {
-  return new Date(iso).toLocaleTimeString(locale === "en" ? "en-US" : "tr-TR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Europe/Istanbul",
-  })
-}
 
 // ---------------------------------------------------------------------------
 // Shared sub-components
@@ -597,6 +573,7 @@ function TopRedCardsSection({ leagueId, leagueName, active }: { leagueId: number
 
 function RecentFixturesSection({ leagueId, leagueName, active }: { leagueId: number; leagueName: string; active: boolean }) {
   const { t, locale } = useLanguage()
+  const timeZone = useTimeZone()
   const { status, data, error, retry } = useLeagueSection<Fixture[]>(leagueId, "recentFixtures", active)
   return (
     <section className="flex flex-col gap-1">

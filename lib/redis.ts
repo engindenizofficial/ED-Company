@@ -33,7 +33,7 @@ try {
 // ---------------------------------------------------------------------------
 
 const K = {
-  fixtures: (date: string) => `ed:fixtures:${date}`,
+  fixtures: (date: string, timeZone: string) => `ed:fixtures:${timeZone}:${date}`,
   allTeams: (season: number) => `ed:allteams:${season}`,
   prediction: (fixtureId: number) => `ed:prediction:${fixtureId}`,
   predictionResults: (date: string) => `ed:prediction-results:${date}`,
@@ -110,20 +110,27 @@ function secondsUntilMidnightTR(): number {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-export async function getCachedFixtures(date: string): Promise<FixturesResponse | null> {
+export async function getCachedFixtures(
+  date: string,
+  timeZone = "Europe/Istanbul",
+): Promise<FixturesResponse | null> {
   if (!redis) return null
   try {
-    return (await redis.get<FixturesResponse>(K.fixtures(date))) ?? null
+    return (await redis.get<FixturesResponse>(K.fixtures(date, timeZone))) ?? null
   } catch (err) {
     console.log("[v0] redis getCachedFixtures failed:", err instanceof Error ? err.message : err)
     return null
   }
 }
 
-export async function setCachedFixtures(date: string, data: FixturesResponse): Promise<void> {
+export async function setCachedFixtures(
+  date: string,
+  data: FixturesResponse,
+  timeZone = "Europe/Istanbul",
+): Promise<void> {
   if (!redis) return
   try {
-    await redis.set(K.fixtures(date), data, { ex: FIXTURES_TTL })
+    await redis.set(K.fixtures(date, timeZone), data, { ex: FIXTURES_TTL })
   } catch (err) {
     console.log("[v0] redis setCachedFixtures failed:", err instanceof Error ? err.message : err)
   }

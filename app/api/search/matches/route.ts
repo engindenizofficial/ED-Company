@@ -4,6 +4,7 @@ import { getTeamMarketValueMapByTeamIds } from "@/lib/search/market-index"
 import { normalizeTR } from "@/lib/search/text-normalize"
 import { countryMatchesQuery } from "@/lib/tr-aliases"
 import type { Fixture } from "@/lib/types"
+import { normalizeTimeZone, SERVER_TIME_ZONE } from "@/lib/fixture-datetime"
 
 export const dynamic = "force-dynamic"
 
@@ -14,12 +15,13 @@ export const dynamic = "force-dynamic"
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? ""
   const date = req.nextUrl.searchParams.get("date")?.trim() ?? ""
+  const timeZone = normalizeTimeZone(req.nextUrl.searchParams.get("timeZone"), SERVER_TIME_ZONE)
 
   if (q.length < 2 || !date) {
     return NextResponse.json({ results: [] })
   }
 
-  const { fixtures } = await getFixturesResponse(date)
+  const { fixtures } = await getFixturesResponse(date, false, timeZone)
 
   const qNorm = normalizeTR(q)
   const matched = fixtures.filter((f) => {

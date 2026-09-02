@@ -173,8 +173,12 @@ function mapFixture(r: RawFixture): Fixture {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-export async function getFixturesByDate(date: string, forceRefresh = false): Promise<Fixture[]> {
-  const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: "Europe/Istanbul" }, 120, forceRefresh)
+export async function getFixturesByDate(
+  date: string,
+  forceRefresh = false,
+  timeZone = "Europe/Istanbul",
+): Promise<Fixture[]> {
+  const raw = await apiFetch<RawFixture>("/fixtures", { date, timezone: timeZone }, 120, forceRefresh)
 
   const fixtures = raw.map(mapFixture)
 

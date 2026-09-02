@@ -12,31 +12,11 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { useFavorites } from "@/contexts/favorites-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useMatchPanel } from "@/contexts/match-context"
+import { useTimeZone } from "@/contexts/time-zone-context"
 import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { cn } from "@/lib/utils"
+import { getRelativeDateKey, SERVER_TIME_ZONE } from "@/lib/fixture-datetime"
 import type { Fixture, FixturesResponse, PredictionResult } from "@/lib/types"
-
-function todayTR(): string {
-  return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
-}
-
-// Türkiye saatiyle dünün tarihini döndürür (YYYY-MM-DD). Gece 00:00'da
-// (TR saatiyle) hem bu hem de todayTR() otomatik olarak bir gün kayar.
-function yesterdayTR(): string {
-  const now = new Date()
-  const trNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Istanbul" }))
-  trNow.setDate(trNow.getDate() - 1)
-  return trNow.toLocaleDateString("sv-SE")
-}
-
-// Türkiye saatiyle yarının tarihini döndürür (YYYY-MM-DD). Gece 00:00'da
-// (TR saatiyle) todayTR() ile birlikte otomatik olarak bir gün kayar.
-function tomorrowTR(): string {
-  const now = new Date()
-  const trNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Istanbul" }))
-  trNow.setDate(trNow.getDate() + 1)
-  return trNow.toLocaleDateString("sv-SE")
-}
 
 function formatDateLabel(iso: string, locale: string): string {
   return new Date(iso + "T12:00:00").toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
@@ -83,14 +63,23 @@ interface HomeClientProps {
 export function HomeClient({ initialFixturesData, initialPredictionResults, initialDateTab = "today" }: HomeClientProps = {}) {
   const router = useRouter()
   const prefersReducedMotion = useReducedMotion()
-  // Kullanıcının ana sayfadan geçiş yapabildiği "Dün" / "Bugün" / "Yarın"
-  // sekmesi. Her üç tarih de TR saatiyle hesaplanır, gece 00:00'da (TR
-  // saati) otomatik olarak bir gün kayar. Sadece "Bugün" "/" URL'inde
-  // yaşar; diğer ikisi kendi rotasına sahiptir (bkz. DATE_TAB_PATHS) — bu
-  // yüzden sekme değişimi hem client state'i günceller hem de URL'i o
-  // rotaya taşır (handleDateTabChange).
+  // İlk HTML sunucunun hazır verisini kullanır. Tarayıcı mount olduğunda
+  // cihazın IANA saat dilimi ve yerel günü kesinleşir; bundan sonra gece
+  // yarısı geçişleri dakikada bir kontrol edilerek sekmeler otomatik kayar.
+  const timeZone = useTimeZone()
   const [dateTab, setDateTab] = useState<"yesterday" | "today" | "tomorrow">(initialDateTab)
-  const date = dateTab === "yesterday" ? yesterdayTR() : dateTab === "tomorrow" ? tomorrowTR() : todayTR()
+  const [localNow, setLocalNow] = useState<Date | null>(null)
+  const dateOffset = dateTab === "yesterday" ? -1 : dateTab === "tomorrow" ? 1 : 0
+  const date = localNow
+    ? getRelativeDateKey(dateOffset, timeZone, localNow)
+    : initialFixturesData?.date ?? getRelativeDateKey(dateOffset, SERVER_TIME_ZONE)
+
+  useEffect(() => {
+    const updateLocalNow = () => setLocalNow(new Date())
+    queueMicrotask(updateLocalNow)
+    const timer = window.setInterval(updateLocalNow, 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
   const handleDateTabChange = useCallback(
     (tab: "yesterday" | "today" | "tomorrow") => {
       if (tab === dateTab) return
@@ -146,7 +135,7 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
   const loadFixtures = useCallback(async (forceRefresh = false) => {
     const requestedDate = date
     try {
-      const url = `/api/fixtures?date=${requestedDate}${forceRefresh ? "&refresh=1" : ""}`
+      const url = `/api/fixtures?date=${requestedDate}&timeZone=${encodeURIComponent(timeZone)}${forceRefresh ? "&refresh=1" : ""}`
       const res = await fetch(url, { cache: "no-store" })
       const data = await res.json() as FixturesResponse
       setFixturesData(data)
@@ -156,7 +145,7 @@ export function HomeClient({ initialFixturesData, initialPredictionResults, init
     } finally {
       setFixturesLoading(false)
     }
-  }, [date])
+  }, [date, timeZone])
 
   // Kullanıcı "Dün" / "Bugün" sekmesini değiştirdiğinde (dolayısıyla `date`
   // değiştiğinde) fikstür listesini o tarih için yeniden yükler. `useAutoRefresh`

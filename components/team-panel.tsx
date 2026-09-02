@@ -33,6 +33,8 @@ import { PlayerPhoto } from "@/components/player-photo"
 import { cn } from "@/lib/utils"
 import { formatMarketValueEur } from "@/lib/market-value-format"
 import { useLanguage } from "@/contexts/language-context"
+import { useTimeZone } from "@/contexts/time-zone-context"
+import { formatFixtureDate, formatFixtureTime } from "@/lib/fixture-datetime"
 import { translateApiError } from "@/lib/i18n/api-error"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import type {
@@ -50,12 +52,6 @@ import type {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function kickoff(iso: string, locale: string): string {
-  return new Date(iso).toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
-    day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "Europe/Istanbul",
-  })
-}
 
 function FormDot({ result }: { result: "W" | "D" | "L" }) {
   // Harfleri dile göre çeviriyoruz: TR'de G/B/M (Galibiyet/Beraberlik/
@@ -253,6 +249,7 @@ function SeasonStatsSection({ teamId, teamName, active }: { teamId: number; team
 
 function FormSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
   const { t, locale } = useLanguage()
+  const timeZone = useTimeZone()
   const { status, data, error, retry } = useTeamSection<TeamFormData>(teamId, "form", active)
   return (
     <section className="flex flex-col gap-1">
@@ -291,7 +288,7 @@ function FormSection({ teamId, teamName, active }: { teamId: number; teamName: s
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-0.5">
                         <span className="font-black tabular-nums text-foreground">{g.scored}–{g.conceded}</span>
-                        <span className="text-[10px] text-muted-foreground">{kickoff(g.date, locale)}</span>
+                        <span className="text-[10px] text-muted-foreground">{formatFixtureDate(g.date, locale, timeZone)}</span>
                       </div>
                     </div>
                   ))}
@@ -311,6 +308,7 @@ function FormSection({ teamId, teamName, active }: { teamId: number; teamName: s
 
 function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
   const { t, locale } = useLanguage()
+  const timeZone = useTimeZone()
   const { status, data, error, retry } = useTeamSection<Fixture[]>(teamId, "fixtures", active)
   return (
     <section className="flex flex-col gap-1">
@@ -348,7 +346,7 @@ function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; t
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-0.5">
                     <span className="text-sm font-black tabular-nums text-foreground">{f.goalsHome} – {f.goalsAway}</span>
-                    <span className="text-[10px] text-muted-foreground">{kickoff(f.date, locale)}</span>
+                    <span className="text-[10px] text-muted-foreground">{formatFixtureDate(f.date, locale, timeZone)}</span>
                   </div>
                 </MatchButton>
               ))}
@@ -366,6 +364,7 @@ function RecentFixturesSection({ teamId, teamName, active }: { teamId: number; t
 
 function UpcomingFixturesSection({ teamId, teamName, active }: { teamId: number; teamName: string; active: boolean }) {
   const { t, locale } = useLanguage()
+  const timeZone = useTimeZone()
   const { status, data, error, retry } = useTeamSection<Fixture[]>(teamId, "upcomingFixtures", active)
   return (
     <section className="flex flex-col gap-1">
@@ -402,11 +401,9 @@ function UpcomingFixturesSection({ teamId, teamName, active }: { teamId: number;
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-0.5">
-                    <span className="text-[10px] font-bold text-primary">{kickoff(f.date, locale)}</span>
+                    <span className="text-[10px] font-bold text-primary">{formatFixtureDate(f.date, locale, timeZone)}</span>
                     <span className="text-[10px] text-muted-foreground">
-                      {new Date(f.date).toLocaleTimeString(locale === "en" ? "en-US" : "tr-TR", {
-                        hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul",
-                      })}
+                      {formatFixtureTime(f.date, locale, timeZone)}
                     </span>
                   </div>
                 </MatchButton>

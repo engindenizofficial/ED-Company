@@ -1,17 +1,25 @@
 import { getFixturesByDate } from "@/lib/api-football"
 import { getCachedFixtures, setCachedFixtures } from "@/lib/redis"
+import {
+  getRelativeDateKey,
+  normalizeTimeZone,
+  SERVER_TIME_ZONE,
+} from "@/lib/fixture-datetime"
 import type { Fixture, FixturesResponse } from "@/lib/types"
 
-// app/api/fixtures/route.ts ile app/page.tsx (ve app/mac/[id]/page.tsx) aynı
-// "cache'den oku, yoksa API'den çek" mantığını paylaşması gerekiyordu.
-// Bu fonksiyon o mantığı tek yerde tutar: route handler client tarafından
-// fetch ile çağrılırken, sayfa component'leri bunu doğrudan sunucuda
-// (network round-trip olmadan) çağırıp "Maçlar yükleniyor" animasyonu hiç
-// görünmeden ilk HTML'de hazır veriyle gelebilir.
-export async function getFixturesResponse(date: string, refresh = false): Promise<FixturesResponse> {
+// Client istekleri ziyaretçinin saat dilimini gönderir. Sunucu tarafından
+// oluşturulan ilk HTML ise cihaz bilgisi henüz bilinmediği için mevcut hızlı
+// İstanbul verisini kullanır; hydration sonrası istemci doğru bölgeyle uzlaşır.
+export async function getFixturesResponse(
+  date: string,
+  refresh = false,
+  requestedTimeZone = SERVER_TIME_ZONE,
+): Promise<FixturesResponse> {
+  const timeZone = normalizeTimeZone(requestedTimeZone, SERVER_TIME_ZONE)
+
   if (!refresh) {
     try {
-      const cached = await getCachedFixtures(date)
+      const cached = await getCachedFixtures(date, timeZone)
       if (cached) return cached
     } catch {
       // Redis erişim hatası, devam et
@@ -19,16 +27,16 @@ export async function getFixturesResponse(date: string, refresh = false): Promis
   }
 
   try {
-    const fixtures: Fixture[] = await getFixturesByDate(date, refresh)
+    const fixtures: Fixture[] = await getFixturesByDate(date, refresh, timeZone)
     const payload: FixturesResponse = { date, fixtures, cachedAt: Date.now() }
-    await setCachedFixtures(date, payload)
+    await setCachedFixtures(date, payload, timeZone)
     return payload
   } catch (err) {
     const message = err instanceof Error ? err.message : "Bilinmeyen hata"
     console.log("[v0] fixtures fetch failed:", message)
 
     try {
-      const cached = await getCachedFixtures(date)
+      const cached = await getCachedFixtures(date, timeZone)
       if (cached) return { ...cached, stale: true }
     } catch {
       // ignore
@@ -39,24 +47,13 @@ export async function getFixturesResponse(date: string, refresh = false): Promis
 }
 
 export function todayTR(): string {
-  return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Istanbul" })
+  return getRelativeDateKey(0, SERVER_TIME_ZONE)
 }
 
-// Türkiye saatiyle dünün/yarının tarihini döndürür (YYYY-MM-DD). Sunucu
-// tarafında (app/dun/page.tsx, app/yarin/page.tsx) todayTR() ile aynı mantığı
-// kullanır — bkz. components/home-client.tsx'teki client tarafı eşleniği
-// (yesterdayTR / tomorrowTR). Gece 00:00'da (TR saatiyle) her üçü de otomatik
-// olarak bir gün kayar.
 export function yesterdayTR(): string {
-  const now = new Date()
-  const trNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Istanbul" }))
-  trNow.setDate(trNow.getDate() - 1)
-  return trNow.toLocaleDateString("sv-SE")
+  return getRelativeDateKey(-1, SERVER_TIME_ZONE)
 }
 
 export function tomorrowTR(): string {
-  const now = new Date()
-  const trNow = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Istanbul" }))
-  trNow.setDate(trNow.getDate() + 1)
-  return trNow.toLocaleDateString("sv-SE")
+  return getRelativeDateKey(1, SERVER_TIME_ZONE)
 }

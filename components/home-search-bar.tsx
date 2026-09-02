@@ -7,9 +7,10 @@ import { useLeaguePanel } from "@/contexts/league-context"
 import { usePlayerPanel } from "@/contexts/player-context"
 import { useMatchPanel } from "@/contexts/match-context"
 import { useLanguage } from "@/contexts/language-context"
+import { useTimeZone } from "@/contexts/time-zone-context"
+import { formatFixtureTime } from "@/lib/fixture-datetime"
 import { toDisplayCountry } from "@/lib/tr-aliases"
 import type { Fixture } from "@/lib/types"
-import type { Locale } from "@/lib/i18n/dictionaries"
 import type { HomeSearchPlayerResult } from "@/app/api/search/players/route"
 import type { HomeSearchTeamResult } from "@/app/api/search/teams/route"
 import type { HomeSearchLeagueResult } from "@/app/api/search/leagues/route"
@@ -23,14 +24,6 @@ function useDebounce<T>(value: T, delay: number): T {
     return () => clearTimeout(timer)
   }, [value, delay])
   return debouncedValue
-}
-
-function kickoff(iso: string, locale: Locale): string {
-  return new Date(iso).toLocaleTimeString(locale === "tr" ? "tr-TR" : "en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Europe/Istanbul",
-  })
 }
 
 const LIVE_STATUSES = new Set(["1H", "2H", "ET", "BT", "P", "LIVE", "INT", "SUSP", "HT"])
@@ -68,6 +61,7 @@ function Logo({ src, alt, fallback }: { src: string | null; alt: string; fallbac
  */
 export function HomeSearchBar({ date }: { date: string }) {
   const { t, locale } = useLanguage()
+  const timeZone = useTimeZone()
   const { openTeam } = useTeamPanel()
   const { openLeague } = useLeaguePanel()
   const { openPlayer } = usePlayerPanel()
@@ -117,7 +111,7 @@ export function HomeSearchBar({ date }: { date: string }) {
     const q = encodeURIComponent(debouncedQuery)
     const url =
       tab === "matches"
-        ? `/api/search/matches?q=${q}&date=${encodeURIComponent(date)}`
+        ? `/api/search/matches?q=${q}&date=${encodeURIComponent(date)}&timeZone=${encodeURIComponent(timeZone)}`
         : tab === "players"
           ? `/api/search/players?q=${q}`
           : tab === "teams"
@@ -149,7 +143,7 @@ export function HomeSearchBar({ date }: { date: string }) {
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery, tab, date])
+  }, [debouncedQuery, tab, date, timeZone])
 
   // Dışarı tıklanınca kapat
   useEffect(() => {
@@ -367,7 +361,7 @@ export function HomeSearchBar({ date }: { date: string }) {
                             </span>
                           ) : (
                             <span className="text-[12px] font-semibold tabular-nums text-muted-foreground">
-                              {kickoff(f.date, locale)}
+                              {formatFixtureTime(f.date, locale, timeZone)}
                             </span>
                           )}
                           <span className="max-w-24 truncate text-[10px] text-muted-foreground">{f.league.name}</span>

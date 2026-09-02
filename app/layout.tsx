@@ -24,6 +24,7 @@ import { PwaUpdateWatcher } from '@/components/pwa-update-watcher'
 import { PushSoundListener } from '@/components/push-sound-listener'
 import { FavoritesProvider } from '@/contexts/favorites-context'
 import { CountryProvider } from '@/contexts/country-context'
+import { TimeZoneProvider } from '@/contexts/time-zone-context'
 import { ThemeModeProvider } from '@/components/theme-mode-provider'
 import { ThemeColorProvider } from '@/contexts/theme-color-context'
 import { LanguageProvider } from '@/contexts/language-context'
@@ -34,6 +35,7 @@ import { getSiteUrl } from '@/lib/site-url'
 import { DEFAULT_ACCENT_COLOR, isValidAccentColor } from '@/lib/accent-colors'
 import { THEME_COOKIE, ACCENT_COOKIE } from '@/lib/theme-cookies'
 import { detectServerCountry } from '@/lib/country-detection'
+import { normalizeTimeZone, SERVER_TIME_ZONE } from '@/lib/fixture-datetime'
 import './globals.css'
 
 // Standart "latin" alt kümesi Türkçe'ye özgü karakterleri (ş, ğ, ı, İ, ç, ö, ü)
@@ -103,6 +105,10 @@ export default async function RootLayout({
   const locale = await getServerLocale()
   const requestHeaders = await headers()
   const countryDetection = detectServerCountry(requestHeaders)
+  const initialTimeZone = normalizeTimeZone(
+    requestHeaders.get('x-vercel-ip-timezone'),
+    SERVER_TIME_ZONE,
+  )
 
   // Tema/renk tercihini localStorage yerine (veya ona ek olarak) çerezden
   // okuyup <html> etiketine sunucuda uygularız. Böylece PWA'da localStorage
@@ -164,6 +170,7 @@ export default async function RootLayout({
         <PushSoundListener />
         <ThemeModeProvider initialTheme={themeMode}>
           <LanguageProvider initialLocale={locale}>
+            <TimeZoneProvider initialTimeZone={initialTimeZone}>
             <ThemeColorProvider initialAccentColor={accentColor}>
             <CountryProvider
               initialCountryCode={countryDetection.countryCode}
@@ -190,6 +197,7 @@ export default async function RootLayout({
               </PanelStackProvider>
             </CountryProvider>
             </ThemeColorProvider>
+            </TimeZoneProvider>
           </LanguageProvider>
         </ThemeModeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

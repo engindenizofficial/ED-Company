@@ -12,8 +12,9 @@ import { toDisplayCountry } from "@/lib/tr-aliases"
 import { useFavorites } from "@/contexts/favorites-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useCountry } from "@/contexts/country-context"
+import { useTimeZone } from "@/contexts/time-zone-context"
+import { formatFixtureTime } from "@/lib/fixture-datetime"
 import { getNationalTeamName } from "@/lib/national-teams"
-import type { Locale } from "@/lib/i18n/dictionaries"
 import type { Fixture } from "@/lib/types"
 import type { FavoriteItem } from "@/contexts/favorites-context"
 
@@ -109,14 +110,6 @@ function FavoriteStarButton({
       />
     </button>
   )
-}
-
-function kickoff(iso: string, locale: Locale): string {
-  return new Date(iso).toLocaleTimeString(locale === "tr" ? "tr-TR" : "en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Europe/Istanbul",
-  })
 }
 
 const LIVE_STATUSES = new Set(["1H", "2H", "ET", "BT", "P", "LIVE", "INT", "SUSP", "HT"])
@@ -220,7 +213,7 @@ function sortFixturesByFavoriteTeam(fixtures: Fixture[], teamPosition: Map<numbe
  *   maçı da o blok içinde en üstte gösterilir).
  * - Favori olmayan bir ligde favori bir takımın maçı varsa: SADECE o maç(lar)
  *   ayrı, "{lig adı}" başlıklı yeni bir blok olarak en üste (favori liglerin
- *   altına) taşınır. Aynı ligin diğer ma��ları kendi orijinal konumunda,
+ *   altına) taşınır. Aynı ligin diğer ma����ları kendi orijinal konumunda,
  *   ayrı bir blok olarak kalır.
  * - Favorisi olmayan ligler kendi orijinal sırasında değişmeden kalır.
  */
@@ -540,6 +533,7 @@ function FixtureCard({
 }) {
   const { toggleFavorite } = useFavorites()
   const { t, locale } = useLanguage()
+  const timeZone = useTimeZone()
   const live = isLive(f.statusShort)
   const played = f.statusShort !== "NS" && f.statusShort !== "TBD" && f.statusShort !== "PST"
   // fixtureId ve live parametreleri sadece burada (ana ekran) verilir —
@@ -639,7 +633,7 @@ function FixtureCard({
                 <span className="text-[10px] text-muted-foreground">{t("matchStatus.kickoffLabel")}</span>
                 <span className="flex items-center gap-1 text-[13px] font-bold tabular-nums text-foreground">
                   <Clock className="h-3 w-3 text-muted-foreground" />
-                  {kickoff(f.date, locale)}
+                  {formatFixtureTime(f.date, locale, timeZone)}
                 </span>
               </>
             )}
