@@ -59,31 +59,68 @@ export function AuthForm({ mode }: AuthFormProps) {
         return
       }
 
+      const channel = typeof BroadcastChannel !== 'undefined'
+        ? new BroadcastChannel('ed-google-auth')
+        : null
+      let completed = false
+      let checking = false
+      let timeoutId: number | undefined
+
+      const cleanup = () => {
+        completed = true
+        if (timeoutId) window.clearTimeout(timeoutId)
+        window.removeEventListener('message', handleMessage)
+        channel?.removeEventListener('message', handleChannelMessage)
+        channel?.close()
+      }
+
+      const completeSignIn = async () => {
+        if (completed || checking) return
+        checking = true
+        const session = await authClient.getSession()
+        checking = false
+
+        if (!session.data) return
+
+        cleanup()
+        if (!popup.closed) popup.close()
+        router.push('/')
+        router.refresh()
+      }
+
+      const handleMessage = (event: MessageEvent) => {
+        if (event.origin === window.location.origin && event.data?.type === 'google-oauth-complete') {
+          void completeSignIn()
+        }
+      }
+      const handleChannelMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'google-oauth-complete') {
+          void completeSignIn()
+        }
+      }
+
+      window.addEventListener('message', handleMessage)
+      channel?.addEventListener('message', handleChannelMessage)
       popup.location.href = authUrl
 
-      // Popup kapanana kadar bekle, sonra oturumu kontrol et. Cookie'nin
-      // popup'ta set edilip ana sekmede okunabilir olması bir tık gecikebilir
-      // (redirect zinciri + tarayıcı cookie senkronizasyonu), bu yüzden tek
-      // seferlik kontrol yerine kısa aralıklarla birkaç kez deniyoruz.
-      const checkClosed = window.setInterval(async () => {
-        if (popup.closed) {
-          window.clearInterval(checkClosed)
+      // COOP, popup referansını OAuth sırasında koparabileceği için yalnızca
+      // `popup.closed` değerine güvenmiyoruz. Oturum görünene kadar ana sekmede
+      // güvenli biçimde kontrol ediyor, callback mesajını da hızlı yol olarak
+      // kullanıyoruz.
+      const pollSession = async () => {
+        if (completed) return
+        await completeSignIn()
+        if (!completed) timeoutId = window.setTimeout(pollSession, 750)
+      }
+      timeoutId = window.setTimeout(pollSession, 750)
 
-          let session = await authClient.getSession()
-          for (let attempt = 0; attempt < 5 && !session.data; attempt++) {
-            await new Promise((resolve) => setTimeout(resolve, 400))
-            session = await authClient.getSession()
-          }
-
-          if (session.data) {
-            router.push('/')
-            router.refresh()
-          } else {
-            setGoogleLoading(false)
-            setError(t('auth.sessionNotDetected'))
-          }
-        }
-      }, 500)
+      window.setTimeout(() => {
+        if (completed) return
+        cleanup()
+        if (!popup.closed) popup.close()
+        setGoogleLoading(false)
+        setError(t('auth.sessionNotDetected'))
+      }, 120_000)
     } catch {
       popup.close()
       setError(t('common.unexpectedError'))

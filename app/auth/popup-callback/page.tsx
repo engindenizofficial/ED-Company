@@ -12,8 +12,25 @@ export default function PopupCallbackPage() {
   const { t } = useLanguage()
 
   useEffect(() => {
-    if (window.opener) {
+    const message = { type: 'google-oauth-complete' }
+    const channel = typeof BroadcastChannel !== 'undefined'
+      ? new BroadcastChannel('ed-google-auth')
+      : null
+
+    channel?.postMessage(message)
+    window.opener?.postMessage(message, window.location.origin)
+
+    // OAuth sağlayıcıları Cross-Origin-Opener-Policy nedeniyle `window.opener`
+    // bağlantısını koparabilir. Pencere yine de uygulama tarafından açıldığı
+    // için opener kontrolü yapmadan kapatmayı denemeliyiz.
+    const closeTimer = window.setTimeout(() => {
+      channel?.close()
       window.close()
+    }, 100)
+
+    return () => {
+      window.clearTimeout(closeTimer)
+      channel?.close()
     }
   }, [])
 
