@@ -78,14 +78,6 @@ function alignAuthActionUrl(actionUrl: string): string {
 export const auth = betterAuth({
   database: pool,
   baseURL,
-  onAPIError: {
-    onError(error, context) {
-      console.error('[v0] Better Auth API error', {
-        path: context?.path,
-        error,
-      })
-    },
-  },
   emailAndPassword: {
     enabled: true,
     autoSignIn: false,
