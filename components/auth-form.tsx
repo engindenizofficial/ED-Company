@@ -41,6 +41,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [showVerificationAction, setShowVerificationAction] = useState(false)
   const [existingAccount, setExistingAccount] = useState(false)
   const [resendingVerification, setResendingVerification] = useState(false)
+  const [verificationFeedback, setVerificationFeedback] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
 
   const isSignUp = mode === 'sign-up'
@@ -88,7 +89,8 @@ export function AuthForm({ mode }: AuthFormProps) {
           const code = res.error.code ?? ''
           const accountExists = code === 'USER_ALREADY_EXISTS' || code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL'
           setExistingAccount(accountExists)
-          setError(accountExists ? t('auth.accountAlreadyExists') : t('auth.signUpError'))
+          setShowVerificationAction(!accountExists)
+          setError(accountExists ? t('auth.accountAlreadyExists') : t('auth.signUpEmailDeliveryFailed'))
           return
         }
         setVerificationSent(true)
@@ -133,17 +135,28 @@ export function AuthForm({ mode }: AuthFormProps) {
     if (!email || resendingVerification) return
     setResendingVerification(true)
     setError('')
-    const result = await authClient.sendVerificationEmail({
-      email: email.trim().toLowerCase(),
-      callbackURL: `${window.location.origin}/`,
-    })
-    setResendingVerification(false)
+    setVerificationFeedback('')
 
-    if (result.error) {
+    try {
+      const result = await authClient.sendVerificationEmail({
+        email: email.trim().toLowerCase(),
+        callbackURL: `${window.location.origin}/`,
+      })
+
+      if (result.error) {
+        setError(t('auth.verificationSendFailed'))
+        setVerificationFeedback(t('auth.verificationSendFailed'))
+        return
+      }
+
+      setVerificationSent(true)
+      setVerificationFeedback(t('auth.verificationResent'))
+    } catch {
       setError(t('auth.verificationSendFailed'))
-      return
+      setVerificationFeedback(t('auth.verificationSendFailed'))
+    } finally {
+      setResendingVerification(false)
     }
-    setVerificationSent(true)
   }
 
   if (verificationSent) {
@@ -163,6 +176,25 @@ export function AuthForm({ mode }: AuthFormProps) {
             <p className="text-xs text-muted-foreground">
               {t('auth.checkSpam')}
             </p>
+            <div className="mt-5 flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={resendVerificationEmail}
+                disabled={resendingVerification}
+                className="rounded-lg border border-input bg-background px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-muted disabled:opacity-50"
+              >
+                {resendingVerification ? t('auth.sendingVerification') : t('auth.resendVerification')}
+              </button>
+              {verificationFeedback ? (
+                <p
+                  className={error ? 'text-xs font-medium text-destructive' : 'text-xs font-medium text-primary'}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {verificationFeedback}
+                </p>
+              ) : null}
+            </div>
           </div>
           <p className="mt-4 text-center text-sm text-muted-foreground">
             {t('auth.alreadyVerified')}{' '}
