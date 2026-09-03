@@ -196,12 +196,15 @@ export function AuthForm({ mode }: AuthFormProps) {
               ) : null}
             </div>
           </div>
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            {t('auth.alreadyVerified')}{' '}
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center text-sm text-muted-foreground">
+            <span>{t('auth.alreadyVerified')}</span>
             <Link href="/sign-in" className="font-semibold text-primary hover:underline">
               {t('auth.signIn')}
             </Link>
-          </p>
+            <Link href="/forgot-password" className="font-semibold text-primary hover:underline">
+              {t('auth.forgotPassword')}
+            </Link>
+          </div>
         </div>
       </div>
     )
