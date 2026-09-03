@@ -6,7 +6,6 @@ import { getRelativeDateKey, normalizeTimeZone, SERVER_TIME_ZONE } from "@/lib/f
 
 export const dynamic = "force-dynamic"
 
-// Ana sayfa verileri her istekte güncel tutulur.
 // Önceden bu sayfa "use client" idi ve HomeClient hiç veri olmadan mount
 // oluyordu — bu yüzden ilk açılışta her zaman kısa bir süre "Maçlar
 // yükleniyor" animasyonu görünüyordu (client fetch tamamlanana kadar).
