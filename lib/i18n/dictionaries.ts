@@ -420,6 +420,7 @@ const dictionaries: Record<Locale, Record<string, unknown>> = {
       sessionNotDetected:
         "Giriş tamamlandı ama oturum algılanamadı. Lütfen sayfayı yenileyip tekrar deneyin.",
       signUpError: "Hesap oluşturulamadı. Bilgileri kontrol edip tekrar deneyin.",
+      signUpEmailDeliveryFailed: "Hesap oluşturulmuş olabilir ancak doğrulama e-postası gönderilemedi. Aşağıdan yeniden göndermeyi deneyin.",
       signInError: "Giriş şu anda tamamlanamadı. Lütfen biraz sonra tekrar deneyin.",
       networkError: "Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.",
       accountAlreadyExists: "Bu e-posta zaten bir hesaba bağlı. Giriş yapın veya şifrenizi sıfırlayın.",
@@ -428,6 +429,7 @@ const dictionaries: Record<Locale, Record<string, unknown>> = {
       resendVerification: "Doğrulama e-postasını yeniden gönder",
       sendingVerification: "Doğrulama e-postası gönderiliyor...",
       verificationSendFailed: "Doğrulama e-postası gönderilemedi. Lütfen tekrar deneyin.",
+      verificationResent: "Yeni doğrulama e-postası gönderildi.",
       otpSendFailed: "Doğrulama kodu gönderilemedi. Tekrar deneyin.",
       forgotPassword: "Şifremi unuttum",
       forgotPasswordSubtitle: "Şifreni sıfırlamak için e-posta adresini gir",
@@ -1560,6 +1562,7 @@ const dictionaries: Record<Locale, Record<string, unknown>> = {
       sessionNotDetected:
         "Sign-in completed but the session wasn't detected. Please refresh the page and try again.",
       signUpError: "We couldn't create the account. Check your details and try again.",
+      signUpEmailDeliveryFailed: "Your account may have been created, but we couldn't send the verification email. Try resending it below.",
       signInError: "Sign-in couldn't be completed right now. Please try again shortly.",
       networkError: "We couldn't reach the server. Check your connection and try again.",
       accountAlreadyExists: "This email is already linked to an account. Sign in or reset your password.",
@@ -1568,6 +1571,7 @@ const dictionaries: Record<Locale, Record<string, unknown>> = {
       resendVerification: "Resend verification email",
       sendingVerification: "Sending verification email...",
       verificationSendFailed: "We couldn't send the verification email. Please try again.",
+      verificationResent: "A new verification email has been sent.",
       otpSendFailed: "Couldn't send the verification code. Please try again.",
       forgotPassword: "Forgot password?",
       forgotPasswordSubtitle: "Enter your email to reset your password",

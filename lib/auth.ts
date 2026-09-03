@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { pool } from '@/lib/db'
 import { Resend } from 'resend'
+import { deliverTransactionalEmail } from '@/lib/email-delivery'
 import { getSiteUrl, PRODUCTION_SITE_URL, sanitize } from '@/lib/site-url'
 
 function getResend() {
@@ -85,26 +86,24 @@ export const auth = betterAuth({
     resetPasswordTokenExpiresIn: 3600, // 1 saat
     sendResetPassword: async ({ user, url }: { user: { email: string; name?: string }, url: string }) => {
       const deliveryUrl = alignAuthActionUrl(url)
-      const { error } = await getResend().emails.send({
-        from: 'ED Analytics <no-reply@edcompanyofficial.com>',
-        to: user.email,
-        subject: 'Şifrenizi sıfırlayın',
-        html: `
-          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0f172a;border-radius:12px;">
-            <img src="${baseURL}/icon-512.png" alt="ED Analytics" width="40" height="40" style="border-radius:8px;margin-bottom:16px;display:block;" />
-            <h2 style="color:#f8fafc;font-size:20px;margin-bottom:8px;">ED Analytics</h2>
-            <p style="color:#94a3b8;font-size:14px;margin-bottom:24px;">Merhaba ${user.name ?? user.email},</p>
-            <p style="color:#cbd5e1;font-size:14px;margin-bottom:24px;">Şifreni sıfırlamak için aşağıdaki butona tıkla. Bu link 1 saat geçerlidir.</p>
-            <a href="${deliveryUrl}" style="display:inline-block;background:#3b82f6;color:#fff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">Şifremi Sıfırla</a>
-            <p style="color:#475569;font-size:12px;margin-top:24px;">Bu talebi siz oluşturmadıysanız bu e-postayı dikkate almayın; şifreniz değişmeyecektir.</p>
-          </div>
-        `,
-      }, { idempotencyKey: emailIdempotencyKey('password-reset', deliveryUrl) })
-      if (error) {
-        console.error('[auth] Password reset email delivery failed', {
-          errorName: error.name,
-        })
-      }
+      await deliverTransactionalEmail(
+        () => getResend().emails.send({
+          from: 'ED Analytics <no-reply@edcompanyofficial.com>',
+          to: user.email,
+          subject: 'Şifrenizi sıfırlayın',
+          html: `
+            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0f172a;border-radius:12px;">
+              <img src="${baseURL}/icon-512.png" alt="ED Analytics" width="40" height="40" style="border-radius:8px;margin-bottom:16px;display:block;" />
+              <h2 style="color:#f8fafc;font-size:20px;margin-bottom:8px;">ED Analytics</h2>
+              <p style="color:#94a3b8;font-size:14px;margin-bottom:24px;">Merhaba ${user.name ?? user.email},</p>
+              <p style="color:#cbd5e1;font-size:14px;margin-bottom:24px;">Şifreni sıfırlamak için aşağıdaki butona tıkla. Bu link 1 saat geçerlidir.</p>
+              <a href="${deliveryUrl}" style="display:inline-block;background:#3b82f6;color:#fff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">Şifremi Sıfırla</a>
+              <p style="color:#475569;font-size:12px;margin-top:24px;">Bu talebi siz oluşturmadıysanız bu e-postayı dikkate almayın; şifreniz değişmeyecektir.</p>
+            </div>
+          `,
+        }, { idempotencyKey: emailIdempotencyKey('password-reset', deliveryUrl) }),
+        'password-reset',
+      )
     },
   },
   socialProviders: {
@@ -125,26 +124,24 @@ export const auth = betterAuth({
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }: { user: { email: string; name?: string }, url: string }) => {
       const deliveryUrl = alignAuthActionUrl(url)
-      const { error } = await getResend().emails.send({
-        from: 'ED Analytics <no-reply@edcompanyofficial.com>',
-        to: user.email,
-        subject: 'E-posta adresinizi doğrulayın',
-        html: `
-          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0f172a;border-radius:12px;">
-            <img src="${baseURL}/icon-512.png" alt="ED Analytics" width="40" height="40" style="border-radius:8px;margin-bottom:16px;display:block;" />
-            <h2 style="color:#f8fafc;font-size:20px;margin-bottom:8px;">ED Analytics</h2>
-            <p style="color:#94a3b8;font-size:14px;margin-bottom:24px;">Merhaba ${user.name ?? user.email},</p>
-            <p style="color:#cbd5e1;font-size:14px;margin-bottom:24px;">Hesabınızı doğrulamak için aşağıdaki butona tıklayın. Bu link 24 saat geçerlidir.</p>
-            <a href="${deliveryUrl}" style="display:inline-block;background:#3b82f6;color:#fff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">E-postamı Doğrula</a>
-            <p style="color:#475569;font-size:12px;margin-top:24px;">Bu e-postayı siz talep etmediyseniz dikkate almayın.</p>
-          </div>
-        `,
-      }, { idempotencyKey: emailIdempotencyKey('email-verification', deliveryUrl) })
-      if (error) {
-        console.error('[auth] Verification email delivery failed', {
-          errorName: error.name,
-        })
-      }
+      await deliverTransactionalEmail(
+        () => getResend().emails.send({
+          from: 'ED Analytics <no-reply@edcompanyofficial.com>',
+          to: user.email,
+          subject: 'E-posta adresinizi doğrulayın',
+          html: `
+            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0f172a;border-radius:12px;">
+              <img src="${baseURL}/icon-512.png" alt="ED Analytics" width="40" height="40" style="border-radius:8px;margin-bottom:16px;display:block;" />
+              <h2 style="color:#f8fafc;font-size:20px;margin-bottom:8px;">ED Analytics</h2>
+              <p style="color:#94a3b8;font-size:14px;margin-bottom:24px;">Merhaba ${user.name ?? user.email},</p>
+              <p style="color:#cbd5e1;font-size:14px;margin-bottom:24px;">Hesabınızı doğrulamak için aşağıdaki butona tıklayın. Bu link 24 saat geçerlidir.</p>
+              <a href="${deliveryUrl}" style="display:inline-block;background:#3b82f6;color:#fff;font-size:14px;font-weight:600;padding:12px 24px;border-radius:8px;text-decoration:none;">E-postamı Doğrula</a>
+              <p style="color:#475569;font-size:12px;margin-top:24px;">Bu e-postayı siz talep etmediyseniz dikkate almayın.</p>
+            </div>
+          `,
+        }, { idempotencyKey: emailIdempotencyKey('email-verification', deliveryUrl) }),
+        'email-verification',
+      )
     },
   },
   trustedOrigins,
