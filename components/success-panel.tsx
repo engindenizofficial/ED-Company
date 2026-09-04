@@ -15,9 +15,9 @@ function isHiddenModel(model: string): boolean {
 // Model etiket haritası — model string'inden okunabilir isim üret.
 // Gerçek sağlayıcı/model adları (GPT, Gemini, Grok) kullanıcıya hiçbir yerde
 // gösterilmez; bunun yerine nötr kod adları kullanılır. Aynı sağlayıcının
-// farklı sürümleri (3.6/3.7, 4.5/4.6) de tek etikette birleştiriliyor.
+// farklı sürümleri de tek etikette birleştiriliyor.
 function modelLabel(model: string): string {
-  if (model.includes("gpt")) return "Orion"
+  if (model.startsWith("openai/")) return "Orion"
   if (model.includes("gemini")) return "Atlas"
   if (model.includes("grok")) return "Vega"
   return model
@@ -38,8 +38,8 @@ function buildModelStats(results: PredictionResult[]): ModelStat[] {
     for (const m of r.modelResults) {
       if (isHiddenModel(m.model)) continue
       // Gruplama anahtarı olarak normalize edilmiş etiketi kullanırız (m.label
-      // değil), böylece Grok 4.5/4.6 ve Gemini 3.6/3.7 gibi sürüm farklılıkları
-      // tek bir satırda toplanır.
+      // değil), böylece sağlayıcıların farklı model sürümleri tek bir satırda
+      // toplanır.
       const key = modelLabel(m.model)
       if (!map.has(key)) {
         map.set(key, { label: key, total: 0, scoreHits: 0, sideHits: 0 })

@@ -2094,7 +2094,7 @@ function isHiddenModel(modelId: string): boolean {
  * Model adını kısa etiket + renk sınıfına çevirir.
  * Gerçek sağlayıcı/model adları (GPT, Gemini, Grok) kullanıcıya hiçbir yerde
  * gösterilmez; bunun yerine nötr kod adları kullanılır. Aynı sağlayıcının
- * farklı sürümleri (3.6/3.7, 4.5/4.6) de tek etikette birleştirilir.
+ * farklı sürümleri de tek etikette birleştirilir.
  */
 function modelLabel(modelId: string): { short: string; colorCls: string } {
   if (modelId.startsWith("openai/"))    return { short: "Orion", colorCls: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" }

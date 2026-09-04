@@ -42,9 +42,9 @@ const PREDICTABLE_STATUSES = new Set(["NS", "TBD", "PST"])
 // Ensemble konfigürasyonu — 3 farklı provider, f/p en iyi modeller
 // ---------------------------------------------------------------------------
 const ENSEMBLE_MODELS = [
-  { provider: "openai",  model: openai("gpt-5.6-terra"),         label: "GPT-5.6 Terra"  },
-  { provider: "google",  model: google("gemini-3.6-flash"),      label: "Gemini 3.6 Flash" },
-  { provider: "xai",     model: xai("grok-4.6"),                 label: "Grok 4.6"       },
+  { provider: "openai", model: openai("o3"), label: "OpenAI o3" },
+  { provider: "google", model: google("gemini-3.1-pro-preview"), label: "Gemini 3.1 Pro" },
+  { provider: "xai", model: xai("grok-4.6"), label: "Grok 4.6" },
 ] as const
 
 // Self-consistency: her model için tek atım yerine N örnekleme alıp kendi
@@ -465,7 +465,7 @@ async function runPredictionInBackground(fixtureId: number, fixture: Fixture): P
     if (roundInfo.isDecidingMatch) {
       lines.push(
         "Bu maç (veya toplam skor) 90 dakika sonunda berabere kalırsa uzatma ve gerekirse penaltı oynanacak. homeScore/awayScore alanlarını YİNE DE sadece normal 90 dakikalık skor için doldur.",
-        "AYRICA şu senaryoyu düşün: eğer 90 dakika (veya toplam skor) berabere kalırsa, 30 dakikalık uzatmada her takım kaç gol atar? Bunu extraTimeHomeGoals/extraTimeAwayGoals alanlarına yaz (takım formu, yorgunluk, kadro derinliği, uzatmada risk alma eğilimini göz önünde bulundur).",
+        "AYRICA şu senaryoyu düşün: eğer 90 dakika (veya toplam skor) berabere kalırsa, 30 dakikalık uzatmada her takım kaç gol atar? Bunu extraTimeHomeGoals/extraTimeAwayGoals alanlarına yaz (takım formu, yorgunluk, kadro derinliği, uzatmada risk alma eğilimini göz ��nünde bulundur).",
         "Uzatma sonunda da berabere kalırsa penaltılara gidilir: wentToPenalties'i true yap, penaltyWinner'ı (kadro derinliği, kalecinin penaltı performansı, deneyim, bask�� altında soğukkanlılık gibi faktörlere göre) seç, ve gerçekçi bir penaltı skoru (örn. 5-4, 4-3, 5-3) yazarak penaltyHomeGoals/penaltyAwayGoals'u doldur — gerçek penaltılarda beraberlik OLMAZ.",
         "Bu maç eleme turu değilse veya berabere kalma ihtimalini çok düşük görüyorsan extraTimeHomeGoals/extraTimeAwayGoals=0, wentToPenalties=false, penaltyWinner='none', penaltyHomeGoals/penaltyAwayGoals=0 yaz.",
       )
@@ -515,7 +515,7 @@ ${(() => {
 `.trim()
 
   // ---------------------------------------------------------------------------
-  // GPT-5.6 Terra — Taktik & Form Analisti
+  // OpenAI o3 — Taktik & Form Analisti
   // Son form, puan durumu, ev/deplasman momentum odaklı
   // ---------------------------------------------------------------------------
   const promptGPT = `
@@ -535,7 +535,7 @@ Türkçe olarak kesin ve net tahmin yap.
 `.trim()
 
   // ---------------------------------------------------------------------------
-  // Gemini 3.6 Flash — İstatistik & Gol Beklentisi Uzmanı
+  // Gemini 3.1 Pro — İstatistik & Gol Beklentisi Uzmanı
   // Gol ortalamaları, BTTS, over/under, H2H sayısal analiz odaklı
   // ---------------------------------------------------------------------------
   const promptGemini = `
@@ -706,7 +706,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   const allFactors = successfulVotes.flatMap((v) => v.vote.keyFactors)
   const uniqueFactors = [...new Set(allFactors)].slice(0, 5)
 
-    // 9. GPT-5.6 Terra ile özet oluştur
+  // 9. OpenAI o3 ile özet oluştur
   let summary = "Modeller tahminlerini tamamladı."
   try {
     const voteSummary = successfulVotes.map((v) => (
@@ -714,7 +714,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     )).join("\n")
 
     const { object: summaryObj } = await generateObject({
-      model: openai("gpt-5.6-terra"),
+      model: openai("o3"),
       schema: SummarySchema,
       prompt: `${contextPrompt}\n\nAI model tahminleri:\n${voteSummary}\n\nBu tahminleri ve maç verisini sentezleyerek 3-4 cümlelik Türkçe bir analiz özeti yaz.`,
     })
@@ -730,7 +730,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
   let keyFactorsEn: string[] | undefined
   try {
     const { object: translationObj } = await generateObject({
-      model: openai("gpt-5.6-terra"),
+      model: openai("o3"),
       schema: TranslationSchema,
       prompt: `Translate the following Turkish football match analysis into natural, fluent English. Keep team names and numbers unchanged.\n\nSummary:\n${summary}\n\nKey factors:\n${uniqueFactors.map((f, i) => `${i + 1}. ${f}`).join("\n")}`,
     })
@@ -742,8 +742,8 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
 
   // 10. ModelVote dizisi — model alanı "provider/model-id" formatında olmalı (UI etiket eşleşmesi için)
   const PROVIDER_MODEL_ID: Record<string, string> = {
-    openai: "openai/gpt-5.6-terra",
-    google: "google/gemini-3.6-flash",
+    openai: "openai/o3",
+    google: "google/gemini-3.1-pro-preview",
     xai: "xai/grok-4.6",
   }
   const modelVotes: ModelVote[] = successfulVotes.map((v) => ({
