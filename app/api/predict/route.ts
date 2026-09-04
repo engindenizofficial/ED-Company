@@ -20,6 +20,7 @@ import { auth } from "@/lib/auth"
 import { isAdminEmail } from "@/lib/admin"
 import { getAdaptiveWeights, getAdaptiveScoreWeights, STATIC_WEIGHTS } from "@/lib/model-weights"
 import { getConfidenceCalibrationCurve, calibrateConfidence } from "@/lib/confidence-calibration"
+import { selectConsistentScore } from "@/lib/prediction-score-consistency"
 import {
   resolveLegInfo,
   reorientFirstLeg,
@@ -244,42 +245,18 @@ function weightedVote(
   for (const { vote, weight } of votes) winnerTally[vote.winner] += weight
   const winner = (Object.entries(winnerTally).sort((a, b) => b[1] - a[1])[0][0]) as "home" | "away" | "draw"
 
-  // Skor için ayrı ağırlık kullan (scoreWeight verilmemişse weight'e düşer) —
-  // bir modelin kazananı bilmesi skorunu isabetli tahmin ettiği anlamına
-  // gelmez, bu yüzden skor geçmişine göre ayrı bir ölçüt kullanıyoruz.
-  //
-  // Skor için AĞIRLIKLI ÇOĞUNLUK OYU (plurality) kullanılır, basit ortalama
-  // DEĞİL: (2,1) ve (0,3) skorlarının ortalaması (1,2) olur — bu, hiçbir
-  // modelin seçmediği ve muhtemelen ikisinden de daha isabetsiz bir skordur.
-  // En yüksek ağırlığı toplayan TAM skor eşleşmesi seçilir; ağırlıklı
-  // ortalama+yuvarlama sadece hiçbir skor net bir öne çıkış (plurality)
-  // sağlamadığında (yani her oy farklıysa) yedek olarak kullanılır.
-  const totalScoreWeight = votes.reduce((s, v) => s + (v.scoreWeight ?? v.weight), 0)
-  const scoreTally = new Map<string, { weight: number; homeScore: number; awayScore: number }>()
-  for (const v of votes) {
-    const w = v.scoreWeight ?? v.weight
-    const key = `${v.vote.homeScore}-${v.vote.awayScore}`
-    const entry = scoreTally.get(key)
-    if (entry) entry.weight += w
-    else scoreTally.set(key, { weight: w, homeScore: v.vote.homeScore, awayScore: v.vote.awayScore })
-  }
-  const rankedScores = [...scoreTally.values()].sort((a, b) => b.weight - a.weight)
-  const topScore = rankedScores[0]
-  const hasPlurality = rankedScores.length > 0 && (rankedScores.length === 1 || topScore.weight > rankedScores[1].weight)
-
-  let homeScore: number
-  let awayScore: number
-  if (hasPlurality) {
-    homeScore = topScore.homeScore
-    awayScore = topScore.awayScore
-  } else {
-    homeScore = Math.round(
-      votes.reduce((s, v) => s + v.vote.homeScore * (v.scoreWeight ?? v.weight), 0) / totalScoreWeight,
-    )
-    awayScore = Math.round(
-      votes.reduce((s, v) => s + v.vote.awayScore * (v.scoreWeight ?? v.weight), 0) / totalScoreWeight,
-    )
-  }
+  // Tam skor, nihai taraf sonucuyla aynı matematiksel sonucu vermek zorunda.
+  // Önce yalnızca kazanan oylamasıyla uyumlu skorlar arasında skor ağırlıklı
+  // plurality uygulanır. Uyumlu skor yoksa tüm skorların ağırlıklı merkezi
+  // minimum gol değişikliğiyle nihai tarafa hizalanır.
+  const { homeScore, awayScore } = selectConsistentScore(
+    votes.map((v) => ({
+      homeScore: v.vote.homeScore,
+      awayScore: v.vote.awayScore,
+      weight: v.scoreWeight ?? v.weight,
+    })),
+    winner,
+  )
   const confidence = Math.round(votes.reduce((s, v) => s + v.vote.confidence * v.weight, 0) / totalWeight)
 
   const bttsScore = votes.reduce((s, v) => s + (v.vote.btts ? v.weight : 0), 0)
