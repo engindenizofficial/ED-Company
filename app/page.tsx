@@ -4,7 +4,6 @@ import { getFixturesResponse } from "@/lib/fixtures-server"
 import { getAllTimePredictionResults } from "@/lib/redis"
 import { getRelativeDateKey, normalizeTimeZone, SERVER_TIME_ZONE } from "@/lib/fixture-datetime"
 
-// Ana sayfa, her istekte güncel fikstür verileriyle sunucuda oluşturulur.
 export const dynamic = "force-dynamic"
 
 // Önceden bu sayfa "use client" idi ve HomeClient hiç veri olmadan mount
