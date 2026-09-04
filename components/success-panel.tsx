@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils"
 import { useLanguage } from "@/contexts/language-context"
 import type { PredictionResult } from "@/lib/types"
 
-// İstatistik (Poisson) modeli arka planda tahmin sürecine katılır ama
-// kullanıcıya asla gösterilmez — bu yüzden başarı panelinden filtreleriz.
+// Yeni tahminler yalnızca AI modelleriyle üretilir. Eski başarı kayıtlarında
+// bulunabilen Poisson sonuçlarını geriye dönük uyumluluk için gizli tutarız.
 function isHiddenModel(model: string): boolean {
   return model.includes("poisson")
 }

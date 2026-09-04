@@ -524,7 +524,7 @@ function useLazySection<T>(url: string, open: boolean, autoRefresh = false) {
   }, [url, t])
 
   // Sekmeye her dönüşte taze veri çek; hasLoaded yalnızca otomatik refresh'i
-  // ilk başarılı yüklemeden sonra çalıştırmak için kullanılır.
+  // ilk başarıl�� yüklemeden sonra çalıştırmak için kullanılır.
   useEffect(() => {
     if (!open) return
     hasLoadedRef.current = false
@@ -2084,8 +2084,8 @@ function InjuryList({ injuries }: { injuries: InjuryItem[] }) {
 // PredictionCard — AI tahmin kartı (ensemble)
 // ---------------------------------------------------------------------------
 
-// İstatistik (Poisson) modeli arka planda ensemble'a katılır ama kullanıcıya
-// hiçbir yerde gösterilmez — model oyları listesinden ve sayaçtan filtrelenir.
+// Yeni tahminler yalnızca AI modelleriyle üretilir. Eski cache kayıtlarında
+// bulunabilen Poisson oylarını geriye dönük uyumluluk için gizli tutarız.
 function isHiddenModel(modelId: string): boolean {
   return modelId.startsWith("poisson/")
 }
@@ -2277,8 +2277,8 @@ function PredictionCard({
         ? "text-yellow-600 dark:text-yellow-400"
         : "text-muted-foreground"
 
-  // İstatistik (Poisson) modeli arka planda ensemble'a katılır ama kullanıcıya
-  // gösterilmez — sayaç ve oy listesi sadece görünür (LLM) modelleri kapsar.
+  // Yeni kayıtlarda yalnızca AI oyları vardır; filtre eski cache kayıtlarının
+  // model sayısını ve oy listesini değiştirmemesi için korunur.
   const visibleModelVotes = prediction.modelVotes?.filter((v) => !isHiddenModel(v.model)) ?? []
   const modelCount = visibleModelVotes.length
 

@@ -18,11 +18,10 @@ export const STATIC_WEIGHTS: Record<string, number> = {
   openai: 2.0,
   google: 1.5,
   xai: 1.5,
-  // Poisson istatistik modeli — LLM'lerden bağımsız, gol ortalamalarına dayalı
-  // veri odaklı tahmin. Skor tahmininde LLM'lerden daha isabetli olması
-  // beklendiği için başlangıçta orta-yüksek bir taban ağırlıkla başlar.
-  poisson: 1.8,
 }
+
+/** Yalnızca güncel AI ensemble'ında yer alan providerlar adaptif ağırlık alır. */
+const ACTIVE_PROVIDERS = new Set(Object.keys(STATIC_WEIGHTS))
 
 /** Bir providerın ağırlığının veriye dayanmaya başlaması için gereken minimum çözümlenmiş tahmin sayısı. */
 const MIN_SAMPLES = 8
@@ -68,6 +67,7 @@ export async function getAdaptiveWeights(): Promise<Record<string, ModelWeightIn
     if (!result.modelResults) continue
     for (const mr of result.modelResults) {
       const provider = providerOf(mr.model)
+      if (!ACTIVE_PROVIDERS.has(provider)) continue
       if (!byProvider[provider]) byProvider[provider] = { correct: 0, total: 0 }
       byProvider[provider].total += 1
       if (mr.sideCorrect) byProvider[provider].correct += 1
@@ -75,7 +75,7 @@ export async function getAdaptiveWeights(): Promise<Record<string, ModelWeightIn
   }
 
   const out: Record<string, ModelWeightInfo> = {}
-  const providers = new Set([...Object.keys(STATIC_WEIGHTS), ...Object.keys(byProvider)])
+  const providers = ACTIVE_PROVIDERS
 
   for (const provider of providers) {
     const stats = byProvider[provider]
@@ -135,6 +135,7 @@ export async function getAdaptiveScoreWeights(): Promise<Record<string, ScoreWei
     if (!result.modelResults) continue
     for (const mr of result.modelResults) {
       const provider = providerOf(mr.model)
+      if (!ACTIVE_PROVIDERS.has(provider)) continue
       if (!byProvider[provider]) byProvider[provider] = { totalError: 0, total: 0 }
       const error = Math.abs(mr.homeScore - result.actualHome) + Math.abs(mr.awayScore - result.actualAway)
       byProvider[provider].totalError += error
@@ -143,7 +144,7 @@ export async function getAdaptiveScoreWeights(): Promise<Record<string, ScoreWei
   }
 
   const out: Record<string, ScoreWeightInfo> = {}
-  const providers = new Set([...Object.keys(STATIC_WEIGHTS), ...Object.keys(byProvider)])
+  const providers = ACTIVE_PROVIDERS
 
   for (const provider of providers) {
     const stats = byProvider[provider]

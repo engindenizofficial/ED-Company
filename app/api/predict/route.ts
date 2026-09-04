@@ -21,14 +21,6 @@ import { isAdminEmail } from "@/lib/admin"
 import { getAdaptiveWeights, getAdaptiveScoreWeights, STATIC_WEIGHTS } from "@/lib/model-weights"
 import { getConfidenceCalibrationCurve, calibrateConfidence } from "@/lib/confidence-calibration"
 import {
-  computeExpectedGoals,
-  predictFromExpectedGoals,
-  blendWithH2H,
-  calibrateExpectedGoalsToOdds,
-  recentFormRate,
-  applyInjuryImpact,
-} from "@/lib/poisson"
-import {
   resolveLegInfo,
   reorientFirstLeg,
   resolveKnockoutTie,
@@ -144,7 +136,7 @@ function formatRecentForm(stats: Stats, label: string, venue?: "home" | "away"):
 }
 
 function formatH2H(h2h: LiveData["h2h"], homeName: string, awayName: string): string {
-  if (!h2h.length) return "Kafa kafaya geçmiş maç verisi yok."
+  if (!h2h.length) return "Kafa kafaya geçmi�� maç verisi yok."
   return h2h
     .slice(0, 5)
     .map((g) => {
@@ -311,7 +303,7 @@ function weightedVote(
   // --- Penaltı skoru — sadece "penaltılara gidiyor" diyen oyları say. Kazanan
   // tarafı ağırlıklı çoğunlukla belirle, skoru da o tarafı seçen oyların
   // ağırlıklı ortalamasından al (gerçek penaltı kuralına uygun: beraberlik yok,
-  // kazanan en az 1 gol öndedir — eşitlik durumu resolveKnockoutTie'da giderilir).
+  // kazanan en az 1 gol ��ndedir — eşitlik durumu resolveKnockoutTie'da giderilir).
   const penaltyVoters = votes.filter((v) => v.vote.wentToPenalties && v.vote.penaltyWinner !== "none")
   let penaltyHomeGoals = 0
   let penaltyAwayGoals = 0
@@ -443,53 +435,6 @@ async function runPredictionInBackground(fixtureId: number, fixture: Fixture): P
   const firstLeg = roundInfo.firstLeg
 
   // ---------------------------------------------------------------------------
-  // Poisson istatistik modeli — gol ortalamalarından beklenen gol (xG benzeri)
-  // hesapla, kafa-kafaya geçmişle hafifçe harmanla, piyasa oranlarına göre
-  // kalibre et ve Dixon-Coles düzeltmesiyle en olası skoru üret. Bu hem LLM
-  // prompt'larına somut bir sayısal referans verir hem de aşağıda LLM'lerden
-  // bağımsız 4. bir ensemble oyu olarak kullanılır.
-  // ---------------------------------------------------------------------------
-  // Son 6 maçlık form oranı — sezon ortalamasını güncel duruma (sakatlık
-  // dönüşü, seri galibiyet/mağlubiyet, teknik direktör değişikliği) doğru
-  // çeker. `recent` her zaman genel (ev+deplasman karışık) son maçlardır.
-  const homeRecentForm = recentFormRate(live.homeStats?.recent)
-  const awayRecentForm = recentFormRate(live.awayStats?.recent)
-
-  const statsXG = computeExpectedGoals(
-    live.homeStats ?? null,
-    live.awayStats ?? null,
-    live.homeStats?.home ?? null,
-    live.awayStats?.away ?? null,
-    homeRecentForm,
-    awayRecentForm,
-  )
-  // h2h her zaman GÜNCEL fikstürün ev sahibi takımının bakış açısından
-  // raporlanır (getHeadToHead(home.id, away.id) — bkz. lib/api-football.ts),
-  // yani g.scored = ev sahibinin o geçmiş maçtaki golü, g.conceded = deplasmanın.
-  const h2hXG = blendWithH2H(
-    statsXG.homeXG,
-    statsXG.awayXG,
-    live.h2h.map((g) => ({ homeTeamGoals: g.scored, awayTeamGoals: g.conceded })),
-  )
-
-  // Sakatlık/eksik oyuncu etkisi — /injuries listesindeki oyuncuları squad'daki
-  // mevkiye göre eşleştirip forvet/kaleci gibi kilit rolleri hücum/savunma
-  // oranına yansıtır. Takım adına göre ev/deplasman ayrımı yapılır.
-  const matchTeamInjuries = (teamName: string, squad: typeof live.homeSquad) =>
-    live.injuries
-      .filter((inj) => inj.team === teamName)
-      .map((inj) => ({
-        type: inj.type,
-        position: squad.find((p) => p.id === inj.playerId)?.pos ?? null,
-      }))
-  const homeInjuryImpact = matchTeamInjuries(homeName, live.homeSquad)
-  const awayInjuryImpact = matchTeamInjuries(awayName, live.awaySquad)
-  const injuryAdjustedXG = applyInjuryImpact(h2hXG.homeXG, h2hXG.awayXG, homeInjuryImpact, awayInjuryImpact)
-
-  const { homeXG, awayXG } = calibrateExpectedGoalsToOdds(injuryAdjustedXG.homeXG, injuryAdjustedXG.awayXG, live.odds)
-  const poissonPrediction = predictFromExpectedGoals(homeXG, awayXG)
-
-  // ---------------------------------------------------------------------------
   // Eleme turu bağlam bloğu — modele bu maçın beraberlikle bitemeyeceğini
   // (illa bir taraf turu geçecek) ve varsa ilk ayak skorunu bildirir. Modelin
   // asıl işi hâlâ SADECE bu maçın 90 dakikalık skorunu tahmin etmektir —
@@ -521,7 +466,7 @@ async function runPredictionInBackground(fixtureId: number, fixture: Fixture): P
       lines.push(
         "Bu maç (veya toplam skor) 90 dakika sonunda berabere kalırsa uzatma ve gerekirse penaltı oynanacak. homeScore/awayScore alanlarını YİNE DE sadece normal 90 dakikalık skor için doldur.",
         "AYRICA şu senaryoyu düşün: eğer 90 dakika (veya toplam skor) berabere kalırsa, 30 dakikalık uzatmada her takım kaç gol atar? Bunu extraTimeHomeGoals/extraTimeAwayGoals alanlarına yaz (takım formu, yorgunluk, kadro derinliği, uzatmada risk alma eğilimini göz önünde bulundur).",
-        "Uzatma sonunda da berabere kalırsa penaltılara gidilir: wentToPenalties'i true yap, penaltyWinner'ı (kadro derinliği, kalecinin penaltı performansı, deneyim, baskı altında soğukkanlılık gibi faktörlere göre) seç, ve gerçekçi bir penaltı skoru (örn. 5-4, 4-3, 5-3) yazarak penaltyHomeGoals/penaltyAwayGoals'u doldur — gerçek penaltılarda beraberlik OLMAZ.",
+        "Uzatma sonunda da berabere kalırsa penaltılara gidilir: wentToPenalties'i true yap, penaltyWinner'ı (kadro derinliği, kalecinin penaltı performansı, deneyim, bask�� altında soğukkanlılık gibi faktörlere göre) seç, ve gerçekçi bir penaltı skoru (örn. 5-4, 4-3, 5-3) yazarak penaltyHomeGoals/penaltyAwayGoals'u doldur — gerçek penaltılarda beraberlik OLMAZ.",
         "Bu maç eleme turu değilse veya berabere kalma ihtimalini çok düşük görüyorsan extraTimeHomeGoals/extraTimeAwayGoals=0, wentToPenalties=false, penaltyWinner='none', penaltyHomeGoals/penaltyAwayGoals=0 yaz.",
       )
     }
@@ -555,11 +500,6 @@ ${formatInjuries(live.injuries)}
 BAHİS ORANLARI (piyasa beklentisi — düşük oran = güçlü favori):
 ${formatOdds(live.odds, homeName, awayName)}
 
-İSTATİSTİKSEL MODEL (Poisson dağılımı, gol ortalamalarından hesaplandı):
-Beklenen gol: ${homeName} ${homeXG.toFixed(2)} — ${awayName} ${awayXG.toFixed(2)}
-En olası skor: ${poissonPrediction.homeScore}-${poissonPrediction.awayScore}
-Skor tahminini yaparken bu istatistiksel referansı bir çıpa olarak kullan; ondan büyük şekilde
-saparsan (yaralanma, motivasyon, form gibi) gerekçeni keyFactors'ta belirt.
 ${tieContextBlock}
 ${(() => {
   const lineup = formatLineups(live.lineups)
@@ -686,52 +626,7 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
     return
   }
 
-  // 6b. Poisson istatistik modelini 4. ensemble oyu olarak ekle — LLM'lerden
-  // bağımsız, tamamen veri odaklı. Kendi geçmiş performansına göre de adaptif
-  // ağırlık alır (provider adı "poisson").
-  const poissonWeight = adaptiveWeights.poisson?.weight ?? STATIC_WEIGHTS.poisson
-  const poissonScoreWeight = adaptiveScoreWeights.poisson?.weight ?? poissonWeight
-
-  // İstatistik modelinin kendi uzatma/penaltı oyu — diğer 3 AI modeliyle
-  // birlikte AYNI ağırlıklı oylamaya (weightedVote) girer, ayrı bir
-  // deterministik "override" sistemi olarak DEĞİL, ensemble'ın 4. bir üyesi
-  // olarak katkı verir. 30 dakikalık uzatmada beklenen gol, 90 dakikalık
-  // xG'nin 1/3'ü kadar ölçeklenir; belirgin bir güç farkı (>= 0.35 xG) varsa
-  // güçlü tarafa 1 gol yazılır.
-  const etHomeXG = homeXG * (30 / 90)
-  const etAwayXG = awayXG * (30 / 90)
-  const etXgDiff = etHomeXG - etAwayXG
-  const ET_GOAL_THRESHOLD = 0.35
-  const poissonExtraTimeHomeGoals = etXgDiff >= ET_GOAL_THRESHOLD ? 1 : 0
-  const poissonExtraTimeAwayGoals = etXgDiff <= -ET_GOAL_THRESHOLD ? 1 : 0
-  const poissonPenaltyWinner: "home" | "away" =
-    Math.abs(etXgDiff) > 0.05 ? (etXgDiff > 0 ? "home" : "away") : "home"
-
-  const poissonVoteEntry = {
-    provider: "poisson",
-    label: "İstatistik Modeli",
-    weight: poissonWeight,
-    scoreWeight: poissonScoreWeight,
-    agreement: 1,
-    sampleCount: 0,
-    vote: {
-      homeScore:  poissonPrediction.homeScore,
-      awayScore:  poissonPrediction.awayScore,
-      winner:     poissonPrediction.winner,
-      confidence: poissonPrediction.confidence,
-      btts:       poissonPrediction.btts,
-      overUnder:  poissonPrediction.overUnder,
-      keyFactors: poissonPrediction.keyFactors,
-      extraTimeHomeGoals: poissonExtraTimeHomeGoals,
-      extraTimeAwayGoals: poissonExtraTimeAwayGoals,
-      wentToPenalties: roundInfo.isDecidingMatch,
-      penaltyWinner: roundInfo.isDecidingMatch ? poissonPenaltyWinner : "none",
-      penaltyHomeGoals: roundInfo.isDecidingMatch ? (poissonPenaltyWinner === "home" ? 5 : 4) : 0,
-      penaltyAwayGoals: roundInfo.isDecidingMatch ? (poissonPenaltyWinner === "away" ? 5 : 4) : 0,
-    } satisfies z.infer<typeof PredictionSchema>,
-  }
-
-  const successfulVotes = [...llmVotes, poissonVoteEntry]
+  const successfulVotes = llmVotes
 
   // 7. Ağırlıklı oylama — kazanan/BTTS/üst-alt için `weight`, skor ortalaması
   // için `scoreWeight` kullanılır.
@@ -741,13 +636,10 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
 
   // 7a. Eleme turu çözümlemesi — toplam skor (agregat) + gerekirse uzatma/
   // penaltı. Ensemble'ın ürettiği (homeScore, awayScore) bu maçın normal 90
-  // dakikalık tahminidir. Uzatma golleri ve penaltı skoru da AYNI ensemble'ın
-  // (3 AI modeli + istatistik modeli) kendi tahminidir — bkz. PredictionSchema
-  // extraTimeHomeGoals/extraTimeAwayGoals/wentToPenalties/penaltyWinner/
-  // penaltyHomeGoals/penaltyAwayGoals ve yukarıdaki weightedVote. Burada kod
-  // SADECE agregat aritmetiğini (ilk ayak + bu maç + uzatma golleri) uygular
-  // ve gerçek penaltı kuralına (beraberlik olmaz) uyumu garanti eder —
-  // ayrı bir xG/oran formülü kullanılmaz.
+  // dakikalık tahminidir. Uzatma golleri ve penaltı skoru da üç AI modelinin
+  // ağırlıklı ensemble tahminidir — bkz. PredictionSchema içindeki eleme
+  // alanları ve yukarıdaki weightedVote. Burada kod yalnızca agregat
+  // aritmetiğini uygular ve penaltı skorunun beraber kalmamasını garanti eder.
   const ensembleTieVote = {
     extraTimeHomeGoals: ensemble.extraTimeHomeGoals,
     extraTimeAwayGoals: ensemble.extraTimeAwayGoals,
@@ -850,10 +742,9 @@ Türkçe olarak kesin ve net tahmin yap. Eğer sürpriz olasılığı yüksekse 
 
   // 10. ModelVote dizisi — model alanı "provider/model-id" formatında olmalı (UI etiket eşleşmesi için)
   const PROVIDER_MODEL_ID: Record<string, string> = {
-    openai:  "openai/gpt-5.6-terra",
-    google:  "google/gemini-3.6-flash",
-    xai:     "xai/grok-4.6",
-    poisson: "poisson/expected-goals",
+    openai: "openai/gpt-5.6-terra",
+    google: "google/gemini-3.6-flash",
+    xai: "xai/grok-4.6",
   }
   const modelVotes: ModelVote[] = successfulVotes.map((v) => ({
     model:      PROVIDER_MODEL_ID[v.provider] ?? `${v.provider}/${v.label}`,
