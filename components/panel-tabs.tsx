@@ -1,6 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, type ReactNode, type WheelEvent } from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type WheelEvent,
+} from "react"
 import { cn } from "@/lib/utils"
 
 export interface PanelTabItem {
@@ -28,11 +36,6 @@ export function PanelTabBar({
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
-  // Aktif sekmenin altında, bir sekmeden diğerine kayarak geçen ince bir
-  // gösterge çizgisi. offsetLeft/offsetWidth kullanılıyor çünkü bunlar
-  // kaydırma konumundan bağımsızdır — gösterge, içerikle birlikte doğal
-  // olarak kayar.
-  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null)
 
   // Sekme çubuğunun kaydırılabilir olup olmadığını (ve hangi yönde) izleyip
   // kenarlarda ince bir "solma" efekti göstererek gizli kalan sekmelerin
@@ -53,18 +56,6 @@ export function PanelTabBar({
     resizeObserver.observe(el)
     return () => resizeObserver.disconnect()
   }, [updateScrollState, tabs.length])
-
-  const updateIndicator = useCallback(() => {
-    const tabEl = tabRefs.current[active]
-    if (!tabEl) return
-    setIndicator({ left: tabEl.offsetLeft, width: tabEl.offsetWidth })
-  }, [active])
-
-  useEffect(() => {
-    updateIndicator()
-    window.addEventListener("resize", updateIndicator)
-    return () => window.removeEventListener("resize", updateIndicator)
-  }, [updateIndicator, tabs.length])
 
   // Aktif sekme değiştiğinde onu çubuğun ortasına yumuşakça kaydırıyoruz.
   // Böylece tarayıcının varsayılan "odaklanan öğeyi kenara sıkıştırarak
@@ -92,6 +83,21 @@ export function PanelTabBar({
     }
   }
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
+
+    event.preventDefault()
+    let nextIndex = index
+    if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length
+    if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length
+    if (event.key === "Home") nextIndex = 0
+    if (event.key === "End") nextIndex = tabs.length - 1
+
+    const nextTab = tabs[nextIndex]
+    onChange(nextTab.key)
+    tabRefs.current[nextTab.key]?.focus()
+  }
+
   return (
     <div className="relative">
       <div
@@ -99,7 +105,7 @@ export function PanelTabBar({
         onWheel={handleWheel}
         onScroll={updateScrollState}
         className={cn(
-          "relative flex gap-1 overflow-x-auto border-b border-border/60 px-1 pb-1",
+          "relative flex gap-1.5 overflow-x-auto rounded-xl border border-border bg-muted p-1.5 shadow-sm",
           // Mobilde parmakla kaydırma her zaman çalışır. PC'de fare tekerleği/trackpad
           // ile de kaydırılabilir; gizli scrollbar yerine ince, görünür bir scrollbar
           // gösteriyoruz ki gizlenen sekmelere ulaşılabilsin.
@@ -108,8 +114,9 @@ export function PanelTabBar({
           "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border",
         )}
         role="tablist"
+        aria-label="Panel bölümleri"
       >
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const isActive = tab.key === active
           return (
             <button
@@ -120,40 +127,38 @@ export function PanelTabBar({
               type="button"
               role="tab"
               aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => onChange(tab.key)}
+              onKeyDown={(event) => handleKeyDown(event, index)}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-xs font-bold transition-colors",
-                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                "flex min-h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-4 py-2.5 text-sm font-bold outline-none transition-[color,background-color,border-color,box-shadow,transform] duration-150",
+                "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-muted active:scale-[0.97]",
+                isActive
+                  ? "border-primary/40 bg-card text-primary shadow-sm"
+                  : "border-border/70 bg-background/60 text-foreground hover:border-primary/30 hover:bg-card",
               )}
             >
-              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">{tab.icon}</span>
+              <span className="flex size-4 shrink-0 items-center justify-center" aria-hidden>
+                {tab.icon}
+              </span>
               {tab.label}
             </button>
           )
         })}
-
-        {/* Aktif sekmeden diğerine kayarak geçen gösterge çizgisi */}
-        {indicator && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute bottom-1 h-0.5 rounded-full bg-primary transition-[left,width] duration-300 ease-out"
-            style={{ left: indicator.left, width: indicator.width }}
-          />
-        )}
       </div>
 
       {/* Kaydırılabilir içeriğin kesilmediğini, devamının olduğunu belirten kenar solmaları */}
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-background to-transparent transition-opacity",
+          "pointer-events-none absolute inset-y-px left-px w-8 rounded-l-xl bg-gradient-to-r from-muted to-transparent transition-opacity",
           canScrollLeft ? "opacity-100" : "opacity-0",
         )}
       />
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-background to-transparent transition-opacity",
+          "pointer-events-none absolute inset-y-px right-px w-8 rounded-r-xl bg-gradient-to-l from-muted to-transparent transition-opacity",
           canScrollRight ? "opacity-100" : "opacity-0",
         )}
       />
